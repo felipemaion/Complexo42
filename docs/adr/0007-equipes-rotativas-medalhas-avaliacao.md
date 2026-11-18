@@ -3,6 +3,8 @@
 - **Status:** Proposto (definições da reunião de kickoff de 2026-11-09; detalhes marcados
   [?] dependem do stakeholder)
 - **Data:** 2026-11-10
+- **Atualizado pelo ADR 0008:** hierarquia (casas e equipes por região), um vínculo aberto
+  por eixo e avaliação dupla.
 
 ## Contexto
 

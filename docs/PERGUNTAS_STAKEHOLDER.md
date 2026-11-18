@@ -59,6 +59,33 @@
 67. **Quem é o primeiro público** do cadastro: só ex-alunos deste ano, ou também de anos
     anteriores?
 
+## Respostas da reunião de 2026-11-17
+
+| Tema | Resposta | Onde ficou registrado |
+|---|---|---|
+| Quem pode entrar (#26, #67) | Só quem está na **lista de autorizados** (e-mails dos ex-alunos); quem não está fica **em espera**. Sem integração com sistemas externos por enquanto | ADR 0008 §1 |
+| Entrada | "Sabe o que quer fazer?" → escolhe atividades ou responde a um **questionário** → **casa** de formação → apresentação da casa → aceite → cadastro | ADR 0008 §2 |
+| Casas | Quatro na instância piloto (porta-vozes, coordenação de equipe, intelectuais e produção); equipes misturam casas | ADR 0008 §2 |
+| Hierarquia (substitui a do kickoff) | Nacional (prevista, não prioritária) → estadual → regional ("incubadora") → coordenador de casa e coordenador de equipe → membro | ADR 0008 §2 |
+| Avaliação | **Dupla**: pelo coordenador da equipe e pelo da casa, ligada às missões. **Todos são avaliados**, inclusive porta-vozes e coordenadores. Continua interna | ADR 0008 §3 |
+| Usabilidade | Simplicidade acima de aparência: botões grandes e evidentes; **nenhuma opção escondida** | PLANEJAMENTO §0 |
+| Prazos | O time organiza as datas conforme a própria capacidade | ROADMAP |
+
+### Perguntas que surgiram na reunião
+
+68. **Conversa da equipe dentro da plataforma:** substitui o WhatsApp ou convive com ele?
+    Exige moderação, guarda de mensagens e cuidado com LGPD. Sugestão: depois de janeiro.
+69. **Prioridade de janeiro:** confirma cadastro + casa + habilidades + busca, com missões e
+    avaliação em março?
+70. **Formação das equipes por escolha** (o porta-voz escolhe o coordenador, que escolhe os
+    membros numa ordem): a ordem pela avaliação cria um ranking interno. Quem o vê?
+71. **Dados do perfil:** foto, formação e e-mail entram? A foto pode ser opcional? *(Hoje a
+    foto de rosto está na lista de proibidos; mudar exige ADR.)*
+72. **Casa de produção:** o que ela faz exatamente? A casa de coordenação é só de
+    coordenadores de equipe?
+73. **Questionário das casas:** a licença permite usá-lo na plataforma?
+74. **Tamanho da equipe** (cerca de 12?) e **duração do ciclo** (4 meses?).
+
 ## Novas perguntas (após as definições)
 
 46. ⛔ **O que é uma turma?** Tem monitor fixo, datas de início e fim? Um aluno pode estar em
