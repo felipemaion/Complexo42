@@ -15,8 +15,9 @@
 | Portfólio (máx. 3 links https) | `portfolio_items.url_enc` | AES-256-GCM | Escopo, porta-voz da equipe (ADR 0007 §5) |
 | Avaliação reservada | `member_evaluations.grade_enc`, `note_enc` | AES-256-GCM | **Só quem avaliou**; gestor por pedido auditado (ADR 0007 §4) [jurídico] |
 | E-mail de login | `auth.users` (Supabase) | Texto puro, gerenciado pelo Supabase | **Ninguém**: nunca exibido nem exportado |
+| Lista de autorizados | `access_allowlist.email_hmac` | Só HMAC (sem nome, sem e-mail em claro) | Ninguém; usada só na conferência do primeiro login (ADR 0008 §1) |
 
-Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe,
+Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe, casa,
 habilidades, missões, pontos e badges.
 
 > **"Feitos" = entregas de missão validadas** (ADR 0006). Não existe campo de texto livre
@@ -40,6 +41,8 @@ profiles ───────┼─< unit_members >── units
    │            └─< profile_badges >── badges
    └── profile_contacts (1:1, RLS mais restrita: WhatsApp e redes)
 
+access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
+
 missions ─< mission_steps
 missions ─< mission_runs (uma turma assume a missão) ─< step_submissions (entregas)
 step_submissions (approved = "feito") ──> points_ledger (só INSERT)
@@ -61,6 +64,21 @@ tabelas têm **RLS habilitada**.
 
 **Turma = equipe.** Cada aluno está em **uma** turma (constraint), e mudar de turma gera um
 evento `member_moved` no audit_log.
+
+**Depois da Academia (ADR 0008 §2):** a região ("incubadora") tem, abaixo dela, unidades de
+**casa** (`membership_axis = house`) e de **equipe** (`membership_axis = team`). Cada pessoa
+tem um vínculo aberto **por eixo**: uma casa e uma equipe.
+
+| `units.path` | tipo | Quem enxerga |
+|---|---|---|
+| `br.sp.abc` | Região (incubadora) | coordenação regional (+ SP + nacional) |
+| `br.sp.abc.casa_1` | Casa | coordenador da casa: membros da casa, em qualquer equipe |
+| `br.sp.abc.equipe_7` | Equipe | coordenador da equipe e porta-voz do ciclo |
+
+### `access_allowlist` (ADR 0008 §1)
+`id`, `email_hmac` (único), `source` (`form`, `academy`, `manual`), `added_by`, `added_at`.
+O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
+(`pending`, `active`, `waitlisted`, `blocked`). Quem está `waitlisted` só lê o próprio perfil.
 
 ### `profiles`
 | Coluna | Tipo | Observação |
@@ -87,15 +105,18 @@ Vguedess/Complexo42 (`member_contacts`).
 `code` (IBGE), `name`, `state_code`, `metro_region`.
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
-`unit_types`: `id`, `key`, `label`, `level` (rótulos configuráveis por instância).
+`unit_types`: `id`, `key`, `label`, `level`, `membership_axis` (`team` ou `house`, ADR 0008)
+(rótulos configuráveis por instância).
 `units`: `id`, `type_id`, `parent_id`, `name`, `path` (ltree, índice GiST), `state_code`
 null, `municipality_code` null (região), `motto` null (≤ 80), `colors` (2 a 3 hex: a
 "bandeira"), `logo_path` null + `logo_status` (`pending`, `approved`, `rejected`),
 `public_links` (redes **da turma**, até 5 URLs https), `starts_on`/`ends_on` null,
 `status`. Logo só PNG/JPEG/WebP ≤ 512 KB, **nunca SVG** (ADR 0006 §2).
 `unit_members`: `unit_id`, `profile_id`, `member_role` (`lead`, `member`), `joined_at`,
-`left_at` null, `left_reason` null. Mover alguém encerra o vínculo (não apaga): é o
-**histórico** da pessoa (ADR 0007 §2). Índice único parcial: um vínculo aberto por pessoa.
+`left_at` null, `left_reason` null, `join_method` null (`self`, `questionnaire`; só casa),
+`accepted_at` null (só casa). Mover alguém encerra o vínculo (não apaga): é o
+**histórico** da pessoa (ADR 0007 §2). Índice único parcial: um vínculo aberto por pessoa
+**e por eixo** (ADR 0008 §2). Do questionário de casa, guarda-se só a casa sugerida.
 
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`), `unit_id`, `granted_by`,
@@ -139,8 +160,9 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 ### `portfolio_items` e `member_evaluations` (ADR 0007)
 `portfolio_items`: `id`, `profile_id`, `url_enc`, `kind`, `title` (≤ 80), `position`
 (máx. 3 por pessoa).
-`member_evaluations`: `id`, `profile_id`, `evaluator_id`, `unit_id`, `cycle_ends_on`,
-`grade_enc`, `note_enc` null, `created_at`. Só INSERT; leitura por
+`member_evaluations`: `id`, `profile_id`, `evaluator_id`, `unit_id`, `axis` (`team`,
+`house`), `mission_id` null, `cycle_ends_on`, `grade_enc`, `note_enc` null, `created_at`
+(avaliação dupla, ADR 0008 §3). Só INSERT; leitura por
 `app.request_evaluation_access` (gera `evaluation_viewed`).
 
 ### `audit_log`

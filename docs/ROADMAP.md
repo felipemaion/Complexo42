@@ -35,6 +35,8 @@
 - #10 Tabela `profiles` com dados pessoais cifrados + RLS por escopo — `bloqueada, seguranca, backend`
 - #11 Tela de consentimento obrigatória antes do perfil — `bloqueada, frontend`
 - #12 Formulário de perfil: nome, WhatsApp e localização — `bloqueada, frontend`
+- #26 Lista de autorizados e lista de espera no cadastro (ADR 0008 §1) — `bloqueada, seguranca, frontend, backend`
+- #76 Casa de formação: escolha, questionário e aceite no cadastro (ADR 0008 §2) — `bloqueada, frontend, backend`
 - #15 Habilidades: seleção a partir do catálogo — `bloqueada, frontend, backend`
 - #17 Redes sociais (cifradas) com proteção contra XSS — `bloqueada, seguranca, frontend`
 - #18 Excluir minha conta (exclusão real) — `bloqueada, seguranca, frontend, backend`
@@ -49,7 +51,6 @@
 - #23 Busca de pessoas por habilidade (prioridade do gestor nacional) — `bloqueada, frontend, backend`
 - #24 Mapa de calor dos alunos por região — `bloqueada, bom-primeiro-issue, frontend, backend`
 - #25 Gestão do catálogo de habilidades (admin) — `bloqueada, frontend, backend`
-- #26 Aprovação de cadastros pendentes — `bloqueada, precisa-decisao, frontend, backend`
 - #47 Turmas: criar, matricular (um aluno por turma), mover aluno e nomear monitor — `bloqueada, frontend, backend`
 - #48 'Ver contato' com auditoria — `bloqueada, seguranca, frontend, backend`
 

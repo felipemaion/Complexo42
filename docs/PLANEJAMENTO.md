@@ -16,6 +16,11 @@
   rotativas** que apoiam porta-vozes em formação, com medalhas, portfólio e avaliação
   reservada (ADR 0007). Os grupos de WhatsApp continuam; a plataforma direciona cada pessoa
   ao grupo certo.
+- **Reunião de 2026-11-17 (ADR 0008):** o cadastro tem uma **lista de autorizados** (quem
+  não está nela fica em espera); ao entrar, a pessoa escolhe ou é direcionada por
+  questionário a uma **casa** de formação (quatro na instância piloto); a hierarquia é
+  nacional → estado → região (incubadora) → casas e equipes; cada membro recebe avaliação da
+  equipe e da casa. Usabilidade acima de aparência: botões grandes e nada escondido.
 - **Cronograma do stakeholder:**
 
   | Quando | O quê |
@@ -52,20 +57,24 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 
 ### Dentro do POC (MVP)
 1. **Cadastro e perfil**: nome, WhatsApp, município/bairro, habilidades, links de redes
-   sociais e "feitos". Consentimento LGPD, edição e exclusão da própria conta.
-2. **Painel da coordenação**: lista com filtros por habilidade e região, contagem por região.
-3. **Equipes**: criar equipe, adicionar e remover membros, definir líder.
-4. **Missões** (ADR 0006): catálogo de missões com etapas e pontos (ex.: escrever um projeto
+   sociais e "feitos". Consentimento LGPD, edição e exclusão da própria conta. Acesso só
+   pela **lista de autorizados**, com lista de espera (ADR 0008 §1).
+2. **Casa de formação** (ADR 0008 §2): escolha direta ou por questionário, apresentação da
+   casa ("primeiros passos") e aceite.
+3. **Painel da coordenação**: lista com filtros por habilidade e região, contagem por região.
+4. **Equipes**: criar equipe, adicionar e remover membros, definir líder.
+5. **Missões** (ADR 0006): catálogo de missões com etapas e pontos (ex.: escrever um projeto
    de lei = 10, protocolar = +30); a turma assume a missão, envia as entregas, o monitor
    valida, e os pontos vão para um livro-razão imutável. As turmas também podem **propor**
    missões para a sua região.
-5. **Identidade e placar**: turma com nome, lema, cores e emblema; placar de turmas por
+6. **Identidade e placar**: turma com nome, lema, cores e emblema; placar de turmas por
    escopo e período.
-6. **Medalhas** (ADR 0006 §8 e ADR 0007 §3): manual, de evento, "trabalhou com" (do
+7. **Medalhas** (ADR 0006 §8 e ADR 0007 §3): manual, de evento, "trabalhou com" (do
    porta-voz), de marco, de presença, por missão ou por pontos; revogáveis.
-7. **Equipes rotativas** (ADR 0007 §2): uma equipe por vez, com histórico.
-8. **Portfólio por links** (ADR 0007 §5): até 3 itens, com prévia, sem guardar arquivos.
-9. **Avaliação reservada** (ADR 0007 §4): desligada até o parecer jurídico.
+8. **Equipes rotativas** (ADR 0007 §2): uma equipe por vez, com histórico.
+9. **Portfólio por links** (ADR 0007 §5): até 3 itens, com prévia, sem guardar arquivos.
+10. **Avaliação reservada** (ADR 0007 §4 e ADR 0008 §3): da equipe e da casa; desligada até
+    o parecer jurídico.
 
 ### Fora do POC (por enquanto)
 - Chat interno: o WhatsApp continua sendo o canal de conversa.
