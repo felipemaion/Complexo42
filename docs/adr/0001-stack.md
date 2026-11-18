@@ -15,7 +15,7 @@ algumas dezenas de milhares.
 |---|---|---|
 | Front + servidor | **Next.js (App Router) + TypeScript** | — |
 | Banco + Auth | **Supabase** | 500 MB de banco, 50 mil usuários ativos/mês, pausa após 7 dias sem uso |
-| Hospedagem | **Cloudflare Pages/Workers** *ou* **Vercel Hobby** | ver nota |
+| Hospedagem | ~~Cloudflare Pages/Workers ou Vercel Hobby~~ → **servidor próprio, Supabase auto-hospedado (ADR 0009)** | custo zero |
 | UI | Tailwind CSS + shadcn/ui | — |
 | Validação | Zod | — |
 | Testes | Vitest, Playwright, pgTAP (`supabase test db`) | — |

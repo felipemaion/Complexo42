@@ -150,18 +150,20 @@ dados [?].
 
 ## 7. Arquitetura proposta
 
-Detalhes e alternativas em `adr/0001-stack.md`.
+Detalhes e alternativas em `adr/0001-stack.md`; hospedagem em `adr/0009-hospedagem-servidor-proprio.md`.
 
 ```
 Celular / navegador
    │  HTTPS
    ▼
-Next.js (hospedagem gratuita)
+Cloudflare → Caddy (complexo42.maionesys.com)
+   ▼
+Next.js (container no servidor próprio)
    - páginas (React)
    - Server Actions / Route Handlers  ← toda escrita passa por aqui, validada com Zod
    │  sessão do usuário (JWT); nunca service_role no cliente
    ▼
-Supabase (plano gratuito)
+Supabase auto-hospedado mínimo (rede interna; só /auth/v1 é público)
    - Auth (Google / link mágico)
    - Postgres com RLS em TODAS as tabelas (negado por padrão)
    - Funções SQL para regras de medalha (security definer, testadas)
