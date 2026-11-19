@@ -31,6 +31,10 @@ begin
 end;
 $$;
 
+-- No servidor o schema pode nascer sem este grant; os tipos e operadores da ltree precisam
+-- dele para quem consulta pela API. Idempotente.
+grant usage on schema extensions to anon, authenticated, service_role;
+
 -- ---------------------------------------------------------------------------------------
 -- unit_types: configuração da instância (rótulos e níveis), vem do seed
 -- ---------------------------------------------------------------------------------------
@@ -95,8 +99,10 @@ declare
   parent_level smallint;
   own_level smallint;
 begin
-  -- Chamado pela cascata de `tg_units_cascade_path`, que já calculou o `path` do ramo.
-  if pg_trigger_depth() > 1 then
+  -- Chamado pela cascata de `tg_units_cascade_path`, que já calculou o `path` do ramo e
+  -- marca a flag `app.in_cascade` só durante o próprio UPDATE. (A API não chama
+  -- `set_config`, e os campos que disparam este trigger não têm grant de UPDATE.)
+  if current_setting('app.in_cascade', true) = '1' then
     return new;
   end if;
 
@@ -149,23 +155,27 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  if current_setting('app.in_cascade', true) = '1' then
+    return null;
+  end if;
+
   if new.path operator(extensions.<>) old.path then
+    perform pg_catalog.set_config('app.in_cascade', '1', true);
     update public.units as u
     set path = new.path operator(extensions.||)
       extensions.subpath(u.path, extensions.nlevel(old.path))
     where u.path operator(extensions.<@) old.path
       and u.id <> new.id;
+    perform pg_catalog.set_config('app.in_cascade', '', true);
   end if;
   return null;
 end;
 $$;
 
--- Só no UPDATE feito pelo cliente ou pela migration (profundidade 0): a própria cascata
--- não dispara outra cascata.
+-- A própria cascata não dispara outra cascata (flag `app.in_cascade`).
 create trigger units_cascade_path
   after update of parent_id, slug, path, type_id on public.units
   for each row
-  when (pg_trigger_depth() = 0)
   execute function app.tg_units_cascade_path();
 
 revoke execute on function app.tg_units_set_path() from public;

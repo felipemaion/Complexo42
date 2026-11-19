@@ -6,13 +6,15 @@
 -- Regra única de escopo: quem tem papel na unidade U enxerga U e tudo abaixo dela
 -- (`units.path <@ U.path`). Papéis revogados (`revoked_at`) não contam.
 --
--- | Papel        | Escopo de dados          | Vê perfil | Vê contato | Gerencia unidade | Concede papel               |
+-- | Papel        | Escopo de dados          | Vê perfil | Vê contato | Gerencia unidade | Concede papel (nunca a si)  |
 -- |--------------|--------------------------|-----------|------------|------------------|-----------------------------|
 -- | manager      | unidade e abaixo         | sim       | sim        | sim              | só em unidade descendente   |
 -- | monitor      | unidade e abaixo         | sim       | sim        | sim              | nunca                       |
 -- | spokesperson | unidade e abaixo         | sim       | não        | não              | nunca                       |
 -- | tech_admin   | nenhum (só a estrutura)  | não       | não        | não              | só o 1º manager da raiz     |
 -- | sem papel    | si mesmo                 | só o seu  | só o seu   | não              | nunca                       |
+--
+-- Revogar: quem concedeu revoga o que concedeu; manager revoga o que está abaixo dele.
 --
 -- Colegas de unidade não se veem por estas funções ainda: sem o `membership_axis` (#76),
 -- um vínculo com a unidade do estado exporia todos os cadastrados do estado entre si.
@@ -154,13 +156,15 @@ as $$
   );
 $$;
 
--- Pode conceder (ou revogar) `role` na unidade `target_unit`? (ADR 0005 §2)
+-- Pode conceder `role` a `grantee` na unidade `target_unit`? (ADR 0005 §2)
+-- - ninguém concede papel a si mesmo (nem o manager, nem o tech_admin: ADR 0002, regra 2);
 -- - manager concede monitor, manager ou spokesperson só em unidade estritamente abaixo da
 --   sua (nunca no mesmo nível nem acima, nunca fora do ramo);
 -- - monitor e spokesperson nunca concedem;
--- - tech_admin só cria o primeiro manager da raiz, enquanto a raiz não tiver nenhum ativo;
+-- - tech_admin só cria o primeiro manager da raiz, enquanto a raiz não tiver nenhum ativo
+--   (o trigger `role_assignments_root_bootstrap` serializa essa checagem);
 -- - ninguém concede tech_admin pela API (só no seed/operação).
-create or replace function app.can_grant_role(role text, target_unit uuid)
+create or replace function app.can_grant_role(role text, target_unit uuid, grantee uuid)
 returns boolean
 language sql
 stable
@@ -168,6 +172,8 @@ security definer
 set search_path = ''
 as $$
   select (select auth.uid()) is not null
+    and grantee is not null
+    and grantee <> (select auth.uid())
     and (
       (
         can_grant_role.role in ('monitor', 'manager', 'spokesperson')
@@ -202,6 +208,69 @@ as $$
       )
     );
 $$;
+
+-- Pode revogar um papel na unidade `target_unit`, concedido por `granter`?
+-- - quem concedeu revoga o que concedeu;
+-- - manager revoga qualquer papel em unidade estritamente abaixo da sua.
+-- O manager da raiz não tem ninguém acima: se quem o concedeu não o revogar, removê-lo é
+-- tarefa do operador, com acesso direto ao banco (ADR 0002).
+create or replace function app.can_revoke_role(target_unit uuid, granter uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select (select auth.uid()) is not null
+    and (
+      granter = (select auth.uid())
+      or exists (
+        select 1
+        from public.units as u
+        join app.my_scopes() as s
+          on u.path operator(extensions.<@) s.unit_path
+         and u.path operator(extensions.<>) s.unit_path
+        where u.id = target_unit
+          and s.role = 'manager'
+      )
+    );
+$$;
+
+-- Serializa a criação do primeiro manager da raiz pela API: sem isto, dois INSERTs
+-- simultâneos do tech_admin passariam ambos pela checagem "a raiz não tem manager" da
+-- política (cada um com o seu snapshot). Depois da trava, a consulta da função (volátil)
+-- vê o que a outra transação gravou. Inserções do operador (sem JWT) não passam por aqui.
+create or replace function app.tg_role_assignments_root_bootstrap()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.role = 'manager'
+     and new.revoked_at is null
+     and (select auth.uid()) is not null
+     and exists (
+       select 1 from public.units as u where u.id = new.unit_id and u.parent_id is null
+     ) then
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtext('app.root_manager_bootstrap')
+    );
+    if exists (
+      select 1 from public.role_assignments as r
+      where r.unit_id = new.unit_id and r.role = 'manager' and r.revoked_at is null
+    ) then
+      raise exception 'a raiz já tem um manager ativo'
+        using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger role_assignments_root_bootstrap
+  before insert on public.role_assignments
+  for each row execute function app.tg_role_assignments_root_bootstrap();
 
 -- Ao se cadastrar, a pessoa entra na unidade do seu estado (ADR 0005 §2: "aluno sem
 -- turma"). Função de trigger genérica para a tabela de perfis (#10), que tem `id` e
@@ -263,7 +332,9 @@ revoke execute on function
   app.can_view_contact(uuid),
   app.can_manage_unit(uuid),
   app.can_view_unit(uuid),
-  app.can_grant_role(text, uuid),
+  app.can_grant_role(text, uuid, uuid),
+  app.can_revoke_role(uuid, uuid),
+  app.tg_role_assignments_root_bootstrap(),
   app.tg_join_state_unit()
 from public, anon;
 
@@ -274,5 +345,6 @@ grant execute on function
   app.can_view_contact(uuid),
   app.can_manage_unit(uuid),
   app.can_view_unit(uuid),
-  app.can_grant_role(text, uuid)
+  app.can_grant_role(text, uuid, uuid),
+  app.can_revoke_role(uuid, uuid)
 to authenticated;

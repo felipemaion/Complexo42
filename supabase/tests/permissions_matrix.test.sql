@@ -60,7 +60,8 @@ insert into people values
   ('stu_m',       '00000000-0000-0000-0000-000000000013'),  -- membro da equipe de MG
   ('stu_sp',      '00000000-0000-0000-0000-000000000014'),  -- só na unidade de SP
   ('stu_h',       '00000000-0000-0000-0000-000000000015'),  -- membro da casa 1
-  ('stu_moved',   '00000000-0000-0000-0000-000000000016');  -- saiu da equipe A, foi para MG
+  ('stu_moved',   '00000000-0000-0000-0000-000000000016'),  -- saiu da equipe A, foi para MG
+  ('stu_gone',    '00000000-0000-0000-0000-000000000017');  -- saiu da equipe A, sem vínculo
 
 insert into auth.users (id) select id from people;
 
@@ -88,13 +89,15 @@ insert into public.unit_members (unit_id, profile_id, left_at) values
   (pg_temp.unit('sp'), pg_temp.person('stu_sp'), null),
   (pg_temp.unit('house_1'), pg_temp.person('stu_h'), null),
   (pg_temp.unit('team_a'), pg_temp.person('stu_moved'), now()),
-  (pg_temp.unit('team_m'), pg_temp.person('stu_moved'), null);
+  (pg_temp.unit('team_m'), pg_temp.person('stu_moved'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_gone'), now());
 
 -- ---------------------------------------------------------------------------------------
 -- Parte 1: matriz das funções
 --   profile → app.can_view_profile   contact → app.can_view_contact
 --   manage  → app.can_manage_unit    unit    → app.can_view_unit
---   grant_<papel> → app.can_grant_role('<papel>', unidade)
+--   grant_<papel>     → app.can_grant_role('<papel>', unidade, outsider)
+--   selfgrant_<papel> → app.can_grant_role('<papel>', unidade, o próprio ator)
 -- ---------------------------------------------------------------------------------------
 create temp table matrix (
   ord int generated always as identity,
@@ -112,6 +115,7 @@ insert into matrix (actor, action, target, expected) values
   ('nat_mgr', 'grant_manager', 'br', false),
   ('nat_mgr', 'grant_tech_admin', 'br', false),
   ('nat_mgr', 'grant_tech_admin', 'sp', false),
+  ('nat_mgr', 'selfgrant_monitor', 'team_a', false),
   -- Gestor de SP: SP inteiro; MG não
   ('sp_mgr', 'profile', 'stu_a', true),
   ('sp_mgr', 'profile', 'stu_c', true),
@@ -131,6 +135,7 @@ insert into matrix (actor, action, target, expected) values
   ('sp_mgr', 'grant_monitor', 'sp', false),
   ('sp_mgr', 'grant_manager', 'br', false),
   ('sp_mgr', 'grant_monitor', 'team_m', false),
+  ('sp_mgr', 'selfgrant_manager', 'abc', false),
   -- Gestor de MG: MG inteiro; SP não
   ('mg_mgr', 'profile', 'stu_m', true),
   ('mg_mgr', 'profile', 'stu_moved', true),
@@ -158,6 +163,7 @@ insert into matrix (actor, action, target, expected) values
   ('abc_mgr', 'grant_monitor', 'abc', false),
   ('abc_mgr', 'grant_manager', 'zl', false),
   ('abc_mgr', 'grant_manager', 'sp', false),
+  ('abc_mgr', 'selfgrant_monitor', 'team_a', false),
   -- Coordenador da equipe A: a equipe A; a equipe B não; monitor nunca concede
   ('team_a_mon', 'profile', 'stu_a', true),
   ('team_a_mon', 'contact', 'stu_a', true),
@@ -195,6 +201,7 @@ insert into matrix (actor, action, target, expected) values
   ('tech', 'unit', 'team_a', true),
   ('tech', 'grant_manager', 'br', false),
   ('tech', 'grant_monitor', 'team_a', false),
+  ('tech', 'selfgrant_manager', 'br', false),
   -- Papel revogado não vale
   ('revoked_mgr', 'profile', 'stu_m', false),
   ('revoked_mgr', 'manage', 'mg', false),
@@ -239,7 +246,9 @@ begin
     when p_action = 'manage' then app.can_manage_unit(pg_temp.unit(p_target))
     when p_action = 'unit' then app.can_view_unit(pg_temp.unit(p_target))
     when p_action like 'grant\_%' then
-      app.can_grant_role(substr(p_action, 7), pg_temp.unit(p_target))
+      app.can_grant_role(substr(p_action, 7), pg_temp.unit(p_target), pg_temp.person('outsider'))
+    when p_action like 'selfgrant\_%' then
+      app.can_grant_role(substr(p_action, 11), pg_temp.unit(p_target), pg_temp.person(p_actor))
   end;
 end;
 $$;
@@ -251,7 +260,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 28);
+select plan((select count(*)::int from matrix) + 45);
 
 select is(
   pg_temp.check_access(actor, action, target),
@@ -274,7 +283,7 @@ select pg_temp.login('team_a_mon');
 
 select set_eq(
   $$ select profile_id from public.unit_members $$,
-  $$ select id from people where name in ('stu_a', 'stu_moved') $$,
+  $$ select id from people where name in ('stu_a', 'stu_moved', 'stu_gone') $$,
   'coordenador da equipe A lê os vínculos da equipe A (inclusive o histórico)'
 );
 select is_empty(
@@ -320,8 +329,18 @@ select throws_ok(
 select throws_ok(
   $$ insert into public.unit_members (unit_id, profile_id)
      values (pg_temp.unit('team_a'), pg_temp.person('outsider')) $$,
-  '42501', null,
-  'vínculo não é criado por INSERT direto'
+  '42501', 'permission denied for table unit_members',
+  'vínculo não é criado por INSERT direto (sem grant, não só pela RLS)'
+);
+select lives_ok(
+  $$ update public.unit_members set left_at = null
+     where profile_id = pg_temp.person('stu_gone') $$,
+  'tentativa de reabrir vínculo encerrado não alcança linha nenhuma'
+);
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now()
+     where profile_id = pg_temp.person('spokes_a') $$,
+  'monitor tenta revogar papel que não concedeu: não alcança linha nenhuma'
 );
 
 -- Coordenação regional do ABC
@@ -363,10 +382,46 @@ select throws_ok(
   '42501', null,
   'gestor de SP NÃO concede papel no próprio nível'
 );
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
+     values (pg_temp.person('sp_mgr'), 'monitor', pg_temp.unit('team_c'),
+             pg_temp.person('sp_mgr')) $$,
+  '42501', null,
+  'gestor de SP NÃO concede papel a si mesmo, nem numa unidade abaixo'
+);
 select lives_ok(
   $$ update public.role_assignments set revoked_at = now()
      where profile_id in (pg_temp.person('abc_mgr'), pg_temp.person('nat_mgr')) $$,
   'gestor de SP revoga papéis (só os abaixo dele são alcançados)'
+);
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now() + interval '1 day'
+     where profile_id = pg_temp.person('abc_mgr') $$,
+  'tentativa de reescrever a data de um papel já revogado não alcança linha nenhuma'
+);
+select throws_ok(
+  $$ update public.role_assignments set role = 'manager'
+     where profile_id = pg_temp.person('outsider') $$,
+  '42501', 'permission denied for table role_assignments',
+  'role de um papel não muda por UPDATE'
+);
+select throws_ok(
+  $$ update public.role_assignments set unit_id = pg_temp.unit('sp')
+     where profile_id = pg_temp.person('outsider') $$,
+  '42501', 'permission denied for table role_assignments',
+  'unit_id de um papel não muda por UPDATE'
+);
+select throws_ok(
+  $$ update public.role_assignments set profile_id = pg_temp.person('stu_c')
+     where profile_id = pg_temp.person('outsider') $$,
+  '42501', 'permission denied for table role_assignments',
+  'profile_id de um papel não muda por UPDATE'
+);
+select throws_ok(
+  $$ update public.role_assignments set granted_by = pg_temp.person('stu_c')
+     where profile_id = pg_temp.person('outsider') $$,
+  '42501', 'permission denied for table role_assignments',
+  'granted_by de um papel não muda por UPDATE'
 );
 select throws_ok(
   $$ delete from public.role_assignments where profile_id = pg_temp.person('outsider') $$,
@@ -408,6 +463,21 @@ select results_eq(
   $$ values (true, true) $$,
   'o gestor de SP revogou o papel no ABC, mas não o do gestor nacional'
 );
+select is(
+  (select revoked_at from public.role_assignments where profile_id = pg_temp.person('abc_mgr')),
+  now(),
+  'a data de revogação não foi reescrita'
+);
+select ok(
+  (select left_at is not null from public.unit_members
+   where profile_id = pg_temp.person('stu_gone')),
+  'o vínculo encerrado não foi reaberto'
+);
+select ok(
+  (select revoked_at is null from public.role_assignments
+   where profile_id = pg_temp.person('spokes_a')),
+  'o papel do porta-voz não foi revogado pelo monitor'
+);
 
 -- Admin técnico: estrutura sim, dado pessoal não
 set local role authenticated;
@@ -434,17 +504,63 @@ select throws_ok(
   'admin técnico NÃO cria gestor nacional quando já existe um'
 );
 
--- Sem gestor nacional ativo, o admin técnico cria o primeiro (e só um).
+-- Sem gestor nacional ativo, o admin técnico cria o primeiro (e só um), nunca para si.
 reset role;
 update public.role_assignments set revoked_at = now()
 where profile_id = pg_temp.person('nat_mgr');
 set local role authenticated;
 select pg_temp.login('tech');
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
+     select (select auth.uid()), 'manager', id, (select auth.uid())
+     from public.units where slug = 'br' $$,
+  '42501', null,
+  'admin técnico NÃO concede a si mesmo o papel de gestor nacional'
+);
 select lives_ok(
   $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
      values (pg_temp.person('outsider'), 'manager', pg_temp.unit('br'),
              pg_temp.person('tech')) $$,
   'admin técnico cria o primeiro gestor nacional'
+);
+
+-- O trigger de bootstrap recusa um 2º manager da raiz pela API mesmo sem a RLS (é ele que
+-- serializa dois INSERTs simultâneos; aqui o dono do banco pula a política).
+reset role;
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
+     values (pg_temp.person('stu_c'), 'manager', pg_temp.unit('br'),
+             pg_temp.person('tech')) $$,
+  '42501', 'a raiz já tem um manager ativo',
+  'trigger recusa segundo gestor nacional criado pela API'
+);
+select ok(
+  exists (select 1 from pg_trigger where tgname = 'role_assignments_root_bootstrap'
+          and tgrelid = 'public.role_assignments'::regclass),
+  'trigger de bootstrap da raiz instalado'
+);
+
+-- Quem concedeu revoga o que concedeu, mesmo na raiz.
+set local role authenticated;
+select pg_temp.login('tech');
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now()
+     where profile_id = pg_temp.person('outsider') and role = 'manager' $$,
+  'admin técnico revoga o gestor nacional que ele mesmo concedeu'
+);
+-- Gestor de MG não revoga o que o gestor de SP concedeu em SP.
+select pg_temp.login('mg_mgr');
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now()
+     where profile_id = pg_temp.person('outsider') and role = 'monitor' $$,
+  'gestor de MG tenta revogar papel em SP: não alcança linha nenhuma'
+);
+reset role;
+select results_eq(
+  $$ select role, revoked_at is not null from public.role_assignments
+     where profile_id = pg_temp.person('outsider') order by role $$,
+  $$ values ('manager', true), ('monitor', false) $$,
+  'o gestor nacional foi revogado por quem concedeu; o monitor de SP continua'
 );
 
 -- Visitante anônimo

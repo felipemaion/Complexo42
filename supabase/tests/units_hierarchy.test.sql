@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(32);
 
 truncate public.role_assignments, public.unit_members, public.units;
 
@@ -27,6 +27,12 @@ select is(
    where e.extname = 'ltree'),
   'extensions',
   'ltree está instalada no schema extensions'
+);
+select ok(
+  has_schema_privilege('anon', 'extensions', 'usage')
+  and has_schema_privilege('authenticated', 'extensions', 'usage')
+  and has_schema_privilege('service_role', 'extensions', 'usage'),
+  'os papéis da API usam o schema extensions (tipos e operadores da ltree)'
 );
 select ok(
   exists (select 1 from pg_indexes
@@ -76,6 +82,11 @@ select set_eq(
 select is_empty(
   $$ select 1 from public.units where path <@ 'br.sp' and slug <> 'sp' $$,
   'nada do ramo movido fica no lugar antigo'
+);
+select isnt(
+  current_setting('app.in_cascade', true),
+  '1',
+  'a flag da cascata é desligada ao fim do UPDATE do ramo'
 );
 update public.units set parent_id = pg_temp.unit('br.sp') where slug = 'abc';
 

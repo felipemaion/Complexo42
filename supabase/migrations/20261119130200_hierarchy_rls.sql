@@ -55,28 +55,35 @@ create policy unit_members_update on public.unit_members
   with check (app.can_manage_unit(unit_id));
 
 -- ---------------------------------------------------------------------------------------
--- role_assignments: a pessoa vê os próprios papéis; quem gerencia a unidade vê os papéis
--- nela. Conceder e revogar seguem `app.can_grant_role` (delegação só para baixo).
+-- role_assignments: a pessoa vê os próprios papéis e os que concedeu; quem gerencia a
+-- unidade vê os papéis nela. Conceder segue `app.can_grant_role` (delegação só para baixo, nunca a si mesmo);
+-- revogar segue `app.can_revoke_role` (quem concedeu, ou manager acima).
 -- ---------------------------------------------------------------------------------------
 grant select on public.role_assignments to authenticated;
 grant insert (profile_id, role, unit_id, granted_by) on public.role_assignments
   to authenticated;
 grant update (revoked_at) on public.role_assignments to authenticated;
 
+-- Quem concedeu também vê o que concedeu (para poder revogar).
 create policy role_assignments_select on public.role_assignments
   for select to authenticated
-  using (profile_id = (select auth.uid()) or app.can_manage_unit(unit_id));
+  using (
+    profile_id = (select auth.uid())
+    or granted_by = (select auth.uid())
+    or app.can_manage_unit(unit_id)
+  );
 
 create policy role_assignments_insert on public.role_assignments
   for insert to authenticated
   with check (
     granted_by = (select auth.uid())
     and revoked_at is null
-    and app.can_grant_role(role, unit_id)
+    and app.can_grant_role(role, unit_id, profile_id)
   );
 
--- Só revoga (nulo → data); um papel revogado não volta, concede-se outro.
+-- Só revoga (nulo → data) um papel ainda ativo: um papel revogado não volta nem tem a data
+-- reescrita; concede-se outro.
 create policy role_assignments_revoke on public.role_assignments
   for update to authenticated
-  using (revoked_at is null and app.can_grant_role(role, unit_id))
-  with check (revoked_at is not null and app.can_grant_role(role, unit_id));
+  using (revoked_at is null and app.can_revoke_role(unit_id, granted_by))
+  with check (revoked_at is not null and app.can_revoke_role(unit_id, granted_by));
