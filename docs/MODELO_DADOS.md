@@ -129,7 +129,7 @@ com a lista importada.
 | `district` | text null | distrito, só para município com lista em `config/districts.ts` (hoje a capital paulista, 96 distritos do IBGE); nulo nos demais (2 a 60 caracteres) |
 | `status` | text | `pending`, `active`, `suspended` |
 | `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
-| `consent_version`, `consent_at` | text, timestamptz | `consent_at` gravado pelo trigger quando a versão muda. O perfil nasce com `none` (ainda sem aceite); só a função do aceite (#11) muda |
+| `consent_version`, `consent_at` | text, timestamptz | `consent_at` gravado pelo trigger quando a versão muda. O perfil nasce com `none` (ainda sem aceite); só `public.accept_consent(versão)` (#11) muda, com o JWT da pessoa; a versão vem de `config/consent.ts`, no servidor, e cada aceite novo grava o evento `consent_accepted` no `audit_log` (com `term_version`). Quem não tem a versão atual vê só a tela do termo (`/termo`); sem perfil ainda, o aceite fica num cookie curto e é gravado quando o perfil é salvo |
 | `created_at`, `updated_at` | timestamptz | gravados pelo trigger |
 
 O papel **não** fica no perfil: fica em `role_assignments`.
@@ -354,7 +354,7 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `id`, `actor_id`, `event` (`contact_viewed`, `role_granted`,
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
-`access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`),
+`access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`),
 `target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação

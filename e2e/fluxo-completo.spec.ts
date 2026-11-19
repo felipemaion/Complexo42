@@ -1,11 +1,12 @@
 import { createHmac } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { acceptTermIfAsked } from "./accept-term";
 
 // Fluxo completo do cadastro (#21), de ponta a ponta, contra o Supabase local com o Mailpit (o
 // job "E2E com banco" do CI sobe os dois). Uma pessoa nova percorre tudo pela interface:
 // lista de autorizados → link mágico pelo e-mail → perfil → casa → quem vê o contato → baixar
 // os dados → excluir a conta. Outra, fora da lista, cai na espera e é liberada quando o gestor
-// importa o e-mail dela. O termo de consentimento (#11) ainda não existe e fica de fora.
+// importa o e-mail dela. O aceite do termo (#11) entra no começo, antes do perfil.
 //
 // Para rodar localmente (stack de pé, `site_url` do supabase/config.toml na porta do E2E):
 //   E2E_LIVE_SUPABASE_URL=<API_URL> E2E_LIVE_ANON_KEY=<ANON_KEY> E2E_MAILPIT_URL=<MAILPIT_URL> \
@@ -132,6 +133,7 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   await signInByEmail(page, request, person.email);
 
   // Perfil (#12): sem perfil, o login leva ao formulário. Na lista, salvar libera o acesso.
+  await acceptTermIfAsked(page);
   await expect(page).toHaveURL(`${baseURL}/perfil`);
   await expect(page.getByTestId("connected-as")).toHaveText("Conectado como fl***@e***.org");
   await page.getByLabel("Seu nome").fill(person.name);
@@ -199,6 +201,8 @@ test("pessoa fora da lista: espera até o gestor importar o e-mail dela", async 
   const person = { email: `fluxo.espera.${run}@exemplo.org`, name: "Pessoa Fluxo Espera", phone: `11 9${String(run + 1).slice(-8)}` };
   const page = await (await browser.newContext()).newPage();
   await signInByEmail(page, request, person.email);
+
+  await acceptTermIfAsked(page);
 
   await expect(page).toHaveURL(`${baseURL}/perfil`);
   await page.getByLabel("Seu nome").fill(person.name);

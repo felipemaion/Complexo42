@@ -15,6 +15,8 @@ vi.mock("@/modules/profiles", () => ({
 vi.mock("@/server/auth/session", () => ({
   requireUserClient: async () => ({ user: { id: "0b6f2d4e-3c1a-4f8e-9d2b-7a5c6e1f0a93" }, client: {} }),
 }));
+const finishPendingConsent = vi.fn(async () => {});
+vi.mock("@/server/auth/consent", () => ({ finishPendingConsent: () => finishPendingConsent() }));
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => {
     throw new Error(`redirect:${url}`);
@@ -31,7 +33,10 @@ function formData() {
   return data;
 }
 
-beforeEach(() => saveOwnProfile.mockReset());
+beforeEach(() => {
+  saveOwnProfile.mockReset();
+  finishPendingConsent.mockClear();
+});
 
 describe("saveProfileAction", () => {
   it("limite de tentativas: estado too_many_attempts, com os valores digitados de volta", async () => {
@@ -85,5 +90,17 @@ describe("saveProfileAction", () => {
   it("salvo: segue para a página inicial", async () => {
     saveOwnProfile.mockResolvedValue({ status: "saved" });
     await expect(saveProfileAction({ status: "idle" }, formData())).rejects.toThrow("redirect:/inicio?salvo=1");
+  });
+
+  it("salvo: grava o aceite do termo pendente de quem ainda não tinha perfil (#11)", async () => {
+    saveOwnProfile.mockResolvedValue({ status: "saved" });
+    await expect(saveProfileAction({ status: "idle" }, formData())).rejects.toThrow("redirect:");
+    expect(finishPendingConsent).toHaveBeenCalledOnce();
+  });
+
+  it("WhatsApp repetido: o aceite pendente não é gravado (o perfil não foi criado)", async () => {
+    saveOwnProfile.mockResolvedValue({ status: "duplicate_whatsapp" });
+    await saveProfileAction({ status: "idle" }, formData());
+    expect(finishPendingConsent).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,7 @@ import {
   type ProfileFormState,
   type ProfileFormValues,
 } from "@/modules/profiles";
+import { finishPendingConsent } from "@/server/auth/consent";
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -43,6 +44,8 @@ export async function saveProfileAction(_previous: ProfileFormState, formData: F
   const result = await saveOwnProfile(client, user.id, { ...values, socialLinks }, (code) => districtsByMunicipality[code]);
   switch (result.status) {
     case "saved":
+      // Quem aceitou o termo antes de ter perfil (#11): o aceite pendente vai para o perfil novo.
+      await finishPendingConsent(client);
       // A página inicial passa de novo pelo portão de acesso (perfil novo nasce `pending`).
       redirect(`${HOME_PATH}?salvo=1`);
     case "invalid":

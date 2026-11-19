@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { acceptTermIfAsked } from "./accept-term";
 
 // "Quem vê meu contato" (#119, ADR 0010). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o
 // Supabase local, o fluxo real: A e B se cadastram, são liberadas e postas na mesma equipe
@@ -45,6 +46,7 @@ test.describe("quem vê meu contato com o Supabase local", () => {
     const page = await (await browser.newContext()).newPage();
     await page.goto(`/auth/confirmar?token_hash=${link.hashed_token}&type=${link.verification_type}`);
     await page.getByRole("button", { name: "Entrar" }).click();
+    await acceptTermIfAsked(page);
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill(person.name);
     await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);

@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { acceptTermIfAsked } from "./accept-term";
 
 // Fluxo real do link mágico (#9), contra um Supabase local com o Mailpit. No CI, roda no job
 // "E2E com banco". Para rodar localmente:
@@ -54,6 +55,7 @@ test("usuário novo (modelo de primeiro cadastro): GET não gasta o token; o POS
   await tab.goto(link);
   await tab.getByRole("button", { name: "Entrar" }).click();
   // Login vai para /inicio, que manda quem ainda não tem perfil para o formulário (#12).
+  await acceptTermIfAsked(tab);
   await expect(tab).toHaveURL(`${baseURL}/perfil`);
   // Conta em uso, mascarada, no cabeçalho e na página; o e-mail inteiro nunca.
   await expect(tab.getByTestId("connected-as")).toHaveText("Conectado como pe***@e***.org");
@@ -76,6 +78,7 @@ test("usuário existente (modelo de link mágico) entra pelo botão", async ({ p
   await tab.goto(link);
   await tab.getByRole("button", { name: "Entrar" }).click();
   // Login vai para /inicio, que manda quem ainda não tem perfil para o formulário (#12).
+  await acceptTermIfAsked(tab);
   await expect(tab).toHaveURL(`${baseURL}/perfil`);
   await expect(tab.getByTestId("connected-as")).toContainText("pe***@e***.org");
 });

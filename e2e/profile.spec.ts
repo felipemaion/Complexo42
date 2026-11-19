@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
+import { acceptTermIfAsked } from "./accept-term";
 
 // Formulário do perfil (#12). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o Supabase local
 // e o Mailpit (como em e2e/auth-live.spec.ts), o fluxo real: entrar, cair no formulário, máscara,
@@ -54,6 +55,7 @@ test.describe("formulário com o Supabase local", () => {
 
   test("quem ainda não tem perfil cai no formulário; erros, máscara e distrito", async ({ browser, request, baseURL }) => {
     const page = await signIn(browser, request, emailA);
+    await acceptTermIfAsked(page);
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Seus dados");
 
@@ -112,6 +114,7 @@ test.describe("formulário com o Supabase local", () => {
   test("o mesmo WhatsApp em outro cadastro: aviso claro, sem dizer de quem é", async ({ browser, request, baseURL }) => {
     // O Auth exige 60 s entre dois e-mails do mesmo IP só para o mesmo endereço; aqui é outro.
     const page = await signIn(browser, request, emailB);
+    await acceptTermIfAsked(page);
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill("Outra Pessoa");
     await page.getByLabel("Seu WhatsApp, com DDD").fill(phone);

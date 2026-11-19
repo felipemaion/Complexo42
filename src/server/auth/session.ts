@@ -8,6 +8,7 @@ import { log } from "@/server/log";
 import { checkAccess } from "./access";
 import { AUTH_COOKIE_NAME, createAuthClient, hasAuthCookie, type AuthClient } from "./client";
 import { getAuthConfig, type AuthConfig } from "./config";
+import { consentRedirect } from "./consent";
 import { onFirstLogin } from "./first-login";
 import { maskEmail } from "./mask";
 import { LOGIN_PATH, SIGNOUT_PATH, WAITLIST_PATH } from "./routes";
@@ -65,16 +66,38 @@ async function readAccessStatus(client: AuthClient, userId: string): Promise<Acc
 }
 
 /**
- * Para toda página autenticada (o proxy já redireciona; isto é a segunda barreira). Confere o
- * `access_status` do perfil (M2): sem perfil ou `pending` chama o gancho do primeiro login;
- * `waitlisted` vai para a espera; `blocked` e qualquer falha encerram a sessão.
+ * Sessão + portão de acesso (M2), SEM o portão do termo: só a tela do termo (#11) usa esta.
+ * `pending`/sem perfil chama o gancho do primeiro login; `waitlisted` vai para a espera;
+ * `blocked` e qualquer falha encerram a sessão.
  */
-export const requireUser = cache(async (): Promise<CurrentUser> => {
+export const requireAccessUser = cache(async (): Promise<CurrentUser> => {
   const session = await getSession();
   if (!session) redirect(LOGIN_PATH);
   const blocked = await accessRedirect(session.client, session.user.id);
   if (blocked) redirect(blocked);
   return session.user;
+});
+
+/** Como `requireAccessUser`, com o cliente da pessoa (R14). Para o termo e o seu aceite. */
+export async function requireAccessUserClient(): Promise<{ user: CurrentUser; client: AuthClient }> {
+  const user = await requireAccessUser();
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  return { user, client: session.client };
+}
+
+/**
+ * Para toda página autenticada (o proxy já redireciona; isto é a segunda barreira): o portão de
+ * acesso de `requireAccessUser` e, depois dele, o termo de consentimento (#11): quem não aceitou
+ * a versão atual vai para a tela do termo.
+ */
+export const requireUser = cache(async (): Promise<CurrentUser> => {
+  const user = await requireAccessUser();
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  const pending = await consentRedirect(session.client, user.id);
+  if (pending) redirect(pending);
+  return user;
 });
 
 /**
