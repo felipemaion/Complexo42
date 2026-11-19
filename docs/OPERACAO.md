@@ -555,6 +555,64 @@ diz que não há rollback possível em vez de fingir que fez.
 > Remoção vem num PR **posterior**, depois que a versão que não usa mais a
 > coluna estiver no ar.
 
+### As migrations: `deploy/migra.sh`
+
+**Elas viajam na imagem**, não num checkout do repositório no servidor. O
+deploy recebe só a tag, então o que aplica o schema tem de ser exatamente o
+que veio com aquela tag; um checkout à parte seria uma segunda fonte de
+verdade, que diverge em silêncio e só aparece no pior momento. O Dockerfile
+copia `supabase/migrations` para a imagem final — são `.sql` já públicos, e o
+container do app não os lê.
+
+O `migra.sh` cria um container da imagem **daquela tag**, copia as migrations
+de dentro dele, apaga o container, e aplica no banco **só as pendentes**,
+comparando com `supabase_migrations.schema_migrations` — a mesma tabela que o
+CLI do Supabase usa.
+
+**Uma transação por migration.** Falhou, nada *dela* fica gravado, e as
+anteriores que passaram continuam valendo. Sem isso, uma falha no meio deixa
+o schema num estado que nenhum arquivo descreve. A seguinte nem é tentada.
+
+**O `psql` roda dentro do container do banco** (`docker exec`), não num
+container com rede. Assim a senha do Postgres não atravessa lugar nenhum:
+conexão local dentro do container é confiável. É uma troca consciente em
+relação ao "container de uso único" da #81 — o isolamento que importa, abortar
+sem tocar o app, continua valendo.
+
+**Adoção de um banco já migrado.** Se a tabela de controle estiver vazia e o
+`public` já tiver tabelas, o script **recusa** rodar. Motivo: reaplicar as
+migrations ali é perigoso — parte delas roda calada (`create or replace`,
+`drop ... if exists`) até alguma falhar, deixando o schema num estado que
+nenhum arquivo descreve. Se o schema já corresponde a estas migrations, rode
+**uma vez** com `--adotar`, que grava a linha de base sem executar nada.
+
+> Conferido em 2026-11-19: o banco do **staging** tem `public` com **zero**
+> tabelas e nenhuma tabela de controle — ele nunca foi migrado. Lá a aplicação
+> é limpa, e `--adotar` não é necessário.
+
+**O `psql` entra sem senha pelo socket.** Conferido no container do staging em
+2026-11-19: `docker exec ... psql -U supabase_admin`, sem `-h`, conecta por
+`trust`/`peer`. Não é suposição — se um dia o `pg_hba.conf` mudar, o deploy
+trava aqui e o erro aparece no passo 2, antes de o app ser trocado.
+
+**Cuidados ao escrever uma migration**, porque o script a envolve em
+`begin`/`commit`:
+
+- não abra `begin`/`commit` dentro do arquivo — a transação já é do script;
+- termine cada comando com `;`;
+- `CREATE INDEX CONCURRENTLY` **não funciona** dentro de transação; use índice
+  comum, ou trate o caso à parte;
+- `ALTER TYPE ... ADD VALUE` não pode ser usado na **mesma** transação que o
+  criou; separe em duas migrations.
+
+Variáveis: `APP_TAG` (vem do `deploy.sh`), `IMAGEM`, `DB_CONTAINER` e,
+opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
+
+Testes: `deploy/migra.test.sh` (25 asserções, dublê de `docker`) e
+`deploy/migra-integracao.test.sh` (12 asserções contra um Postgres de
+verdade — é ele que prova que o DDL e a linha de controle caem juntos
+quando uma migration falha; pula limpo sem Docker).
+
 ### Duas proteções que não são óbvias
 
 **Projeto Compose próprio.** O `secrets/env` traz o `COMPOSE_PROJECT_NAME` do

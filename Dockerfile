@@ -29,6 +29,12 @@ WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
+# As migrations viajam NA IMAGEM (#81): o deploy recebe só a tag, e o que
+# aplica o schema tem de ser exatamente o que veio com aquela tag. Mantê-las
+# num checkout do repositório no servidor criaria uma segunda fonte de
+# verdade, que diverge em silêncio. São arquivos .sql já públicos e o
+# container do app não os lê -- quem lê é o passo de migrations do deploy.
+COPY --from=build /app/supabase/migrations ./supabase/migrations
 # Único diretório gravável da imagem: os logs, montados como volume no servidor.
 # O resto roda com o sistema de arquivos só leitura (`read_only` + tmpfs em /tmp).
 RUN mkdir -p data/logs && chown node:node data/logs
