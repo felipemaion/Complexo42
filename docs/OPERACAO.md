@@ -157,6 +157,50 @@ sistema de arquivos só leitura, sem `ports:`, com `mem_limit`. Use nele um
 `COMPOSE_PROJECT_NAME` diferente do Supabase e aponte `SUPABASE_NETWORK` para a
 rede `<projeto-do-supabase>_interna`.
 
+## Cloudflare Turnstile no login por e-mail (#116)
+
+O formulário "Receber link por e-mail" de `/entrar` tem o widget do Turnstile
+(gratuito), no modo *managed*. Sem ele, um robô poderia disparar milhares de
+e-mails para terceiros e esgotar a cota de envio, travando o login de todos. O
+token do widget é conferido **no servidor** (`src/server/auth/turnstile.ts`),
+na server action, antes de pedir o link ao Auth. Token ausente, recusado ou o
+siteverify fora do ar (limite de 3 s): o e-mail não sai e a tela mostra a mesma
+resposta neutra de sempre. O log leva só o código (`auth_turnstile_failed`,
+`reason`), nunca o token, o IP ou o e-mail. O botão do Google não tem widget.
+
+**Criar o widget (uma vez por ambiente).** No painel da Cloudflare, em
+*Turnstile* → *Add widget*: um nome que identifique o ambiente, os hostnames
+do ambiente (o de produção num widget e o de staging em outro; nada de
+`localhost` no widget de produção) e o modo **Managed**. O painel mostra a
+*site key* e a *secret key*.
+
+**Onde as chaves entram.** No arquivo de segredos do ambiente, no servidor
+(`secrets/env`, modo 0600, o mesmo do `gen-secrets.sh`), em `TURNSTILE_SITE_KEY`
+e `TURNSTILE_SECRET_KEY`. O `gen-secrets.sh` deixa as duas vazias e o
+`docker-compose.app.yml` recusa subir sem elas; em produção o app também não
+sobe sem elas. A site key é lida em tempo de execução e entregue à tela (não é
+`NEXT_PUBLIC_*`), então a mesma imagem serve staging e produção. A secret nunca
+sai do servidor e nunca entra no repositório (R7). Para trocar a secret, use
+*Rotate secret key* no painel e reinicie o app.
+
+**IP do usuário.** O `remoteip` vai ao siteverify só com
+`TRUST_CF_CONNECTING_IP=true`, a mesma regra do rate limit do Auth (só quando
+apenas a Cloudflare alcança a origem).
+
+**Local, CI e E2E** usam as chaves de teste oficiais da Cloudflare, públicas
+(listadas no `.env.example`): sem variável, fora de produção, vale a que sempre
+passa. O E2E as define no `playwright.config.ts`.
+
+**CSP (#86).** Quando a CSP entrar, ela precisa liberar o Turnstile:
+
+| Diretiva | Origem |
+|---|---|
+| `script-src` | `https://challenges.cloudflare.com` |
+| `frame-src` | `https://challenges.cloudflare.com` |
+
+A chamada ao siteverify parte do servidor, não do navegador, então não entra
+em `connect-src`.
+
 ## Backup cifrado e restauração (#84)
 
 **O par de chaves nasce fora do servidor.** Quem mantém gera na própria máquina:
