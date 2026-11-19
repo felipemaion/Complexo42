@@ -518,8 +518,9 @@ as $$
 $$;
 
 -- Conceder: `house_coordinator` segue a regra de monitor/manager/spokesperson (ADR 0011 §5):
--- só um manager ativo, em unidade estritamente abaixo da sua, nunca a si mesmo. A casa
--- (`house_key`) é conferida pela política de INSERT (`app.is_open_house`).
+-- só um manager ativo, em unidade estritamente abaixo da sua, nunca a si mesmo. Exceção: na
+-- raiz, o manager ativo da raiz concede o coordenador nacional de casa (e só esse papel). A
+-- casa (`house_key`) é conferida pela política de INSERT (`app.is_open_house`).
 create or replace function app.can_grant_role(role text, target_unit uuid, grantee uuid)
 returns boolean
 language sql
@@ -562,6 +563,16 @@ as $$
             and r.role = 'manager'
             and r.revoked_at is null
         )
+      )
+      -- Exceção aprovada (PR #141): o coordenador NACIONAL de casa (na raiz) é concedido pelo
+      -- manager ativo da própria raiz, que não tem ninguém acima. Só este papel, só na raiz.
+      or (
+        can_grant_role.role = 'house_coordinator'
+        and exists (
+          select 1 from public.units as u
+          where u.id = target_unit and u.parent_id is null
+        )
+        and app.manages_root()
       )
     );
 $$;

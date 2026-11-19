@@ -456,7 +456,16 @@ insert into matrix (actor, action, target, expected) values
   -- Conceder o papel de coordenador de casa (ADR 0011 §5): manager estritamente acima do
   -- território, nunca a si mesmo; monitor, porta-voz e admin técnico não
   ('nat_mgr', 'grant_house_coordinator', 'sp', true),
-  ('nat_mgr', 'grant_house_coordinator', 'br', false),
+  -- Exceção (PR #141): o manager ativo da raiz concede o coordenador NACIONAL de casa na raiz;
+  -- só esse papel, só na raiz, nunca a si mesmo
+  ('nat_mgr', 'grant_house_coordinator', 'br', true),
+  ('nat_mgr', 'grant_monitor', 'br', false),
+  ('nat_mgr', 'grant_spokesperson', 'br', false),
+  ('nat_mgr', 'selfgrant_house_coordinator', 'br', false),
+  ('nat_mon', 'grant_house_coordinator', 'br', false),
+  ('mon_wait', 'grant_house_coordinator', 'br', false),
+  ('mg_mgr', 'grant_house_coordinator', 'mg', false),
+  ('abc_mgr', 'grant_house_coordinator', 'abc', false),
   ('sp_mgr', 'grant_house_coordinator', 'abc', true),
   ('sp_mgr', 'grant_house_coordinator', 'team_c', true),
   ('sp_mgr', 'grant_house_coordinator', 'sp', false),

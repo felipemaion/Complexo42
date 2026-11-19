@@ -277,7 +277,8 @@ por pessoa, papel, unidade e casa.
   em `app.my_scopes`): não gerencia unidade, não decide acesso, não concede nem revoga. Vê a
   estrutura do território (unidades abaixo e o caminho até a raiz). Vários por casa e por
   território. Concedido por um `manager` estritamente acima do território (como os outros
-  papéis), nunca a si mesmo, e só para casa ativa.
+  papéis); na raiz (coordenador nacional de casa), pelo `manager` ativo da própria raiz, só
+  este papel (PR #141). Nunca a si mesmo, e só para casa ativa.
 `unit_members.profile_id`, `role_assignments.profile_id` e `role_assignments.granted_by`
 apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo ou papel sem perfil.
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
