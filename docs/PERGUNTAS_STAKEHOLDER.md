@@ -73,7 +73,7 @@
 
 ### Perguntas que surgiram na reunião
 
-68. **Conversa da equipe dentro da plataforma:** substitui o WhatsApp ou convive com ele?
+68. ✅ *(gestor, 2026-11-19: o chat não entra em janeiro; fica para o M3)* **Conversa da equipe dentro da plataforma:** substitui o WhatsApp ou convive com ele?
     Exige moderação, guarda de mensagens e cuidado com LGPD. Sugestão: depois de janeiro.
 69. **Prioridade de janeiro:** confirma cadastro + casa + habilidades + busca, com missões e
     avaliação em março?

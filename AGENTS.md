@@ -23,7 +23,7 @@ apenas aponta para cá. **Em caso de conflito, este arquivo vence.**
 | R1 | **Nunca** fazer commit direto na `main`. Todo código entra por Pull Request. |
 | R2 | **Nenhum PR sem teste.** Toda funcionalidade nova ou bug corrigido traz teste automatizado. |
 | R3 | `npm run check` (lint + tipos + testes + build) **passa localmente** antes de abrir o PR. |
-| R4 | **Nenhum campo de dado pessoal novo** fora da lista em `docs/MODELO_DADOS.md`. Para adicionar um, abra um ADR e peça aprovação. CPF, RG, endereço, data de nascimento, e-mail exibido e foto de documento são **proibidos**. |
+| R4 | **Nenhum campo de dado pessoal novo** fora da lista em `docs/MODELO_DADOS.md`. Para adicionar um, abra um ADR e peça aprovação. CPF, RG, endereço, data de nascimento e foto de documento são **proibidos**. O e-mail só é exibido conforme o ADR 0010. |
 | R5 | **Toda tabela nova tem RLS habilitada e política explícita**, com teste provando que um usuário **não** lê dados de outro. |
 | R6 | **Nunca** usar a chave `service_role` (ou equivalente com acesso total) em código que roda no navegador. |
 | R7 | **Nenhum segredo no repositório**: chaves, tokens e senhas ficam em `.env.local` (no `.gitignore`) e nos secrets da plataforma. |

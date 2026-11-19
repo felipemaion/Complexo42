@@ -19,3 +19,6 @@ data/
 .wrangler
 next-env.d.ts
 *.tsbuildinfo
+
+# Worktrees de agentes (locais)
+.claude/worktrees/
