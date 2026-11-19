@@ -1,0 +1,331 @@
+-- Perfil, contato e municípios (issue #10): estrutura, formato dos valores cifrados,
+-- triggers e RLS do ponto de vista do titular. A matriz papel × escopo fica em
+-- permissions_matrix.test.sql. Pessoas fictícias, só dentro desta transação.
+begin;
+create extension if not exists pgtap with schema extensions;
+
+select plan(49);
+
+-- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
+create function pg_temp.enc(p_tag text) returns text language sql as $$
+  select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
+$$;
+create function pg_temp.login(p_id uuid) returns void language sql as $$
+  select set_config('request.jwt.claims',
+    json_build_object('sub', p_id, 'role', 'authenticated')::text, true);
+$$;
+
+-- u1: cadastra-se pela API; u2: outro perfil ativo; u3: bloqueado; u4: na espera.
+insert into auth.users (id) values
+  ('00000000-0000-0000-0000-0000000000b1'),
+  ('00000000-0000-0000-0000-0000000000b2'),
+  ('00000000-0000-0000-0000-0000000000b3'),
+  ('00000000-0000-0000-0000-0000000000b4');
+insert into public.municipalities (code, name, state_code) values (3106200, 'Belo Horizonte', 'MG');
+
+-- ---------------------------------------------------------------------------------------
+-- Municípios
+-- ---------------------------------------------------------------------------------------
+select is(
+  (select count(*)::int from public.municipalities
+   where metro_region = 'rmsp' and state_code = 'SP'),
+  39,
+  'os 39 municípios da região metropolitana de SP estão carregados'
+);
+select results_eq(
+  $$ select code, name from public.municipalities
+     where code in (3550308, 3548708, 3518800) order by code $$,
+  $$ values (3518800, 'Guarulhos'), (3548708, 'São Bernardo do Campo'), (3550308, 'São Paulo') $$,
+  'códigos IBGE de 7 dígitos conferem'
+);
+select throws_ok(
+  $$ insert into public.municipalities (code, name, state_code) values (3399999, 'Errado', 'SP') $$,
+  '23514', null,
+  'a UF tem de bater com os dois primeiros dígitos do código IBGE'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- Estrutura: só as colunas da lista fechada (docs/MODELO_DADOS.md)
+-- ---------------------------------------------------------------------------------------
+select columns_are('public', 'profiles', array[
+  'id', 'display_name_enc', 'municipality_code', 'state_code', 'district', 'status',
+  'access_status', 'consent_version', 'consent_at', 'created_at', 'updated_at'
+], 'profiles tem exatamente as colunas do modelo de dados');
+select columns_are('public', 'profile_contacts', array[
+  'profile_id', 'whatsapp_enc', 'whatsapp_hmac', 'social_links_enc', 'updated_at'
+], 'profile_contacts tem exatamente as colunas do modelo de dados');
+select fk_ok('public', 'profiles', 'id', 'auth', 'users', 'id', 'profiles.id = auth.users.id');
+select fk_ok('public', 'unit_members', 'profile_id', 'public', 'profiles', 'id',
+  'unit_members aponta para profiles');
+select fk_ok('public', 'role_assignments', 'profile_id', 'public', 'profiles', 'id',
+  'role_assignments aponta para profiles');
+select fk_ok('public', 'role_assignments', 'granted_by', 'public', 'profiles', 'id',
+  'role_assignments.granted_by aponta para profiles');
+
+-- ---------------------------------------------------------------------------------------
+-- Formato dos valores cifrados e demais CHECKs (como dono do banco, sem RLS)
+-- ---------------------------------------------------------------------------------------
+create function pg_temp.add_profile(p_id text, p_name text, p_municipality int default 3550308)
+returns void language sql as $$
+  insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+  values (p_id::uuid, p_name, p_municipality, 'v1')
+$$;
+
+select throws_ok(
+  $$ select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b2', 'Maria Silva') $$,
+  '23514', null,
+  'nome em texto puro é recusado'
+);
+select throws_ok(
+  $$ select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b2',
+       'v1.AAAAAAAAAAAAAAAA.' || repeat('x', 600)) $$,
+  '23514', null,
+  'valor cifrado acima do teto de tamanho é recusado'
+);
+select throws_ok(
+  $$ select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b2',
+       'v1.AAAA.BBBBBBBBBBBBBBBBBBBBBBBB') $$,
+  '23514', null,
+  'IV fora do tamanho (12 bytes) é recusado'
+);
+select throws_ok(
+  $$ select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b2',
+       'v0.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB') $$,
+  '23514', null,
+  'versão de chave inválida é recusada'
+);
+select throws_ok(
+  $$ select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 1234567) $$,
+  '23503', null,
+  'município desconhecido é recusado'
+);
+select throws_ok(
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version, district)
+     values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3550308, 'v1', ' x ') $$,
+  '23514', null,
+  'distrito fora do formato é recusado'
+);
+select throws_ok(
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+     values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3550308, 'versão 1') $$,
+  '23514', null,
+  'versão do termo fora do formato é recusada'
+);
+
+-- u2 (ativo, MG), u3 (bloqueado) e u4 (na espera), criados pelo servidor.
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version,
+                             state_code, consent_at, created_at)
+values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3106200, 'v1',
+        'SP', '2000-01-01', '2000-01-01');
+select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b3', pg_temp.enc('b3'));
+select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b4', pg_temp.enc('b4'));
+update public.profiles set access_status = 'active' where id = '00000000-0000-0000-0000-0000000000b2';
+update public.profiles set access_status = 'blocked' where id = '00000000-0000-0000-0000-0000000000b3';
+update public.profiles set access_status = 'waitlisted' where id = '00000000-0000-0000-0000-0000000000b4';
+
+select results_eq(
+  $$ select state_code::text, consent_at = now(), created_at = now()
+     from public.profiles where id = '00000000-0000-0000-0000-0000000000b2' $$,
+  $$ values ('MG', true, true) $$,
+  'UF vem do município e as datas são do servidor (valores enviados são ignorados)'
+);
+
+insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('w2'), repeat('b', 64));
+
+select throws_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+     values ('00000000-0000-0000-0000-0000000000b3', '+5511999998888', repeat('c', 64)) $$,
+  '23514', null,
+  'WhatsApp em texto puro é recusado'
+);
+select throws_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+     values ('00000000-0000-0000-0000-0000000000b3', pg_temp.enc('w3'), repeat('C', 64)) $$,
+  '23514', null,
+  'whatsapp_hmac fora do formato (hex minúsculo de 64) é recusado'
+);
+select throws_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac, social_links_enc)
+     values ('00000000-0000-0000-0000-0000000000b3', pg_temp.enc('w3'), repeat('c', 64),
+             '["https://exemplo.org/perfil"]') $$,
+  '23514', null,
+  'redes sociais em texto puro são recusadas'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- O titular pela API (authenticated + RLS)
+-- ---------------------------------------------------------------------------------------
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
+
+select lives_ok(
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+     values ('00000000-0000-0000-0000-0000000000b1', pg_temp.enc('b1'), 3550308, 'v1') $$,
+  'a pessoa cria o próprio perfil'
+);
+select results_eq(
+  $$ select u.path::text from public.unit_members as m
+     join public.units as u on u.id = m.unit_id
+     where m.profile_id = '00000000-0000-0000-0000-0000000000b1' and m.left_at is null $$,
+  array['br.sp'],
+  'ao criar o perfil, a pessoa entra na unidade do seu estado'
+);
+select results_eq(
+  $$ select status, access_status, state_code::text from public.profiles $$,
+  $$ values ('pending', 'pending', 'SP') $$,
+  'o perfil nasce pendente, com a UF do município, e é o único que ela lê'
+);
+select throws_ok(
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+     values (gen_random_uuid(), pg_temp.enc('xx'), 3550308, 'v1') $$,
+  '42501', null,
+  'ninguém cria perfil com o id de outra pessoa'
+);
+select is_empty(
+  $$ select 1 from public.profiles where id = '00000000-0000-0000-0000-0000000000b2' $$,
+  'a pessoa NÃO lê o perfil de outra'
+);
+select lives_ok(
+  $$ update public.profiles set display_name_enc = pg_temp.enc('b1novo'), district = 'Centro' $$,
+  'a pessoa edita o próprio perfil (a RLS limita a ela mesma)'
+);
+select results_eq(
+  $$ select display_name_enc, district from public.profiles $$,
+  $$ values (pg_temp.enc('b1novo'), 'Centro') $$,
+  'a edição do próprio perfil foi gravada'
+);
+select throws_ok(
+  $$ update public.profiles set status = 'active' $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO altera o próprio status'
+);
+select throws_ok(
+  $$ update public.profiles set access_status = 'active' $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO altera o próprio access_status'
+);
+select throws_ok(
+  $$ update public.profiles set state_code = 'MG' $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO altera a UF (derivada do município)'
+);
+select throws_ok(
+  $$ update public.profiles set consent_at = '2000-01-01' $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO escreve a data do consentimento'
+);
+select throws_ok(
+  $$ update public.profiles set id = '00000000-0000-0000-0000-0000000000b2' $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO troca o id do perfil'
+);
+select throws_ok(
+  $$ delete from public.profiles $$,
+  '42501', 'permission denied for table profiles',
+  'perfil não é apagado pela API'
+);
+select lives_ok(
+  $$ update public.profiles set district = 'Invadido'
+     where id = '00000000-0000-0000-0000-0000000000b2' $$,
+  'tentativa de editar perfil de outra pessoa não alcança linha nenhuma'
+);
+select lives_ok(
+  $$ update public.profiles set municipality_code = 3106200 $$,
+  'trocar de município pela API'
+);
+select results_eq(
+  $$ select state_code::text from public.profiles $$,
+  array['MG'],
+  'trocar de município recalcula a UF'
+);
+
+-- Contato
+select lives_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+     values ('00000000-0000-0000-0000-0000000000b1', pg_temp.enc('w1'), repeat('a', 64)) $$,
+  'a pessoa cadastra o próprio contato'
+);
+select throws_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+     values ('00000000-0000-0000-0000-0000000000b4', pg_temp.enc('w4'), repeat('d', 64)) $$,
+  '42501', null,
+  'ninguém cadastra contato em nome de outra pessoa'
+);
+select set_eq(
+  $$ select profile_id from public.profile_contacts $$,
+  array['00000000-0000-0000-0000-0000000000b1'::uuid],
+  'a pessoa lê só o próprio contato'
+);
+select throws_ok(
+  $$ update public.profile_contacts set whatsapp_hmac = repeat('b', 64) $$,
+  '23505', null,
+  'o mesmo WhatsApp (HMAC) não se cadastra duas vezes'
+);
+select throws_ok(
+  $$ update public.profile_contacts set profile_id = '00000000-0000-0000-0000-0000000000b2' $$,
+  '42501', 'permission denied for table profile_contacts',
+  'a pessoa NÃO move o contato para outro perfil'
+);
+select throws_ok(
+  $$ delete from public.profile_contacts $$,
+  '42501', 'permission denied for table profile_contacts',
+  'contato não é apagado pela API'
+);
+
+-- Bloqueado: lê o próprio perfil, mas não edita.
+select pg_temp.login('00000000-0000-0000-0000-0000000000b3');
+select lives_ok(
+  $$ update public.profiles set district = 'Bloqueado' $$,
+  'perfil bloqueado tenta editar: não alcança linha nenhuma'
+);
+select throws_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+     values ('00000000-0000-0000-0000-0000000000b3', pg_temp.enc('w3'), repeat('e', 64)) $$,
+  '42501', null,
+  'perfil bloqueado NÃO cadastra contato'
+);
+
+-- Na espera: lê só o próprio perfil e consegue completá-lo.
+select pg_temp.login('00000000-0000-0000-0000-0000000000b4');
+select results_eq(
+  $$ select id, access_status from public.profiles $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b4'::uuid, 'waitlisted') $$,
+  'quem está na espera lê só o próprio perfil'
+);
+
+-- Visitante anônimo
+reset role;
+set local role anon;
+set local request.jwt.claims to '{"role": "anon"}';
+select throws_ok(
+  $$ select 1 from public.municipalities $$,
+  '42501', null,
+  'visitante anônimo não lê municípios'
+);
+
+-- Conferência como dono do banco
+reset role;
+select results_eq(
+  $$ select id, district from public.profiles
+     where id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3')
+     order by id $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b2'::uuid, null::text),
+            ('00000000-0000-0000-0000-0000000000b3'::uuid, null::text) $$,
+  'os perfis de outra pessoa e o bloqueado não foram alterados'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.municipalities', 'select')
+  and not has_table_privilege('authenticated', 'public.municipalities', 'insert')
+  and not has_table_privilege('authenticated', 'public.municipalities', 'update'),
+  'municípios: leitura para quem está logado, escrita só por migration'
+);
+select ok(
+  not has_column_privilege('authenticated', 'public.profiles', 'access_status', 'insert')
+  and not has_column_privilege('authenticated', 'public.profiles', 'status', 'insert')
+  and not has_column_privilege('authenticated', 'public.profiles', 'state_code', 'insert'),
+  'ninguém cria perfil já liberado, com status ou com UF escolhida'
+);
+
+select * from finish();
+rollback;
