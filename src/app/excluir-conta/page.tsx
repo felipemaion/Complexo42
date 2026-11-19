@@ -32,8 +32,9 @@ const statusText: Record<DeleteAccountStatus, string> = {
 // banco confere a mesma regra na hora de apagar.
 export default async function DeleteAccountPage({ searchParams }: Props) {
   const { accessToken } = await requireSessionClient();
-  const recent = isRecentLogin(authAgeSeconds(accessToken));
   const status = parseDeleteAccountStatus((await searchParams)[DELETE_ACCOUNT_STATUS_PARAM]);
+  // O amr é só uma pista; se o banco já recusou por login antigo, a tela segue o banco.
+  const recent = status !== "reautenticar" && isRecentLogin(authAgeSeconds(accessToken));
   const text = instance.deleteAccount;
   return (
     <main className="mx-auto flex max-w-md flex-col justify-center gap-6 p-6 pt-16">

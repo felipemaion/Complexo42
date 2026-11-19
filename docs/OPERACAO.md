@@ -269,13 +269,20 @@ restaurar, guarde os ids:
 select distinct target_id from public.audit_log where event = 'account_deleted';
 ```
 
-Depois de restaurar, como `postgres`, apague cada id da lista que voltou:
+Depois de restaurar, como `supabase_admin` (o `postgres` é NOLOGIN), apague cada id da lista
+que voltou, numa transação. O `account_deleted` entra **antes** de apagar `auth.users`: o
+`audit_log` recusa evento de ator que não existe mais.
 
 ```sql
-delete from auth.audit_log_entries where payload ->> 'actor_id' = '<id>' or payload -> 'traits' ->> 'user_id' = '<id>';
+begin;
+insert into public.audit_log (actor_id, event, target_id) values ('<id>', 'account_deleted', '<id>');
+delete from auth.audit_log_entries
+where payload ->> 'actor_id' = '<id>' or payload -> 'traits' ->> 'user_id' = '<id>'
+   or payload ->> 'actor_username' = (select email from auth.users where id = '<id>')
+   or payload -> 'traits' ->> 'user_email' = (select email from auth.users where id = '<id>');
 delete from auth.flow_state where user_id = '<id>';
 delete from auth.users where id = '<id>';  -- o resto vai em cascata
-insert into public.audit_log (actor_id, event, target_id) values ('<id>', 'account_deleted', '<id>');
+commit;
 ```
 
 Se o banco atual se perdeu, as exclusões feitas depois do último backup se perdem com ele

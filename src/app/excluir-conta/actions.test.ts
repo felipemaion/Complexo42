@@ -63,6 +63,19 @@ describe("reauthenticateAction", () => {
     await expect(reauthenticateAction()).rejects.toThrow("redirect:/entrar?next=%2Fexcluir-conta");
     expect(endSession).toHaveBeenCalledOnce();
   });
+
+  it("se encerrar a sessão falhar, vai ao login do mesmo jeito", async () => {
+    endSession.mockRejectedValueOnce(new Error("gotrue_down"));
+    await expect(reauthenticateAction()).rejects.toThrow("redirect:/entrar?next=%2Fexcluir-conta");
+  });
+});
+
+describe("deleteAccountAction com falha ao encerrar a sessão", () => {
+  it("a conta já foi excluída: a despedida aparece mesmo se o logout falhar", async () => {
+    deleteOwnAccount.mockResolvedValue({ status: "deleted" });
+    endSession.mockRejectedValueOnce(new Error("gotrue_down"));
+    await expect(deleteAccountAction(form("EXCLUIR"))).rejects.toThrow("redirect:/conta-excluida");
+  });
 });
 
 describe("textos", () => {

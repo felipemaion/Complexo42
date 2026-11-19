@@ -126,8 +126,11 @@ export async function requireSessionClient(): Promise<{ client: AuthClient; acce
 /** Encerra a sessão neste aparelho (cookies apagados mesmo se o GoTrue não responder). */
 export async function endSession(): Promise<void> {
   const config = getAuthConfig();
-  if (config) await (await requestAuthClient(config)).auth.signOut({ scope: "local" });
-  await clearAuthCookies();
+  try {
+    if (config) await (await requestAuthClient(config)).auth.signOut({ scope: "local" });
+  } finally {
+    await clearAuthCookies();
+  }
 }
 
 /** Apaga os cookies de sessão mesmo se o GoTrue não responder ao logout. */

@@ -313,17 +313,22 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   sessão no login e hoje pede a exclusão ao encarregado (pendência anotada no PR).
 - **Como:** o servidor chama `public.delete_own_account()` (`security definer`) com o JWT da
   pessoa. A função **não recebe alvo**: apaga só `auth.uid()`. Nunca `service_role` (R6): o app
-  não tem essa chave, e o `postgres` (dono da função) já tem DELETE em `auth.users`.
+  não tem essa chave. O dono da função é quem roda as migrations: `supabase_admin`
+  (superusuário) no servidor, onde o `postgres` é NOLOGIN, e `postgres` no `supabase start`
+  local. Os dois apagam `auth.users` e leem `auth.sessions`.
 - **Confirmação forte:** escrever `EXCLUIR` (conferido no servidor, com Zod) **e** ter entrado
-  há no máximo 10 minutos. A hora do login vem do `amr` do JWT, assinado pelo GoTrue, e o
-  **banco** confere (erro `PT401`, `reauth_required`); a tela só decide se mostra a
-  confirmação ou o botão "Sair e entrar de novo". Cookie roubado ou aparelho esquecido aberto
-  não bastam.
+  há no máximo 10 minutos. O **banco** confere pela sessão do JWT: o `session_id` (assinado
+  pelo GoTrue) precisa existir em `auth.sessions`, ser da pessoa e ter `created_at` (a hora do
+  login) de no máximo 10 minutos. Renovar o token não muda a sessão (E2E ao vivo confere).
+  Sem `session_id` ou sem a sessão, falha fechado (erro `PT401`, `reauth_required`). A tela
+  só usa o `amr` do JWT como pista para mostrar a confirmação ou o botão "Sair e entrar de
+  novo"; se o banco recusar, ela passa a pedir o login. Cookie roubado ou aparelho esquecido
+  aberto não bastam.
 - **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
   `profiles`, `profile_contacts`, `unit_members` e `role_assignments` da pessoa,
   `access_waitlist_hmac`, `questionnaire_consents` e `app.profile_save_attempts`. A função
-  apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`) e o
-  `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
+  apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`, pelo id ou pelo
+  e-mail exato da conta, lido antes de apagar) e o `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
 - **O que fica dos outros:** quando a pessoa aparece no dado de outra
   (`role_assignments.granted_by`, `unit_members.ended_by`), a linha fica e a referência vira
   nula. O trigger de `ended_by` aceita esse nulo só quando o perfil citado não existe mais.
@@ -332,7 +337,9 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   sem perfil, nada no banco liga esse id a uma pessoa. A função grava `account_deleted` (ator e
   alvo = o id apagado, sem mais nada). Esse evento serve também para **reaplicar** a exclusão
   quando um backup antigo for restaurado (`docs/OPERACAO.md`). Gestores não leem esse evento
-  pela API (o escopo depende de vínculo, que já não existe).
+  pela API (o escopo depende de vínculo, que já não existe). O JWT de uma conta apagada vale
+  até expirar; por isso um trigger recusa evento cujo `actor_id` não é uma conta existente, e
+  nada mais é gravado com o uuid morto (nem pelo dono do banco).
 - **Fica de fora, por decisão:** `access_allowlist` é a lista que a organização importa (só
   HMAC do e-mail, sem ligação com a conta). Ela não muda: se a pessoa quiser sair da lista, o
   pedido vai à organização, que a reimporta sem ela. `access_allowlist.added_by` é uuid solto.

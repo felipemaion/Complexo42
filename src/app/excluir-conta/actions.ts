@@ -15,9 +15,13 @@ export async function deleteAccountAction(formData: FormData): Promise<never> {
   const result = await deleteOwnAccount(client, { confirmation: formData.get("confirmation") });
   switch (result.status) {
     case "deleted":
-      // A conta já não existe: encerra a sessão neste aparelho e se despede.
-      await endSession();
-      redirect(ACCOUNT_DELETED_PATH);
+      // A conta já não existe: encerra a sessão neste aparelho e se despede, mesmo se o
+      // logout no GoTrue falhar (a conta e as sessões já foram apagadas no banco).
+      try {
+        await endSession();
+      } finally {
+        redirect(ACCOUNT_DELETED_PATH);
+      }
     case "invalid_confirmation":
       redirect(back("confirmacao"));
     case "reauth_required":
@@ -29,6 +33,9 @@ export async function deleteAccountAction(formData: FormData): Promise<never> {
 
 /** Reautenticação: sai e volta ao login, que devolve a pessoa para a exclusão. */
 export async function reauthenticateAction(): Promise<never> {
-  await endSession();
-  redirect(`${LOGIN_PATH}?next=${encodeURIComponent(DELETE_ACCOUNT_PATH)}`);
+  try {
+    await endSession();
+  } finally {
+    redirect(`${LOGIN_PATH}?next=${encodeURIComponent(DELETE_ACCOUNT_PATH)}`);
+  }
 }

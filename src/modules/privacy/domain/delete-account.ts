@@ -34,13 +34,14 @@ export const deleteAccountFormSchema = z.object({
 });
 
 const amrSchema = z.object({
-  amr: z.array(z.object({ timestamp: z.number().int() }).loose()).min(1),
+  amr: z.array(z.object({ timestamp: z.number().finite() }).loose()).min(1),
 });
 
 /**
- * Segundos desde o login mais recente, lidos do `amr` do JWT da sessão (o GoTrue grava a hora
- * de cada forma de entrada e não muda na renovação do token). `null` se o token não diz.
- * Não confere a assinatura: serve só para a tela; quem decide é o banco.
+ * Segundos desde o login mais recente, lidos do `amr` do JWT da sessão. `null` se o token não
+ * diz. Não confere a assinatura e serve SÓ para a tela escolher entre a confirmação e "entrar
+ * de novo": quem decide é o banco, pela criação da sessão em `auth.sessions` (não pelo amr).
+ * Se os dois discordarem, o banco responde `reauth_required` e a tela passa a pedir o login.
  */
 export function authAgeSeconds(
   accessToken: string | null | undefined,
@@ -56,7 +57,8 @@ export function authAgeSeconds(
   }
   const parsed = amrSchema.safeParse(claims);
   if (!parsed.success) return null;
-  return nowSeconds - Math.max(...parsed.data.amr.map((m) => m.timestamp));
+  // Timestamp decimal é aceito (arredondado para baixo), sem erro.
+  return Math.floor(nowSeconds - Math.max(...parsed.data.amr.map((m) => m.timestamp)));
 }
 
 /** Entrou há pouco o bastante para excluir sem entrar de novo? */

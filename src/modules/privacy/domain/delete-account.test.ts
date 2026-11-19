@@ -19,6 +19,10 @@ describe("authAgeSeconds", () => {
     expect(authAgeSeconds(token, NOW)).toBe(60);
   });
 
+  it("timestamp decimal: aceito, arredondado para baixo, sem erro", () => {
+    expect(authAgeSeconds(jwt({ amr: [{ method: "otp", timestamp: NOW - 59.5 }] }), NOW)).toBe(59);
+  });
+
   it("sem token, sem amr, amr vazio ou malformado: null (a tela pede para entrar de novo)", () => {
     expect(authAgeSeconds(null, NOW)).toBeNull();
     expect(authAgeSeconds(undefined, NOW)).toBeNull();
@@ -27,6 +31,7 @@ describe("authAgeSeconds", () => {
     expect(authAgeSeconds(jwt({ sub: "x" }), NOW)).toBeNull();
     expect(authAgeSeconds(jwt({ amr: [] }), NOW)).toBeNull();
     expect(authAgeSeconds(jwt({ amr: [{ method: "otp", timestamp: "ontem" }] }), NOW)).toBeNull();
+    expect(authAgeSeconds(jwt({ amr: [{ method: "otp", timestamp: null }] }), NOW)).toBeNull();
   });
 });
 
