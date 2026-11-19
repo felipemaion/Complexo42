@@ -150,6 +150,30 @@ export const instanceConfigSchema = z.strictObject({
     goodbyeMessage: text,
     goodbyeLink: text,
   }),
+  /** "Quem vê meu contato" (#119, ADR 0010). */
+  contactVisibility: z.strictObject({
+    title: text,
+    homeLink: text,
+    intro: text,
+    /** Nome de cada contato na tela da escolha. */
+    kinds: z.strictObject({ whatsapp: text, social: text, email: text }),
+    /** Texto do botão de cada escolha. */
+    scopes: z.strictObject({ none: text, team: text, team_house: text }),
+    /** Quem vê, em uma frase, para a escolha atual. */
+    explain: z.strictObject({ none: text, team: text, team_house: text }),
+    leaveNote: text,
+    saved: text,
+    failed: text,
+    viewsTitle: text,
+    viewsEmpty: text,
+    /** Linha da lista: `{name}`, `{kind}` e `{date}`. */
+    viewsLine: text,
+    /** O contato visto, dentro da frase da lista. */
+    viewsKinds: z.strictObject({ whatsapp: text, social: text, email: text }),
+    /** Quem viu e depois excluiu a conta. */
+    viewsUnknownPerson: text,
+    viewsNote: text,
+  }),
   /**
    * Textos da escolha da casa (#76, ADR 0008 §2 e §2.1). O texto do termo do questionário vem
    * do arquivo do questionário, não daqui.

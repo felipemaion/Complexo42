@@ -19,7 +19,37 @@ export {
 } from "./domain/form";
 export { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./domain/whatsapp";
 export { hasOwnProfile, listMunicipalities, loadOwnProfile, saveOwnProfile, type ProfileDeps } from "./server/profile";
+export {
+  CONTACT_VISIBILITY_PATH,
+  CONTACT_VISIBILITY_STATUS_PARAM,
+  contactKinds,
+  contactScopes,
+  contactVisibilityStatuses,
+  defaultContactVisibility,
+  describeContactView,
+  parseContactVisibilityChoice,
+  parseContactVisibilityStatus,
+  visibilityFromRows,
+  type ContactKind,
+  type ContactScope,
+  type ContactView,
+  type ContactViewText,
+  type ContactVisibility,
+  type ContactVisibilityChoice,
+  type ContactVisibilityStatus,
+  type MemberContact,
+} from "./domain/contact";
+export {
+  listContactViews,
+  loadContactVisibility,
+  setContactVisibility,
+  viewMemberContact,
+  type ContactDeps,
+  type SetContactVisibilityResult,
+  type ViewMemberContactResult,
+} from "./server/contact";
 export { ProfileForm } from "./components/profile-form";
+export { ContactViewsList, ContactVisibilityChoices, type ContactVisibilityText } from "./components/contact-visibility";
 export type {
   AccessStatus,
   MunicipalityOption,
