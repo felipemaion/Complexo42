@@ -111,6 +111,13 @@ O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
     cada decisão gera `access_granted` ou `access_blocked` (`reason = manual`) e apaga a linha
     de `access_waitlist_hmac`.
 - Liberar (`active`) também tira a conta de `status = pending`; `suspended` não muda.
+- Telas: `/coordenacao/autorizados` (envio do CSV/TXT; o arquivo é lido em memória e só os
+  HMACs saem do servidor; a tela mostra só `{received, promoted}` e os números das linhas
+  sem e-mail válido) e `/coordenacao/espera` (fila paginada, nome decifrado no servidor,
+  "Liberar"/"Bloquear" com confirmação; nunca e-mail nem HMAC). O atalho só aparece para
+  quem tem papel de gestor ativo, por conforto: quem decide é o banco (42501).
+- Ainda não há função para bloquear um perfil **já ativo** (`decide_access` só vale para quem
+  está em `waitlisted`).
 
 ### `access_waitlist_hmac` (ADR 0008 §1)
 `profile_id` (PK, FK `profiles` com `on delete cascade`), `email_hmac`, `created_at`. O HMAC
