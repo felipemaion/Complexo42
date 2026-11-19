@@ -61,7 +61,7 @@ test.describe("quem vê meu contato com o Supabase local", () => {
 
   /** Tira a pessoa da unidade do estado e a põe na equipe (o que a coordenação faria). */
   async function joinTeam(profileId: string, teamId: string) {
-    const close = await admin(`/rest/v1/unit_members?profile_id=eq.${profileId}&axis=eq.team&left_at=is.null`, {
+    const close = await admin(`/rest/v1/unit_members?profile_id=eq.${profileId}&left_at=is.null`, {
       method: "PATCH",
       body: JSON.stringify({ left_at: new Date().toISOString() }),
     });

@@ -207,7 +207,7 @@ export const instanceConfigSchema = z.strictObject({
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
     errors: z.strictObject({
-      /** A casa não está disponível na região da pessoa. */
+      /** A casa não existe no banco ou está inativa. */
       unavailable: text,
       /** A pessoa já aceitou outra casa. */
       already_accepted: text,
@@ -215,8 +215,6 @@ export const instanceConfigSchema = z.strictObject({
       not_active: text,
       /** O termo mudou enquanto a pessoa respondia: recarregar. */
       stale_consent: text,
-      /** A pessoa ainda não está numa região (só no estado). */
-      region_undefined: text,
       /** A coordenação encerrou a casa da pessoa: a volta é com ela. */
       removed_by_coordination: text,
       failed: text,

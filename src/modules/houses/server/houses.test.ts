@@ -70,7 +70,7 @@ describe("acceptHouse", () => {
       ["42501", "not_active"],
       ["P0002", "unavailable"],
       ["23505", "already_accepted"],
-      ["C7601", "region_undefined"],
+      ["C7601", "failed"], // a região não é mais exigida (ADR 0011)
       ["C7602", "removed_by_coordination"],
       ["22023", "failed"],
       [undefined, "failed"],
@@ -106,20 +106,19 @@ describe("recordConsent", () => {
 
 describe("readAcceptedHouse", () => {
   it("lê só o próprio vínculo de casa, aberto e aceito, e devolve o id da config", async () => {
-    const { client, filters } = fakeClient({ data: { units: { slug: "casa_b" } } });
+    const { client, filters } = fakeClient({ data: { house_key: "casa-b" } });
     expect(await readAcceptedHouse(client, "u1", houseIds)).toBe("casa-b");
     expect(filters).toEqual([
-      ["from", "unit_members", "units!inner(slug)"],
+      ["from", "house_members", "house_key"],
       ["eq", "profile_id", "u1"],
-      ["eq", "axis", "house"],
       ["is", "left_at", null],
       ["not", "accepted_at", "is", null],
     ]);
   });
 
-  it("sem casa aceita, ou unidade sem casa na config: null", async () => {
+  it("sem casa aceita, ou casa que não está na config: null", async () => {
     expect(await readAcceptedHouse(fakeClient().client, "u1", houseIds)).toBeNull();
-    expect(await readAcceptedHouse(fakeClient({ data: { units: { slug: "outra" } } }).client, "u1", houseIds)).toBeNull();
+    expect(await readAcceptedHouse(fakeClient({ data: { house_key: "outra" } }).client, "u1", houseIds)).toBeNull();
   });
 
   it("erro do banco propaga (a página falha fechada)", async () => {

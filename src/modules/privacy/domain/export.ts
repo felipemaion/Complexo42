@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 2;
+export const exportFormatVersion = 3;
 
 const timestamp = z.string().min(1);
 
@@ -57,11 +57,26 @@ export const ownDataRowsSchema = z.object({
       left_at: timestamp.nullable(),
     }),
   ),
+  /** Vínculos de casa (ADR 0011, #132): a casa é a chave da config. */
+  house_memberships: z.array(
+    z.object({
+      house_key: z.string(),
+      join_method: z.string(),
+      consent_version: z.string().nullable(),
+      joined_at: timestamp,
+      accepted_at: timestamp.nullable(),
+      left_at: timestamp.nullable(),
+    }),
+  ),
+  /** Aceites do termo do questionário (versão e data; nunca as respostas). */
+  questionnaire_consents: z.array(z.object({ term_version: z.string(), consented_at: timestamp })),
   roles: z.array(
     z.object({
       role: z.string(),
       unit_name: z.string(),
       unit_type: z.string(),
+      /** Só no papel de coordenador de casa. */
+      house_key: z.string().nullable(),
       granted_at: timestamp,
       revoked_at: timestamp.nullable(),
     }),
@@ -70,6 +85,8 @@ export const ownDataRowsSchema = z.object({
     z.object({
       event: z.string(),
       reason: z.string().nullable(),
+      term_version: z.string().nullable(),
+      house_key: z.string().nullable(),
       created_at: timestamp,
     }),
   ),
@@ -106,9 +123,27 @@ export type OwnDataExport = {
   } | null;
   contato: { whatsapp: string | null; redesSociais: string[] | null; atualizadoEm: string } | null;
   vinculos: { unidade: string; tipo: string; papelNoGrupo: string; entrouEm: string; saiuEm: string | null }[];
-  papeis: { papel: string; unidade: string; tipo: string; concedidoEm: string; revogadoEm: string | null }[];
-  /** Registros da auditoria sobre a pessoa. */
-  registrosSobreVoce: { evento: string; motivo: string | null; em: string }[];
+  /** Casas (ADR 0011): o nome vem da config; casa que saiu da config aparece pela chave. */
+  casas: {
+    casa: string;
+    formaDeEntrada: string;
+    versaoDoTermo: string | null;
+    entrouEm: string;
+    aceitaEm: string | null;
+    saiuEm: string | null;
+  }[];
+  /** Aceites do termo do questionário das casas. */
+  termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  papeis: {
+    papel: string;
+    unidade: string;
+    tipo: string;
+    casa: string | null;
+    concedidoEm: string;
+    revogadoEm: string | null;
+  }[];
+  /** Registros da auditoria sobre a pessoa e os eventos de casa e do termo feitos por ela (#132). */
+  registrosSobreVoce: { evento: string; motivo: string | null; versaoDoTermo: string | null; casa: string | null; em: string }[];
   /**
    * Quem acessou o contato (#119, ADR 0010): o nome de quem viu (nulo se a conta foi excluída
    * ou o nome não decifra), qual contato e quando. Nunca o id de quem viu.
@@ -125,6 +160,8 @@ export type BuildExportInput = {
   generatedAt: Date;
   /** Texto do campo `sobre.descricao` (vem de config/, R17). */
   description: string;
+  /** Nome de cada casa pela chave (vem de config/, R17). */
+  houseNames: Readonly<Record<string, string>>;
   decrypt: DecryptFn;
   /** Chamado com o nome da coluna (nunca o valor) quando um campo não decifra. */
   onDecryptError?: (column: string, error: unknown) => void;
@@ -160,6 +197,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
 
   const p = rows.profile;
   const c = rows.contact;
+  const houseName = (key: string | null) => (key === null ? null : (input.houseNames[key] ?? key));
   let links: string[] | null = null;
   if (c?.social_links_enc) {
     const raw = await open(c.social_links_enc, "profile_contacts", "social_links_enc");
@@ -203,14 +241,30 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       entrouEm: m.joined_at,
       saiuEm: m.left_at,
     })),
+    casas: rows.house_memberships.map((h) => ({
+      casa: houseName(h.house_key) ?? h.house_key,
+      formaDeEntrada: h.join_method,
+      versaoDoTermo: h.consent_version,
+      entrouEm: h.joined_at,
+      aceitaEm: h.accepted_at,
+      saiuEm: h.left_at,
+    })),
+    termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),
     papeis: rows.roles.map((r) => ({
       papel: r.role,
       unidade: r.unit_name,
       tipo: r.unit_type,
+      casa: houseName(r.house_key),
       concedidoEm: r.granted_at,
       revogadoEm: r.revoked_at,
     })),
-    registrosSobreVoce: rows.audit_events.map((e) => ({ evento: e.event, motivo: e.reason, em: e.created_at })),
+    registrosSobreVoce: rows.audit_events.map((e) => ({
+      evento: e.event,
+      motivo: e.reason,
+      versaoDoTermo: e.term_version,
+      casa: houseName(e.house_key),
+      em: e.created_at,
+    })),
     quemViuSeuContato: await Promise.all(
       rows.contact_views.map(async (v) => ({
         quem: v.viewer_id && v.viewer_name_enc ? await openAs(v.viewer_name_enc, v.viewer_id) : null,

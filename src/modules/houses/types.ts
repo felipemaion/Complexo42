@@ -6,7 +6,6 @@ export type HouseErrorCode =
   | "already_accepted"
   | "not_active"
   | "stale_consent"
-  | "region_undefined"
   | "removed_by_coordination"
   | "failed";
 

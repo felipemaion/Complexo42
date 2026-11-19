@@ -108,7 +108,6 @@ const valid = {
       already_accepted: "t",
       not_active: "t",
       stale_consent: "t",
-      region_undefined: "t",
       removed_by_coordination: "t",
       failed: "t",
     },

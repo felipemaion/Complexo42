@@ -3,7 +3,8 @@ import { expect, test, type Page, type Request } from "@playwright/test";
 import { scoreQuestionnaire, type Answers } from "../src/modules/questionnaire/domain/score";
 import type { QuestionnaireConfig } from "../src/modules/questionnaire/domain/schema";
 
-// Escolha da casa de ponta a ponta (#76, ADR 0008 §2 e §2.1), contra um Supabase local. Prova
+// Escolha da casa de ponta a ponta (#76, ADR 0008 §2 e §2.1; casa nacional, ADR 0011), contra um
+// Supabase local. Prova
 // que as respostas do questionário não saem do aparelho: inspeciona TODAS as requisições do
 // navegador, o localStorage e o sessionStorage. Não roda no CI (o job de E2E não sobe o
 // Supabase). Para rodar, com o banco de pé (`npm run db:start`):
@@ -27,7 +28,8 @@ const admin = (path: string, init: RequestInit = {}) =>
 
 /**
  * Pessoa nova, liberada e ativa, com perfil em SP (entra na unidade do estado). Com
- * `inRegion`, a coordenação já a pôs numa equipe da região piloto (a casa exige região, #76).
+ * `inRegion`, a coordenação já a pôs numa equipe da região piloto; sem, fica só no estado (a
+ * casa é nacional e não exige região, ADR 0011).
  */
 async function createMember(tag: string, inRegion = true): Promise<{ id: string; email: string }> {
   const email = `casa.${tag}.${Date.now()}@exemplo.org`;
@@ -69,9 +71,9 @@ async function signIn(page: Page, email: string): Promise<void> {
   await expect(page).toHaveURL(/\/inicio$/);
 }
 
-type HouseRow = { join_method: string; accepted_at: string | null; consent_version: string | null; units: { slug: string } };
+type HouseRow = { join_method: string; accepted_at: string | null; consent_version: string | null; house_key: string };
 async function houseRows(profileId: string): Promise<HouseRow[]> {
-  const res = await admin(`/rest/v1/unit_members?profile_id=eq.${profileId}&axis=eq.house&left_at=is.null&select=join_method,accepted_at,consent_version,units(slug)`);
+  const res = await admin(`/rest/v1/house_members?profile_id=eq.${profileId}&left_at=is.null&select=join_method,accepted_at,consent_version,house_key`);
   return res.json();
 }
 async function consents(profileId: string): Promise<{ term_version: string }[]> {
@@ -162,7 +164,7 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: só a
       join_method: "questionnaire",
       accepted_at: expect.any(String),
       consent_version: questionnaire.consentTermVersion,
-      units: { slug: expected.replaceAll("-", "_") },
+      house_key: expected,
     },
   ]);
   expect(await consents(member.id)).toEqual([{ term_version: questionnaire.consentTermVersion }]);
@@ -191,7 +193,7 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
 
   expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-3", joinMethod: "self" }]]);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), consent_version: null, units: { slug: "casa_exemplo_3" } },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-3" },
   ]);
   expect(await consents(member.id)).toEqual([]);
   await expectNoStorage(page);
@@ -228,13 +230,38 @@ test("quem ainda não está ativo vê o motivo e nada é gravado", async ({ page
   expect(await houseRows(member.id)).toEqual([]);
 });
 
-test("quem ainda está só no estado vê \"sua região ainda não foi definida\" e nada é gravado", async ({ page }) => {
+test("quem ainda está só no estado (sem região) escolhe a casa (ADR 0011)", async ({ page }) => {
   const member = await createMember("e", false);
   await signIn(page, member.email);
   await page.goto("/casa");
   await page.getByRole("button", { name: "Sim, já sei" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toHaveText(/Sua região ainda não foi definida/);
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+  expect(await houseRows(member.id)).toEqual([
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-1" },
+  ]);
+});
+
+test("tirada da casa pela coordenação, a pessoa vê o motivo e não volta sozinha", async ({ page }) => {
+  const member = await createMember("x");
+  await signIn(page, member.email);
+  await page.goto("/casa");
+  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  // Encerrado fora do JWT da pessoa (ended_by fica nulo, como numa operação da coordenação).
+  const ended = await admin(`/rest/v1/house_members?profile_id=eq.${member.id}&left_at=is.null`, {
+    method: "PATCH",
+    body: JSON.stringify({ left_at: new Date().toISOString() }),
+  });
+  expect(ended.ok).toBe(true);
+  await page.goto("/casa");
+  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toHaveText(/A coordenação tirou você da sua casa/);
   expect(await houseRows(member.id)).toEqual([]);
 });

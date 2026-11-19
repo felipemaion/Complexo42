@@ -38,10 +38,26 @@ const rows: OwnDataRows = {
   memberships: [
     { unit_name: "São Paulo", unit_type: "Estado", member_role: "member", joined_at: "2026-11-19T11:00:00+00:00", left_at: null },
   ],
-  roles: [
-    { role: "spokesperson", unit_name: "Equipe 1", unit_type: "Equipe", granted_at: "2026-11-19T13:00:00+00:00", revoked_at: null },
+  house_memberships: [
+    {
+      house_key: "casa-um",
+      join_method: "questionnaire",
+      consent_version: "termo-1",
+      joined_at: "2026-11-19T11:30:00+00:00",
+      accepted_at: "2026-11-19T11:30:00+00:00",
+      left_at: null,
+    },
   ],
-  audit_events: [{ event: "data_exported", reason: null, created_at: "2026-11-20T01:30:00+00:00" }],
+  questionnaire_consents: [{ term_version: "termo-1", consented_at: "2026-11-19T11:20:00+00:00" }],
+  roles: [
+    { role: "spokesperson", unit_name: "Equipe 1", unit_type: "Equipe", house_key: null, granted_at: "2026-11-19T13:00:00+00:00", revoked_at: null },
+    { role: "house_coordinator", unit_name: "Região 1", unit_type: "Região", house_key: "casa-fora-da-config", granted_at: "2026-11-19T14:00:00+00:00", revoked_at: null },
+  ],
+  audit_events: [
+    { event: "questionnaire_consented", reason: null, term_version: "termo-1", house_key: null, created_at: "2026-11-19T11:20:00+00:00" },
+    { event: "house_accepted", reason: "questionnaire", term_version: "termo-1", house_key: "casa-um", created_at: "2026-11-19T11:30:00+00:00" },
+    { event: "data_exported", reason: null, term_version: null, house_key: null, created_at: "2026-11-20T01:30:00+00:00" },
+  ],
   contact_views: [
     { viewer_id: VIEWER, viewer_name_enc: "enc:quemviu", kind: "whatsapp", viewed_at: "2026-11-19T15:00:00+00:00" },
     { viewer_id: null, viewer_name_enc: null, kind: "email", viewed_at: "2026-11-19T16:00:00+00:00" },
@@ -73,6 +89,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
     loginEmail: "maria@exemplo.org",
     generatedAt: AT,
     description: "Cópia dos seus dados.",
+    houseNames: { "casa-um": "Casa Um" },
     decrypt: fakeDecrypt().decrypt,
     ...over,
   });
@@ -80,7 +97,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 2, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 3, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -94,8 +111,27 @@ describe("buildOwnDataExport", () => {
       },
       contato: { whatsapp: "+5511987654321", redesSociais: ["https://exemplo.org/maria"], atualizadoEm: "2026-11-19T12:00:00+00:00" },
       vinculos: [{ unidade: "São Paulo", tipo: "Estado", papelNoGrupo: "member", entrouEm: "2026-11-19T11:00:00+00:00", saiuEm: null }],
-      papeis: [{ papel: "spokesperson", unidade: "Equipe 1", tipo: "Equipe", concedidoEm: "2026-11-19T13:00:00+00:00", revogadoEm: null }],
-      registrosSobreVoce: [{ evento: "data_exported", motivo: null, em: "2026-11-20T01:30:00+00:00" }],
+      casas: [
+        {
+          casa: "Casa Um",
+          formaDeEntrada: "questionnaire",
+          versaoDoTermo: "termo-1",
+          entrouEm: "2026-11-19T11:30:00+00:00",
+          aceitaEm: "2026-11-19T11:30:00+00:00",
+          saiuEm: null,
+        },
+      ],
+      termosDoQuestionario: [{ versao: "termo-1", aceitoEm: "2026-11-19T11:20:00+00:00" }],
+      papeis: [
+        { papel: "spokesperson", unidade: "Equipe 1", tipo: "Equipe", casa: null, concedidoEm: "2026-11-19T13:00:00+00:00", revogadoEm: null },
+        // Casa que não está mais na config: aparece pela chave.
+        { papel: "house_coordinator", unidade: "Região 1", tipo: "Região", casa: "casa-fora-da-config", concedidoEm: "2026-11-19T14:00:00+00:00", revogadoEm: null },
+      ],
+      registrosSobreVoce: [
+        { evento: "questionnaire_consented", motivo: null, versaoDoTermo: "termo-1", casa: null, em: "2026-11-19T11:20:00+00:00" },
+        { evento: "house_accepted", motivo: "questionnaire", versaoDoTermo: "termo-1", casa: "Casa Um", em: "2026-11-19T11:30:00+00:00" },
+        { evento: "data_exported", motivo: null, versaoDoTermo: null, casa: null, em: "2026-11-20T01:30:00+00:00" },
+      ],
       quemViuSeuContato: [
         { quem: "Joana Coordena", contato: "whatsapp", em: "2026-11-19T15:00:00+00:00" },
         { quem: null, contato: "email", em: "2026-11-19T16:00:00+00:00" },
@@ -171,7 +207,16 @@ describe("buildOwnDataExport", () => {
 
   it("quem ainda não tem perfil recebe perfil e contato nulos e listas vazias", async () => {
     const out = await build({
-      rows: { profile: null, contact: null, memberships: [], roles: [], audit_events: [], contact_views: [] },
+      rows: {
+        profile: null,
+        contact: null,
+        memberships: [],
+        house_memberships: [],
+        questionnaire_consents: [],
+        roles: [],
+        audit_events: [],
+        contact_views: [],
+      },
       loginEmail: null,
     });
     expect(out).toMatchObject({
@@ -179,6 +224,8 @@ describe("buildOwnDataExport", () => {
       perfil: null,
       contato: null,
       vinculos: [],
+      casas: [],
+      termosDoQuestionario: [],
       papeis: [],
       registrosSobreVoce: [],
       quemViuSeuContato: [],
