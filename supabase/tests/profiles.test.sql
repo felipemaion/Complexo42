@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(49);
+select plan(55);
 
 -- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
 create function pg_temp.enc(p_tag text) returns text language sql as $$
@@ -15,12 +15,14 @@ create function pg_temp.login(p_id uuid) returns void language sql as $$
     json_build_object('sub', p_id, 'role', 'authenticated')::text, true);
 $$;
 
--- u1: cadastra-se pela API; u2: outro perfil ativo; u3: bloqueado; u4: na espera.
+-- u1: cadastra-se pela API; u2: outro perfil ativo; u3: bloqueado; u4: na espera;
+-- u5: conta suspensa.
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000b1'),
   ('00000000-0000-0000-0000-0000000000b2'),
   ('00000000-0000-0000-0000-0000000000b3'),
-  ('00000000-0000-0000-0000-0000000000b4');
+  ('00000000-0000-0000-0000-0000000000b4'),
+  ('00000000-0000-0000-0000-0000000000b5');
 insert into public.municipalities (code, name, state_code) values (3106200, 'Belo Horizonte', 'MG');
 
 -- ---------------------------------------------------------------------------------------
@@ -119,7 +121,11 @@ values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3106200, 'v1'
         'SP', '2000-01-01', '2000-01-01');
 select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b3', pg_temp.enc('b3'));
 select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b4', pg_temp.enc('b4'));
-update public.profiles set access_status = 'active' where id = '00000000-0000-0000-0000-0000000000b2';
+select pg_temp.add_profile('00000000-0000-0000-0000-0000000000b5', pg_temp.enc('b5'));
+update public.profiles set access_status = 'active', status = 'active'
+where id = '00000000-0000-0000-0000-0000000000b2';
+update public.profiles set access_status = 'active', status = 'suspended'
+where id = '00000000-0000-0000-0000-0000000000b5';
 update public.profiles set access_status = 'blocked' where id = '00000000-0000-0000-0000-0000000000b3';
 update public.profiles set access_status = 'waitlisted' where id = '00000000-0000-0000-0000-0000000000b4';
 
@@ -164,12 +170,24 @@ select lives_ok(
      values ('00000000-0000-0000-0000-0000000000b1', pg_temp.enc('b1'), 3550308, 'v1') $$,
   'a pessoa cria o próprio perfil'
 );
+-- Conferido como dono: quem está pendente ainda não lê a estrutura.
+reset role;
 select results_eq(
   $$ select u.path::text from public.unit_members as m
      join public.units as u on u.id = m.unit_id
      where m.profile_id = '00000000-0000-0000-0000-0000000000b1' and m.left_at is null $$,
   array['br.sp'],
   'ao criar o perfil, a pessoa entra na unidade do seu estado'
+);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.municipalities),
+  40,
+  'quem está pendente lê os municípios (escolha no cadastro)'
+);
+select is_empty(
+  $$ select 1 from public.unit_members $$,
+  'quem está pendente NÃO lê vínculos, nem o próprio'
 );
 select results_eq(
   $$ select status, access_status, state_code::text from public.profiles $$,
@@ -293,6 +311,28 @@ select results_eq(
   $$ values ('00000000-0000-0000-0000-0000000000b4'::uuid, 'waitlisted') $$,
   'quem está na espera lê só o próprio perfil'
 );
+select is_empty(
+  $$ select 1 from public.municipalities $$,
+  'quem está na espera NÃO lê municípios'
+);
+
+-- Conta suspensa: lê o próprio perfil, mas não edita nem cadastra contato.
+select pg_temp.login('00000000-0000-0000-0000-0000000000b5');
+select results_eq(
+  $$ select id, status from public.profiles $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b5'::uuid, 'suspended') $$,
+  'conta suspensa lê o próprio perfil'
+);
+select lives_ok(
+  $$ update public.profiles set district = 'Suspenso' $$,
+  'conta suspensa tenta editar: não alcança linha nenhuma'
+);
+select throws_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+     values ('00000000-0000-0000-0000-0000000000b5', pg_temp.enc('w5'), repeat('f', 64)) $$,
+  '42501', null,
+  'conta suspensa NÃO cadastra contato'
+);
 
 -- Visitante anônimo
 reset role;
@@ -308,11 +348,13 @@ select throws_ok(
 reset role;
 select results_eq(
   $$ select id, district from public.profiles
-     where id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3')
+     where id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3',
+                  '00000000-0000-0000-0000-0000000000b5')
      order by id $$,
   $$ values ('00000000-0000-0000-0000-0000000000b2'::uuid, null::text),
-            ('00000000-0000-0000-0000-0000000000b3'::uuid, null::text) $$,
-  'os perfis de outra pessoa e o bloqueado não foram alterados'
+            ('00000000-0000-0000-0000-0000000000b3'::uuid, null::text),
+            ('00000000-0000-0000-0000-0000000000b5'::uuid, null::text) $$,
+  'os perfis de outra pessoa, o bloqueado e o suspenso não foram alterados'
 );
 select ok(
   has_table_privilege('authenticated', 'public.municipalities', 'select')

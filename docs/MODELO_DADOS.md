@@ -97,8 +97,13 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 
 - **O titular** cria e edita só o próprio perfil, e só `display_name_enc`, `municipality_code`,
   `district` e `consent_version`. `status`, `access_status`, `state_code` e as datas não têm
-  grant para a API. Perfil `blocked` não edita.
-- **Terceiros** (escopo, via `app.can_view_profile`) só enxergam perfis `active`.
+  grant para a API. Perfil `blocked` ou com conta `suspended` não edita (mas lê o próprio).
+- **Terceiros** (escopo, via `app.can_view_profile`) só enxergam perfis com `access_status` e
+  `status` = `active` (`app.is_active_profile`).
+- **Quem chama também precisa estar ativo** (`app.is_active_member`): sem isso, o papel não
+  vale (sem escopo, não concede nem revoga) e a pessoa não lê `unit_types`, `units`,
+  `unit_members` nem `role_assignments`. Em `waitlisted` ou `blocked`, lê só o próprio perfil;
+  em `pending` (ou ainda sem perfil), lê também `municipalities`, para se cadastrar.
 - **Validação do texto** (nome de 2 a 80 caracteres, WhatsApp em E.164, até 5 URLs https) fica
   no schema Zod de `src/modules/profiles/`, aplicado no servidor antes de cifrar. O banco só
   confere o formato `v<n>.<iv>.<ct>` e um teto de tamanho.
