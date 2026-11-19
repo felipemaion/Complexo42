@@ -77,6 +77,110 @@ supabase/tests/               # pgTAP: RLS e matriz de permissões (code owner)
 - Componentes React **não** acessam o banco; quem acessa é `server/`.
 - Regra de negócio nova vai para `domain/`, com teste, antes de ir para a tela.
 
+## 2.2 Como escrever o código
+
+O objetivo é que outra pessoa (ou a IA dela) entenda o trecho sem perguntar nada ao autor.
+Cada item abaixo é verificável na revisão.
+
+**Nomes**
+
+- O nome diz **o que é**, não como é feito: `activeMembers`, não `list2` nem `data`.
+- Booleanos começam com `is`, `has`, `can` ou `should`: `isExpired`, `canManageUnit`.
+- Funções são verbos ou transformações: `nextFlow`, `brazilianWhatsappToE164`. Tipos e
+  componentes em `PascalCase`; arquivos em `kebab-case` (`delete-account.ts`).
+- Unidade no nome quando houver: `timeoutMs`, `maxLengthChars`, `ttlDays`.
+- Sem abreviação inventada (`usr`, `cfg`, `tmp`). Siglas consagradas (`id`, `url`) podem.
+- Nomes genéricos do domínio (R17): `unit`, `member`, `task`, nunca o rótulo da instância.
+
+**Simplicidade (KISS, YAGNI, DRY com moderação)**
+
+- Resolva o caso da issue, não o "e se um dia". Sem parâmetro, flag ou abstração sem uso hoje.
+- **Regra de três:** duplicou uma vez, tudo bem; na terceira cópia, extraia. Abstração
+  errada custa mais que repetição.
+- DRY vale para **conhecimento**, não para texto parecido: uma regra de negócio mora num
+  lugar só (`domain/`, `app.can_*`); dois trechos iguais por coincidência podem ficar.
+
+**Funções**
+
+- Pequenas e com um assunto. Passou de ~40 linhas ou de 3 níveis de `if`, divida.
+- Em `domain/`, **puras**: mesma entrada, mesma saída; sem banco, rede, `Date.now()` ou
+  `Math.random()` escondidos. O que varia entra por parâmetro.
+- **Early return** em vez de `if` aninhado:
+
+```ts
+// assim (src/modules/profiles/domain/whatsapp.ts)
+if (typeof raw !== "string" || raw.length > whatsappInputMaxLength) return null;
+if (/[^\d\s()+.-]/.test(raw)) return null;
+
+// não assim
+if (typeof raw === "string") {
+  if (raw.length <= 24) { /* ... três níveis depois ... */ }
+}
+```
+
+- Mais de 3 parâmetros, ou dois do mesmo tipo seguidos? Use um objeto com nomes.
+
+**Tipos e dados**
+
+- **Tipos explícitos nas fronteiras:** retorno de função exportada, props de componente e
+  saída de server action. Dentro da função, a inferência basta.
+- Dado externo (formulário, URL, banco, JSON) chega como `unknown` e passa por Zod (§2).
+- Estados e eventos como **união discriminada**, não booleanos soltos:
+
+```ts
+// assim (src/modules/houses/domain/flow.ts): estado impossível não compila
+type Step =
+  | { kind: "ask" }
+  | { kind: "question"; index: number }
+  | { kind: "presentation"; houseId: string; method: JoinMethod };
+
+// não assim
+type Step = { isAsking: boolean; questionIndex?: number; houseId?: string };
+```
+
+- **Imutabilidade:** `const` por padrão, `readonly` em props e arrays recebidos. Gere um
+  valor novo (`{ ...state, step }`, `map`, `filter`) em vez de alterar o recebido.
+- **Sem número ou texto mágico:** constante com nome e comentário de origem
+  (`whatsappInputMaxLength`, `DDDS` com "plano da Anatel"). Texto de interface vem de `config/`.
+
+**Composição em vez de herança**
+
+- Nada de classe base nem hierarquia. Reuso é função que chama função, componente que
+  recebe componente (`children`) e hook pequeno.
+- **SOLID, adaptado:** o projeto é TypeScript funcional + React, não OO com classes; vale a
+  ideia: um motivo para mudar por módulo, dependência entrando por parâmetro e módulos
+  falando só pelo `index.ts` (§2.1).
+
+**Erros: falhar fechado**
+
+- Na dúvida, **negar**: permissão desconhecida, dado inválido ou erro de consulta resultam
+  em "sem acesso" ou erro visível, nunca em "libera" ou lista vazia silenciosa.
+- Nada de `catch {}` vazio nem `catch` que só loga e segue. Trate ou deixe subir.
+- Mensagem ao usuário é genérica e em português; o detalhe técnico vai para o log do
+  servidor, **sem dado pessoal** (R11).
+- Erro esperado (entrada inválida) é valor de retorno (`null`, `{ ok: false, ... }`);
+  `throw` fica para o que não deveria acontecer.
+
+**Comentários**
+
+- Comentário explica **o porquê** (regra, ADR, issue, armadilha), não repete o código.
+  Cite a origem: `// ADR 0008 §2`, `// issue #12`.
+- Código comentado não entra: o histórico fica no git.
+- `TODO` só com issue: `// TODO(#87): ...`.
+
+**Testes legíveis**
+
+- O nome do teste descreve o **comportamento**, em português: `"fora do escopo → negado"`,
+  não `"test 3"`.
+- **Arrange / Act / Assert**: prepara, executa uma ação, confere. Uma ideia por teste.
+- Teste o contrato público (o que o `index.ts` exporta), não detalhe interno.
+- Dados de teste fictícios e óbvios (`"casa-b"`, `"+5511999990000"`), nunca dado real.
+
+**PR**
+
+- **Um assunto por PR** (R12): refatoração e funcionalidade nova em PRs separados.
+- Sem formatação ou renomeação "de passagem" em arquivo que a issue não toca.
+
 ## 3. Stack (ADR 0001 e ADR 0009)
 
 - Next.js (App Router) + TypeScript

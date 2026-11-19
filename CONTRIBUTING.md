@@ -71,4 +71,5 @@ npm run db:stop    # para os contêineres
 - [ ] Alguma tabela nova sem RLS? Algum campo pessoal novo?
 - [ ] Alguma chave ou segredo no diff?
 - [ ] Alguma dependência nova sem justificativa?
+- [ ] O código segue o `AGENTS.md` §2.2 (nomes, funções puras no `domain/`, falha fechada)?
 - [ ] Rodei localmente (quando há mudança de interface)?
