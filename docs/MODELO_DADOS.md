@@ -44,6 +44,7 @@ profiles ───────┼─< unit_members >── units
 
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
+questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
 
 missions ─< mission_steps
 missions ─< mission_runs (uma turma assume a missão) ─< step_submissions (entregas)
@@ -175,6 +176,32 @@ municípios da Região Metropolitana de São Paulo.
 `accepted_at` null (só casa). Mover alguém encerra o vínculo (não apaga): é o
 **histórico** da pessoa (ADR 0007 §2). Índice único parcial: um vínculo aberto por pessoa
 **e por eixo** (ADR 0008 §2). Do questionário de casa, guarda-se só a casa sugerida.
+
+- **Eixo (#76):** `unit_members.axis` (`team`, `house`) é copiado de
+  `unit_types.membership_axis` por trigger (o valor enviado é ignorado) e alimenta o índice
+  único `(profile_id, axis) where left_at is null`. O eixo de um tipo, ou o tipo de uma unidade,
+  não muda depois que há vínculos. `team` é o eixo territorial: a unidade do estado de quem
+  ainda não tem equipe também é `team`.
+- **O vínculo de casa só conta com `accepted_at`** (`app.membership_counts`): sem aceite, não dá
+  visão a quem coordena a casa, não mostra a unidade à própria pessoa e não entra no escopo da
+  fila de espera. A pessoa continua lendo o próprio vínculo.
+- **Casa da config ↔ unidade:** o `id` da casa em `config/instance.ts` (`casa-exemplo-1`) é o
+  `slug` da unidade com `_` no lugar de `-` (`casa_exemplo_1`). A unidade escolhida é a da
+  região da pessoa (`app.house_unit_for`): a filha do ancestral mais próximo do seu vínculo de
+  equipe, dentro do estado; quem está só no estado fica com a casa se uma única região do
+  estado a oferece. Sem isso, a escolha é recusada até a coordenação definir a região.
+- **Escolha e aceite** só pela função `accept_house(house_key, join_method)` (`security
+  definer`): a própria pessoa, liberada e ativa; `questionnaire` exige o termo aceito antes; uma
+  casa já aceita não é trocada pela pessoa (é com a coordenação); repetir a mesma casa devolve o
+  mesmo vínculo. A API não tem grant de escrita em `join_method` nem em `accepted_at`.
+
+### `questionnaire_consents` (ADR 0008 §2.1)
+`profile_id` (FK `profiles`, `on delete cascade`), `term_version` (`A-Za-z0-9._-`, até 32),
+`consented_at`; PK `(profile_id, term_version)`. Aceite do termo do questionário: versão e
+data, sem assinatura nem e-mail. Gravado só por `record_questionnaire_consent(term_version)`
+(a própria pessoa, liberada e ativa; repetir a versão mantém a primeira data). RLS: só o
+titular lê; sem grant de escrita. **As respostas do questionário nunca chegam ao banco**: a
+pontuação roda no aparelho e só a casa vai ao servidor.
 
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`), `unit_id`, `granted_by`,

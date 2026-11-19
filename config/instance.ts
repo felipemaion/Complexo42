@@ -96,6 +96,9 @@ export const instance = parseInstanceConfig({
     fileDescription:
       "Cópia dos dados que a plataforma guarda sobre você (Lei Geral de Proteção de Dados, art. 18). Nome e WhatsApp ficam cifrados no banco e foram decifrados só para gerar este arquivo.",
   },
+  // Casas de formação (ADR 0008 §2). O `id` liga a casa à unidade do eixo `house`: o `slug` da
+  // unidade é o id com `_` no lugar de `-` (casa-exemplo-1 ↔ casa_exemplo_1). A região piloto do
+  // seed tem uma unidade para cada casa (tests/house-units.test.ts).
   houses: [
     {
       id: "casa-exemplo-1",
@@ -109,6 +112,24 @@ export const instance = parseInstanceConfig({
     {
       id: "casa-exemplo-2",
       name: "Casa Exemplo Dois",
+      description: "[PREENCHER] Descrição curta da casa.",
+      firstSteps: {
+        text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
+        videoUrls: [],
+      },
+    },
+    {
+      id: "casa-exemplo-3",
+      name: "Casa Exemplo Três",
+      description: "[PREENCHER] Descrição curta da casa.",
+      firstSteps: {
+        text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
+        videoUrls: [],
+      },
+    },
+    {
+      id: "casa-exemplo-4",
+      name: "Casa Exemplo Quatro",
       description: "[PREENCHER] Descrição curta da casa.",
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",

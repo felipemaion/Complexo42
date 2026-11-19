@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(6);
+select plan(7);
 
 select is(
   (select path::text from public.units where parent_id is null),
@@ -36,6 +36,11 @@ select is(
    where t.key = 'house' and u.path <@ 'br.sp.abc'),
   4,
   'a região piloto tem as quatro casas (ADR 0008)'
+);
+select set_eq(
+  $$ select key from public.unit_types where membership_axis = 'house' $$,
+  array['house'],
+  'só o tipo das casas é do eixo house (ADR 0008 §2); os demais, do eixo team'
 );
 select ok(
   not exists (select 1 from public.unit_members)
