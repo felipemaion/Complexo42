@@ -1,0 +1,83 @@
+{
+  "version": "exemplo-1",
+  "consentTermVersion": "termo-exemplo-1",
+  "tieBreak": { "EI": "I", "SN": "N", "TF": "F", "JP": "P" },
+  "houseByTemperament": {
+    "NF": "casa-exemplo-1",
+    "SJ": "casa-exemplo-2",
+    "NT": "casa-exemplo-1",
+    "SP": "casa-exemplo-2"
+  },
+  "items": [
+    {
+      "id": "q01",
+      "text": "Num sábado livre, você prefere:",
+      "axis": "EI",
+      "a": { "text": "encontrar amigos num lugar movimentado", "pole": "E" },
+      "b": { "text": "ficar em casa com um livro ou uma série", "pole": "I" }
+    },
+    {
+      "id": "q02",
+      "text": "Ao montar um móvel novo, você:",
+      "axis": "SN",
+      "a": { "text": "segue o manual passo a passo", "pole": "S" },
+      "b": { "text": "olha a foto da caixa e vai deduzindo", "pole": "N" }
+    },
+    {
+      "id": "q03",
+      "text": "Para escolher um restaurante, você se guia mais por:",
+      "axis": "TF",
+      "a": { "text": "o que agrada a todos do grupo", "pole": "F" },
+      "b": { "text": "preço, distância e avaliações", "pole": "T" }
+    },
+    {
+      "id": "q04",
+      "text": "Antes de uma viagem, você:",
+      "axis": "JP",
+      "a": { "text": "deixa o roteiro pronto com antecedência", "pole": "J" },
+      "b": { "text": "decide o que fazer quando chegar", "pole": "P" }
+    },
+    {
+      "id": "q05",
+      "text": "Depois de um dia cheio, você recupera a energia:",
+      "axis": "EI",
+      "a": { "text": "em silêncio, sozinho", "pole": "I" },
+      "b": { "text": "conversando com alguém", "pole": "E" }
+    },
+    {
+      "id": "q06",
+      "text": "Numa receita de bolo, você:",
+      "axis": "SN",
+      "a": { "text": "inventa uma variação", "pole": "N" },
+      "b": { "text": "mede cada ingrediente com cuidado", "pole": "S" }
+    },
+    {
+      "id": "q07",
+      "text": "Quando um amigo pede opinião sobre uma roupa, você:",
+      "axis": "TF",
+      "a": { "text": "diz exatamente o que acha", "pole": "T" },
+      "b": { "text": "procura um jeito gentil de falar", "pole": "F" }
+    },
+    {
+      "id": "q08",
+      "text": "Sua mesa de trabalho costuma ficar:",
+      "axis": "JP",
+      "a": { "text": "com cada coisa no seu lugar", "pole": "J" },
+      "b": { "text": "com o que estiver em uso à mão", "pole": "P" }
+    },
+    {
+      "id": "q09",
+      "text": "Numa conversa, você presta mais atenção:",
+      "axis": "SN",
+      "a": { "text": "nos fatos e detalhes contados", "pole": "S" },
+      "b": { "text": "no que está por trás do que foi dito", "pole": "N" }
+    },
+    {
+      "id": "q10",
+      "text": "Com uma tarefa para a semana que vem, você:",
+      "axis": "JP",
+      "a": { "text": "deixa para os últimos dias", "pole": "P" },
+      "b": { "text": "começa logo para tirar da frente", "pole": "J" }
+    }
+  ]
+}
