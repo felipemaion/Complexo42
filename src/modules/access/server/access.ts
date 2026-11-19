@@ -7,7 +7,8 @@ import { z } from "zod";
 import { accessStatuses } from "@/modules/profiles";
 import { decryptField, emailBlindIndex } from "@/server/crypto";
 import { log } from "@/server/log";
-import { parseAllowlistCsv } from "../domain/allowlist-csv";
+import { normalizeAllowlistEmail, parseAllowlistCsv } from "../domain/allowlist-csv";
+import type { MemberBlockRequest } from "../domain/member-block";
 import {
   AccessError,
   type AccessClient,
@@ -156,4 +157,22 @@ export async function decideAccess(
 ): Promise<WaitlistDecision> {
   const args = { p_profile: z.guid().parse(profileId), p_decision: decisionSchema.parse(decision) };
   return decisionSchema.parse(await callRpc(client, "decide_access", args));
+}
+
+const memberBlockReasonSchema = z.enum(["impersonation", "conduct", "other"]).nullable();
+const normalizedEmailSchema = z.string().refine((email) => normalizeAllowlistEmail(email) === email);
+
+/**
+ * Bloqueia quem está ativo (`block_member`) ou devolve à fila de espera quem está bloqueado
+ * (`unblock_member`), pelo e-mail de login. O banco decide quem pode (R15) e responde igual
+ * exista ou não a conta: aqui não há como saber se alguém foi alterado. Só a falta de papel de
+ * gestor vira `forbidden`. O e-mail não vai para log nenhum (R11).
+ */
+export async function setMemberBlock(client: AccessClient, request: MemberBlockRequest): Promise<void> {
+  const email = normalizedEmailSchema.parse(request.email);
+  if (request.action === "unblock") {
+    await callRpc(client, "unblock_member", { p_email: email });
+    return;
+  }
+  await callRpc(client, "block_member", { p_email: email, p_reason: memberBlockReasonSchema.parse(request.reason) });
 }

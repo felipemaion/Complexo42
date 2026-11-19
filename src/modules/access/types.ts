@@ -7,6 +7,12 @@ export type AllowlistSource = "form" | "academy" | "manual";
 /** Decisão do gestor sobre quem está na espera. */
 export type WaitlistDecision = "active" | "blocked";
 
+/** Bloquear quem está ativo ou desbloquear quem está bloqueado (#26). */
+export type MemberBlockAction = "block" | "unblock";
+
+/** Motivo opcional do bloqueio: lista fechada, nunca texto livre (sem dado pessoal). */
+export type MemberBlockReason = "impersonation" | "conduct" | "other";
+
 /** Usuário da sessão como `auth.getUser()` devolve (só os campos usados aqui). */
 export type SessionUser = { email?: string | null; email_confirmed_at?: string | null };
 

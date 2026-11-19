@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { emailBlindIndexWith } from "@/server/crypto/field";
 import { importKeyring } from "@/server/crypto/keys";
 import { log } from "@/server/log";
-import { decideAccess, importAllowlist, listWaitlist, resolveAccessAfterSignIn } from "./access";
+import { decideAccess, importAllowlist, listWaitlist, resolveAccessAfterSignIn, setMemberBlock } from "./access";
 import { AccessError, type AccessClient, type SessionUser } from "../types";
 
 const key = () => crypto.getRandomValues(new Uint8Array(32));
@@ -196,6 +196,35 @@ describe("fila de espera", () => {
     await expect(decideAccess(client, "1 or 1=1", "active")).rejects.toThrow();
     // @ts-expect-error decisão fora do enum
     await expect(decideAccess(client, row(1).profile_id, "pending")).rejects.toThrow();
+    expect(calls).toEqual([]);
+  });
+});
+
+describe("setMemberBlock", () => {
+  it("bloquear chama block_member com o e-mail normalizado e o motivo", async () => {
+    const { client, calls } = fakeClient(null);
+    await setMemberBlock(client, { email: "pessoa@exemplo.org", action: "block", reason: "conduct" });
+    expect(calls).toEqual([{ fn: "block_member", args: { p_email: "pessoa@exemplo.org", p_reason: "conduct" } }]);
+  });
+
+  it("desbloquear chama unblock_member só com o e-mail", async () => {
+    const { client, calls } = fakeClient(null);
+    await setMemberBlock(client, { email: "pessoa@exemplo.org", action: "unblock", reason: null });
+    expect(calls).toEqual([{ fn: "unblock_member", args: { p_email: "pessoa@exemplo.org" } }]);
+  });
+
+  it("recusa do banco (sem papel de gestor) vira forbidden", async () => {
+    const { client } = fakeClient(null, { dbError: { code: "42501" } });
+    await expect(setMemberBlock(client, { email: "pessoa@exemplo.org", action: "block", reason: null })).rejects.toEqual(
+      new AccessError("forbidden"),
+    );
+  });
+
+  it("e-mail não normalizado ou motivo fora da lista não chegam ao banco", async () => {
+    const { client, calls } = fakeClient(null);
+    await expect(setMemberBlock(client, { email: "Pessoa@Exemplo.org", action: "block", reason: null })).rejects.toThrow();
+    // @ts-expect-error motivo fora da lista fechada
+    await expect(setMemberBlock(client, { email: "pessoa@exemplo.org", action: "block", reason: "texto livre" })).rejects.toThrow();
     expect(calls).toEqual([]);
   });
 });

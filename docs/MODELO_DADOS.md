@@ -118,8 +118,16 @@ O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
   confirmação; nunca e-mail nem HMAC). Nome que não decifra vai para o log só com código e
   `profile_id`, e a linha não deixa liberar (bloquear continua). O atalho só aparece para
   quem tem papel de gestor ativo, por conforto: quem decide é o banco (42501).
-- Ainda não há função para bloquear um perfil **já ativo** (`decide_access` só vale para quem
-  está em `waitlisted`).
+- `block_member(email, motivo?)` e `unblock_member(email)`: o gestor bloqueia quem **já está
+  ativo** (`active` → `blocked`) ou desfaz (`blocked` → `waitlisted`: a pessoa volta para a fila
+  e a liberação passa de novo pela coordenação). A pessoa é achada pelo e-mail de login em
+  `auth.users`. Pode quem tem escopo sobre o vínculo do alvo (`app.manages_member`), nunca sobre
+  si nem sobre quem tem papel no seu nível ou acima (`app.is_outranked_by_caller`). A resposta é
+  a mesma exista ou não a conta, esteja ou não no escopo; só quem não é gestor ativo recebe
+  42501. O efeito é imediato: `is_active_member` e `is_active_profile` leem `access_status`, e o
+  servidor encerra a sessão de quem está `blocked`. Papéis não são revogados. Gera
+  `member_blocked` (motivo opcional de lista fechada) ou `member_unblocked`. Tela:
+  `/coordenacao/bloqueio` (pedido e confirmação, funciona sem JavaScript).
 
 ### `access_waitlist_hmac` (ADR 0008 §1)
 `profile_id` (PK, FK `profiles` com `on delete cascade`), `email_hmac`, `created_at`. O HMAC
@@ -376,13 +384,14 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `id`, `actor_id`, `event` (`contact_viewed`, `role_granted`,
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
-`access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`),
+`access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`,
+`member_blocked`, `member_unblocked`),
 `target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
 automática na importação), em `house_accepted` (a forma de entrada: `self` ou
 `questionnaire`) e em `contact_viewed` (o tipo do contato: `whatsapp`, `social` ou `email`); nesses
-eventos é obrigatório. Em `contact_viewed`, `actor_id` é quem viu e `target_id` a pessoa vista. `term_version` é a versão do termo do questionário: obrigatória em
+eventos é obrigatório. Em `member_blocked` é opcional (`impersonation`, `conduct` ou `other`). Em `contact_viewed`, `actor_id` é quem viu e `target_id` a pessoa vista. `term_version` é a versão do termo do questionário: obrigatória em
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
 `actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória; só neste evento).
 Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca

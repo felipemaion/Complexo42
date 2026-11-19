@@ -55,7 +55,10 @@ profiles.access_status: 'pending' | 'active' | 'waitlisted' | 'blocked'
   `access_granted` no `audit_log`. A importação da lista é feita só pelo gestor e também fica
   auditada (`allowlist_imported`, com a quantidade de e-mails, nunca os e-mails).
 - **Não há integração com sistemas externos.** O caso de alguém se cadastrar com o e-mail de
-  outra pessoa é resolvido por reclamação: o gestor bloqueia o perfil (`blocked`).
+  outra pessoa é resolvido por reclamação: o gestor no escopo bloqueia o perfil já ativo pelo
+  e-mail de login (`blocked`, efeito imediato, auditado). Nunca a si nem quem tem papel no seu
+  nível ou acima, e a resposta não revela se a conta existe. Desbloquear devolve a pessoa à
+  lista de espera.
 - **Testes obrigatórios:**
   - quem está `waitlisted` não lê nenhuma tabela além do próprio perfil;
   - um e-mail fora da lista nunca vira `active` sem aprovação;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
-import { ALLOWLIST_UPLOAD_PATH, WAITLIST_QUEUE_PATH, readCoordinationMenu } from "@/modules/access";
+import { ALLOWLIST_UPLOAD_PATH, MEMBER_BLOCK_PATH, WAITLIST_QUEUE_PATH, readCoordinationMenu } from "@/modules/access";
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -24,6 +24,9 @@ export default async function CoordinationHome() {
       <p className="text-lg">{text.intro}</p>
       <Link href={WAITLIST_QUEUE_PATH} className={big}>
         {text.waitlist.menuLink}
+      </Link>
+      <Link href={MEMBER_BLOCK_PATH} className={big}>
+        {text.memberBlock.menuLink}
       </Link>
       {menu.allowlist && (
         <Link href={ALLOWLIST_UPLOAD_PATH} className={big}>
