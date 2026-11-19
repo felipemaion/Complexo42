@@ -45,7 +45,7 @@ Como a equipe trabalha: [`docs/GESTAO_EQUIPE.md`](docs/GESTAO_EQUIPE.md).
 
 | Documento | Para quê |
 |---|---|
-| [`AGENTS.md`](AGENTS.md) | **Regras obrigatórias** para quem programa, humano ou IA |
+| [`AGENTS.md`](AGENTS.md) | **Regras obrigatórias** para quem programa, humano ou IA, e como escrever o código (§2.2) |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Fluxo de branch, PR, testes e revisão |
 | [`docs/PLANEJAMENTO.md`](docs/PLANEJAMENTO.md) | Visão, escopo, requisitos, arquitetura, riscos |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones e tarefas |
