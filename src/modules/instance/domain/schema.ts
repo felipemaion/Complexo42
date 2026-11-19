@@ -109,6 +109,8 @@ export const instanceConfigSchema = z.strictObject({
     }),
     /** WhatsApp já usado em outro cadastro (não diz de quem). */
     duplicateWhatsapp: text,
+    /** Muitas tentativas com WhatsApp repetido (#127): neutro, sem dizer nada do número. */
+    tooManyAttempts: text,
     failed: text,
   }),
   houses: z

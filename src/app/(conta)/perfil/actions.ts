@@ -27,6 +27,8 @@ export async function saveProfileAction(_previous: ProfileFormState, formData: F
       return { status: "invalid", fields: result.fields, values };
     case "duplicate_whatsapp":
       return { status: "duplicate_whatsapp", values };
+    case "too_many_attempts":
+      return { status: "too_many_attempts", values };
     case "forbidden":
       // Bloqueado ou suspenso: requireUser já encerra a sessão de quem está bloqueado.
       redirect(HOME_PATH);

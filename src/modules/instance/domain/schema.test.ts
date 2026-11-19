@@ -46,6 +46,7 @@ const valid = {
     errorSummary: "t",
     fieldErrors: { displayName: "t", whatsapp: "t", municipalityCode: "t", district: "t" },
     duplicateWhatsapp: "t",
+    tooManyAttempts: "t",
     failed: "t",
   },
   houses: [

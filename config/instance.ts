@@ -85,6 +85,7 @@ export const instance = parseInstanceConfig({
     },
     duplicateWhatsapp:
       "Este WhatsApp já está em outro cadastro. Confira o número. Se ele é mesmo seu, fale com a coordenação.",
+    tooManyAttempts: "Muitas tentativas. Tente de novo mais tarde.",
     failed: "Não foi possível salvar agora. Seus dados não foram perdidos: tente de novo em alguns minutos.",
   },
   houses: [

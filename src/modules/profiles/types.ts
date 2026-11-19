@@ -26,12 +26,14 @@ export type ProfileFormValues = {
 
 /**
  * Resposta da server action do formulário. Nunca traz texto do banco nem dado de outra pessoa:
- * `duplicate_whatsapp` não diz de quem é o número.
+ * `duplicate_whatsapp` não diz de quem é o número; `too_many_attempts` (limite da #127) não diz
+ * se o número tentado está livre ou não.
  */
 export type ProfileFormState =
   | { status: "idle" }
   | { status: "invalid"; fields: ProfileFormField[]; values: ProfileFormValues }
   | { status: "duplicate_whatsapp"; values: ProfileFormValues }
+  | { status: "too_many_attempts"; values: ProfileFormValues }
   | { status: "failed"; values: ProfileFormValues };
 
 /** Resultado de gravar o perfil no servidor. */
@@ -39,6 +41,7 @@ export type SaveProfileResult =
   | { status: "saved" }
   | { status: "invalid"; fields: ProfileFormField[] }
   | { status: "duplicate_whatsapp" }
+  | { status: "too_many_attempts" }
   | { status: "forbidden" }
   | { status: "failed" };
 

@@ -25,6 +25,8 @@ const defaultDeps: ProfileDeps = {
 };
 
 const uuid = z.guid();
+/** O que `save_own_profile` devolve quando não dá erro (#127: o repetido é retorno, não erro). */
+const saveOutcome = z.enum(["saved", "duplicate_whatsapp"]);
 
 /** Só o código do erro (Postgres/PostgREST), nunca a mensagem: ela pode trazer valores. */
 function errorCode(error: unknown): string {
@@ -35,7 +37,8 @@ function errorCode(error: unknown): string {
 /**
  * Valida o formulário, cifra e grava o perfil e o contato de `userId` (quem está logado; o banco
  * confere de novo com `auth.uid()`). WhatsApp de outro cadastro volta como `duplicate_whatsapp`,
- * sem dizer de quem é.
+ * sem dizer de quem é. Depois de 5 desses na hora, o banco recusa tudo (`PT429`) e a resposta é
+ * `too_many_attempts`, igual para número livre ou já usado (#127).
  */
 export async function saveOwnProfile(
   client: ProfileDbClient,
@@ -66,10 +69,18 @@ export async function saveOwnProfile(
     return { status: "failed" };
   }
 
-  const { error } = await client.rpc("save_own_profile", args);
-  if (!error) return { status: "saved" };
+  const { data, error } = await client.rpc("save_own_profile", args);
+  if (!error) {
+    const outcome = saveOutcome.safeParse(data);
+    if (outcome.success) return { status: outcome.data };
+    deps.log.error("profile_save_failed", { reason: "unexpected_result" });
+    return { status: "failed" };
+  }
   const code = errorCode(error);
-  if (code === "23505") return { status: "duplicate_whatsapp" };
+  if (code === "PT429") {
+    deps.log.warn("profile_save_rate_limited", { reason: code });
+    return { status: "too_many_attempts" };
+  }
   // Município que não existe na tabela (o trigger da UF recusa).
   if (code === "23503") return { status: "invalid", fields: ["municipalityCode"] };
   if (code === "42501") {

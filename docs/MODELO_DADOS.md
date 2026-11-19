@@ -132,7 +132,13 @@ O papel **não** fica no perfil: fica em `role_assignments`.
   API. A função grava `display_name_enc`, `municipality_code`, `district` e o contato. Ela não
   recebe a versão do termo: cria o perfil com `consent_version = 'none'` e nunca a altera (só a
   função do aceite, #11, avança a versão, derivada no servidor). Perfil `blocked` ou com conta `suspended` não edita (mas lê o
-  próprio). WhatsApp repetido volta como erro 23505 com mensagem fixa, sem dizer de quem é.
+  próprio). WhatsApp repetido volta como o retorno `duplicate_whatsapp`, sem dizer de quem é
+  (o sucesso volta como `saved`). **Limite (#127):** depois de 5 repetidos na última hora, a
+  função recusa qualquer salvamento da pessoa com o erro `PT429` (`too_many_attempts`), antes
+  de gravar e sem consultar o índice único, igual para número livre ou já usado. Os repetidos
+  ficam em `app.profile_save_attempts` (só `profile_id` e `attempted_at`, sem o número nem o
+  HMAC; RLS ligada, política `using (false)` e nenhum grant para a API; as linhas de mais de
+  uma hora são apagadas quando a função registra uma nova).
 - **Terceiros** (escopo, via `app.can_view_profile`) só enxergam perfis com `access_status` e
   `status` = `active` (`app.is_active_profile`).
 - **Quem chama também precisa estar ativo** (`app.is_active_member`): sem isso, o papel não
