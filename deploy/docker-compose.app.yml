@@ -30,6 +30,10 @@ services:
       # servidor garante que apenas a Cloudflare alcança a origem (#86); senão
       # qualquer um forja o cabeçalho. Desligado por padrão.
       TRUST_CF_CONNECTING_IP: ${TRUST_CF_CONNECTING_IP:-false}
+      # Cloudflare Turnstile no pedido do link por e-mail (#116). Chaves do
+      # widget DESTE ambiente, criadas no painel da Cloudflare (docs/OPERACAO.md).
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?obrigatorio}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?obrigatorio}
     # Sistema de arquivos só leitura; gravável apenas /tmp (memória) e os logs.
     read_only: true
     tmpfs: [/tmp]

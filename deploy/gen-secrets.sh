@@ -79,6 +79,9 @@ trap 'rm -f "$TMP"' EXIT
   echo "KONG_ALIAS=$AMB-kong"
   echo "SITE_URL=$SITE"
   echo "URI_ALLOW_LIST=$SITE/**"
+  # Turnstile (#116): vêm do painel da Cloudflare, não daqui (docs/OPERACAO.md).
+  echo "TURNSTILE_SITE_KEY="
+  echo "TURNSTILE_SECRET_KEY="
   echo "SMTP_HOST="
   echo "SMTP_PORT=587"
   echo "SMTP_USER="
