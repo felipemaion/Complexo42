@@ -74,6 +74,7 @@ async function main() {
         district: districts ? districts[person.index % districts.length] : null,
         status: "active",
         access_status: "active",
+        consent_version: "termo-exemplo-1", // fictício: o aceite real é da #11
       }),
       "perfil",
     );
