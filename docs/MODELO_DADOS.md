@@ -208,7 +208,7 @@ municípios da Região Metropolitana de São Paulo.
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)
-(rótulos configuráveis por instância).
+(rótulos configuráveis por instância). A interface lê o rótulo daqui (`readUnitTypeLabels`, módulo `instance`), nunca de texto fixo (R17).
 `units`: `id`, `type_id`, `parent_id`, `slug` (rótulo do nó no `path`: `a-z`, `0-9`, `_`),
 `name`, `path` (ltree, índice GiST, mantido por trigger a partir de `parent_id` e `slug`),
 `state_code` null (marca a unidade que recebe quem se cadastra no estado; única por UF), `municipality_code` null (região), `motto` null (≤ 80), `colors` (2 a 3 hex: a
