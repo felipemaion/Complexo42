@@ -1,4 +1,4 @@
--- Seed da instância piloto (supabase/seed.sql, issue #46, ADR 0008 §2).
+-- Seed da instância piloto (supabase/seed.sql, issue #46, ADR 0008 §2 e ADR 0011).
 -- Confere a forma da árvore e que o seed não traz pessoa nem papel.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -28,19 +28,17 @@ select set_eq(
      join public.units p on p.id = u.parent_id
      join public.unit_types pt on pt.id = p.type_id
      where pt.key = 'region' $$,
-  array['house', 'team'],
-  'abaixo das regiões ficam casas e equipes'
-);
-select is(
-  (select count(*)::int from public.units u join public.unit_types t on t.id = u.type_id
-   where t.key = 'house' and u.path <@ 'br.sp.abc'),
-  4,
-  'a região piloto tem as quatro casas (ADR 0008)'
+  array['team'],
+  'abaixo das regiões ficam só equipes (a casa é nacional, fora da árvore; ADR 0011)'
 );
 select set_eq(
-  $$ select key from public.unit_types where membership_axis = 'house' $$,
-  array['house'],
-  'só o tipo das casas é do eixo house (ADR 0008 §2); os demais, do eixo team'
+  $$ select key from public.houses where active $$,
+  array['casa-exemplo-1', 'casa-exemplo-2', 'casa-exemplo-3', 'casa-exemplo-4'],
+  'o seed cria as quatro casas nacionais, ativas (ADR 0011)'
+);
+select ok(
+  not exists (select 1 from public.unit_types where key = 'house'),
+  'não há mais tipo de unidade para a casa (ADR 0011)'
 );
 select ok(
   not exists (select 1 from public.unit_members)

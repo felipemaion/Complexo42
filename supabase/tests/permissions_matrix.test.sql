@@ -7,17 +7,15 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-truncate public.role_assignments, public.unit_members, public.units;
+truncate public.role_assignments, public.unit_members, public.house_members, public.units;
 
 -- ---------------------------------------------------------------------------------------
 -- Árvore
 --   br ─┬─ sp (SP) ─┬─ abc ─┬─ team_a
---       │           │       ├─ team_b
---       │           │       ├─ house_1
---       │           │       └─ house_2
+--       │           │       └─ team_b
 --       │           └─ zl ──── team_c
---       └─ mg (MG) ──── central ─┬─ team_m
---                                └─ house_m
+--       └─ mg (MG) ──── central ──── team_m
+-- Casas nacionais (ADR 0011), fora da árvore: casa-t1, casa-t2 e casa-off (inativa).
 -- ---------------------------------------------------------------------------------------
 create function pg_temp.add_unit(p_type text, p_parent text, p_slug text, p_state char(2) default null)
 returns void language sql as $$
@@ -35,11 +33,12 @@ select pg_temp.add_unit('region', 'sp', 'zl');
 select pg_temp.add_unit('region', 'mg', 'central');
 select pg_temp.add_unit('team', 'abc', 'team_a');
 select pg_temp.add_unit('team', 'abc', 'team_b');
-select pg_temp.add_unit('house', 'abc', 'house_1');
-select pg_temp.add_unit('house', 'abc', 'house_2');
 select pg_temp.add_unit('team', 'zl', 'team_c');
 select pg_temp.add_unit('team', 'central', 'team_m');
-select pg_temp.add_unit('house', 'central', 'house_m');
+
+insert into public.houses (key, active) values
+  ('casa-t1', true), ('casa-t2', true), ('casa-off', false)
+on conflict (key) do update set active = excluded.active;
 
 -- Ids das unidades lidos aqui, como dono do banco, ANTES de qualquer troca de papel (#113).
 -- Depois de `set local role authenticated`, uma consulta a `public.units` passa pela RLS: a
@@ -70,7 +69,7 @@ insert into people values
   ('mg_mgr',      '00000000-0000-0000-0000-000000000003'),  -- manager em MG
   ('abc_mgr',     '00000000-0000-0000-0000-000000000004'),  -- coordenação regional do ABC
   ('team_a_mon',  '00000000-0000-0000-0000-000000000005'),  -- coordenador da equipe A
-  ('house_mon',   '00000000-0000-0000-0000-000000000006'),  -- coordenador da casa 1
+  ('house_mon',   '00000000-0000-0000-0000-000000000006'),  -- coordenador da casa 1 no ABC (regional)
   ('tech',        '00000000-0000-0000-0000-000000000007'),  -- admin técnico
   ('spokes_a',    '00000000-0000-0000-0000-000000000008'),  -- porta-voz apoiado pela equipe A
   ('revoked_mgr', '00000000-0000-0000-0000-000000000009'),  -- ex-manager de MG (revogado)
@@ -80,7 +79,7 @@ insert into people values
   ('stu_c',       '00000000-0000-0000-0000-000000000012'),  -- membro da equipe C (outra região)
   ('stu_m',       '00000000-0000-0000-0000-000000000013'),  -- membro da equipe de MG
   ('stu_sp',      '00000000-0000-0000-0000-000000000014'),  -- só na unidade de SP
-  ('stu_h',       '00000000-0000-0000-0000-000000000015'),  -- membro da casa 1
+  ('stu_h',       '00000000-0000-0000-0000-000000000015'),  -- casa 1 (aceita hoje), sem território
   ('stu_moved',   '00000000-0000-0000-0000-000000000016'),  -- saiu da equipe A, foi para MG
   ('stu_gone',    '00000000-0000-0000-0000-000000000017'),  -- saiu da equipe A, sem vínculo
   ('stu_wait',    '00000000-0000-0000-0000-000000000018'),  -- na equipe A, em lista de espera
@@ -93,16 +92,25 @@ insert into people values
   ('nat_mon',     '00000000-0000-0000-0000-00000000001f'),  -- monitor na raiz (monitor nunca concede)
   ('tech_rev',    '00000000-0000-0000-0000-000000000020'),  -- ex-admin técnico (revogado)
   ('wait_moved',  '00000000-0000-0000-0000-000000000021'),  -- na espera; saiu da equipe A, foi para MG
-  -- Casas (#76): o vínculo de casa é outro eixo; sem aceite, não conta
+  -- Casas (ADR 0011): vínculo de casa nacional (`house_members`); sem aceite, não conta
   ('stu_ah',      '00000000-0000-0000-0000-000000000022'),  -- equipe A + casa 1 (aceita)
   ('stu_ah2',     '00000000-0000-0000-0000-000000000023'),  -- equipe A + casa 2 (aceita)
   ('stu_bh',      '00000000-0000-0000-0000-000000000024'),  -- equipe B + casa 1 (aceita)
   ('stu_hpend',   '00000000-0000-0000-0000-000000000025'),  -- equipe A + casa 1 SEM aceite
   ('stu_hleft',   '00000000-0000-0000-0000-000000000026'),  -- equipe C; saiu da casa 1
-  ('stu_mh',      '00000000-0000-0000-0000-000000000027'),  -- equipe de MG + casa de MG
-  ('house2_mon',  '00000000-0000-0000-0000-000000000028'),  -- coordenador da casa 2
+  ('stu_mh',      '00000000-0000-0000-0000-000000000027'),  -- equipe de MG + casa 1 (outro estado)
+  ('house2_mon',  '00000000-0000-0000-0000-000000000028'),  -- coordenador da casa 2 no ABC
   ('wait_hpend',  '00000000-0000-0000-0000-000000000029'),  -- na espera; equipe de MG + casa 1 sem aceite
-  ('wait_honly',  '00000000-0000-0000-0000-00000000002a');  -- na espera; só casa 1 sem aceite
+  ('wait_honly',  '00000000-0000-0000-0000-00000000002a'),  -- na espera; só casa 1 sem aceite
+  ('house_sp',    '00000000-0000-0000-0000-00000000002b'),  -- coordenador da casa 1 em SP (estadual)
+  ('house_nat',   '00000000-0000-0000-0000-00000000002c'),  -- coordenador da casa 1 na raiz (nacional)
+  ('house_mg',    '00000000-0000-0000-0000-00000000002d'),  -- coordenador da casa 1 em MG
+  ('house_rev',   '00000000-0000-0000-0000-00000000002e'),  -- ex-coordenador da casa 1 na raiz (revogado)
+  ('house_wait',  '00000000-0000-0000-0000-00000000002f'),  -- coordenador da casa 1 na raiz, mas na espera
+  ('stu_ch',      '00000000-0000-0000-0000-000000000030'),  -- equipe C (outra região de SP) + casa 1
+  ('stu_hsusp',   '00000000-0000-0000-0000-000000000031'),  -- equipe A + casa 1, conta suspensa
+  ('stu_hwait',   '00000000-0000-0000-0000-000000000032'),  -- equipe A + casa 1, na espera
+  ('stu_hmoved',  '00000000-0000-0000-0000-000000000033');  -- saiu da equipe A, foi para MG; casa 1
 
 insert into auth.users (id) select id from people;
 
@@ -117,11 +125,13 @@ update public.profiles set access_status = 'waitlisted'
 where id in ('00000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-00000000001a',
              '00000000-0000-0000-0000-00000000001e');
 update public.profiles set access_status = 'waitlisted'
-where id in (select id from people where name in ('wait_moved', 'wait_hpend', 'wait_honly'));
+where id in (select id from people
+             where name in ('wait_moved', 'wait_hpend', 'wait_honly', 'house_wait', 'stu_hwait'));
 update public.profiles set access_status = 'blocked'
 where id = '00000000-0000-0000-0000-000000000019';
 update public.profiles set status = 'suspended'
-where id in ('00000000-0000-0000-0000-00000000001b', '00000000-0000-0000-0000-00000000001d');
+where id in ('00000000-0000-0000-0000-00000000001b', '00000000-0000-0000-0000-00000000001d',
+             '00000000-0000-0000-0000-000000000031');
 
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
 declare
@@ -141,8 +151,6 @@ insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('mg_mgr'), 'manager', pg_temp.unit('mg')),
   (pg_temp.person('abc_mgr'), 'manager', pg_temp.unit('abc')),
   (pg_temp.person('team_a_mon'), 'monitor', pg_temp.unit('team_a')),
-  (pg_temp.person('house_mon'), 'monitor', pg_temp.unit('house_1')),
-  (pg_temp.person('house2_mon'), 'monitor', pg_temp.unit('house_2')),
   (pg_temp.person('tech'), 'tech_admin', pg_temp.unit('br')),
   (pg_temp.person('spokes_a'), 'spokesperson', pg_temp.unit('team_a')),
   (pg_temp.person('mon_wait'), 'monitor', pg_temp.unit('sp')),
@@ -155,6 +163,15 @@ insert into public.role_assignments (profile_id, role, unit_id, granted_by) valu
 insert into public.role_assignments (profile_id, role, unit_id, revoked_at) values
   (pg_temp.person('revoked_mgr'), 'manager', pg_temp.unit('mg'), now()),
   (pg_temp.person('tech_rev'), 'tech_admin', pg_temp.unit('br'), now());
+-- Coordenadores de casa (ADR 0011): casa + território, em vários níveis.
+insert into public.role_assignments (profile_id, role, unit_id, house_key, revoked_at) values
+  (pg_temp.person('house_mon'), 'house_coordinator', pg_temp.unit('abc'), 'casa-t1', null),
+  (pg_temp.person('house2_mon'), 'house_coordinator', pg_temp.unit('abc'), 'casa-t2', null),
+  (pg_temp.person('house_sp'), 'house_coordinator', pg_temp.unit('sp'), 'casa-t1', null),
+  (pg_temp.person('house_nat'), 'house_coordinator', pg_temp.unit('br'), 'casa-t1', null),
+  (pg_temp.person('house_mg'), 'house_coordinator', pg_temp.unit('mg'), 'casa-t1', null),
+  (pg_temp.person('house_wait'), 'house_coordinator', pg_temp.unit('br'), 'casa-t1', null),
+  (pg_temp.person('house_rev'), 'house_coordinator', pg_temp.unit('br'), 'casa-t1', now());
 
 insert into public.unit_members (unit_id, profile_id, left_at) values
   (pg_temp.unit('team_a'), pg_temp.person('stu_a'), null),
@@ -177,24 +194,53 @@ insert into public.unit_members (unit_id, profile_id, left_at) values
   (pg_temp.unit('team_a'), pg_temp.person('stu_hpend'), null),
   (pg_temp.unit('team_c'), pg_temp.person('stu_hleft'), null),
   (pg_temp.unit('team_m'), pg_temp.person('stu_mh'), null),
-  (pg_temp.unit('team_m'), pg_temp.person('wait_hpend'), null);
+  (pg_temp.unit('team_m'), pg_temp.person('wait_hpend'), null),
+  (pg_temp.unit('team_c'), pg_temp.person('stu_ch'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_hsusp'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_hwait'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_hmoved'), now()),
+  (pg_temp.unit('team_m'), pg_temp.person('stu_hmoved'), null);
 
--- Vínculos de casa (#76): o eixo vem do tipo da unidade (trigger); sem `accepted_at`, não conta.
-insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, left_at) values
-  (pg_temp.unit('house_1'), pg_temp.person('stu_h'), 'self', now(), null),
-  (pg_temp.unit('house_2'), pg_temp.person('stu_ah2'), 'self', now(), null),
-  (pg_temp.unit('house_1'), pg_temp.person('stu_bh'), 'self', now(), null),
-  (pg_temp.unit('house_1'), pg_temp.person('stu_hpend'), 'self', null, null),
-  (pg_temp.unit('house_1'), pg_temp.person('stu_hleft'), 'self', now(), now()),
-  (pg_temp.unit('house_m'), pg_temp.person('stu_mh'), 'self', now(), null),
-  (pg_temp.unit('house_1'), pg_temp.person('wait_hpend'), 'self', null, null),
-  (pg_temp.unit('house_1'), pg_temp.person('wait_honly'), 'self', null, null);
-insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, consent_version)
-values (pg_temp.unit('house_1'), pg_temp.person('stu_ah'), 'questionnaire', now(), 'termo-exemplo-1');
+-- Vínculos de casa (ADR 0011): nacionais, sem região; sem `accepted_at`, não contam.
+insert into public.house_members (profile_id, house_key, join_method, accepted_at, left_at) values
+  (pg_temp.person('stu_h'), 'casa-t1', 'self', now(), null),
+  (pg_temp.person('stu_ah2'), 'casa-t2', 'self', now(), null),
+  (pg_temp.person('stu_bh'), 'casa-t1', 'self', now(), null),
+  (pg_temp.person('stu_hpend'), 'casa-t1', 'self', null, null),
+  (pg_temp.person('stu_hleft'), 'casa-t1', 'self', now(), now()),
+  (pg_temp.person('stu_mh'), 'casa-t1', 'self', now(), null),
+  (pg_temp.person('stu_ch'), 'casa-t1', 'self', now(), null),
+  (pg_temp.person('stu_hsusp'), 'casa-t1', 'self', now(), null),
+  (pg_temp.person('stu_hwait'), 'casa-t1', 'self', now(), null),
+  (pg_temp.person('stu_hmoved'), 'casa-t1', 'self', now(), null),
+  (pg_temp.person('wait_hpend'), 'casa-t1', 'self', null, null),
+  (pg_temp.person('wait_honly'), 'casa-t1', 'self', null, null);
+insert into public.house_members (profile_id, house_key, join_method, accepted_at, consent_version)
+values (pg_temp.person('stu_ah'), 'casa-t1', 'questionnaire', now(), 'termo-exemplo-1');
 -- Contato entre colegas de casa (#119): só depois de 7 dias de casa aceita pelos dois.
-update public.unit_members set joined_at = now() - interval '8 days', accepted_at = now() - interval '8 days'
-where axis = 'house' and profile_id in (pg_temp.person('stu_ah'), pg_temp.person('stu_bh'),
-                                         pg_temp.person('stu_ah2'));
+update public.house_members set joined_at = now() - interval '8 days', accepted_at = now() - interval '8 days'
+where profile_id in (pg_temp.person('stu_ah'), pg_temp.person('stu_bh'), pg_temp.person('stu_ah2'));
+-- Histórico: stu_bh já foi da casa 2 (aceita e encerrada antes de entrar na casa 1).
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at, left_at)
+values (pg_temp.person('stu_bh'), 'casa-t2', 'self', now() - interval '20 days',
+        now() - interval '20 days', now() - interval '10 days');
+
+-- A casa aberta de cada pessoa, lida como dono (a RLS esconderia a de terceiros).
+create temp table house_of (name text primary key, house_key text not null);
+insert into house_of
+select p.name, h.house_key from people as p
+join public.house_members as h on h.profile_id = p.id and h.left_at is null;
+grant select on house_of to authenticated;
+
+-- Eventos de casa (#132), gravados como dono: o aceite de casa (alvo = ator = a pessoa) e o
+-- aceite do termo (sem alvo).
+insert into public.audit_log (actor_id, event, target_id, reason, house_key)
+select pg_temp.person(v.n), 'house_accepted', pg_temp.person(v.n), 'self', v.h
+from (values ('stu_ah', 'casa-t1'), ('stu_ah2', 'casa-t2'), ('stu_bh', 'casa-t1'),
+             ('stu_ch', 'casa-t1'), ('stu_hleft', 'casa-t1')) as v (n, h);
+insert into public.audit_log (actor_id, event, term_version)
+values (pg_temp.person('stu_ah'), 'questionnaire_consented', 'termo-exemplo-1'),
+       (pg_temp.person('stu_bh'), 'questionnaire_consented', 'termo-exemplo-1');
 
 -- Contatos fictícios (formato válido; o banco não decifra nada).
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
@@ -275,7 +321,7 @@ insert into matrix (actor, action, target, expected) values
   -- Coordenação regional do ABC: a região; outra região e o estado não
   ('abc_mgr', 'profile', 'stu_a', true),
   ('abc_mgr', 'profile', 'stu_b', true),
-  ('abc_mgr', 'profile', 'stu_h', true),
+  ('abc_mgr', 'profile', 'stu_h', false),
   ('abc_mgr', 'contact', 'stu_b', true),
   ('abc_mgr', 'profile', 'stu_c', false),
   ('abc_mgr', 'contact', 'stu_c', false),
@@ -311,31 +357,121 @@ insert into matrix (actor, action, target, expected) values
   ('team_a_mon', 'grant_monitor', 'team_a', false),
   ('team_a_mon', 'grant_monitor', 'team_b', false),
   ('team_a_mon', 'grant_spokesperson', 'team_a', false),
-  -- Coordenador da casa 1: os membros da casa, em qualquer equipe (#76, ADR 0008 §2)
-  ('house_mon', 'profile', 'stu_h', true),
-  ('house_mon', 'profile', 'stu_a', false),
-  ('house_mon', 'manage', 'house_1', true),
-  ('house_mon', 'manage', 'team_a', false),
+  -- Coordenador da casa 1 no ABC (ADR 0011): os membros ATIVOS da casa 1, com vínculo aceito,
+  -- cujo vínculo de território está no ABC ou abaixo, de qualquer equipe
   ('house_mon', 'profile', 'stu_ah', true),
   ('house_mon', 'contact', 'stu_ah', true),
   ('house_mon', 'profile', 'stu_bh', true),
   ('house_mon', 'contact', 'stu_bh', true),
-  ('house_mon', 'unit', 'house_1', true),
-  -- ... mas não os da outra casa, mesmo na mesma equipe, nem a casa sem aceite ou já deixada
+  -- ... mas não: outra casa no mesmo território; a mesma casa fora do território (outra
+  -- região, outro estado, sem território); casa sem aceite ou encerrada; quem não é da casa;
+  -- quem não está ativo
   ('house_mon', 'profile', 'stu_ah2', false),
   ('house_mon', 'contact', 'stu_ah2', false),
+  ('house_mon', 'profile', 'stu_ch', false),
+  ('house_mon', 'contact', 'stu_ch', false),
+  ('house_mon', 'profile', 'stu_mh', false),
+  ('house_mon', 'profile', 'stu_h', false),
+  ('house_mon', 'contact', 'stu_h', false),
   ('house_mon', 'profile', 'stu_hpend', false),
   ('house_mon', 'contact', 'stu_hpend', false),
   ('house_mon', 'profile', 'stu_hleft', false),
-  ('house_mon', 'profile', 'stu_mh', false),
-  ('house_mon', 'manage', 'house_2', false),
-  ('house_mon', 'unit', 'house_2', false),
-  ('house_mon', 'unit', 'team_a', false),
+  ('house_mon', 'contact', 'stu_hleft', false),
+  ('house_mon', 'profile', 'stu_a', false),
+  ('house_mon', 'contact', 'stu_a', false),
+  ('house_mon', 'profile', 'stu_hsusp', false),
+  ('house_mon', 'contact', 'stu_hsusp', false),
+  ('house_mon', 'profile', 'stu_hwait', false),
+  ('house_mon', 'contact', 'stu_hwait', false),
+  ('house_mon', 'profile', 'stu_hmoved', false),
+  ('house_mon', 'contact', 'stu_hmoved', false),
+  -- Não tem escopo territorial: não gerencia unidade, não decide acesso, não concede nem
+  -- revoga; vê a estrutura do território (abaixo e o caminho até a raiz), sem dado pessoal
+  ('house_mon', 'manage', 'abc', false),
+  ('house_mon', 'manage', 'team_a', false),
+  ('house_mon', 'unit', 'abc', true),
+  ('house_mon', 'unit', 'team_a', true),
+  ('house_mon', 'unit', 'sp', true),
+  ('house_mon', 'unit', 'zl', false),
+  ('house_mon', 'unit', 'team_c', false),
+  ('house_mon', 'unit', 'mg', false),
   ('house_mon', 'decide', 'wait_hpend', false),
+  ('house_mon', 'grant_monitor', 'team_a', false),
+  ('house_mon', 'grant_house_coordinator', 'team_a', false),
+  ('house_mon', 'revoke', 'team_a', false),
+  ('house_mon', 'import', 'br', false),
+  ('house_mon', 'audit_decision', 'stu_ah', false),
+  -- Coordenador da casa 2 no mesmo território: só a casa 2
   ('house2_mon', 'profile', 'stu_ah2', true),
+  ('house2_mon', 'contact', 'stu_ah2', true),
   ('house2_mon', 'profile', 'stu_ah', false),
+  ('house2_mon', 'contact', 'stu_ah', false),
   ('house2_mon', 'profile', 'stu_bh', false),
-  -- O coordenador da equipe vê os membros da equipe, qualquer que seja a casa (ou sem aceite)
+  -- Coordenador da casa 1 em SP (estadual): as regiões do estado; MG não
+  ('house_sp', 'profile', 'stu_ah', true),
+  ('house_sp', 'profile', 'stu_ch', true),
+  ('house_sp', 'contact', 'stu_ch', true),
+  ('house_sp', 'profile', 'stu_mh', false),
+  ('house_sp', 'contact', 'stu_mh', false),
+  ('house_sp', 'profile', 'stu_ah2', false),
+  ('house_sp', 'profile', 'stu_h', false),
+  ('house_sp', 'profile', 'stu_hpend', false),
+  ('house_sp', 'unit', 'zl', true),
+  ('house_sp', 'unit', 'mg', false),
+  ('house_sp', 'manage', 'sp', false),
+  ('house_sp', 'grant_house_coordinator', 'abc', false),
+  -- Coordenador da casa 1 na raiz (nacional): todo o país, só a casa 1
+  ('house_nat', 'profile', 'stu_ah', true),
+  ('house_nat', 'profile', 'stu_ch', true),
+  ('house_nat', 'profile', 'stu_mh', true),
+  ('house_nat', 'contact', 'stu_mh', true),
+  ('house_nat', 'contact_email', 'stu_mh', true),
+  ('house_nat', 'profile', 'stu_ah2', false),
+  ('house_nat', 'contact', 'stu_ah2', false),
+  ('house_nat', 'profile', 'stu_hpend', false),
+  ('house_nat', 'profile', 'stu_hleft', false),
+  ('house_nat', 'profile', 'stu_h', false),
+  ('house_nat', 'profile', 'stu_hsusp', false),
+  ('house_nat', 'profile', 'stu_hwait', false),
+  ('house_nat', 'profile', 'wait_hpend', false),
+  ('house_nat', 'profile', 'stu_a', false),
+  ('house_nat', 'manage', 'br', false),
+  ('house_nat', 'decide', 'wait_honly', false),
+  ('house_nat', 'unit', 'team_m', true),
+  ('house_nat', 'grant_house_coordinator', 'sp', false),
+  ('house_nat', 'revoke', 'sp', false),
+  -- Coordenador da casa 1 em MG: a mesma casa, outro território
+  ('house_mg', 'profile', 'stu_mh', true),
+  ('house_mg', 'profile', 'stu_hmoved', true),
+  ('house_mg', 'profile', 'stu_ah', false),
+  ('house_mg', 'contact', 'stu_ah', false),
+  ('house_mg', 'unit', 'sp', false),
+  -- Papel revogado, ou coordenador que não está ativo: nada
+  ('house_rev', 'profile', 'stu_ah', false),
+  ('house_rev', 'contact', 'stu_ah', false),
+  ('house_rev', 'unit', 'br', false),
+  ('house_wait', 'profile', 'stu_ah', false),
+  ('house_wait', 'contact', 'stu_ah', false),
+  ('house_wait', 'unit', 'br', false),
+  -- Conceder o papel de coordenador de casa (ADR 0011 §5): manager estritamente acima do
+  -- território, nunca a si mesmo; monitor, porta-voz e admin técnico não
+  ('nat_mgr', 'grant_house_coordinator', 'sp', true),
+  ('nat_mgr', 'grant_house_coordinator', 'br', false),
+  ('sp_mgr', 'grant_house_coordinator', 'abc', true),
+  ('sp_mgr', 'grant_house_coordinator', 'team_c', true),
+  ('sp_mgr', 'grant_house_coordinator', 'sp', false),
+  ('sp_mgr', 'grant_house_coordinator', 'central', false),
+  ('sp_mgr', 'selfgrant_house_coordinator', 'abc', false),
+  ('abc_mgr', 'grant_house_coordinator', 'team_a', true),
+  ('abc_mgr', 'grant_house_coordinator', 'zl', false),
+  ('team_a_mon', 'grant_house_coordinator', 'team_a', false),
+  ('nat_mon', 'grant_house_coordinator', 'sp', false),
+  ('spokes_a', 'grant_house_coordinator', 'team_a', false),
+  ('tech', 'grant_house_coordinator', 'br', false),
+  ('revoked_mgr', 'grant_house_coordinator', 'central', false),
+  ('mon_wait', 'grant_house_coordinator', 'abc', false),
+  -- A coordenação territorial vê os membros do seu território, qualquer que seja a casa (ou
+  -- sem aceite); a casa sem território não entra no escopo de ninguém pelo território
   ('team_a_mon', 'profile', 'stu_ah', true),
   ('team_a_mon', 'profile', 'stu_ah2', true),
   ('team_a_mon', 'profile', 'stu_hpend', true),
@@ -343,12 +479,48 @@ insert into matrix (actor, action, target, expected) values
   ('team_a_mon', 'profile', 'stu_bh', false),
   ('mg_mgr', 'profile', 'stu_bh', false),
   ('abc_mgr', 'profile', 'stu_mh', false),
-  -- A pessoa vê a casa aceita (e o caminho até a raiz); a casa sem aceite, não
-  ('stu_ah', 'unit', 'house_1', true),
-  ('stu_ah', 'unit', 'house_2', false),
-  ('stu_hpend', 'unit', 'house_1', false),
+  ('abc_mgr', 'profile', 'stu_ch', false),
+  ('sp_mgr', 'profile', 'stu_ch', true),
+  ('nat_mgr', 'profile', 'stu_h', false),
+  -- A casa não é mais unidade: não mostra unidade nenhuma à pessoa
+  ('stu_h', 'unit', 'br', false),
   ('stu_hpend', 'unit', 'team_a', true),
   ('stu_ah', 'profile', 'stu_bh', false),
+  -- Auditoria dos eventos de casa (#132): house_accepted dos membros, para o coordenador da
+  -- casa do registro no território e para o gestor (manager) acima; a pessoa lê os próprios
+  ('house_mon', 'audit_house', 'stu_ah', true),
+  ('house_mon', 'audit_house', 'stu_bh', true),
+  ('house_mon', 'audit_house_other', 'stu_ah', false),
+  ('house_mon', 'audit_house', 'stu_ah2', false),
+  ('house_mon', 'audit_house', 'stu_ch', false),
+  ('house_mon', 'audit_house', 'stu_hsusp', false),
+  ('house_mon', 'audit_house', 'stu_hwait', false),
+  ('house_mon', 'audit_house', 'stu_hpend', false),
+  ('house_mon', 'audit_terms', 'stu_ah', false),
+  ('house2_mon', 'audit_house', 'stu_ah2', true),
+  ('house2_mon', 'audit_house', 'stu_ah', false),
+  ('house_sp', 'audit_house', 'stu_ch', true),
+  ('house_sp', 'audit_house', 'stu_mh', false),
+  ('house_nat', 'audit_house', 'stu_mh', true),
+  ('house_rev', 'audit_house', 'stu_ah', false),
+  ('house_wait', 'audit_house', 'stu_ah', false),
+  ('abc_mgr', 'audit_house', 'stu_ah', true),
+  ('abc_mgr', 'audit_house', 'stu_ah2', true),
+  ('abc_mgr', 'audit_house_other', 'stu_ah', true),
+  ('abc_mgr', 'audit_house', 'stu_ch', false),
+  ('sp_mgr', 'audit_house', 'stu_ch', true),
+  ('mg_mgr', 'audit_house', 'stu_ah', false),
+  ('team_a_mon', 'audit_house', 'stu_ah', false),
+  ('spokes_a', 'audit_house', 'stu_ah', false),
+  ('tech', 'audit_house', 'stu_ah', false),
+  ('stu_bh', 'audit_house', 'stu_ah', false),
+  ('abc_mgr', 'audit_terms', 'stu_ah', false),
+  ('stu_ah', 'audit_house', 'stu_ah', true),
+  ('stu_ah', 'audit_terms', 'stu_ah', true),
+  ('stu_bh', 'audit_terms', 'stu_ah', false),
+  ('stu_hwait', 'audit_house', 'stu_hwait', false),
+  ('stu_hwait', 'audit_terms', 'stu_hwait', false),
+  ('anon', 'audit_house', 'stu_ah', false),
   -- Fila de espera: a casa sem aceite não dá escopo ao gestor; sem vínculo que conte, só a raiz
   ('abc_mgr', 'decide', 'wait_hpend', false),
   ('sp_mgr', 'decide', 'wait_hpend', false),
@@ -611,6 +783,17 @@ begin
     when p_action = 'audit_import' then app.can_read_audit('allowlist_imported', null)
     when p_action = 'audit_decision' then
       app.can_read_audit('access_granted', pg_temp.person(p_target))
+    -- house_accepted de outra pessoa (alvo e ator), com a casa aberta dela (lida como dono)
+    when p_action = 'audit_house' then
+      app.can_read_audit('house_accepted', pg_temp.person(p_target), pg_temp.person(p_target),
+                         (select h.house_key from house_of as h where h.name = p_target))
+    -- house_accepted de uma casa que não é a aberta da pessoa (histórico)
+    when p_action = 'audit_house_other' then
+      app.can_read_audit('house_accepted', pg_temp.person(p_target), pg_temp.person(p_target),
+                         'casa-t2')
+    -- questionnaire_consented (sem alvo) com `p_target` como ator
+    when p_action = 'audit_terms' then
+      app.can_read_audit('questionnaire_consented', null, pg_temp.person(p_target), null)
     when p_action like 'grant\_%' then
       app.can_grant_role(substr(p_action, 7), pg_temp.unit(p_target), pg_temp.person('outsider'))
     when p_action like 'selfgrant\_%' then
@@ -630,17 +813,17 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 121);
+select plan((select count(*)::int from matrix) + 152);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
--- existe nas tabelas lidas como dono, e as 13 unidades da árvore foram capturadas.
-select is((select count(*)::int from unit_ids), 13, 'ids das 13 unidades lidos como dono do banco');
+-- existe nas tabelas lidas como dono, e as 10 unidades da árvore foram capturadas.
+select is((select count(*)::int from unit_ids), 10, 'ids das 10 unidades lidos como dono do banco');
 select is_empty(
   $$ select actor from matrix where actor <> 'anon' and actor not in (select name from people)
      union all
      select target from matrix
      where action in ('profile', 'contact', 'contact_social', 'contact_email', 'edit', 'decide',
-                      'audit_decision')
+                      'audit_decision', 'audit_house', 'audit_house_other', 'audit_terms')
        and target not in (select name from people)
      union all
      select target from matrix
@@ -678,6 +861,8 @@ select is(app.manages_member(null), false,
 select pg_temp.login('tech');
 select is_empty($$ select 1 from app.my_scopes() $$,
   'admin técnico não tem escopo de dados (my_scopes vazio)');
+select is(app.is_house_coordinator_of(pg_temp.person('house_wait'), pg_temp.person('stu_ah')), false,
+  'coordenador de casa que não está ativo NÃO coordena (a regra confere quem vê, não só quem chama)');
 
 reset request.jwt.claims;
 
@@ -692,7 +877,8 @@ select pg_temp.login('team_a_mon');
 select set_eq(
   $$ select profile_id from public.unit_members $$,
   $$ select id from people
-     where name in ('stu_a', 'stu_moved', 'stu_gone', 'stu_ah', 'stu_ah2', 'stu_hpend') $$,
+     where name in ('stu_a', 'stu_moved', 'stu_gone', 'stu_ah', 'stu_ah2', 'stu_hpend',
+                    'stu_hmoved') $$,
   'coordenador da equipe A lê os vínculos de perfis ativos da equipe A (inclusive o histórico)'
 );
 select is_empty(
@@ -902,7 +1088,7 @@ select set_eq(
 );
 select is(
   (select count(*)::int from public.units),
-  13,
+  10,
   'admin técnico vê a estrutura inteira (sem dado pessoal)'
 );
 select throws_ok(
@@ -1069,8 +1255,8 @@ select pg_temp.login('sp_mgr');
 select set_eq(
   $$ select id from public.profiles $$,
   $$ select id from people
-     where name in ('sp_mgr', 'stu_a', 'stu_b', 'stu_c', 'stu_sp', 'stu_h', 'stu_ah',
-                    'stu_ah2', 'stu_bh', 'stu_hpend', 'stu_hleft') $$,
+     where name in ('sp_mgr', 'stu_a', 'stu_b', 'stu_c', 'stu_sp', 'stu_ah', 'stu_ah2',
+                    'stu_bh', 'stu_hpend', 'stu_hleft', 'stu_ch') $$,
   'gestor de SP lê os perfis ativos de SP; NÃO os de MG nem os da espera'
 );
 
@@ -1168,87 +1354,256 @@ select is_empty(
   'os vínculos de quem não está ativo não foram alterados'
 );
 
--- Coordenador da casa 1 pela RLS (#76): os vínculos e perfis da casa, em qualquer equipe
+-- Coordenador da casa 1 no ABC pela RLS (ADR 0011): os vínculos e perfis da casa no território
 set local role authenticated;
 select pg_temp.login('house_mon');
 select set_eq(
-  $$ select profile_id from public.unit_members $$,
-  $$ select id from people where name in ('stu_h', 'stu_ah', 'stu_bh', 'stu_hleft') $$,
-  'coordenador da casa 1 lê os vínculos aceitos da casa 1 (inclusive o histórico), não os sem aceite'
+  $$ select profile_id, house_key from public.house_members $$,
+  $$ select id, 'casa-t1'::text from people where name in ('stu_ah', 'stu_bh') $$,
+  'coordenador da casa 1 no ABC lê os vínculos aceitos da casa 1 de quem é do ABC e está ativo (não o histórico de outra casa)'
 );
+select is_empty($$ select 1 from app.my_scopes() $$,
+  'coordenador de casa não tem escopo territorial (my_scopes vazio)');
 select is_empty(
-  $$ select 1 from public.unit_members
-     where unit_id in (pg_temp.unit('house_2'), pg_temp.unit('team_a'), pg_temp.unit('team_b')) $$,
-  'coordenador da casa 1 NÃO lê os vínculos da casa 2 nem os das equipes'
+  $$ select 1 from public.house_members where house_key <> 'casa-t1' $$,
+  'coordenador da casa 1 NÃO lê os vínculos da casa 2'
 );
 select set_eq(
   $$ select id from public.profiles $$,
-  $$ select id from people where name in ('house_mon', 'stu_h', 'stu_ah', 'stu_bh') $$,
-  'coordenador da casa 1 lê os perfis da casa 1, de qualquer equipe; NÃO os da casa 2 nem o sem aceite'
+  $$ select id from people where name in ('house_mon', 'stu_ah', 'stu_bh') $$,
+  'coordenador da casa 1 lê os perfis da casa 1 no ABC, de qualquer equipe; NÃO outra casa, outra região, sem aceite nem quem não está ativo'
+);
+select is_empty(
+  $$ select 1 from public.unit_members $$,
+  'coordenador da casa NÃO lê vínculos de território (não gerencia unidade)'
 );
 select is_empty(
   $$ select 1 from public.profile_contacts $$,
-  'coordenador da casa 1 NÃO lê contatos pela tabela (só por view_contact, auditado)'
+  'coordenador da casa NÃO lê contatos pela tabela (só por view_contact, auditado)'
 );
 select set_eq(
   $$ select slug from public.units $$,
-  array['br', 'sp', 'abc', 'house_1'],
-  'coordenador da casa 1 vê a casa e o caminho até a raiz, não as equipes nem a outra casa'
+  array['br', 'sp', 'abc', 'team_a', 'team_b'],
+  'coordenador da casa no ABC vê o território (abaixo e o caminho até a raiz), não as vizinhas'
 );
--- Sem WHERE, só a política de UPDATE filtra (a de SELECT não entra).
-select lives_ok(
-  $$ update public.unit_members set member_role = 'lead' $$,
-  'coordenador da casa 1 altera vínculos em massa: só os aceitos e abertos da casa 1 são alcançados'
+select set_eq(
+  $$ select profile_id from public.role_assignments $$,
+  array[pg_temp.person('house_mon')],
+  'coordenador da casa lê só o próprio papel'
+);
+select results_eq(
+  $$ select target_id, house_key from public.audit_log where event = 'house_accepted' order by 1 $$,
+  $$ select id, 'casa-t1'::text from people where name in ('stu_ah', 'stu_bh') order by 1 $$,
+  'coordenador da casa 1 lê house_accepted dos membros da casa 1 no ABC (#132); não outra casa, outra região nem quem saiu'
+);
+select is_empty(
+  $$ select 1 from public.audit_log where event = 'questionnaire_consented' $$,
+  'coordenador da casa NÃO lê o aceite do termo do questionário'
 );
 select throws_ok(
-  $$ update public.unit_members set accepted_at = now()
+  $$ update public.house_members set accepted_at = now()
      where profile_id = pg_temp.person('stu_hpend') $$,
-  '42501', 'permission denied for table unit_members',
+  '42501', 'permission denied for table house_members',
   'ninguém grava o aceite por UPDATE direto'
 );
 select throws_ok(
-  $$ update public.unit_members set join_method = 'questionnaire'
+  $$ update public.house_members set house_key = 'casa-t2'
      where profile_id = pg_temp.person('stu_ah') $$,
-  '42501', 'permission denied for table unit_members',
-  'nem a forma de entrada'
+  '42501', 'permission denied for table house_members',
+  'nem troca a casa'
+);
+select throws_ok(
+  $$ insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+     values (pg_temp.person('stu_a'), 'casa-t1', 'self', now()) $$,
+  '42501', 'permission denied for table house_members',
+  'vínculo de casa não é criado por INSERT direto (só por accept_house)'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('outsider'), 'house_coordinator', pg_temp.unit('team_a'), 'casa-t1',
+             pg_temp.person('house_mon')) $$,
+  '42501', null,
+  'coordenador de casa NÃO concede o papel'
+);
+-- Sem WHERE, só a política de UPDATE filtra (a de SELECT não entra): encerra só os vínculos
+-- abertos e aceitos da casa 1 no ABC, de quem está ativo.
+select lives_ok(
+  $$ update public.house_members set left_at = now() $$,
+  'coordenador da casa 1 encerra vínculos em massa: só os do seu escopo são alcançados'
 );
 
--- A pessoa com a casa ainda sem aceite: vê os próprios vínculos, mas a casa não conta
+-- A pessoa com a casa ainda sem aceite: vê os próprios vínculos de casa
 select pg_temp.login('stu_hpend');
 select set_eq(
-  $$ select unit_id from public.unit_members $$,
-  array[pg_temp.unit('team_a'), pg_temp.unit('house_1')],
-  'a pessoa lê os próprios vínculos, inclusive a casa sem aceite'
+  $$ select house_key from public.house_members $$,
+  array['casa-t1'],
+  'a pessoa lê o próprio vínculo de casa, mesmo sem aceite'
 );
 select set_eq(
   $$ select slug from public.units $$,
   array['br', 'sp', 'abc', 'team_a'],
-  'sem aceite, a pessoa não vê a unidade da casa'
+  'a casa não é unidade: a pessoa vê só o caminho do território'
 );
+select set_eq(
+  $$ select key from public.houses $$,
+  array['casa-exemplo-1', 'casa-exemplo-2', 'casa-exemplo-3', 'casa-exemplo-4',
+        'casa-t1', 'casa-t2', 'casa-off'],
+  'quem está ativo lê as chaves das casas (sem dado pessoal)'
+);
+select throws_ok(
+  $$ insert into public.houses (key) values ('casa-nova') $$,
+  '42501', null,
+  'ninguém cria casa pela API'
+);
+-- A pessoa lê os próprios eventos de casa, não os dos outros (#132)
 select pg_temp.login('stu_ah');
 select set_eq(
-  $$ select slug from public.units $$,
-  array['br', 'sp', 'abc', 'team_a', 'house_1'],
-  'com a casa aceita, a pessoa vê a equipe e a casa'
+  $$ select event from public.audit_log $$,
+  array['house_accepted', 'questionnaire_consented'],
+  'a pessoa lê os próprios house_accepted e questionnaire_consented, e nada dos outros'
+);
+select pg_temp.login('stu_hwait');
+select is_empty($$ select 1 from public.house_members $$, 'quem está na espera NÃO lê nem o próprio vínculo de casa');
+select is_empty($$ select 1 from public.houses $$, 'quem está na espera NÃO lê as casas');
+
+select pg_temp.login('spokes_a');
+select is_empty($$ select 1 from public.house_members $$,
+  'porta-voz NÃO lê vínculos de casa (não é coordenação)');
+
+-- Gestor de SP: a coordenação territorial lê vínculos de casa (de qualquer casa) e
+-- house_accepted de quem está no seu território; não o termo
+select pg_temp.login('sp_mgr');
+select set_eq(
+  $$ select profile_id from public.house_members $$,
+  $$ select id from people where name in ('stu_ah', 'stu_ah2', 'stu_bh', 'stu_hleft', 'stu_ch') $$,
+  'gestor de SP lê os vínculos de casa aceitos (inclusive o histórico) de quem está em SP e ativo'
+);
+select set_eq(
+  $$ select target_id from public.audit_log where event = 'house_accepted' $$,
+  $$ select id from people where name in ('stu_ah', 'stu_ah2', 'stu_bh', 'stu_ch', 'stu_hleft') $$,
+  'gestor de SP lê house_accepted de quem está em SP (#132)'
+);
+select is_empty(
+  $$ select 1 from public.audit_log where event = 'questionnaire_consented' $$,
+  'gestor NÃO lê o aceite do termo do questionário'
+);
+select lives_ok(
+  $$ update public.house_members set left_at = now() $$,
+  'gestor de SP encerra vínculos de casa em massa: a casa ainda sem aceite não é alcançada'
+);
+-- Concessão do papel de coordenador de casa (ADR 0011 §5)
+select lives_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('zl'), 'casa-t1',
+             pg_temp.person('sp_mgr')) $$,
+  'gestor de SP concede coordenador de casa numa região do estado'
+);
+select lives_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('zl'), 'casa-t2',
+             pg_temp.person('sp_mgr')) $$,
+  'a mesma pessoa pode coordenar outra casa no mesmo território'
+);
+select lives_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_b'), 'house_coordinator', pg_temp.unit('zl'), 'casa-t1',
+             pg_temp.person('sp_mgr')) $$,
+  'pode haver mais de um coordenador da mesma casa no mesmo território'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('zl'), 'casa-t1',
+             pg_temp.person('sp_mgr')) $$,
+  '23505', null,
+  'o mesmo papel ativo (pessoa, casa e território) não se repete'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('zl'),
+             pg_temp.person('sp_mgr')) $$,
+  '23514', null,
+  'coordenador de casa sem casa é recusado'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'monitor', pg_temp.unit('zl'), 'casa-t1',
+             pg_temp.person('sp_mgr')) $$,
+  '23514', null,
+  'casa em outro papel é recusada'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('team_c'), 'casa-off',
+             pg_temp.person('sp_mgr')) $$,
+  '42501', null,
+  'coordenador de casa inativa é recusado'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('team_c'), 'casa-inexistente',
+             pg_temp.person('sp_mgr')) $$,
+  '42501', null,
+  'coordenador de casa inexistente é recusado'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('sp'), 'casa-t1',
+             pg_temp.person('sp_mgr')) $$,
+  '42501', null,
+  'gestor de SP NÃO concede coordenador de casa no próprio nível'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('sp_mgr'), 'house_coordinator', pg_temp.unit('zl'), 'casa-t1',
+             pg_temp.person('sp_mgr')) $$,
+  '42501', null,
+  'gestor de SP NÃO se concede coordenador de casa'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+     values (pg_temp.person('stu_c'), 'house_coordinator', pg_temp.unit('central'), 'casa-t1',
+             pg_temp.person('sp_mgr')) $$,
+  '42501', null,
+  'gestor de SP NÃO concede coordenador de casa em MG'
+);
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now()
+     where role = 'house_coordinator' and profile_id = pg_temp.person('stu_b') $$,
+  'gestor de SP revoga um coordenador de casa abaixo dele'
+);
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now()
+     where role = 'house_coordinator' and profile_id in (pg_temp.person('house_nat'), pg_temp.person('house_mg')) $$,
+  'gestor de SP tenta revogar coordenadores de casa na raiz e em MG: não alcança linha nenhuma'
 );
 
 reset role;
 select set_eq(
-  $$ select profile_id from public.unit_members where axis = 'house' and member_role = 'lead' $$,
-  $$ select id from people where name in ('stu_h', 'stu_ah', 'stu_bh') $$,
-  'o coordenador da casa 1 alterou só os vínculos aceitos e abertos da casa 1'
+  $$ select profile_id from public.house_members where left_at is not null and ended_by = pg_temp.person('house_mon') $$,
+  $$ select id from people where name in ('stu_ah', 'stu_bh') $$,
+  'o coordenador da casa 1 encerrou só os vínculos do seu escopo, e ficou registrado como quem encerrou'
 );
 select is(
-  (select member_role from public.unit_members
-   where profile_id = pg_temp.person('stu_hpend') and axis = 'house'),
-  'member',
-  'o vínculo de casa sem aceite não foi alterado pelo coordenador da casa'
+  (select left_at from public.house_members where profile_id = pg_temp.person('stu_hpend')),
+  null,
+  'a casa sem aceite não foi encerrada pela coordenação'
 );
-select is(
-  (select member_role from public.unit_members
-   where profile_id = pg_temp.person('stu_ah2') and axis = 'house'),
-  'member',
-  'o vínculo da casa 2 não foi alterado pelo coordenador da casa 1'
+select is_empty(
+  $$ select 1 from public.house_members
+     where left_at is not null and ended_by is not null
+       and ended_by = pg_temp.person('house_mon')
+       and profile_id in (select id from people where name in ('stu_ah2', 'stu_ch', 'stu_mh', 'stu_hpend',
+                                                               'stu_hsusp', 'stu_hwait', 'stu_h')) $$,
+  'outra casa, outra região, outro estado, sem aceite, sem território e quem não está ativo: nada foi encerrado'
+);
+select results_eq(
+  $$ select profile_id, revoked_at is not null from public.role_assignments
+     where role = 'house_coordinator'
+       and profile_id in (pg_temp.person('stu_b'), pg_temp.person('house_nat'), pg_temp.person('house_mg'))
+     order by 1 $$,
+  $$ values (pg_temp.person('stu_b'), true), (pg_temp.person('house_nat'), false),
+            (pg_temp.person('house_mg'), false) $$,
+  'o gestor de SP revogou só o coordenador de casa abaixo dele'
 );
 
 -- Lista de autorizados e HMACs da espera (#26): nenhum papel lê pela API

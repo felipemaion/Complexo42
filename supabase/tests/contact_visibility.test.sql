@@ -6,20 +6,19 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(85);
+select plan(88);
 
-truncate public.role_assignments, public.unit_members, public.units;
+truncate public.role_assignments, public.unit_members, public.house_members, public.units;
 
 -- ---------------------------------------------------------------------------------------
 -- Árvore: br ─┬─ sp (SP) ─┬─ abc ─┬─ team_x
 --             │           │       ├─ team_y
 --             │           │       ├─ team_old (equipe ARQUIVADA)
---             │           │       ├─ team_w
---             │           │       ├─ house_x
---             │           │       └─ house_y
+--             │           │       └─ team_w
 --             │           ├─ zl ──── team_z          (outra região)
 --             │           └─ empty_r                 (região sem nada abaixo: folha, não é equipe)
 --             └─ mg (MG, sem unidades abaixo)
+-- Casas nacionais (ADR 0011), fora da árvore: casa-x e casa-y.
 -- ---------------------------------------------------------------------------------------
 create function pg_temp.add_unit(p_type text, p_parent text, p_slug text, p_state char(2) default null)
 returns void language sql as $$
@@ -35,13 +34,12 @@ select pg_temp.add_unit('team', 'abc', 'team_x');
 select pg_temp.add_unit('team', 'abc', 'team_y');
 select pg_temp.add_unit('team', 'abc', 'team_old');
 select pg_temp.add_unit('team', 'abc', 'team_w');
-select pg_temp.add_unit('house', 'abc', 'house_x');
-select pg_temp.add_unit('house', 'abc', 'house_y');
 select pg_temp.add_unit('region', 'sp', 'zl');
 select pg_temp.add_unit('team', 'zl', 'team_z');
 select pg_temp.add_unit('region', 'sp', 'empty_r');
 select pg_temp.add_unit('state', 'br', 'mg', 'MG');
 update public.units set status = 'archived' where slug = 'team_old';
+insert into public.houses (key) values ('casa-x'), ('casa-y') on conflict do nothing;
 
 -- Ids lidos como dono do banco, antes de qualquer troca de papel (#113).
 create temp table unit_ids (slug text primary key, id uuid not null unique);
@@ -81,9 +79,9 @@ insert into people values
   ('crev',   '00000000-0000-0000-0000-0000000001b9'),  -- ex-monitor da equipe X (revogado)
   ('spokes', '00000000-0000-0000-0000-0000000001b2'),  -- porta-voz da equipe X
   ('noprof', '00000000-0000-0000-0000-0000000001b3'),  -- conta sem perfil
-  ('hcoord', '00000000-0000-0000-0000-0000000001b4'),  -- coordenador da casa X (monitor)
-  ('hrev',   '00000000-0000-0000-0000-0000000001b5'),  -- ex-coordenador da casa X (revogado)
-  ('hspk',   '00000000-0000-0000-0000-0000000001b6'),  -- porta-voz na casa X
+  ('hcoord', '00000000-0000-0000-0000-0000000001b4'),  -- coordenador da casa X no ABC
+  ('hrev',   '00000000-0000-0000-0000-0000000001b5'),  -- ex-coordenador da casa X no ABC (revogado)
+  ('hspk',   '00000000-0000-0000-0000-0000000001b6'),  -- coordenador da casa Y no ABC (outra casa)
   ('cleft',  '00000000-0000-0000-0000-0000000001b7'),  -- saiu da casa X (aceita), sem outro vínculo
   ('j1',     '00000000-0000-0000-0000-0000000001e3'),  -- só na unidade de MG (folha), autorizou equipe e casa
   ('j2',     '00000000-0000-0000-0000-0000000001e4'),  -- só na unidade de MG
@@ -125,12 +123,13 @@ insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('coord'), 'monitor', pg_temp.unit('team_x')),
   (pg_temp.person('rl'), 'monitor', pg_temp.unit('team_x')),
   (pg_temp.person('rl2'), 'monitor', pg_temp.unit('team_x')),
-  (pg_temp.person('spokes'), 'spokesperson', pg_temp.unit('team_x')),
-  (pg_temp.person('hcoord'), 'monitor', pg_temp.unit('house_x')),
-  (pg_temp.person('hspk'), 'spokesperson', pg_temp.unit('house_x'));
+  (pg_temp.person('spokes'), 'spokesperson', pg_temp.unit('team_x'));
 insert into public.role_assignments (profile_id, role, unit_id, revoked_at) values
-  (pg_temp.person('hrev'), 'monitor', pg_temp.unit('house_x'), now()),
   (pg_temp.person('crev'), 'monitor', pg_temp.unit('team_x'), now());
+insert into public.role_assignments (profile_id, role, unit_id, house_key, revoked_at) values
+  (pg_temp.person('hcoord'), 'house_coordinator', pg_temp.unit('abc'), 'casa-x', null),
+  (pg_temp.person('hspk'), 'house_coordinator', pg_temp.unit('abc'), 'casa-y', null),
+  (pg_temp.person('hrev'), 'house_coordinator', pg_temp.unit('abc'), 'casa-x', now());
 insert into public.unit_members (unit_id, profile_id) values
   (pg_temp.unit('team_x'), pg_temp.person('a')),
   (pg_temp.unit('team_x'), pg_temp.person('b')),
@@ -152,15 +151,15 @@ insert into public.unit_members (unit_id, profile_id) values
   (pg_temp.unit('mg'), pg_temp.person('j1')),
   (pg_temp.unit('mg'), pg_temp.person('j2'));
 -- Casa: aceita há 8 dias (passou a carência de 7) ou hoje.
-insert into public.unit_members (unit_id, profile_id, join_method, joined_at, accepted_at) values
-  (pg_temp.unit('house_x'), pg_temp.person('c'), 'self', now() - interval '8 days', now() - interval '8 days'),
-  (pg_temp.unit('house_x'), pg_temp.person('d'), 'self', now() - interval '8 days', now() - interval '8 days'),
-  (pg_temp.unit('house_x'), pg_temp.person('e'), 'self', now() - interval '8 days', now() - interval '8 days'),
-  (pg_temp.unit('house_x'), pg_temp.person('f'), 'self', now(), now());
-insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, left_at) values
-  (pg_temp.unit('house_x'), pg_temp.person('cleft'), 'self', now(), now());
-insert into public.unit_members (unit_id, profile_id, join_method, joined_at, accepted_at, left_at) values
-  (pg_temp.unit('house_x'), pg_temp.person('hl'), 'self', now() - interval '8 days', now() - interval '8 days', now());
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at) values
+  (pg_temp.person('c'), 'casa-x', 'self', now() - interval '8 days', now() - interval '8 days'),
+  (pg_temp.person('d'), 'casa-x', 'self', now() - interval '8 days', now() - interval '8 days'),
+  (pg_temp.person('e'), 'casa-x', 'self', now() - interval '8 days', now() - interval '8 days'),
+  (pg_temp.person('f'), 'casa-x', 'self', now(), now());
+insert into public.house_members (profile_id, house_key, join_method, accepted_at, left_at) values
+  (pg_temp.person('cleft'), 'casa-x', 'self', now(), now());
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at, left_at) values
+  (pg_temp.person('hl'), 'casa-x', 'self', now() - interval '8 days', now() - interval '8 days', now());
 insert into public.contact_visibility (profile_id, kind, scope) values
   (pg_temp.person('b'), 'whatsapp', 'team'),
   (pg_temp.person('b'), 'email', 'team'),
@@ -189,7 +188,7 @@ from generate_series(1, 60);
 -- ---------------------------------------------------------------------------------------
 -- Estrutura
 -- ---------------------------------------------------------------------------------------
-select is((select count(*)::int from unit_ids), 13, 'ids das 13 unidades lidos como dono do banco');
+select is((select count(*)::int from unit_ids), 11, 'ids das 11 unidades lidos como dono do banco');
 select is_empty($$ select name from people where id is null $$, 'nenhum id de pessoa é nulo');
 select columns_are('public', 'contact_visibility',
   array['profile_id', 'kind', 'scope', 'updated_at'],
@@ -210,9 +209,8 @@ select set_eq($$ select key from public.unit_types where is_team $$, array['team
 select has_index('public', 'audit_log', 'audit_log_actor_event_created_idx',
   array['actor_id', 'event', 'created_at'],
   'o limite de view_contact conta pelo índice (actor_id, event, created_at) da #20');
-select throws_ok(
-  $$ update public.unit_types set is_team = true where key = 'house' $$,
-  '23514', null, 'tipo do eixo da casa não pode ser marcado como equipe');
+select ok(not exists (select 1 from public.unit_types where key = 'house'),
+  'a casa não é mais tipo de unidade (ADR 0011): "mesma casa" vem de house_members');
 
 -- ---------------------------------------------------------------------------------------
 -- "A mesma equipe": só unidade ativa de tipo marcado como equipe
@@ -248,7 +246,8 @@ select is(app.can_view_contact(pg_temp.person('b'), 'whatsapp'), false,
   'quem está bloqueado NÃO vê o contato do colega');
 
 -- ---------------------------------------------------------------------------------------
--- "A mesma casa": mesma casa, na mesma região, aceita há pelo menos 7 dias pelos dois
+-- "A mesma casa": a mesma casa nacional, o mesmo território mais próximo, aceita há pelo
+-- menos 7 dias pelos dois
 -- ---------------------------------------------------------------------------------------
 select pg_temp.login('d');
 select is(app.can_view_contact(pg_temp.person('c'), 'whatsapp'), true,
@@ -266,25 +265,26 @@ select pg_temp.login('f');
 select is(app.can_view_contact(pg_temp.person('c'), 'whatsapp'), true,
   'quem entrou na casa hoje vê o colega pela EQUIPE (mesma equipe Y), não pela casa');
 reset role;
-update public.unit_members set left_at = now() where profile_id = pg_temp.person('c') and axis = 'team';
+update public.unit_members set left_at = now() where profile_id = pg_temp.person('c');
 set local role authenticated;
 select pg_temp.login('d');
 select is(app.can_view_contact(pg_temp.person('c'), 'whatsapp'), false,
   'sem vínculo de território (sem região), a casa sozinha NÃO dá acesso');
 reset role;
 insert into public.unit_members (unit_id, profile_id) values (pg_temp.unit('team_y'), pg_temp.person('c'));
-update public.unit_members set accepted_at = now(), joined_at = now()
-where profile_id = pg_temp.person('d') and axis = 'house';
+update public.house_members set accepted_at = now(), joined_at = now()
+where profile_id = pg_temp.person('d');
 set local role authenticated;
 select pg_temp.login('d');
 select is(app.can_view_contact(pg_temp.person('c'), 'whatsapp'), false,
   'quem chama e entrou na casa hoje NÃO vê pela casa no mesmo dia');
 reset role;
-update public.unit_members set accepted_at = now() - interval '8 days', joined_at = now() - interval '8 days'
-where profile_id = pg_temp.person('d') and axis = 'house';
+update public.house_members set joined_at = now() - interval '8 days', accepted_at = now() - interval '8 days'
+where profile_id = pg_temp.person('d');
 set local role authenticated;
 
--- Coordenador da casa (app.is_house_coordinator_of): os membros da casa, de qualquer equipe
+-- Coordenador da casa (app.is_house_coordinator_of, ADR 0011): os membros da casa dentro do
+-- seu território, de qualquer equipe
 select pg_temp.login('hcoord');
 select is(app.can_view_contact(pg_temp.person('c'), 'email'), true,
   'coordenador da casa vê o contato do membro da casa (de outra equipe), sem depender da escolha');
@@ -294,12 +294,20 @@ select is(app.can_view_contact(pg_temp.person('a'), 'whatsapp'), false,
   'coordenador da casa NÃO vê quem não é da casa');
 select is(app.can_view_contact(pg_temp.person('cleft'), 'whatsapp'), false,
   'coordenador da casa NÃO vê quem já saiu da casa');
+select is(app.can_view_contact(pg_temp.person('e'), 'whatsapp'), false,
+  'coordenador da casa no ABC NÃO vê o membro da mesma casa em outra região');
 select pg_temp.login('hspk');
 select is(app.can_view_contact(pg_temp.person('c'), 'whatsapp'), false,
-  'porta-voz na casa NÃO conta como coordenação da casa');
+  'coordenador de OUTRA casa no mesmo território NÃO vê');
 select pg_temp.login('hrev');
 select is(app.can_view_contact(pg_temp.person('c'), 'whatsapp'), false,
   'papel de coordenador de casa revogado NÃO vale');
+select pg_temp.login('hcoord');
+select is(public.view_contact(pg_temp.person('c'), 'whatsapp'), pg_temp.enc('Zapc'),
+  'coordenador da casa lê o contato do membro da casa pela leitura auditada (view_contact)');
+select throws_ok(
+  $$ select public.view_contact(pg_temp.person('e'), 'whatsapp') $$,
+  '42501', null, 'view_contact recusa o membro da mesma casa fora do território do coordenador');
 
 -- Funções internas não são chamáveis soltas (revelariam a escolha ou o vínculo de outra pessoa).
 select throws_ok(
@@ -430,6 +438,7 @@ select set_eq(
             (pg_temp.person('coord'), pg_temp.person('a'), 'email'),
             (pg_temp.person('coord'), pg_temp.person('b'), 'whatsapp'),
             (pg_temp.person('d'), pg_temp.person('c'), 'whatsapp'),
+            (pg_temp.person('hcoord'), pg_temp.person('c'), 'whatsapp'),
             (pg_temp.person('rl'), pg_temp.person('b'), 'email'),
             (pg_temp.person('rl2'), pg_temp.person('a'), 'whatsapp') $$,
   'leituras permitidas com valor gravaram contact_viewed; as negadas, a nula, a própria e a 61ª, não'
@@ -486,8 +495,8 @@ select is(
 select pg_temp.login('c');
 select set_eq(
   $$ select viewer_id, kind from public.list_contact_views() $$,
-  $$ values (pg_temp.person('d'), 'whatsapp') $$,
-  'o colega que viu também aparece na lista'
+  $$ values (pg_temp.person('d'), 'whatsapp'), (pg_temp.person('hcoord'), 'whatsapp') $$,
+  'o colega e o coordenador da casa que viram também aparecem na lista'
 );
 select pg_temp.login('coord');
 select is_empty($$ select 1 from public.list_contact_views() $$,
