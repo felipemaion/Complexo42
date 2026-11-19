@@ -579,10 +579,39 @@ conexão local dentro do container é confiável. É uma troca consciente em
 relação ao "container de uso único" da #81 — o isolamento que importa, abortar
 sem tocar o app, continua valendo.
 
+**Adoção de um banco já migrado.** Se a tabela de controle estiver vazia e o
+`public` já tiver tabelas, o script **recusa** rodar. Motivo: reaplicar as
+migrations ali é perigoso — parte delas roda calada (`create or replace`,
+`drop ... if exists`) até alguma falhar, deixando o schema num estado que
+nenhum arquivo descreve. Se o schema já corresponde a estas migrations, rode
+**uma vez** com `--adotar`, que grava a linha de base sem executar nada.
+
+> Conferido em 2026-11-19: o banco do **staging** tem `public` com **zero**
+> tabelas e nenhuma tabela de controle — ele nunca foi migrado. Lá a aplicação
+> é limpa, e `--adotar` não é necessário.
+
+**O `psql` entra sem senha pelo socket.** Conferido no container do staging em
+2026-11-19: `docker exec ... psql -U supabase_admin`, sem `-h`, conecta por
+`trust`/`peer`. Não é suposição — se um dia o `pg_hba.conf` mudar, o deploy
+trava aqui e o erro aparece no passo 2, antes de o app ser trocado.
+
+**Cuidados ao escrever uma migration**, porque o script a envolve em
+`begin`/`commit`:
+
+- não abra `begin`/`commit` dentro do arquivo — a transação já é do script;
+- termine cada comando com `;`;
+- `CREATE INDEX CONCURRENTLY` **não funciona** dentro de transação; use índice
+  comum, ou trate o caso à parte;
+- `ALTER TYPE ... ADD VALUE` não pode ser usado na **mesma** transação que o
+  criou; separe em duas migrations.
+
 Variáveis: `APP_TAG` (vem do `deploy.sh`), `IMAGEM`, `DB_CONTAINER` e,
 opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
 
-Teste: `deploy/migra.test.sh`, 18 asserções com dublê de `docker`.
+Testes: `deploy/migra.test.sh` (25 asserções, dublê de `docker`) e
+`deploy/migra-integracao.test.sh` (12 asserções contra um Postgres de
+verdade — é ele que prova que o DDL e a linha de controle caem juntos
+quando uma migration falha; pula limpo sem Docker).
 
 ### Duas proteções que não são óbvias
 

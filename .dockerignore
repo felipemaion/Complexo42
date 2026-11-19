@@ -11,6 +11,9 @@ data
 coverage
 supabase/.temp
 supabase
+# ...menos as migrations, que viajam NA IMAGEM e sao aplicadas no deploy (#81).
+# A ordem importa: a negacao tem de vir DEPOIS da exclusao do diretorio.
+!supabase/migrations
 deploy
 docs
 scripts

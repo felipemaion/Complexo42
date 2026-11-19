@@ -172,3 +172,16 @@ jobs:
         with: { persist-credentials: false }
       - run: docker build --build-arg GIT_SHA="$GITHUB_SHA" -t complexo42:ci .
       - run: ./scripts/check-image.sh complexo42:ci
+      # As migrations viajam na imagem (#81) e o .dockerignore exclui `supabase`:
+      # sem este passo, uma mudanca nele quebraria o deploy calada, porque o
+      # build continua passando -- so o passo de migrations do deploy falharia.
+      - name: As migrations estao na imagem, e so elas
+        run: |
+          na_imagem=$(docker run --rm --entrypoint ls complexo42:ci /app/supabase/migrations | grep -c '\.sql$')
+          no_repo=$(ls -1 supabase/migrations/*.sql | wc -l | tr -d ' ')
+          echo "na imagem: $na_imagem | no repositorio: $no_repo"
+          [ "$na_imagem" = "$no_repo" ] || { echo "ERRO: a imagem nao leva todas as migrations"; exit 1; }
+          # seed, testes e config.toml continuam FORA: sao de desenvolvimento.
+          if docker run --rm --entrypoint ls complexo42:ci /app/supabase/config.toml > /dev/null 2>&1; then
+            echo "ERRO: config.toml vazou para a imagem"; exit 1
+          fi
