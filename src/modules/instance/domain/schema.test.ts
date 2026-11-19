@@ -190,7 +190,7 @@ const valid = {
       confirmButton: { block: "t", unblock: "t" },
       cancelButton: "t",
       done: { block: "t", unblock: "t" },
-      errors: { invalid_email: "t", invalid_action: "t", invalid_reason: "t", forbidden: "t", failed: "t" },
+      errors: { invalid_email: "t", invalid_action: "t", invalid_reason: "t", forbidden: "t", rate_limited: "t", failed: "t" },
     },
   },
   houses: [

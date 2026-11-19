@@ -220,6 +220,13 @@ describe("setMemberBlock", () => {
     );
   });
 
+  it("limite de tentativas do banco (54000) vira rate_limited", async () => {
+    const { client } = fakeClient(null, { dbError: { code: "54000" } });
+    await expect(setMemberBlock(client, { email: "pessoa@exemplo.org", action: "unblock", reason: null })).rejects.toEqual(
+      new AccessError("rate_limited"),
+    );
+  });
+
   it("e-mail não normalizado ou motivo fora da lista não chegam ao banco", async () => {
     const { client, calls } = fakeClient(null);
     await expect(setMemberBlock(client, { email: "Pessoa@Exemplo.org", action: "block", reason: null })).rejects.toThrow();

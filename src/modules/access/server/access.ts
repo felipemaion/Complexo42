@@ -55,7 +55,8 @@ async function callRpc(client: AccessClient, fn: string, args: Record<string, un
   const { data, error } = await client.rpc(fn, args);
   if (error) {
     const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
-    throw new AccessError(code === "42501" ? "forbidden" : "db_error");
+    // 54000 (`program_limit_exceeded`): limite de tentativas do bloqueio.
+    throw new AccessError(code === "42501" ? "forbidden" : code === "54000" ? "rate_limited" : "db_error");
   }
   return data;
 }
@@ -165,8 +166,8 @@ const normalizedEmailSchema = z.string().refine((email) => normalizeAllowlistEma
 /**
  * Bloqueia quem está ativo (`block_member`) ou devolve à fila de espera quem está bloqueado
  * (`unblock_member`), pelo e-mail de login. O banco decide quem pode (R15) e responde igual
- * exista ou não a conta: aqui não há como saber se alguém foi alterado. Só a falta de papel de
- * gestor vira `forbidden`. O e-mail não vai para log nenhum (R11).
+ * exista ou não a conta (neutra no retorno). A falta de papel de gestor vira `forbidden`; o
+ * limite de tentativas por hora, `rate_limited`. O e-mail não vai para log nenhum (R11).
  */
 export async function setMemberBlock(client: AccessClient, request: MemberBlockRequest): Promise<void> {
   const email = normalizedEmailSchema.parse(request.email);

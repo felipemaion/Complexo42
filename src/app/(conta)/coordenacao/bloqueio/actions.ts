@@ -1,8 +1,8 @@
 "use server";
 // Server action da tela de bloqueio (#26, ADR 0008 §1). Só composição: sessão (JWT, R14),
 // leitura do pedido e `setMemberBlock`. "Continuar" só abre a confirmação; só "Sim" chama o
-// banco, que decide quem pode (R15) e responde igual exista ou não a conta. A tela, portanto,
-// também não diz se alguém foi bloqueado. O e-mail não vai para o log (R11).
+// banco, que decide quem pode (R15) e responde de forma neutra no retorno, exista ou não a
+// conta: a tela também não diz se alguém foi bloqueado. O e-mail não vai para o log (R11).
 import {
   AccessError,
   MEMBER_BLOCK_FIELDS,
@@ -25,7 +25,9 @@ export async function memberBlockAction(_state: MemberBlockState, formData: Form
     await setMemberBlock(client, parsed.request);
     return { status: "done", action: parsed.request.action };
   } catch (err) {
-    if (err instanceof AccessError && err.code === "forbidden") return { status: "error", error: "forbidden" };
+    if (err instanceof AccessError && (err.code === "forbidden" || err.code === "rate_limited")) {
+      return { status: "error", error: err.code };
+    }
     log.error("member_block_failed", { reason: err instanceof AccessError ? err.code : "unknown" });
     return { status: "error", error: "failed" };
   }

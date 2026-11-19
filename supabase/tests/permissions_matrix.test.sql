@@ -785,7 +785,8 @@ insert into matrix (actor, action, target, expected) values
   ('stu_a', 'revoke', 'team_a', false),
   ('anon', 'revoke', 'team_a', false),
   -- Bloquear quem está ativo / desbloquear (#26): gestor no escopo, nunca a si nem quem tem
-  -- papel no seu nível ou acima; só alvo ativo (bloquear) ou bloqueado (desbloquear)
+  -- papel no seu nível ou acima (o gestor da raiz alcança house_coordinator e tech_admin na
+  -- raiz); só alvo ativo (bloquear) ou bloqueado (desbloquear)
   ('sp_mgr', 'block', 'stu_a', true),
   ('abc_mgr', 'block', 'stu_a', true),
   ('nat_mgr', 'block', 'stu_m', true),
@@ -794,9 +795,12 @@ insert into matrix (actor, action, target, expected) values
   ('mg_mgr', 'block', 'stu_a', false),
   ('abc_mgr', 'block', 'stu_c', false),
   ('sp_mgr', 'block', 'spokes_a', false),
-  ('nat_mgr', 'block', 'tech', false),
+  ('nat_mgr', 'block', 'tech', true),
+  ('sp_mgr', 'block', 'house_sp', false),
+  ('nat_mgr', 'block', 'house_sp', true),
+  ('nat_mgr', 'block', 'tech_wait', false),
   ('nat_mgr', 'block', 'nat_mon', false),
-  ('nat_mgr', 'block', 'house_nat', false),
+  ('nat_mgr', 'block', 'house_nat', true),
   ('nat_mgr', 'block', 'nat_mgr', false),
   ('sp_mgr', 'block', 'sp_mgr', false),
   ('team_a_mon', 'block', 'stu_a', false),

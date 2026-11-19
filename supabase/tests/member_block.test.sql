@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(51);
+select plan(75);
 
 -- Unidades do seed (br > sp > abc; br > mg), lidas como dono antes de trocar de papel.
 create temp table unit_ids (slug text primary key, id uuid not null);
@@ -30,7 +30,11 @@ insert into people values
   ('abc_mgr_w', '00000000-0000-0000-0000-0000000000da', 'abc.mgr.w@exemplo.org'), -- manager do ABC, na espera
   ('sp_mon',    '00000000-0000-0000-0000-0000000000db', 'sp.mon@exemplo.org'),    -- monitor de SP
   ('tech',      '00000000-0000-0000-0000-0000000000dc', 'tech@exemplo.org'),      -- admin técnico, em SP
-  ('plain',     '00000000-0000-0000-0000-0000000000dd', 'plain@exemplo.org');     -- ativo, sem papel
+  ('plain',     '00000000-0000-0000-0000-0000000000dd', 'plain@exemplo.org'),     -- ativo, sem papel
+  ('root_mgr',  '00000000-0000-0000-0000-0000000000de', 'root.mgr@exemplo.org'),  -- manager da raiz
+  ('root_mgr2', '00000000-0000-0000-0000-0000000000df', 'root.mgr2@exemplo.org'), -- outro manager da raiz
+  ('hc_root',   '00000000-0000-0000-0000-0000000000e0', 'hc.root@exemplo.org'),   -- coordenador nacional de casa
+  ('two_roles', '00000000-0000-0000-0000-0000000000e1', 'two.roles@exemplo.org'); -- no ABC; monitor do ABC e de MG
 insert into auth.users (id, email) select id, email from people;
 
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
@@ -67,11 +71,15 @@ update public.profiles set access_status = 'blocked' where id = pg_temp.person('
 update public.unit_members set left_at = now()
 where left_at is null
   and profile_id in (select id from people
-                     where name in ('abc_mgr', 'boss', 'peer', 'member', 'member2', 'wait', 'blocked'));
+                     where name in ('abc_mgr', 'boss', 'peer', 'member', 'member2', 'wait', 'blocked', 'two_roles'));
 insert into public.unit_members (unit_id, profile_id)
 select pg_temp.unit('abc'), id from people
-where name in ('abc_mgr', 'boss', 'peer', 'member', 'member2', 'wait', 'blocked');
+where name in ('abc_mgr', 'boss', 'peer', 'member', 'member2', 'wait', 'blocked', 'two_roles');
 
+insert into public.houses (key, active) values ('casa-t1', true)
+on conflict (key) do update set active = excluded.active;
+insert into public.role_assignments (profile_id, role, unit_id, house_key) values
+  (pg_temp.person('hc_root'), 'house_coordinator', pg_temp.unit('br'), 'casa-t1');
 insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('sp_mgr'), 'manager', pg_temp.unit('sp')),
   (pg_temp.person('abc_mgr'), 'manager', pg_temp.unit('abc')),
@@ -80,7 +88,11 @@ insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('peer'), 'monitor', pg_temp.unit('abc')),
   (pg_temp.person('abc_mgr_w'), 'manager', pg_temp.unit('abc')),
   (pg_temp.person('sp_mon'), 'monitor', pg_temp.unit('sp')),
-  (pg_temp.person('tech'), 'tech_admin', pg_temp.unit('br'));
+  (pg_temp.person('tech'), 'tech_admin', pg_temp.unit('br')),
+  (pg_temp.person('root_mgr'), 'manager', pg_temp.unit('br')),
+  (pg_temp.person('root_mgr2'), 'manager', pg_temp.unit('br')),
+  (pg_temp.person('two_roles'), 'monitor', pg_temp.unit('abc')),
+  (pg_temp.person('two_roles'), 'monitor', pg_temp.unit('mg'));
 
 create function pg_temp.status_of(p_name text) returns text language sql stable as $$
   select access_status from public.profiles where id = pg_temp.person(p_name)
@@ -236,6 +248,81 @@ select is(pg_temp.status_of('member2'), 'active', 'desbloquear quem está ativo 
 select is(pg_temp.status_of('blocked'), 'waitlisted',
   'desbloqueado volta para a espera (a liberação passa de novo pela fila)');
 select is(pg_temp.audits('member_unblocked', 'blocked'), 1, 'desbloqueio gera member_unblocked');
+
+-- ---------------------------------------------------------------------------------------
+-- Raiz (revisão do #162): o manager da raiz alcança house_coordinator e tech_admin na raiz,
+-- como em `can_revoke_role`; um manager da raiz nunca é bloqueável
+-- ---------------------------------------------------------------------------------------
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select lives_ok($$ select public.block_member('hc.root@exemplo.org') $$,
+  'gestor de SP x coordenador nacional de casa: a resposta é a mesma');
+select lives_ok($$ select public.block_member('two.roles@exemplo.org') $$,
+  'gestor de SP x alvo com um papel abaixo e outro em outro ramo: a resposta é a mesma');
+reset role;
+select is(pg_temp.status_of('hc_root'), 'active', 'coordenador de casa na raiz → negado para o gestor de SP');
+select is(pg_temp.status_of('two_roles'), 'active', 'alvo com um papel abaixo e outro em outro ramo → negado');
+
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select public.block_member('hc.root@exemplo.org') $$, 'gestor da raiz bloqueia o coordenador nacional de casa');
+select lives_ok($$ select public.block_member('tech@exemplo.org') $$, 'gestor da raiz bloqueia o admin técnico');
+select lives_ok($$ select public.block_member('two.roles@exemplo.org') $$, 'gestor da raiz bloqueia quem tem papéis em dois ramos');
+select lives_ok($$ select public.block_member('root.mgr2@exemplo.org') $$, 'gestor da raiz x outro gestor da raiz: a resposta é a mesma');
+reset role;
+select is(pg_temp.status_of('hc_root'), 'blocked', 'coordenador de casa na raiz: bloqueado pelo gestor da raiz');
+select is(pg_temp.status_of('tech'), 'blocked', 'admin técnico na raiz: bloqueado pelo gestor da raiz');
+select is(pg_temp.status_of('two_roles'), 'blocked', 'papéis em dois ramos: bloqueado pelo gestor da raiz');
+select is(pg_temp.status_of('root_mgr2'), 'active', 'gestor da raiz nunca é bloqueável');
+
+-- Quem está bloqueado não desbloqueia ninguém (nem a si mesmo).
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select public.block_member('sp.mgr@exemplo.org') $$, 'gestor da raiz bloqueia o gestor de SP');
+select pg_temp.login('sp_mgr');
+select throws_ok($$ select public.unblock_member('peer@exemplo.org') $$, '42501', null,
+  'gestor bloqueado chamando unblock_member → 42501');
+select throws_ok($$ select public.unblock_member('sp.mgr@exemplo.org') $$, '42501', null,
+  'gestor bloqueado NÃO desbloqueia a si mesmo');
+reset role;
+
+-- Depois do desbloqueio (volta para a espera), a importação da lista NÃO libera sozinha: o
+-- HMAC só fica guardado para quem foi à espera no primeiro login.
+select is((select count(*)::int from public.access_waitlist_hmac where profile_id = pg_temp.person('blocked')), 0,
+  'quem foi desbloqueado não tem HMAC guardado na espera');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select public.import_allowlist(array[encode(sha256('blocked@exemplo.org'::bytea), 'hex')], 'manual') $$,
+  'gestor da raiz importa uma lista');
+reset role;
+select is(pg_temp.status_of('blocked'), 'waitlisted', 'a importação não libera quem foi desbloqueado (só a fila)');
+
+-- ---------------------------------------------------------------------------------------
+-- Limite: 30 tentativas por hora por quem chama, contando as que não mudam nada
+-- ---------------------------------------------------------------------------------------
+set local role authenticated;
+select pg_temp.login('root_mgr2');
+select lives_ok($$ do $d$ begin
+  for i in 1..15 loop
+    perform public.block_member('ninguem@exemplo.org');
+    perform public.unblock_member('ninguem@exemplo.org');
+  end loop;
+end $d$ $$, '30 tentativas (bloquear e desbloquear, sem efeito) passam');
+select throws_ok($$ select public.block_member('ninguem@exemplo.org') $$, '54000', 'too_many_attempts',
+  'a 31ª tentativa de bloquear na hora é recusada');
+select throws_ok($$ select public.unblock_member('ninguem@exemplo.org') $$, '54000', 'too_many_attempts',
+  'o limite vale também para desbloquear');
+reset role;
+select is((select count(*)::int from app.member_block_attempts where actor_id = pg_temp.person('root_mgr2')), 30,
+  'cada tentativa conta, mesmo sem efeito; as recusadas não');
+select is(array(select column_name::text from information_schema.columns
+                where table_schema = 'app' and table_name = 'member_block_attempts' order by ordinal_position),
+  array['actor_id', 'attempted_at'], 'a tentativa guarda só quem e quando (nunca o e-mail)');
+set local role authenticated;
+select pg_temp.login('root_mgr2');
+select throws_ok($$ select 1 from app.member_block_attempts $$, '42501', null,
+  'ninguém lê as tentativas pela API');
+reset role;
 
 -- A busca por e-mail não é exposta.
 set local role authenticated;

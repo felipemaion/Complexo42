@@ -77,6 +77,13 @@ describe("memberBlockAction", () => {
     expect(logged).toEqual([]);
   });
 
+  it("limite de tentativas (54000): rate_limited, sem log", async () => {
+    answer = { data: null, error: { code: "54000", message: "too_many_attempts" } };
+    const state = await memberBlockAction({ status: "idle" }, form({ email: "pessoa@exemplo.org", acao: "bloquear", etapa: "confirmar" }));
+    expect(state).toEqual({ status: "error", error: "rate_limited" });
+    expect(logged).toEqual([]);
+  });
+
   it("outra falha: failed, com só o código no log (nunca o e-mail)", async () => {
     answer = { data: null, error: { code: "57014", message: "detalhe interno" } };
     const state = await memberBlockAction({ status: "idle" }, form({ email: "pessoa@exemplo.org", acao: "bloquear", etapa: "confirmar" }));

@@ -122,10 +122,18 @@ O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
   ativo** (`active` → `blocked`) ou desfaz (`blocked` → `waitlisted`: a pessoa volta para a fila
   e a liberação passa de novo pela coordenação). A pessoa é achada pelo e-mail de login em
   `auth.users`. Pode quem tem escopo sobre o vínculo do alvo (`app.manages_member`), nunca sobre
-  si nem sobre quem tem papel no seu nível ou acima (`app.is_outranked_by_caller`). A resposta é
-  a mesma exista ou não a conta, esteja ou não no escopo; só quem não é gestor ativo recebe
-  42501. O efeito é imediato: `is_active_member` e `is_active_profile` leem `access_status`, e o
-  servidor encerra a sessão de quem está `blocked`. Papéis não são revogados. Gera
+  si nem sobre quem tem papel no seu nível ou acima (`app.is_outranked_by_caller`); o gestor da
+  raiz também alcança `house_coordinator` e `tech_admin` na raiz (como `can_revoke_role`), e um
+  gestor da raiz nunca é bloqueável. A resposta é neutra no retorno, exista ou não a conta,
+  esteja ou não no escopo; só quem não é gestor ativo recebe 42501. Limite: 30 tentativas por
+  hora por quem chama (bloquear e desbloquear, inclusive as sem efeito), contadas em
+  `app.member_block_attempts` (só `actor_id` e `attempted_at`; apagadas com a conta e depois de
+  uma hora); acima disso, erro 54000. A RLS nega o acesso já na próxima consulta
+  (`is_active_member` e `is_active_profile` leem `access_status`); o cookie da pessoa é limpo no
+  próximo acesso dela ao app e o token de refresh vale até expirar, sem efeito. Papéis não são
+  revogados. Depois do desbloqueio, a importação da lista não libera a pessoa (não há HMAC
+  guardado dela): só a fila. A busca pelo e-mail usa o índice `(instance_id, lower(email))`
+  que o GoTrue já cria; `auth.users` é do GoTrue e não recebe índice nosso. Gera
   `member_blocked` (motivo opcional de lista fechada) ou `member_unblocked`. Tela:
   `/coordenacao/bloqueio` (pedido e confirmação, funciona sem JavaScript).
 
@@ -448,7 +456,7 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   aberto não bastam.
 - **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
   `profiles`, `profile_contacts`, `unit_members`, `house_members` e `role_assignments` da pessoa,
-  `access_waitlist_hmac`, `questionnaire_consents`, `consent_acceptances` e `app.profile_save_attempts`. A função
+  `access_waitlist_hmac`, `questionnaire_consents`, `consent_acceptances`, `app.profile_save_attempts` e `app.member_block_attempts`. A função
   apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`, pelo id ou pelo
   e-mail exato da conta, lido antes de apagar) e o `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
 - **O que fica dos outros:** quando a pessoa aparece no dado de outra

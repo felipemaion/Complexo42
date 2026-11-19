@@ -318,6 +318,7 @@ export const instanceConfigSchema = z.strictObject({
         invalid_action: text,
         invalid_reason: text,
         forbidden: text,
+        rate_limited: text,
         failed: text,
       }),
     }),

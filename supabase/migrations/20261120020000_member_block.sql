@@ -7,20 +7,28 @@
 -- 1. `app.is_outranked_by_caller(target)`: todo papel ativo de `target` está numa unidade
 --    estritamente abaixo de uma unidade em que quem chama é manager (como `can_grant_role`).
 --    Quem tem papel no mesmo nível, acima ou em outro ramo não é bloqueado por quem chama.
+--    Exceção (como `can_revoke_role`): o manager da raiz também alcança `house_coordinator` e
+--    `tech_admin` na raiz, que não têm ninguém acima. Um manager da raiz nunca é bloqueável.
 -- 2. `app.can_block_member(target)` / `app.can_unblock_member(target)`: `manages_member`
 --    (escopo, nunca a si mesmo, quem chama ativo) + `is_outranked_by_caller` + o alvo está
 --    `active` (bloquear) ou `blocked` (desbloquear).
 -- 3. `block_member(email, reason)` / `unblock_member(email)`: a coordenação conhece a pessoa
---    pelo e-mail da reclamação. A resposta é sempre a mesma (nada), exista ou não a conta,
---    esteja ou não no escopo: a função não serve para descobrir quem está cadastrado. Só quem
---    não é manager ativo recebe erro (42501), e isso não diz nada sobre o alvo.
+--    pelo e-mail da reclamação. A resposta é neutra no retorno (nada), exista ou não a conta,
+--    esteja ou não no escopo. Só quem não é manager ativo recebe erro (42501), e isso não diz
+--    nada sobre o alvo.
 --    - Bloquear: `access_status = 'blocked'` na hora. `app.is_active_member()` e
---      `app.is_active_profile()` leem esse campo: a pessoa perde o escopo e some de perfil,
---      contato e vínculos de terceiros (ADR 0010) já na próxima consulta; o servidor encerra
---      a sessão dela (`requireUser`). Papéis não são revogados: só voltam a valer se a
---      pessoa for liberada de novo.
+--      `app.is_active_profile()` leem esse campo: a RLS nega o acesso já na próxima consulta
+--      (a pessoa perde o escopo e some de perfil, contato e vínculos de terceiros, ADR 0010).
+--      O cookie de sessão só é limpo no próximo acesso dela ao app (`requireUser`); o token
+--      de refresh continua válido até expirar, sem efeito, porque a RLS já nega tudo. Papéis
+--      não são revogados: só voltam a valer se a pessoa for liberada de novo.
 --    - Desbloquear: volta para `waitlisted`, não direto para `active`: a pessoa reaparece na
---      fila de espera e a liberação passa de novo por uma decisão explícita da coordenação.
+--      fila de espera. A importação da lista NÃO a libera sozinha: o HMAC do e-mail só fica
+--      guardado (`access_waitlist_hmac`) para quem foi à espera no primeiro login. A liberação
+--      passa por uma decisão explícita na fila.
+--    - Limite: 30 tentativas (block + unblock, inclusive as que não mudam nada) por hora por
+--      quem chama, em `app.member_block_attempts` (só quem e quando, nunca o e-mail). Acima
+--      disso, erro 54000 (`program_limit_exceeded`), como o `view_contact` (ADR 0010).
 -- 4. `audit_log`: `member_blocked` (motivo opcional, de uma lista fechada: nada de texto livre
 --    nem dado pessoal) e `member_unblocked` (sem motivo).
 
@@ -70,11 +78,16 @@ as $$
             and u.path operator(extensions.<@) s.unit_path
             and u.path operator(extensions.<>) s.unit_path
         )
+        and not (
+          r.role in ('house_coordinator', 'tech_admin')
+          and u.parent_id is null
+          and app.manages_root()
+        )
     );
 $$;
 
 comment on function app.is_outranked_by_caller(uuid) is
-  'Todo papel ativo do alvo está estritamente abaixo de uma unidade em que quem chama é manager.';
+  'Todo papel ativo do alvo está abaixo de uma unidade em que quem chama é manager (ou é house_coordinator/tech_admin na raiz, para o manager da raiz).';
 
 -- Quem chama pode usar o bloqueio: está ativo e é manager em alguma unidade. Não depende do
 -- alvo, então negar aqui (42501) não revela nada sobre ele.
@@ -178,6 +191,53 @@ $$;
 revoke execute on function app.account_by_email(text), app.require_normalized_email(text)
   from public, anon, authenticated;
 
+-- Tentativas de bloqueio e desbloqueio: só quem e quando (nada do e-mail nem do alvo). Fica no
+-- banco, e não na memória do servidor, para valer com vários processos e depois de reinícios.
+create table app.member_block_attempts (
+  actor_id uuid not null references auth.users (id) on delete cascade,
+  attempted_at timestamptz not null default now()
+);
+
+comment on table app.member_block_attempts is
+  'Tentativas de block_member/unblock_member (#26): só quem e quando, para o limite por hora.';
+
+create index member_block_attempts_actor_idx on app.member_block_attempts (actor_id, attempted_at);
+create index member_block_attempts_at_idx on app.member_block_attempts (attempted_at);
+
+alter table app.member_block_attempts enable row level security;
+revoke all on app.member_block_attempts from public, anon, authenticated, service_role;
+create policy member_block_attempts_no_api_access on app.member_block_attempts
+  for all to anon, authenticated
+  using (false)
+  with check (false);
+
+-- Conta a tentativa de quem chama ou recusa (54000) quem já fez 30 na última hora. O lock por
+-- quem chama impede que pedidos simultâneos passem do limite. Limpeza oportunista: apaga as
+-- tentativas de mais de uma hora (de todos).
+create or replace function app.count_member_block_attempt()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := (select auth.uid());
+  max_attempts_per_hour constant integer := 30;
+begin
+  perform pg_advisory_xact_lock(hashtextextended('member_block:' || caller::text, 0));
+  if (
+    select count(*) from app.member_block_attempts as a
+    where a.actor_id = caller and a.attempted_at > now() - interval '1 hour'
+  ) >= max_attempts_per_hour then
+    raise exception 'too_many_attempts' using errcode = 'program_limit_exceeded';
+  end if;
+  delete from app.member_block_attempts where attempted_at <= now() - interval '1 hour';
+  insert into app.member_block_attempts (actor_id) values (caller);
+end;
+$$;
+
+revoke execute on function app.count_member_block_attempt() from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------------------------
 -- RPCs
 -- ---------------------------------------------------------------------------------------
@@ -196,7 +256,9 @@ begin
   if p_reason is not null and p_reason not in ('impersonation', 'conduct', 'other') then
     raise exception 'motivo inválido' using errcode = 'invalid_parameter_value';
   end if;
-  target := app.account_by_email(app.require_normalized_email(p_email));
+  perform app.require_normalized_email(p_email);
+  perform app.count_member_block_attempt();
+  target := app.account_by_email(p_email);
 
   -- Permissão antes da trava (quem não pode não trava a linha de ninguém) e de novo depois
   -- dela (outra decisão simultânea pode ter mudado o estado).
@@ -216,7 +278,7 @@ end;
 $$;
 
 comment on function public.block_member(text, text) is
-  'Gestor bloqueia quem está ativo no seu escopo. Resposta neutra: não revela se a conta existe.';
+  'Gestor bloqueia quem está ativo no seu escopo. Resposta neutra no retorno; até 30 tentativas por hora.';
 
 create or replace function public.unblock_member(p_email text)
 returns void
@@ -230,7 +292,9 @@ begin
   if not app.can_block_members() then
     raise exception 'só a coordenação desbloqueia acessos' using errcode = 'insufficient_privilege';
   end if;
-  target := app.account_by_email(app.require_normalized_email(p_email));
+  perform app.require_normalized_email(p_email);
+  perform app.count_member_block_attempt();
+  target := app.account_by_email(p_email);
 
   if not app.can_unblock_member(target) then
     return;
@@ -248,7 +312,7 @@ end;
 $$;
 
 comment on function public.unblock_member(text) is
-  'Gestor devolve à fila de espera quem está bloqueado no seu escopo. Resposta neutra.';
+  'Gestor devolve à fila de espera quem está bloqueado no seu escopo. Resposta neutra no retorno; até 30 por hora.';
 
 revoke execute on function public.block_member(text, text), public.unblock_member(text)
   from public, anon;

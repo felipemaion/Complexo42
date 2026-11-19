@@ -256,7 +256,7 @@ export const instance = parseInstanceConfig({
       menuLink: "Bloquear ou desbloquear acesso",
       title: "Bloquear ou desbloquear acesso",
       intro:
-        "Use quando alguém da sua área não deve mais entrar, por exemplo quem se cadastrou com o e-mail de outra pessoa. Digite o e-mail de login da pessoa. Por segurança, a resposta é a mesma exista ou não uma conta com esse e-mail.",
+        "Use quando alguém da sua área não deve mais entrar, por exemplo quem se cadastrou com o e-mail de outra pessoa. Digite o e-mail de login da pessoa. Por segurança, a resposta é a mesma exista ou não uma conta com esse e-mail, e há um limite de tentativas por hora.",
       emailLabel: "E-mail de login da pessoa",
       actionLabel: "O que fazer?",
       actions: { block: "Bloquear o acesso", unblock: "Desbloquear (volta para a lista de espera)" },
@@ -278,13 +278,14 @@ export const instance = parseInstanceConfig({
       done: {
         block: "Pedido concluído. Se o e-mail é de alguém ativo na sua área, o acesso foi bloqueado agora.",
         unblock:
-          "Pedido concluído. Se o e-mail é de alguém bloqueado na sua área, a pessoa voltou para a lista de espera. Para liberar, use “Pessoas esperando liberação”.",
+          "Pedido concluído. Se o e-mail é de alguém bloqueado na sua área, a pessoa voltou para a lista de espera. Para liberar, use “Pessoas esperando liberação”: enviar a lista de autorizados não libera essa pessoa sozinha.",
       },
       errors: {
         invalid_email: "Digite um e-mail válido.",
         invalid_action: "Escolha se quer bloquear ou desbloquear.",
         invalid_reason: "Escolha um motivo da lista.",
         forbidden: "Só a coordenação pode bloquear ou desbloquear acessos.",
+        rate_limited: "Muitas tentativas em pouco tempo. Tente de novo mais tarde.",
         failed: "Não foi possível concluir agora. Nada foi alterado: tente de novo em alguns minutos.",
       },
     },

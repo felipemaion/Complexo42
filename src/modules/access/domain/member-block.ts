@@ -2,7 +2,7 @@
  * Tela de bloqueio de quem já está ativo (#26, ADR 0008 §1). Funções puras: campos do
  * formulário, leitura do pedido e estados da tela. A coordenação identifica a pessoa pelo
  * e-mail da reclamação; quem pode bloquear quem é o banco (`app.can_block_member`, R15), e a
- * resposta dele é sempre a mesma, exista ou não a conta.
+ * resposta dele é neutra no retorno, exista ou não a conta.
  */
 import type { MemberBlockAction, MemberBlockReason } from "../types";
 import { normalizeAllowlistEmail } from "./allowlist-csv";
@@ -29,7 +29,7 @@ export type MemberBlockRequest = {
   reason: MemberBlockReason | null;
 };
 
-export const memberBlockErrors = ["invalid_email", "invalid_action", "invalid_reason", "forbidden", "failed"] as const;
+export const memberBlockErrors = ["invalid_email", "invalid_action", "invalid_reason", "forbidden", "rate_limited", "failed"] as const;
 export type MemberBlockError = (typeof memberBlockErrors)[number];
 
 export type MemberBlockState =
