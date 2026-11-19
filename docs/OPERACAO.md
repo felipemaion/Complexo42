@@ -468,53 +468,112 @@ Postgres descartável e apaga o que baixou no fim.
 ## Deploy do app (#81)
 
 `deploy/deploy.sh` é a versão de **referência**, usada no staging. A produção
-roda a cópia do repositório de infraestrutura (ADR 0009 §3): quem tem push
-aqui não decide portas, volumes nem limites de produção.
+roda a cópia do repositório de infraestrutura (ADR 0009 §3).
 
-### A tag é a única entrada
+**Ele roda como root, por `sudo`, a partir de um forced-command.** Isso define
+todo o resto: tudo o que ele executa ou interpreta é conferido antes.
 
-O Actions chama o script por SSH com **forced-command**, e o único dado que
-atravessa é a tag. Por isso ela é validada antes de chegar perto de um
-`docker`: aceita `sha-<hex>`, `vAAAA.MM.DD[.n]` e `main`; recusa o resto.
+### As três entradas, e por que cada uma é tratada assim
 
-> O forced-command restringe o **comando**, não o argumento. Sem a validação,
-> `sha-abc; docker rm -f db` chegaria a um shell com acesso ao Docker.
+**A tag** chega por **argumento**, não por `SSH_ORIGINAL_COMMAND` — essa
+variável não sobrevive ao `sudo` (`env_reset`). É validada com `[[ =~ ]]` e
+**não** com `grep`: o `grep` casa por **linha**, então `sha-abc\nrm -rf /`
+passaria por um `^...$` olhando só a primeira linha. Isso foi medido, não
+suposto. Aceita `sha-<hex>`, `vAAAA.MM.DD[.n]` e `main`.
+
+> O forced-command restringe o **comando**, não o argumento.
+
+**Os caminhos** vêm de um **arquivo de configuração do root**, nunca do
+ambiente. Caminho vindo do ambiente com `sudo` que preserva env é execução
+arbitrária como root; e com `env_reset` o script nem rodaria.
+
+**Os arquivos** que ele executa ou interpreta (`MIGRA`, o compose, o próprio
+config) precisam ser **do root e não graváveis por grupo ou outros**; o
+`ENV_FILE` precisa ainda não ser legível por grupo ou outros. Sem isso, quem
+escreve no diretório de deploy escala para root trocando um arquivo. As
+conferências e o `PATH` fixo valem **só quando o processo é root** — fora
+disso não há privilégio para escalar, e é assim que o teste roda.
+
+### Instalação no servidor
+
+Arquivo de configuração, um por ambiente, **do root, modo 600**:
+
+```sh
+# /etc/complexo42/staging.conf
+PROJECT_DIR=<diretório de deploy do ambiente>
+ENV_FILE=<secrets/env do ambiente>
+COMPOSE_APP=<docker-compose.app.yml do ambiente>
+APP_PROJETO=<projeto Compose do app>     # != o do Supabase
+REDE_PROXY=<rede externa do proxy>
+ALVO_SAUDE=http://<alias do app>:3000/api/healthz
+MIGRA=<caminho do aplicador de migrations>
+SMOKE_IMAGEM=curlimages/curl@sha256:<digest>
+```
+
+`authorized_keys` do usuário de deploy — **uma chave por ambiente**:
+
+```
+command="/usr/local/sbin/complexo42-deploy-staging",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAA... deploy-staging
+```
+
+O wrapper, **do root**, é quem lê o pedido e chama o sudo com o config fixo:
+
+```sh
+#!/bin/sh
+# /usr/local/sbin/complexo42-deploy-staging  (root:root, 755)
+set -eu
+exec sudo -n /opt/complexo42/deploy.sh --config /etc/complexo42/staging.conf \
+  "${SSH_ORIGINAL_COMMAND:-}"
+```
+
+sudoers, **sem `*` solto no caminho**:
+
+```
+complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/complexo42/staging.conf *
+```
+
+> **Preferir isto ao grupo `docker`.** O grupo `docker` é root-equivalente:
+> quem está nele roda `docker run -v /:/host`. Aqui o usuário executa **um**
+> script, de caminho fixo, que ele não pode reescrever.
 
 ### As quatro etapas, e por que nesta ordem
 
-1. `docker pull` da tag;
-2. **migrations** — falhou aqui, aborta e o app **não** é trocado. Migration
-   quebrada não pode conviver com app novo;
-3. `up -d` do app;
-4. **smoke** em `/api/healthz` (até 60 s); falhou, volta para a tag anterior e
-   sai com erro.
+1. `pull` da tag;
+2. **migrations** — falhou, aborta e o app **não** é trocado;
+3. `up -d`;
+4. **smoke** em `/api/healthz`; falhou, volta para a tag anterior.
 
-A tag anterior sai do container **que está no ar** (`docker inspect`), não de
-um arquivo de estado: arquivo mente quando alguém mexe à mão, container não.
+A tag anterior vem do **ID** do container no ar (`compose ps -q`), não de um
+nome montado à mão nem de arquivo de estado: o sufixo `-app-1` é convenção do
+Compose, e arquivo mente quando alguém mexe à mão. Imagem presa por **digest**
+não tem tag para onde voltar, e `main` é **móvel** — nos dois casos o script
+diz que não há rollback possível em vez de fingir que fez.
+
+> **Migrations são expand/contract.** O rollback troca só o **app**; o banco
+> continua no schema novo. Uma migration que remove ou renomeia coluna torna o
+> rollback inútil — a versão anterior do app não roda sobre o schema novo.
+> Remoção vem num PR **posterior**, depois que a versão que não usa mais a
+> coluna estiver no ar.
 
 ### Duas proteções que não são óbvias
 
-**Projeto Compose próprio para o app.** O `secrets/env` traz o
-`COMPOSE_PROJECT_NAME` do **Supabase**. Herdá-lo faria app e banco dividirem
-projeto, e um `up --remove-orphans` derrubaria o banco. O script passa `-p`
-explícito e **nunca** usa `--remove-orphans`. Há teste para as duas coisas.
+**Projeto Compose próprio.** O `secrets/env` traz o `COMPOSE_PROJECT_NAME` do
+**Supabase**; herdá-lo faria app e banco dividirem projeto, e um
+`up --remove-orphans` derrubaria o banco. O script passa `-p` explícito e
+nunca usa `--remove-orphans`. Há teste para as duas coisas.
 
-**`flock`.** Um deploy por vez. Sem isso, dois merges seguidos na `main`
-trocam a imagem ao mesmo tempo e o rollback de um desfaz o outro.
-
-### Variáveis que o script espera
-
-`PROJECT_DIR`, `ENV_FILE`, `COMPOSE_APP`, `APP_PROJETO` (≠ o do Supabase),
-`REDE_PROXY`, `ALVO_SAUDE` e `MIGRA`. Opcionais: `IMAGEM`, `ESPERA_SMOKE`,
-`SMOKE_IMAGEM`, `TRAVA`, `REGISTRO`.
+**`flock` em `/run`.** Um deploy por vez, e a trava fica fora do diretório que
+o usuário de deploy consegue escrever — senão um link simbólico no lugar dela
+vira escrita como root. Sai com 3 se outro deploy está em andamento.
 
 ### Registro
 
-Cada execução acrescenta uma linha em `data/logs/deploy.log` com data, tag,
-resultado (`ok`, `migrations_falharam`, `rollback_ok=<tag>`,
-`rollback_falhou=<tag>`, `smoke_falhou_sem_rollback`) e duração em segundos.
+Uma linha por execução em `data/logs/deploy.log`: data, tag, resultado
+(`ok`, `pull_falhou`, `migrations_falharam`, `rollback_ok=<tag>`,
+`rollback_falhou=<tag>`, `smoke_falhou_sem_rollback`, `up_falhou_sem_rollback`)
+e duração. O script recusa escrever se o log for link simbólico.
 
 ### Teste
 
-`deploy/deploy.test.sh` — 27 asserções com dublês de `docker`, `flock` e
+`deploy/deploy.test.sh` — **47 asserções** com dublês de `docker`, `flock` e
 `sleep`: roda no CI sem container, sem rede e sem servidor.
