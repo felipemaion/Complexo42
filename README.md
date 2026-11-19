@@ -27,6 +27,8 @@ nvm use            # Node 22 (arquivo .nvmrc)
 npm ci
 npm run dev        # http://localhost:3000
 npm run check      # lint + tipos + testes + build, obrigatório antes do PR
+npx playwright install chromium   # uma vez, para os testes E2E
+npm run test:e2e   # Playwright: build de produção + testes de e2e/ (porta 3100)
 ```
 
 Banco local: `npm run db:start` e `npm run db:test` (ver [`CONTRIBUTING.md`](CONTRIBUTING.md)). O `npm run setup` chega com a #52.
