@@ -32,7 +32,16 @@ Uma senha por papel, nunca uma para todos (issue #95). Quem recebe cada uma:
 O motivo é conter o estrago: `rest` e `auth` são os serviços mais expostos, e
 com senha compartilhada vazar o ambiente de um deles entregava o superusuário
 do banco. O papel `postgres` existe (as migrations do GoTrue fazem `grant … to
-postgres`), mas é **NOLOGIN**: ninguém se conecta com ele.
+postgres`), mas **deve ser NOLOGIN**: ninguém se conecta com ele.
+
+> **Atenção:** o `02-roles.sh` só roda no **primeiro start de um volume vazio**. Um volume
+> criado antes da #95 continua com o `postgres` com login e senha, e é preciso corrigir à mão
+> (abaixo). Confira sempre no banco real, e não neste documento:
+>
+> ```sql
+> select rolname, rolcanlogin, rolpassword is not null as tem_senha
+>   from pg_authid where rolname = 'postgres';   -- esperado: f, f
+> ```
 
 O `02-roles.sh` aplica as senhas **na criação do volume**. Em volume que já
 existe, a troca é por `ALTER ROLE`, de dentro do container do banco:
@@ -44,6 +53,11 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   -v senha="$(grep -m1 '^AUTHENTICATOR_PASSWORD=' <segredos> | cut -d= -f2-)" \
   -c "ALTER ROLE authenticator WITH LOGIN PASSWORD :'senha'"
 # idem para supabase_auth_admin, com AUTH_ADMIN_PASSWORD
+
+# postgres sem login e sem senha (as migrations do GoTrue só precisam que o papel exista)
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  -c "ALTER ROLE postgres WITH NOLOGIN PASSWORD NULL"
 ```
 
 Depois do `ALTER ROLE`, reinicie quem usa aquela senha (`restart rest` ou
@@ -269,7 +283,7 @@ restaurar, guarde os ids:
 select distinct target_id from public.audit_log where event = 'account_deleted';
 ```
 
-Depois de restaurar, como `supabase_admin` (o `postgres` é NOLOGIN), apague cada id da lista
+Depois de restaurar, como `supabase_admin` (o `postgres` deve ser NOLOGIN; veja "Senhas por papel"), apague cada id da lista
 que voltou, numa transação. O `account_deleted` entra **antes** de apagar `auth.users`: o
 `audit_log` recusa evento de ator que não existe mais.
 
