@@ -40,16 +40,22 @@ export const instance = parseInstanceConfig({
     googleButton: "Entrar com Google",
     emailLabel: "Seu e-mail",
     emailButton: "Receber link por e-mail",
-    emailSent: "Pronto! Enviamos um link para o seu e-mail. Abra a mensagem e toque no link para entrar.",
+    // Mesma resposta para qualquer e-mail (não revela quem tem conta).
+    emailSent: "Se este e-mail puder entrar, você vai receber um link. Abra a mensagem e toque no botão para entrar.",
     signedOut: "Você saiu da sua conta.",
     signOutButton: "Sair",
     signedInTitle: "Você entrou",
     signedInMessage: "Seu acesso está funcionando. As próximas telas chegam em breve.",
+    connectedAs: "Conectado como",
+    confirmTitle: "Entrar",
+    confirmMessage: "Toque no botão abaixo para concluir a entrada.",
+    confirmButton: "Entrar",
     errors: {
       invalid_email: "Confira o e-mail digitado e tente de novo.",
       rate_limited: "Muitas tentativas em pouco tempo. Espere alguns minutos ou entre com Google.",
       unavailable: "O login está indisponível agora. Tente de novo em alguns minutos.",
       failed: "Não foi possível entrar. Tente de novo.",
+      blocked: "Seu acesso está bloqueado. Fale com a coordenação.",
     },
   },
   houses: [

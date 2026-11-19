@@ -73,6 +73,13 @@ const envSchema = z.object({
   SUPABASE_PUBLIC_URL: httpUrl.optional(),
   SUPABASE_ANON_KEY: anonKey.optional(),
   SITE_URL: httpUrl.optional(),
+  // Repassar o CF-Connecting-IP ao GoTrue (rate limit por IP). Só ligue se o servidor garante
+  // que apenas a Cloudflare alcança a origem; senão o cabeçalho pode ser forjado. Desligado
+  // por padrão.
+  TRUST_CF_CONNECTING_IP: z
+    .enum(["true", "false"], { error: "use true ou false" })
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 // Obrigatórias só em produção. Checadas fora do schema para aparecerem junto com os

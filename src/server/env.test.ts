@@ -135,6 +135,14 @@ describe("login (#9)", () => {
     expect(problems({ ...prod, SITE_URL: "javascript:alert(1)" })[0]).toMatch(/^SITE_URL:/);
   });
 
+  it("TRUST_CF_CONNECTING_IP vem desligado e só aceita true/false", () => {
+    const off = parseEnv(prod);
+    expect(off.ok && off.env.TRUST_CF_CONNECTING_IP).toBe(false);
+    const on = parseEnv({ ...prod, TRUST_CF_CONNECTING_IP: "true" });
+    expect(on.ok && on.env.TRUST_CF_CONNECTING_IP).toBe(true);
+    expect(problems({ ...prod, TRUST_CF_CONNECTING_IP: "1" })[0]).toMatch(/^TRUST_CF_CONNECTING_IP:/);
+  });
+
   it("em desenvolvimento o login é opcional", () => {
     expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
   });

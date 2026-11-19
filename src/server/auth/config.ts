@@ -11,6 +11,8 @@ export type AuthConfig = {
   anonKey: string;
   /** Origem pública do app (endereço de retorno do login). */
   siteUrl: string;
+  /** Repassa o CF-Connecting-IP ao GoTrue (só atrás da Cloudflare; ver env.ts). */
+  trustCfConnectingIp: boolean;
 };
 
 const DEV_SITE_URL = "http://127.0.0.1:3000";
@@ -24,6 +26,7 @@ export function authConfigFrom(env: ServerEnv): AuthConfig | null {
     publicUrl: strip(env.SUPABASE_PUBLIC_URL ?? env.SUPABASE_URL),
     anonKey: env.SUPABASE_ANON_KEY,
     siteUrl: strip(env.SITE_URL ?? DEV_SITE_URL),
+    trustCfConnectingIp: env.TRUST_CF_CONNECTING_IP,
   };
 }
 

@@ -1,19 +1,27 @@
 import "server-only";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { AUTH_COOKIE_NAME, createAuthClient, hasAuthCookie } from "./client";
+import { cache } from "react";
+import { z } from "zod";
+import { accessStatuses, type AccessStatus } from "@/modules/profiles";
+import { log } from "@/server/log";
+import { checkAccess } from "./access";
+import { AUTH_COOKIE_NAME, createAuthClient, hasAuthCookie, type AuthClient } from "./client";
 import { getAuthConfig, type AuthConfig } from "./config";
-import { LOGIN_PATH } from "./routes";
+import { onFirstLogin } from "./first-login";
+import { maskEmail } from "./mask";
+import { LOGIN_PATH, SIGNOUT_PATH, WAITLIST_PATH } from "./routes";
 
 // Sessão nas páginas, server actions e rotas (#9). O cliente usa a chave anon + o JWT do
 // usuário que está no cookie: a RLS continua valendo (R14).
 
 /** Cliente de auth da requisição atual. `via: "public"` só para montar o endereço do Google. */
-export async function requestAuthClient(config: AuthConfig, via: "internal" | "public" = "internal") {
+export async function requestAuthClient(config: AuthConfig, via: "internal" | "public" = "internal"): Promise<AuthClient> {
   const store = await cookies();
   // Rate limit por IP no GoTrue (ADR 0009 §6): sem isto, todo pedido feito pelo servidor
-  // pareceria vir do mesmo IP. A Cloudflare sobrescreve este cabeçalho na borda.
-  const ip = (await headers()).get("cf-connecting-ip");
+  // pareceria vir do mesmo IP. Só com TRUST_CF_CONNECTING_IP: o cabeçalho só é confiável se
+  // apenas a Cloudflare alcança a origem (garantia do servidor, #86).
+  const ip = config.trustCfConnectingIp ? (await headers()).get("cf-connecting-ip") : null;
   return createAuthClient({
     url: via === "public" ? config.publicUrl : config.internalUrl,
     anonKey: config.anonKey,
@@ -32,23 +40,52 @@ export async function requestAuthClient(config: AuthConfig, via: "internal" | "p
   });
 }
 
-/** Usuário logado (só o id: o e-mail nunca sai daqui para a tela). */
-export async function getCurrentUser(): Promise<{ id: string } | null> {
+export type CurrentUser = { id: string; maskedEmail: string };
+type Session = { client: AuthClient; user: CurrentUser } | null;
+
+/** Sessão conferida no GoTrue (não só o cookie). Uma vez por requisição. */
+const getSession = cache(async (): Promise<Session> => {
   // cookies() antes de tudo: torna a página dinâmica (nada de pré-renderizar no build).
   const store = await cookies();
   const config = getAuthConfig();
   if (!config || !hasAuthCookie(store.getAll().map((c) => c.name))) return null;
-  // getUser confere o JWT no GoTrue; não confiar só no cookie.
-  const { data } = await (await requestAuthClient(config)).auth.getUser();
-  return data.user ? { id: data.user.id } : null;
+  const client = await requestAuthClient(config);
+  const { data } = await client.auth.getUser();
+  if (!data.user) return null;
+  // Só a versão mascarada sai daqui: o e-mail inteiro nunca chega à tela.
+  return { client, user: { id: data.user.id, maskedEmail: maskEmail(data.user.email ?? "") } };
+});
+
+const statusRow = z.object({ access_status: z.enum(accessStatuses) }).nullable();
+
+async function readAccessStatus(client: AuthClient, userId: string): Promise<AccessStatus | null> {
+  const { data, error } = await client.from("profiles").select("access_status").eq("id", userId).maybeSingle();
+  if (error) throw new Error(`profile_read_failed:${error.code ?? "unknown"}`);
+  return statusRow.parse(data)?.access_status ?? null;
 }
 
-/** Para páginas protegidas: o proxy já redireciona, isto é a segunda barreira. */
-export async function requireUser(): Promise<{ id: string }> {
-  const user = await getCurrentUser();
-  if (!user) redirect(LOGIN_PATH);
-  return user;
-}
+/**
+ * Para toda página autenticada (o proxy já redireciona; isto é a segunda barreira). Confere o
+ * `access_status` do perfil (M2): sem perfil ou `pending` chama o gancho do primeiro login;
+ * `waitlisted` vai para a espera; `blocked` e qualquer falha encerram a sessão.
+ */
+export const requireUser = cache(async (): Promise<CurrentUser> => {
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  let decision;
+  try {
+    decision = await checkAccess({
+      readStatus: () => readAccessStatus(session.client, session.user.id),
+      resolve: () => onFirstLogin(session.client),
+    });
+  } catch (err) {
+    log.error("auth_access_check_failed", { error: err instanceof Error ? err.message.split(":")[0] : "unknown" });
+    redirect(`${SIGNOUT_PATH}?motivo=failed`);
+  }
+  if (decision === "waitlist") redirect(WAITLIST_PATH);
+  if (decision === "blocked") redirect(`${SIGNOUT_PATH}?motivo=blocked`);
+  return session.user;
+});
 
 /** Apaga os cookies de sessão mesmo se o GoTrue não responder ao logout. */
 export async function clearAuthCookies(): Promise<void> {

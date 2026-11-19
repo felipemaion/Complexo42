@@ -20,7 +20,11 @@ const valid = {
     signOutButton: "t",
     signedInTitle: "t",
     signedInMessage: "t",
-    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t" },
+    connectedAs: "t",
+    confirmTitle: "t",
+    confirmMessage: "t",
+    confirmButton: "t",
+    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t" },
   },
   houses: [
     { id: "a", name: "A", description: "d", firstSteps: { text: "t", videoUrls: ["https://v.example/1"] } },

@@ -21,6 +21,8 @@ for k in COMPOSE_PROJECT_NAME KONG_ALIAS POSTGRES_PASSWORD AUTHENTICATOR_PASSWOR
          FIELD_ENCRYPTION_KEY BLIND_INDEX_KEY SITE_URL URI_ALLOW_LIST; do
   grep -q "^$k=." "$ENVF" && ok "$k presente e nao vazio" || falha "$k ausente ou vazio"
 done
+# Login (#9, L5): retorno liberado só para caminhos do próprio site.
+grep -qx 'URI_ALLOW_LIST=https://[^*]*/\*\*' "$ENVF" && ok "URI_ALLOW_LIST cobre só caminhos do site" || falha "URI_ALLOW_LIST sem /**"
 
 val(){ grep -m1 "^$1=" "$ENVF" | cut -d= -f2-; }
 P=$(val POSTGRES_PASSWORD); checa "POSTGRES_PASSWORD 40 chars" "${#P}" "40"

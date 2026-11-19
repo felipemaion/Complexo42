@@ -33,8 +33,9 @@ enabled = false
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
-# Retorno do login (#9): só o /auth/callback do app local (`npm run dev`).
-additional_redirect_urls = ["http://127.0.0.1:3000/auth/callback"]
+# Retorno do login (#9): só caminhos do app local (`npm run dev`), igual ao servidor
+# (URI_ALLOW_LIST="$SITE/**" em deploy/gen-secrets.sh).
+additional_redirect_urls = ["http://127.0.0.1:3000/**"]
 jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
@@ -61,7 +62,7 @@ token_verifications = 30
 token_refresh = 150
 
 # Link mágico que funciona mesmo aberto em outro navegador (o app do e-mail no celular): o
-# link leva o token_hash ao /auth/callback, que o confere no servidor. O mesmo modelo serve ao
+# link abre /auth/confirmar, e o token só é conferido no POST do botão "Entrar". O mesmo modelo serve ao
 # primeiro acesso (confirmação). Produção usa o mesmo arquivo (#87).
 [auth.email.template.magic_link]
 subject = "Seu link para entrar"

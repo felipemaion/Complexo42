@@ -6,12 +6,14 @@ vi.mock("@/server/log", () => {
   return { log: { info: write, warn: write, error: write } };
 });
 
-const { completeSignIn, requestMagicLink, startGoogleSignIn } = await import("./flows");
+const { confirmMagicLink, exchangeCode, requestMagicLink, startGoogleSignIn } = await import("./flows");
 type AuthApi = import("./flows").AuthApi;
 
 const SITE = "https://app.exemplo.org";
 const EMAIL = "Pessoa.Teste@Exemplo.org";
 const user = { id: "00000000-0000-4000-8000-000000000001", email: "pessoa.teste@exemplo.org" };
+// Valor fictício e de baixa entropia (não parece segredo para o gitleaks).
+const HASH = "h".repeat(16);
 
 function fakeAuth(overrides: Partial<AuthApi> = {}): AuthApi {
   return {
@@ -19,7 +21,6 @@ function fakeAuth(overrides: Partial<AuthApi> = {}): AuthApi {
     signInWithOtp: vi.fn(async () => ({ error: null })),
     exchangeCodeForSession: vi.fn(async () => ({ data: { user }, error: null })),
     verifyOtp: vi.fn(async () => ({ data: { user }, error: null })),
-    signOut: vi.fn(async () => ({ error: null })),
     ...overrides,
   };
 }
@@ -68,60 +69,72 @@ describe("requestMagicLink (#9)", () => {
     expect(auth.signInWithOtp).not.toHaveBeenCalled();
   });
 
-  it("rate limit do Auth vira mensagem própria, sem o e-mail no log (R11)", async () => {
-    const auth = fakeAuth({
-      signInWithOtp: vi.fn(async () => ({ error: { status: 429, code: "over_email_send_rate_limit", message: `limite para ${EMAIL}` } })),
-    });
-    expect(await requestMagicLink(auth, { email: EMAIL, siteUrl: SITE })).toEqual({ ok: false, error: "rate_limited" });
-    expect(logged).toHaveLength(1);
+  it("M4: e-mail com e sem conta, limitado ou Auth fora do ar dão a MESMA resposta; o motivo vai só ao log", async () => {
+    const outcomes = [
+      null,
+      { status: 422, code: "signup_disabled", message: `não existe ${EMAIL}` },
+      { status: 429, code: "over_email_send_rate_limit" },
+      { name: "AuthRetryableFetchError", status: 0 },
+    ];
+    const results = [];
+    for (const error of outcomes) {
+      results.push(await requestMagicLink(fakeAuth({ signInWithOtp: vi.fn(async () => ({ error })) }), { email: EMAIL, siteUrl: SITE }));
+    }
+    expect(new Set(results.map((r) => JSON.stringify(r))).size).toBe(1);
+    expect(results[0]).toEqual({ ok: true });
+    expect(logged.join()).toContain("signup_disabled");
+    expect(logged.join()).toContain("rate_limited");
     expect(logged.join()).not.toContain("@");
   });
 });
 
-describe("completeSignIn (#9)", () => {
+describe("exchangeCode (#9): retorno do Google", () => {
   const params = (query: string) => new URLSearchParams(query);
 
-  it("troca o code, chama o gancho do primeiro login e segue para o destino", async () => {
+  it("troca o code e segue para o destino", async () => {
     const auth = fakeAuth();
-    const hook = vi.fn(async () => {});
-    expect(await completeSignIn(auth, params("code=abc&next=%2Finicio%3Fa%3D1"), hook)).toEqual({ ok: true, next: "/inicio?a=1" });
+    expect(await exchangeCode(auth, params("code=abc&next=%2Finicio%3Fa%3D1"))).toEqual({ ok: true, next: "/inicio?a=1" });
     expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("abc");
-    expect(hook).toHaveBeenCalledWith({ userId: user.id, email: user.email });
-    expect(logged.join()).not.toContain("@");
   });
 
-  it("aceita o token_hash do link mágico (outro navegador)", async () => {
+  it("destino que escapa do site vira a página inicial (H1)", async () => {
+    expect(await exchangeCode(fakeAuth(), params("code=abc&next=%2F.%2F%2Fmal.example"))).toEqual({ ok: true, next: "/inicio" });
+  });
+
+  it.each([[""], ["error=access_denied&error_code=bad_oauth_state"], ["token_hash=h&type=email"]])("recusa %j sem criar sessão", async (query) => {
     const auth = fakeAuth();
-    expect(await completeSignIn(auth, params("token_hash=h&type=email"), vi.fn(async () => {}))).toEqual({ ok: true, next: "/inicio" });
-    expect(auth.verifyOtp).toHaveBeenCalledWith({ token_hash: "h", type: "email" });
+    expect(await exchangeCode(auth, params(query))).toEqual({ ok: false, error: "failed" });
+    expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
   });
-
-  it.each([["type=recovery&token_hash=h"], ["token_hash=h"], [""], ["error=access_denied&error_code=bad_oauth_state"]])(
-    "recusa retorno inválido %j sem criar sessão",
-    async (query) => {
-      const auth = fakeAuth();
-      const hook = vi.fn(async () => {});
-      expect(await completeSignIn(auth, params(query), hook)).toEqual({ ok: false, error: "failed" });
-      expect(auth.exchangeCodeForSession).not.toHaveBeenCalled();
-      expect(auth.verifyOtp).not.toHaveBeenCalled();
-      expect(hook).not.toHaveBeenCalled();
-    },
-  );
 
   it("code expirado ou de outro navegador é negado", async () => {
     const auth = fakeAuth({ exchangeCodeForSession: vi.fn(async () => ({ data: { user: null }, error: { status: 400, code: "flow_state_not_found" } })) });
-    const hook = vi.fn(async () => {});
-    expect(await completeSignIn(auth, params("code=velho"), hook)).toEqual({ ok: false, error: "failed" });
-    expect(hook).not.toHaveBeenCalled();
+    expect(await exchangeCode(auth, params("code=velho"))).toEqual({ ok: false, error: "failed" });
+  });
+});
+
+describe("confirmMagicLink (#9): POST do botão Entrar", () => {
+  it.each([["email"], ["magiclink"], ["signup"]])("confere o token_hash do tipo %s", async (type) => {
+    const auth = fakeAuth();
+    expect(await confirmMagicLink(auth, { token_hash: HASH, type })).toEqual({ ok: true, next: "/inicio" });
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ token_hash: HASH, type });
   });
 
-  it("se o gancho do primeiro login falhar, desfaz a sessão (falha fechada)", async () => {
+  it.each([
+    [{ token_hash: HASH, type: "recovery" }],
+    [{ token_hash: "curto", type: "email" }],
+    [{ token_hash: "x".repeat(300), type: "email" }],
+    [{ token_hash: "<script>abc", type: "email" }],
+    [{ token_hash: null, type: "email" }],
+  ])("recusa parâmetros inválidos %j sem chamar o Auth", async (raw) => {
     const auth = fakeAuth();
-    const hook = vi.fn(async () => {
-      throw new Error(`falhou para ${EMAIL}`);
-    });
-    expect(await completeSignIn(auth, params("code=abc"), hook)).toEqual({ ok: false, error: "failed" });
-    expect(auth.signOut).toHaveBeenCalledWith({ scope: "local" });
-    expect(logged.join()).not.toContain("@");
+    expect(await confirmMagicLink(auth, raw)).toEqual({ ok: false, error: "failed" });
+    expect(auth.verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it("token já usado é negado", async () => {
+    const auth = fakeAuth({ verifyOtp: vi.fn(async () => ({ data: { user: null }, error: { status: 403, code: "otp_expired" } })) });
+    expect(await confirmMagicLink(auth, { token_hash: HASH, type: "email" })).toEqual({ ok: false, error: "failed" });
   });
 });

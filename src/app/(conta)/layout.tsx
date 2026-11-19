@@ -1,0 +1,26 @@
+import { instance } from "@config/instance";
+import { signOut } from "@/server/auth/actions";
+import { requireUser } from "@/server/auth/session";
+
+// Moldura das páginas autenticadas (#9). Toda página aqui dentro passa por requireUser
+// (sessão + access_status). O cabeçalho mostra em qual conta a pessoa está, com o e-mail
+// mascarado (M1): quem foi logado na conta de outra pessoa percebe na hora.
+export default async function AccountLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const user = await requireUser();
+  const text = instance.auth;
+  return (
+    <>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-300 px-6 py-3">
+        <p className="text-base" data-testid="connected-as">
+          {text.connectedAs} <strong>{user.maskedEmail}</strong>
+        </p>
+        <form action={signOut}>
+          <button type="submit" className="rounded-xl border-2 border-current px-5 py-3 text-lg font-semibold">
+            {text.signOutButton}
+          </button>
+        </form>
+      </header>
+      {children}
+    </>
+  );
+}

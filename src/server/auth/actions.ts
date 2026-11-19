@@ -1,9 +1,9 @@
 "use server";
-// Server actions do login (#9). Os formulários de /entrar postam aqui; nada de cliente
-// Supabase no navegador. O e-mail digitado nunca volta para a URL nem para a tela.
+// Server actions do login (#9). Os formulários de /entrar e /auth/confirmar postam aqui; nada
+// de cliente Supabase no navegador. O e-mail digitado nunca volta para a URL nem para a tela.
 import { redirect } from "next/navigation";
 import { getAuthConfig } from "./config";
-import { requestMagicLink, startGoogleSignIn } from "./flows";
+import { confirmMagicLink, requestMagicLink, startGoogleSignIn } from "./flows";
 import { LOGIN_PATH } from "./routes";
 import { clearAuthCookies, requestAuthClient } from "./session";
 
@@ -21,10 +21,20 @@ export async function signInWithGoogle(formData: FormData): Promise<never> {
 
 export async function sendMagicLink(formData: FormData): Promise<never> {
   const config = getAuthConfig();
-  if (!config) redirect(loginWith("erro=unavailable"));
+  // Mesmo sem Auth configurado, a resposta é a neutra (M4); o motivo vai para o log no fluxo.
+  if (!config) redirect(loginWith("enviado=1"));
   const auth = (await requestAuthClient(config)).auth;
   const result = await requestMagicLink(auth, { email: formData.get("email"), siteUrl: config.siteUrl });
   redirect(loginWith(result.ok ? "enviado=1" : `erro=${result.error}`));
+}
+
+/** POST do botão "Entrar" da página do link mágico: só aqui o token é gasto. */
+export async function confirmMagicLinkAction(formData: FormData): Promise<never> {
+  const config = getAuthConfig();
+  if (!config) redirect(loginWith("erro=unavailable"));
+  const auth = (await requestAuthClient(config)).auth;
+  const result = await confirmMagicLink(auth, { token_hash: formData.get("token_hash"), type: formData.get("type") });
+  redirect(result.ok ? result.next : loginWith(`erro=${result.error}`));
 }
 
 export async function signOut(): Promise<never> {

@@ -12,7 +12,8 @@ export const AUTH_COOKIE_NAME = "sb-app-auth-token";
 export type CookieToSet = { name: string; value: string; options?: Record<string, unknown> };
 export type CookieAdapter = {
   getAll(): { name: string; value: string }[];
-  setAll(cookies: CookieToSet[]): void;
+  /** `headers`: cabeçalhos anti-cache que o @supabase/ssr pede para a resposta que grava cookie. */
+  setAll(cookies: CookieToSet[], headers: Record<string, string>): void;
 };
 
 export type AuthClientOptions = {

@@ -62,12 +62,19 @@ export const instanceConfigSchema = z.strictObject({
     signOutButton: text,
     signedInTitle: text,
     signedInMessage: text,
+    /** Rótulo antes do e-mail mascarado de quem está logado (ex.: "Conectado como"). */
+    connectedAs: text,
+    /** Página intermediária do link mágico: o login só acontece no clique (POST). */
+    confirmTitle: text,
+    confirmMessage: text,
+    confirmButton: text,
     /** Mensagens por código de erro. A tela só mostra códigos conhecidos, nunca texto da URL. */
     errors: z.strictObject({
       invalid_email: text,
       rate_limited: text,
       unavailable: text,
       failed: text,
+      blocked: text,
     }),
   }),
   houses: z

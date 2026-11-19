@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ServerEnv } from "@/server/env";
 import { authConfigFrom } from "./config";
 
-const base = { NODE_ENV: "production", HEALTH_TIMEOUT_MS: 2000, LOG_DIR: "x", FIELD_ENCRYPTION_KEY_VERSION: 1 } as ServerEnv;
+const base = { NODE_ENV: "production", HEALTH_TIMEOUT_MS: 2000, LOG_DIR: "x", FIELD_ENCRYPTION_KEY_VERSION: 1, TRUST_CF_CONNECTING_IP: false } as ServerEnv;
 
 describe("authConfigFrom (#9)", () => {
   it("sem URL ou chave, o login fica desligado", () => {
@@ -23,6 +23,7 @@ describe("authConfigFrom (#9)", () => {
       publicUrl: "https://app.exemplo.org",
       anonKey: "sb_publishable_x",
       siteUrl: "https://app.exemplo.org",
+      trustCfConnectingIp: false,
     });
   });
 
