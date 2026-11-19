@@ -42,9 +42,15 @@ services:
       - db-dados:/var/lib/postgresql/data
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      # pg_isready responde "aceitando conexoes" SEM validar o papel: ele deu
-      # healthy num banco onde o papel nem existia. A consulta e o teste real.
-      test: ["CMD-SHELL", "psql -U supabase_admin -d postgres -c 'select 1' > /dev/null 2>&1"]
+      # O healthcheck precisa testar o que os dependentes usam: TCP, senha e
+      # consulta. Duas versoes anteriores mentiram aqui:
+      #  - `pg_isready -U postgres` responde "aceitando conexoes" sem validar
+      #    o papel, e deu healthy num banco onde o papel nem existia;
+      #  - `psql -U ... ` sem host usa o SOCKET UNIX, que responde durante a
+      #    fase de initdb, quando o servidor ainda NAO escuta em TCP. O auth e
+      #    o rest subiam e morriam com "connection refused".
+      # Com -h 127.0.0.1 o teste passa pelo mesmo caminho que eles.
+      test: ["CMD-SHELL", "PGPASSWORD=$$POSTGRES_PASSWORD psql -h 127.0.0.1 -U supabase_admin -d postgres -c 'select 1' > /dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 12
