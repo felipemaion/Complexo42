@@ -5,6 +5,8 @@ on:
   push:
     branches: [main]
 
+# Actions fixadas por SHA completo (com a versão no comentário); o Dependabot
+# atualiza SHA e comentário juntos. Checkout sem credencial persistida (#60).
 permissions:
   contents: read
 
@@ -17,8 +19,8 @@ jobs:
     name: Guardrails (segredos e dados proibidos)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { fetch-depth: 0, persist-credentials: false }
       - name: Varredura de segredos (gitleaks)
         env:
           GITLEAKS_VERSION: 8.24.0
@@ -32,11 +34,12 @@ jobs:
     name: App (lint, tipos, testes, build)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
       - id: detect
         run: echo "present=$([ -f package.json ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - if: steps.detect.outputs.present == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22, cache: npm }
       - if: steps.detect.outputs.present == 'true'
         run: npm ci
@@ -50,8 +53,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with: { node-version: 22, cache: npm }
       - run: npm ci
       # Só o Chromium, com as dependências de sistema (projeto único no playwright.config.ts).
@@ -59,7 +63,7 @@ jobs:
       # O webServer do Playwright roda `next build` + `next start` (build de produção).
       - run: npm run test:e2e
       - if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-traces
           path: |
@@ -71,11 +75,12 @@ jobs:
     name: Banco (migrations + testes de RLS)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
       - id: detect
         run: echo "present=$([ -d supabase ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - if: steps.detect.outputs.present == 'true'
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         # Mesma versão da devDependency `supabase` no package.json.
         with: { version: 3.2.0 }
       - if: steps.detect.outputs.present == 'true'
@@ -90,6 +95,7 @@ jobs:
     # ARM64 nativo, igual ao servidor (ADR 0009 §3). Só testa: publicar é a #81.
     runs-on: ubuntu-24.04-arm
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
       - run: docker build --build-arg GIT_SHA="$GITHUB_SHA" -t complexo42:ci .
       - run: ./scripts/check-image.sh complexo42:ci
