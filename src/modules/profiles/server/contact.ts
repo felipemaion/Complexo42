@@ -64,25 +64,41 @@ export async function setContactVisibility(
 export type ViewMemberContactResult =
   | { status: "ok"; contact: MemberContact }
   | { status: "forbidden" }
+  | { status: "rate_limited" }
   | { status: "failed" };
 
 const socialLinks = z.array(z.string());
+const kindSchema = z.enum(contactKinds);
 
 /**
- * "Ver contato" de outra pessoa: pede ao banco cada contato (`view_contact`), que só devolve os
- * permitidos e registra cada acesso. Os negados ficam de fora; se nenhum for permitido, a
- * resposta é `forbidden`. Um valor que não decifra vira `null` (registra só o nome da coluna).
+ * "Ver contato" de outra pessoa: pede ao banco SÓ o contato que a tela quer (`view_contact`, um
+ * tipo por chamada). O banco decide (42501 → `forbidden`), registra o acesso só quando há valor
+ * (uma vez a cada 10 minutos por pessoa e tipo) e limita a 60 pessoas por hora (54000 →
+ * `rate_limited`). A resposta traz só a chave pedida; sem valor, `null`. Um valor que não
+ * decifra também vira `null` (o log leva só o nome da coluna).
  */
 export async function viewMemberContact(
   client: ProfileDbClient,
   targetId: string,
+  kind: ContactKind,
   deps: ContactDeps = defaultDeps,
 ): Promise<ViewMemberContactResult> {
   const target = uuid.safeParse(targetId);
-  if (!target.success) return { status: "forbidden" };
+  const parsedKind = kindSchema.safeParse(kind);
+  if (!target.success || !parsedKind.success) return { status: "forbidden" };
   const rowId = target.data;
-  const contact: MemberContact = {};
-  let allowed = 0;
+
+  const { data, error } = await client.rpc("view_contact", { p_target: rowId, p_kind: parsedKind.data });
+  if (error) {
+    const code = errorCode(error);
+    if (code === "42501") return { status: "forbidden" };
+    if (code === "54000") {
+      deps.log.warn("contact_view_rate_limited");
+      return { status: "rate_limited" };
+    }
+    deps.log.error("contact_view_failed", { kind: parsedKind.data, reason: code });
+    return { status: "failed" };
+  }
 
   const open = async (value: string, column: string) => {
     try {
@@ -93,29 +109,19 @@ export async function viewMemberContact(
     }
   };
 
-  for (const kind of contactKinds) {
-    const { data, error } = await client.rpc("view_contact", { p_target: rowId, p_kind: kind });
-    if (error) {
-      const code = errorCode(error);
-      if (code === "42501") continue;
-      deps.log.error("contact_view_failed", { kind, reason: code });
-      return { status: "failed" };
-    }
-    allowed += 1;
-    const value = typeof data === "string" ? data : null;
-    if (kind === "email") {
-      contact.email = value;
-    } else if (kind === "whatsapp") {
-      contact.whatsapp = value === null ? null : await open(value, "whatsapp_enc");
-    } else {
-      // Sem redes cadastradas, ou um valor que não decifra: `null`.
-      const raw = value === null ? null : await open(value, "social_links_enc");
-      const links = socialLinks.safeParse(raw === null ? null : safeJson(raw));
-      contact.social = links.success ? links.data : null;
-    }
+  const value = typeof data === "string" ? data : null;
+  let contact: MemberContact;
+  if (parsedKind.data === "email") {
+    contact = { email: value };
+  } else if (parsedKind.data === "whatsapp") {
+    contact = { whatsapp: value === null ? null : await open(value, "whatsapp_enc") };
+  } else {
+    // Sem redes cadastradas, ou um valor que não decifra: `null`.
+    const raw = value === null ? null : await open(value, "social_links_enc");
+    const links = socialLinks.safeParse(raw === null ? null : safeJson(raw));
+    contact = { social: links.success ? links.data : null };
   }
-  if (allowed === 0) return { status: "forbidden" };
-  deps.log.info("contact_viewed", { kinds: Object.keys(contact) });
+  deps.log.info("contact_viewed", { kind: parsedKind.data });
   return { status: "ok", contact };
 }
 
@@ -136,7 +142,11 @@ const viewRows = z.array(
   }),
 );
 
-/** Quem acessou o contato da própria pessoa, do mais recente, com o nome de quem viu decifrado. */
+/**
+ * Quem acessou o contato da própria pessoa, do mais recente, com o nome de quem viu decifrado.
+ * O id de quem viu só serve para o AAD da decifragem e não sai desta função (ADR 0010): a tela
+ * recebe só o nome, o tipo e quando.
+ */
 export async function listContactViews(client: ProfileDbClient, deps: ContactDeps = defaultDeps): Promise<ContactView[]> {
   const { data, error } = await client.rpc("list_contact_views", {});
   if (error) throw new Error(`contact_views_read_failed:${errorCode(error)}`);

@@ -169,21 +169,32 @@ linha vale `none` (só a coordenação). Só o titular lê (RLS) e só ele grava
   ou manager com papel na unidade de um vínculo aberto e que conta do alvo, ou acima dela;
   inclui o coordenador da casa para os membros da casa aceita); e ao colega, se a escolha do
   alvo para aquele contato deixar: `team` exige vínculo aberto na **mesma equipe**;
-  `team_house`, na mesma equipe ou na **mesma casa** (aceita pelos dois). Quem chama e o alvo
-  precisam estar ativos. Porta-voz e admin técnico não entram.
-- **"Mesma equipe"** (`app.shares_open_team`) é uma unidade do eixo `team` sem unidades abaixo e
-  sem `state_code`. Dividir a unidade de entrada do estado ou a região não faz de ninguém
-  colega: elas reúnem todo mundo que ainda não tem equipe.
+  `team_house`, na mesma equipe ou na **mesma casa na mesma região** (abaixo). Quem chama e o
+  alvo precisam estar ativos. Porta-voz e admin técnico não entram.
+- **"Mesma equipe"** (`app.shares_open_team`): unidade **ativa** de um tipo marcado com
+  `unit_types.is_team` (configuração da instância; só no eixo `team`; o seed marca o tipo
+  `team`). Dividir a unidade de entrada do estado, a região ou uma equipe arquivada não faz de
+  ninguém colega.
+- **"Mesma casa"** (`app.shares_open_house`): a mesma casa, com os dois vínculos de casa abertos,
+  aceitos **há pelo menos 7 dias**, e o **mesmo território mais próximo**
+  (`app.home_territory`: a região do vínculo de equipe, ou o estado se não houver região). Sem
+  vínculo de território, a casa sozinha não dá acesso.
 - **"Mesma casa"** fica só em `app.shares_open_house`, e "o coordenador da casa conta como
   coordenação" só em `app.is_house_coordinator_of`: com o novo modelo de casa (ADR 0011), basta
   trocar o corpo dessas duas funções. Nenhuma das auxiliares é chamável pela API.
-- **`public.view_contact(alvo, tipo)`** é a única leitura do contato de terceiros: aplica a regra,
-  grava `contact_viewed` (quem, de quem, o tipo, quando; nunca o valor) e devolve o valor
-  guardado (WhatsApp e redes cifrados, para o servidor decifrar; o e-mail lido de `auth.users`).
-  Negado: erro 42501, sem registro. O titular lê o próprio sem registro.
+- **`public.view_contact(alvo, tipo)`** é a única leitura do contato de terceiros, um tipo por
+  chamada: aplica a regra e devolve o valor guardado (WhatsApp e redes cifrados, para o servidor
+  decifrar; o e-mail lido de `auth.users`). Grava `contact_viewed` (quem, de quem, o tipo,
+  quando; nunca o valor) só quando há valor, e uma vez só se o mesmo ator vê o mesmo tipo da
+  mesma pessoa em 10 minutos. Negado: erro 42501, sem registro. O titular lê o próprio sem
+  registro. **Limite:** 60 pessoas distintas por hora por quem chama (erro 54000; rever quem já
+  entrou na conta da hora não gasta o limite), contado no `audit_log` pelo índice
+  `(actor_id, event, created_at)`, com lock por quem chama.
 - **`public.list_contact_views()`**: os 200 acessos mais recentes ao contato de quem chama, com o
-  nome cifrado de quem viu (o servidor decifra com o id dessa pessoa, que não vai para a tela).
-  Tela "Quem vê meu contato" (`/perfil/contato`).
+  nome cifrado de quem viu. O id de quem viu vem junto porque é o AAD da decifragem; o servidor
+  decifra e a tela e o arquivo mostram só o nome. Limite conhecido: quem chama a RPC direto vê
+  o id (aceito: a pessoa já tem o direito de saber quem viu). Tela "Quem vê meu contato"
+  (`/perfil/contato`).
 
 ### `municipalities` (referência pública, só leitura)
 `code` (IBGE, 7 dígitos), `name`, `state_code`, `metro_region` (ex.: `rmsp`). Carregada por
@@ -191,7 +202,7 @@ migration (referência de produção), conferida com a API de localidades do IBG
 municípios da Região Metropolitana de São Paulo.
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
-`unit_types`: `id`, `key`, `label`, `level`, `membership_axis` (`team` ou `house`, ADR 0008)
+`unit_types`: `id`, `key`, `label`, `level`, `membership_axis` (`team` ou `house`, ADR 0008), `is_team` (os membros são colegas de equipe, ADR 0010)
 (rótulos configuráveis por instância).
 `units`: `id`, `type_id`, `parent_id`, `slug` (rótulo do nó no `path`: `a-z`, `0-9`, `_`),
 `name`, `path` (ltree, índice GiST, mantido por trigger a partir de `parent_id` e `slug`),

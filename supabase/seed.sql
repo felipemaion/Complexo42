@@ -13,6 +13,9 @@ insert into public.unit_types (key, label, level, membership_axis) values
   ('house', 'Casa', 3, 'house'),
   ('team', 'Equipe', 3, 'team');
 
+-- O tipo cujos membros são colegas de equipe (ADR 0010, #119).
+update public.unit_types set is_team = true where key = 'team';
+
 -- Insere uma unidade abaixo do pai indicado pelo `path`; o trigger calcula o `path` dela.
 create function pg_temp.seed_unit(
   p_type text, p_parent text, p_slug text, p_name text, p_state char(2) default null

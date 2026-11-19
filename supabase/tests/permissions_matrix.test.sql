@@ -191,6 +191,10 @@ insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, 
   (pg_temp.unit('house_1'), pg_temp.person('wait_honly'), 'self', null, null);
 insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, consent_version)
 values (pg_temp.unit('house_1'), pg_temp.person('stu_ah'), 'questionnaire', now(), 'termo-exemplo-1');
+-- Contato entre colegas de casa (#119): só depois de 7 dias de casa aceita pelos dois.
+update public.unit_members set joined_at = now() - interval '8 days', accepted_at = now() - interval '8 days'
+where axis = 'house' and profile_id in (pg_temp.person('stu_ah'), pg_temp.person('stu_bh'),
+                                         pg_temp.person('stu_ah2'));
 
 -- Contatos fictícios (formato válido; o banco não decifra nada).
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
@@ -499,13 +503,14 @@ insert into matrix (actor, action, target, expected) values
   ('stu_a', 'contact_email', 'stu_ah', false),
   ('stu_hpend', 'contact', 'stu_ah', true),
   ('stu_a', 'contact', 'stu_hpend', true),
-  -- Colega de casa: `team` não alcança a casa; `team_house` alcança, de qualquer equipe
+  -- Colega de casa: `team` não alcança a casa; `team_house` alcança, de qualquer equipe da
+  -- mesma região, com os dois na casa há 7 dias ou mais (stu_h aceitou hoje e não tem equipe)
   ('stu_bh', 'contact', 'stu_ah', false),
   ('stu_h', 'contact', 'stu_ah', false),
   ('stu_bh', 'contact_social', 'stu_ah', true),
-  ('stu_h', 'contact_social', 'stu_ah', true),
+  ('stu_h', 'contact_social', 'stu_ah', false),
   ('stu_ah', 'contact', 'stu_bh', true),
-  ('stu_h', 'contact_email', 'stu_bh', true),
+  ('stu_h', 'contact_email', 'stu_bh', false),
   ('stu_bh', 'contact', 'stu_a', false),
   -- Outra casa e outra equipe: nada; casa sem aceite não conta (dos dois lados)
   ('stu_ah2', 'contact', 'stu_bh', false),

@@ -59,51 +59,59 @@ const denied = { data: null, error: { code: "42501", message: `sem permissão pa
 const leaks = (text: string) => [PHONE, "98765", EMAIL, LINK, NAME, "Joana"].filter((s) => text.includes(s));
 
 describe("viewMemberContact", () => {
-  it("pede cada contato a view_contact e decifra com o AAD da linha do alvo", async () => {
+  it("pede ao banco só o tipo que a tela quer e decifra com o AAD da linha do alvo", async () => {
     const whatsappEnc = await enc(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: TARGET });
+    const { client, calls } = fakeClient(() => ({ data: whatsappEnc, error: null }));
+    const { deps: d, lines } = deps();
+
+    expect(await viewMemberContact(client, TARGET, "whatsapp", d)).toEqual({ status: "ok", contact: { whatsapp: PHONE } });
+    expect(calls).toEqual([{ fn: "view_contact", args: { p_target: TARGET, p_kind: "whatsapp" } }]);
+    expect(leaks(lines.join(""))).toEqual([]);
+  });
+
+  it("redes: decifra a lista; e-mail: vem como está", async () => {
     const socialEnc = await enc(JSON.stringify([LINK]), { table: "profile_contacts", column: "social_links_enc", rowId: TARGET });
-    const values: Record<string, string> = { whatsapp: whatsappEnc, social: socialEnc, email: EMAIL };
-    const { client, calls } = fakeClient((_fn, args) => ({ data: values[args.p_kind as string], error: null }));
+    const social = fakeClient(() => ({ data: socialEnc, error: null }));
+    expect(await viewMemberContact(social.client, TARGET, "social", deps().deps)).toEqual({ status: "ok", contact: { social: [LINK] } });
+    const email = fakeClient(() => ({ data: EMAIL, error: null }));
     const { deps: d, lines } = deps();
-
-    expect(await viewMemberContact(client, TARGET, d)).toEqual({
-      status: "ok",
-      contact: { whatsapp: PHONE, social: [LINK], email: EMAIL },
-    });
-    expect(calls).toEqual([
-      { fn: "view_contact", args: { p_target: TARGET, p_kind: "whatsapp" } },
-      { fn: "view_contact", args: { p_target: TARGET, p_kind: "social" } },
-      { fn: "view_contact", args: { p_target: TARGET, p_kind: "email" } },
-    ]);
+    expect(await viewMemberContact(email.client, TARGET, "email", d)).toEqual({ status: "ok", contact: { email: EMAIL } });
+    expect(email.calls).toEqual([{ fn: "view_contact", args: { p_target: TARGET, p_kind: "email" } }]);
     expect(leaks(lines.join(""))).toEqual([]);
   });
 
-  it("deixa de fora o contato negado (o colega vê só o que foi autorizado)", async () => {
-    const whatsappEnc = await enc(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: TARGET });
-    const { client } = fakeClient((_fn, args) => (args.p_kind === "whatsapp" ? { data: whatsappEnc, error: null } : denied));
-    const { deps: d, lines } = deps();
-    expect(await viewMemberContact(client, TARGET, d)).toEqual({ status: "ok", contact: { whatsapp: PHONE } });
-    expect(leaks(lines.join(""))).toEqual([]);
+  it("sem valor cadastrado: null (o banco não registra acesso)", async () => {
+    const { client } = fakeClient(() => ({ data: null, error: null }));
+    expect(await viewMemberContact(client, TARGET, "social", deps().deps)).toEqual({ status: "ok", contact: { social: null } });
   });
 
-  it("tudo negado: forbidden, sem valor nenhum", async () => {
+  it("negado: forbidden, sem valor nenhum", async () => {
     const { client } = fakeClient(() => denied);
     const { deps: d, lines } = deps();
-    expect(await viewMemberContact(client, TARGET, d)).toEqual({ status: "forbidden" });
+    expect(await viewMemberContact(client, TARGET, "email", d)).toEqual({ status: "forbidden" });
     expect(leaks(lines.join(""))).toEqual([]);
   });
 
-  it("id que não é uuid nem chega ao banco", async () => {
+  it("limite de pessoas por hora: rate_limited", async () => {
+    const { client } = fakeClient(() => ({ data: null, error: { code: "54000", message: `limite ${EMAIL}` } }));
+    const { deps: d, lines } = deps();
+    expect(await viewMemberContact(client, TARGET, "whatsapp", d)).toEqual({ status: "rate_limited" });
+    expect(lines.join("")).toContain("contact_view_rate_limited");
+    expect(leaks(lines.join(""))).toEqual([]);
+  });
+
+  it("id que não é uuid, ou tipo desconhecido, nem chega ao banco", async () => {
     const { client, calls } = fakeClient(() => ({ data: null, error: null }));
-    expect(await viewMemberContact(client, "1 or 1=1", deps().deps)).toEqual({ status: "forbidden" });
+    expect(await viewMemberContact(client, "1 or 1=1", "whatsapp", deps().deps)).toEqual({ status: "forbidden" });
+    expect(await viewMemberContact(client, TARGET, "telefone" as never, deps().deps)).toEqual({ status: "forbidden" });
     expect(calls).toHaveLength(0);
   });
 
   it("valor cifrado para outra linha (AAD errado) vira null e o log tem só a coluna", async () => {
     const otherRow = await enc(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER });
-    const { client } = fakeClient((_fn, args) => (args.p_kind === "whatsapp" ? { data: otherRow, error: null } : { data: null, error: null }));
+    const { client } = fakeClient(() => ({ data: otherRow, error: null }));
     const { deps: d, lines } = deps();
-    expect(await viewMemberContact(client, TARGET, d)).toEqual({ status: "ok", contact: { whatsapp: null, social: null, email: null } });
+    expect(await viewMemberContact(client, TARGET, "whatsapp", d)).toEqual({ status: "ok", contact: { whatsapp: null } });
     expect(lines.join("")).toContain("contact_decrypt_failed");
     expect(lines.join("")).toContain("whatsapp_enc");
     expect(leaks(lines.join(""))).toEqual([]);
@@ -112,7 +120,7 @@ describe("viewMemberContact", () => {
   it("erro inesperado do banco: failed, só o código no log", async () => {
     const { client } = fakeClient(() => ({ data: null, error: { code: "XX000", message: `falhou com ${PHONE}` } }));
     const { deps: d, lines } = deps();
-    expect(await viewMemberContact(client, TARGET, d)).toEqual({ status: "failed" });
+    expect(await viewMemberContact(client, TARGET, "whatsapp", d)).toEqual({ status: "failed" });
     expect(lines.join("")).toContain("XX000");
     expect(leaks(lines.join(""))).toEqual([]);
   });
