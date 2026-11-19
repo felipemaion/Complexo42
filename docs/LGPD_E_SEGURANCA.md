@@ -28,7 +28,7 @@ Na prática, isso vira quatro camadas:
 | Finalidade | Organizar alunos em equipes e ações da Academia. Texto no termo |
 | Minimização | Lista fechada de campos + checagem no CI |
 | Transparência | Página "Seus dados": o que guardamos, por quê e quem vê |
-| Acesso e portabilidade | Botão "Baixar meus dados" (JSON) |
+| Acesso e portabilidade | Botão "Baixar meus dados" (JSON) na página inicial, só com os dados de quem pede, auditado e limitado a 5 por hora (#20; detalhes em `MODELO_DADOS.md`) |
 | Eliminação | Botão "Excluir minha conta": apaga o perfil e os vínculos, preservando só a contagem anônima de ações |
 | Menores | Bloqueio de menores de 18 no piloto [?] [jurídico] |
 | Dado sensível | Uma lista de membros de um movimento político pode indicar opinião política (art. 5º, II) [jurídico] |

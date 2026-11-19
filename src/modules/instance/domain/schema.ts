@@ -113,6 +113,16 @@ export const instanceConfigSchema = z.strictObject({
     tooManyAttempts: text,
     failed: text,
   }),
+  /** "Baixar meus dados" (#20, LGPD art. 18). */
+  myData: z.strictObject({
+    downloadButton: text,
+    downloadHint: text,
+    /** Mais de 5 exportações na mesma hora. */
+    rateLimited: text,
+    failed: text,
+    /** Campo `sobre.descricao` do arquivo baixado. */
+    fileDescription: text,
+  }),
   houses: z
     .array(houseSchema)
     .min(1)

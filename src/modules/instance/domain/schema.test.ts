@@ -49,6 +49,7 @@ const valid = {
     tooManyAttempts: "t",
     failed: "t",
   },
+  myData: { downloadButton: "t", downloadHint: "t", rateLimited: "t", failed: "t", fileDescription: "t" },
   houses: [
     { id: "a", name: "A", description: "d", firstSteps: { text: "t", videoUrls: ["https://v.example/1"] } },
     { id: "b", name: "B", description: "d", firstSteps: { text: "t" } },

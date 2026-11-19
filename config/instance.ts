@@ -88,6 +88,14 @@ export const instance = parseInstanceConfig({
     tooManyAttempts: "Muitas tentativas. Tente de novo mais tarde.",
     failed: "Não foi possível salvar agora. Seus dados não foram perdidos: tente de novo em alguns minutos.",
   },
+  myData: {
+    downloadButton: "Baixar meus dados",
+    downloadHint: "Um arquivo com tudo o que guardamos sobre você. Guarde em lugar seguro: ele tem seu nome e seu WhatsApp.",
+    rateLimited: "Você já baixou seus dados várias vezes na última hora. Tente de novo mais tarde.",
+    failed: "Não foi possível gerar o arquivo agora. Tente de novo em alguns minutos.",
+    fileDescription:
+      "Cópia dos dados que a plataforma guarda sobre você (Lei Geral de Proteção de Dados, art. 18). Nome e WhatsApp ficam cifrados no banco e foram decifrados só para gerar este arquivo.",
+  },
   houses: [
     {
       id: "casa-exemplo-1",
