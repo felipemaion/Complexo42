@@ -77,15 +77,12 @@ supabase/tests/               # pgTAP: RLS e matriz de permissões (code owner)
 - Componentes React **não** acessam o banco; quem acessa é `server/`.
 - Regra de negócio nova vai para `domain/`, com teste, antes de ir para a tela.
 
-## 3. Stack (proposta — ver `docs/adr/0001-stack.md`)
+## 3. Stack (ADR 0001 e ADR 0009)
 
 - Next.js (App Router) + TypeScript
-- Supabase (Postgres + Auth + Row Level Security)
+- Supabase (Postgres + Auth + Row Level Security): `supabase start` no local e
+  auto-hospedado no servidor
 - Testes: Vitest (unidade), Playwright (ponta a ponta) e testes SQL de RLS (pgTAP via `supabase test db`)
-- Hospedagem com plano gratuito (definida no ADR 0001)
-
-> Enquanto o ADR 0001 estiver como **Proposto**, não crie código de produção. Só a tarefa de
-> scaffold do M0 pode criar a estrutura inicial.
 
 ## 4. Definição de pronto (DoD)
 
