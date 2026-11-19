@@ -77,6 +77,9 @@ export const instance = parseInstanceConfig({
     socialLinkLabel: "Link",
     addSocialLink: "Pôr mais um link",
     removeSocialLink: "Tirar o link",
+    socialLinksUnreadable:
+      "Não conseguimos abrir os seus links agora. Eles continuam guardados: salvar os outros dados não apaga os links.",
+    replaceSocialLinks: "Trocar os links guardados",
     socialLinksTitle: "Suas redes sociais",
     saveButton: "Salvar meus dados",
     saving: "Salvando...",

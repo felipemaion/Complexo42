@@ -106,6 +106,9 @@ export const instanceConfigSchema = z.strictObject({
     socialLinkLabel: text,
     addSocialLink: text,
     removeSocialLink: text,
+    /** Links guardados que não abriram: aviso de que continuam guardados e o botão para trocar. */
+    socialLinksUnreadable: text,
+    replaceSocialLinks: text,
     /** Título da lista dos links salvos na página inicial. */
     socialLinksTitle: text,
     saveButton: text,

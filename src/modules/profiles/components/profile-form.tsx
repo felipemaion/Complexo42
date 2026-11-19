@@ -27,6 +27,9 @@ export type ProfileFormText = {
   socialLinkLabel: string;
   addSocialLink: string;
   removeSocialLink: string;
+  /** Links guardados que não abriram: aviso de que continuam guardados, e o botão para trocá-los. */
+  socialLinksUnreadable: string;
+  replaceSocialLinks: string;
   saveButton: string;
   saving: string;
   errorSummary: string;
@@ -43,6 +46,11 @@ type Props = {
   municipalities: readonly MunicipalityOption[];
   /** Distritos por código IBGE; só os municípios daqui mostram a escolha de distrito. */
   districts: Readonly<Record<number, readonly string[]>>;
+  /**
+   * Os links guardados não abriram inteiros (#17): sem caixas nem o campo escondido, para o
+   * servidor manter o valor cifrado, até a pessoa tocar em "trocar".
+   */
+  socialLinksUnreadable?: boolean;
   text: ProfileFormText;
 };
 
@@ -60,12 +68,13 @@ const linkId = (index: number) => `perfil-rede-${index + 1}`;
 const buttonClass =
   "block w-full rounded-xl border-2 border-current px-6 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
 
-export function ProfileForm({ action, initial, municipalities, districts, text }: Props) {
+export function ProfileForm({ action, initial, municipalities, districts, socialLinksUnreadable = false, text }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" } as ProfileFormState);
   const [values, setValues] = useState<ProfileFormValues>(initial);
   const summaryRef = useRef<HTMLDivElement>(null);
   const addLinkRef = useRef<HTMLButtonElement>(null);
   // Para onde vai o foco depois de pôr ou tirar um link: a caixa nova, ou o botão de acrescentar.
+  const [editingLinks, setEditingLinks] = useState(!socialLinksUnreadable);
   const [linkFocus, setLinkFocus] = useState<{ target: number | "add" } | null>(null);
 
   // Depois de cada resposta com erro: volta o que a pessoa digitou e leva o foco para o resumo.
@@ -266,8 +275,26 @@ export function ProfileForm({ action, initial, municipalities, districts, text }
           {text.socialLinksHint}
         </p>
         {errorText("socialLinks")}
-        <input type="hidden" name={socialLinksSentField} value="1" />
-        {linkRows.map((link, index) => (
+        {!editingLinks && (
+          <>
+            <p role="status" className="rounded-xl border-2 border-current p-4 text-lg">
+              {text.socialLinksUnreadable}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingLinks(true);
+                setValues((current) => ({ ...current, socialLinks: [] }));
+                setLinkFocus({ target: 0 });
+              }}
+              className={buttonClass}
+            >
+              {text.replaceSocialLinks}
+            </button>
+          </>
+        )}
+        {editingLinks && <input type="hidden" name={socialLinksSentField} value="1" />}
+        {editingLinks && linkRows.map((link, index) => (
           <div key={index} className="flex flex-col gap-2">
             <label htmlFor={linkId(index)} className="text-lg font-semibold">
               {text.socialLinkLabel} {index + 1}
@@ -295,7 +322,7 @@ export function ProfileForm({ action, initial, municipalities, districts, text }
             )}
           </div>
         ))}
-        {linkRows.length < profileLimits.socialLinksMax && (
+        {editingLinks && linkRows.length < profileLimits.socialLinksMax && (
           <button ref={addLinkRef} type="button" onClick={addLink} className={buttonClass}>
             {text.addSocialLink}
           </button>

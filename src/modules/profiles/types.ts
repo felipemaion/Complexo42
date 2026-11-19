@@ -57,8 +57,13 @@ export type OwnProfile = {
   whatsapp: string;
   municipalityCode: number;
   district: string | null;
-  /** Links de rede (#17), já normalizados; `[]` se não há (ou se o valor guardado não abriu). */
+  /** Links de rede (#17), já normalizados (só os que abriram e passam na regra). */
   socialLinks: string[];
+  /**
+   * O valor guardado existe mas não abriu inteiro. O formulário não envia os links (o servidor
+   * mantém o valor cifrado) até a pessoa pedir para substituí-los.
+   */
+  socialLinksUnreadable: boolean;
 };
 
 /**

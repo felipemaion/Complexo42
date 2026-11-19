@@ -155,20 +155,46 @@ export async function loadOwnProfile(
       return "";
     }
   };
-  const socialRaw = await open(row.profile_contacts?.social_links_enc ?? undefined, "profile_contacts", "social_links_enc");
-  let socialLinks: string[] = [];
-  if (socialRaw !== "") {
-    const parsed = storedSocialLinks.safeParse(safeJson(socialRaw));
-    if (parsed.success) socialLinks = socialLinkViews(parsed.data).map((view) => view.href);
-    else deps.log.warn("profile_decrypt_failed", { column: "social_links_enc", reason: "invalid_json" });
-  }
+  const social = await readSocialLinks(row.profile_contacts?.social_links_enc ?? null, rowId, deps);
   return {
     displayName: await open(row.display_name_enc, "profiles", "display_name_enc"),
     whatsapp: await open(row.profile_contacts?.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
     municipalityCode: row.municipality_code,
     district: row.district,
-    socialLinks,
+    ...social,
   };
+}
+
+/**
+ * Os links guardados, para o formulário e a página inicial. Se o valor existe mas não abre
+ * inteiro (não decifra, JSON inválido ou algum link que não passa mais na regra), volta
+ * `socialLinksUnreadable: true`: o formulário então não envia os links e o servidor mantém o
+ * valor cifrado como está, em vez de gravar a lista incompleta (ou vazia) por cima.
+ */
+async function readSocialLinks(
+  value: string | null,
+  rowId: string,
+  deps: ProfileDeps,
+): Promise<Pick<OwnProfile, "socialLinks" | "socialLinksUnreadable">> {
+  if (value === null) return { socialLinks: [], socialLinksUnreadable: false };
+  let plain: string;
+  try {
+    plain = await deps.decrypt(value, { table: "profile_contacts", column: "social_links_enc", rowId });
+  } catch (err) {
+    deps.log.warn("profile_decrypt_failed", { column: "social_links_enc", reason: errorCode(err) });
+    return { socialLinks: [], socialLinksUnreadable: true };
+  }
+  const parsed = storedSocialLinks.safeParse(safeJson(plain));
+  if (!parsed.success) {
+    deps.log.warn("profile_decrypt_failed", { column: "social_links_enc", reason: "invalid_json" });
+    return { socialLinks: [], socialLinksUnreadable: true };
+  }
+  const links = socialLinkViews(parsed.data).map((view) => view.href);
+  if (links.length !== parsed.data.length) {
+    deps.log.warn("profile_decrypt_failed", { column: "social_links_enc", reason: "invalid_link" });
+    return { socialLinks: links, socialLinksUnreadable: true };
+  }
+  return { socialLinks: links, socialLinksUnreadable: false };
 }
 
 function safeJson(text: string): unknown {

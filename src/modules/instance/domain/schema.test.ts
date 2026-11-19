@@ -44,6 +44,8 @@ const valid = {
     socialLinkLabel: "t",
     addSocialLink: "t",
     removeSocialLink: "t",
+    socialLinksUnreadable: "t",
+    replaceSocialLinks: "t",
     socialLinksTitle: "t",
     saveButton: "t",
     saving: "t",

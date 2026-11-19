@@ -163,9 +163,11 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 Redes (#17): até 5 links, normalizados no servidor antes de cifrar (`src/modules/profiles/domain/social.ts`):
 só `https://`, sem usuário/senha nem porta, com domínio (nada de IP ou `localhost`), até 256
 caracteres; domínio em outro alfabeto fica em punycode (`xn--`), que é o que aparece na tela. Na tela,
-links de rede só saem por `SocialLinkList` (texto puro, `rel="noopener noreferrer nofollow"`).
+links de rede só saem por `SocialLinkList` (texto puro com domínio, caminho, busca e fragmento,
+cortado com "…" depois de 60 caracteres; `rel="noopener noreferrer nofollow"`).
 Salvar o perfil sem mexer nos links os mantém: o formulário volta com eles, e um envio sem o campo
-`socialLinksSent` repassa o valor cifrado guardado.
+`socialLinksSent` repassa o valor cifrado guardado. Se o valor guardado não abre inteiro, o
+formulário não envia esse campo (mostra um aviso) até a pessoa pedir para trocar os links.
 Fica **separada** para que listagens de perfis nunca tragam contato por engano. Pela tabela,
 só o próprio titular lê (RLS). O contato de outra pessoa sai só por `public.view_contact` (abaixo),
 que registra cada acesso. Ideia adaptada do protótipo original Vguedess/Complexo42

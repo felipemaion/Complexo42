@@ -28,6 +28,7 @@ export default async function ProfilePage() {
         }}
         municipalities={municipalities}
         districts={districtsByMunicipality}
+        socialLinksUnreadable={own?.socialLinksUnreadable ?? false}
         text={text}
       />
     </main>

@@ -209,6 +209,7 @@ describe("loadOwnProfile", () => {
       municipalityCode: SP,
       district: "Sé",
       socialLinks: [],
+      socialLinksUnreadable: false,
     });
     expect(reads[0]).toMatchObject({ table: "profiles", eq: ["id", USER] });
   });
@@ -224,6 +225,7 @@ describe("loadOwnProfile", () => {
       municipalityCode: SP,
       district: null,
       socialLinks: [],
+      socialLinksUnreadable: false,
     });
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toContain(copied);
@@ -277,6 +279,7 @@ describe("redes sociais (#17)", () => {
     };
     const own = await loadOwnProfile(fakeClient({ row }).client, USER, d);
     expect(own?.socialLinks).toEqual(LINKS);
+    expect(own?.socialLinksUnreadable).toBe(false);
     // Muda só o nome e envia o resto como o formulário recebeu.
     const { client, calls } = fakeClient();
     const edited = { ...form, displayName: "Maria A. Souza", socialLinks: own!.socialLinks };
@@ -326,29 +329,52 @@ describe("redes sociais (#17)", () => {
     expect(calls).toEqual([]);
   });
 
-  it("ao ler, link guardado que não passa na regra (gravado fora do servidor) some; JSON quebrado vira lista vazia", async () => {
-    const { deps: d, lines } = deps();
-    const base = {
-      display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
-      municipality_code: SP,
-      district: null,
-    };
-    const whatsapp_enc = await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER });
-    const mixed = await d.encrypt(JSON.stringify(["javascript:alert(1)", "https://instagram.com/maria", "data:text/html,x"]), SOCIAL);
-    const own = await loadOwnProfile(
-      fakeClient({ row: { ...base, profile_contacts: { whatsapp_enc, social_links_enc: mixed } } }).client,
-      USER,
-      d,
-    );
-    expect(own?.socialLinks).toEqual(["https://instagram.com/maria"]);
-    const broken = await d.encrypt("<script>", SOCIAL);
-    const own2 = await loadOwnProfile(
-      fakeClient({ row: { ...base, profile_contacts: { whatsapp_enc, social_links_enc: broken } } }).client,
-      USER,
-      d,
-    );
-    expect(own2?.socialLinks).toEqual([]);
-    expect(lines.join("\n")).not.toContain("script");
+  describe("valor guardado que não abre inteiro (M1 da revisão): nunca é apagado por engano", () => {
+    async function rowWith(social: string) {
+      const { deps: d } = deps();
+      return {
+        display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
+        municipality_code: SP,
+        district: "Sé",
+        profile_contacts: {
+          whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }),
+          social_links_enc: social,
+        },
+      };
+    }
+
+    it.each([
+      ["não decifra (cifrado para outra pessoa)", async (d: ProfileDeps) => d.encrypt(JSON.stringify(LINKS), { ...SOCIAL, rowId: "outra" }), []],
+      ["JSON quebrado", async (d: ProfileDeps) => d.encrypt("<script>", SOCIAL), []],
+      [
+        "link que não passa mais na regra",
+        async (d: ProfileDeps) => d.encrypt(JSON.stringify(["javascript:alert(1)", "https://instagram.com/maria", "data:text/html,x"]), SOCIAL),
+        ["https://instagram.com/maria"],
+      ],
+    ] as const)("%s: socialLinksUnreadable, só os links que abriram, log sem o valor", async (_name, make, readable) => {
+      const { deps: d, lines } = deps();
+      const stored = await make(d);
+      const own = await loadOwnProfile(fakeClient({ row: await rowWith(stored) }).client, USER, d);
+      expect(own?.socialLinks).toEqual(readable);
+      expect(own?.socialLinksUnreadable).toBe(true);
+      expect(own?.displayName).toBe(NAME);
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0]!)).toMatchObject({ event: "profile_decrypt_failed", column: "social_links_enc" });
+      expect(lines[0]).not.toMatch(/script|alert|instagram/);
+      expect(lines[0]).not.toContain(stored);
+    });
+
+    it("valor ilegível + salvar só o nome (o formulário não envia os links): o cifrado guardado fica igual", async () => {
+      const { deps: d } = deps();
+      const stored = await d.encrypt("<script>", SOCIAL);
+      const own = await loadOwnProfile(fakeClient({ row: await rowWith(stored) }).client, USER, d);
+      expect(own?.socialLinksUnreadable).toBe(true);
+      // Sem o campo escondido, o envio chega sem `socialLinks` (ver actions.ts).
+      const { client, calls } = fakeClient({ row: { social_links_enc: stored } });
+      const onlyName = { ...form, displayName: "Maria A. Souza" };
+      expect(await saveOwnProfile(client, USER, onlyName, districtsFor, d)).toEqual({ status: "saved" });
+      expect(calls[0]!.args.p_social_links_enc).toBe(stored);
+    });
   });
 });
 

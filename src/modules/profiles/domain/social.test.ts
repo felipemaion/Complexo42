@@ -3,7 +3,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SocialLinkList } from "../components/social-links";
-import { normalizeSocialLink, socialLinkMaxLength, socialLinkRel, socialLinkView, socialLinkViews } from "./social";
+import {
+  normalizeSocialLink,
+  socialLinkMaxLength,
+  socialLinkRel,
+  socialLinkTextRestMax,
+  socialLinkView,
+  socialLinkViews,
+} from "./social";
 
 describe("normalizeSocialLink", () => {
   it("aceita https e normaliza (esquema e domínio em minúsculas, https:// quando falta)", () => {
@@ -56,6 +63,39 @@ describe("normalizeSocialLink", () => {
   });
 });
 
+describe("normalizeSocialLink: formatos de URL que o navegador aceita (revisão de segurança)", () => {
+  it.each([
+    // Aceitos, mas o destino normalizado é o mesmo que a tela mostra: nada fica escondido.
+    ["https: sem barras", "https:instagram.com", "https://instagram.com/"],
+    ["barras demais", "https:////evil.com", "https://evil.com/"],
+    ["sem esquema, com //", "//evil.com", "https://evil.com/"],
+  ])("%s: vira o endereço que aparece", (_name, raw, href) => {
+    expect(normalizeSocialLink(raw)).toBe(href);
+    expect(socialLinkView(raw)?.href).toBe(href);
+  });
+
+  it.each([
+    ["dois-pontos fullwidth", "https\uFF1A//instagram.com/maria"],
+    ["porta sem esquema (vira esquema desconhecido)", "instagram.com:80"],
+    ["host terminado em ponto", "https://a."],
+    ["host começando com ponto", "https://.a.com"],
+    ["host sem ponto", "https://com"],
+    ["IPv4 em hexadecimal", "https://0x7f.1"],
+    ["IPv4 em octal num número só", "https://017700000001"],
+    ["IPv4 misto", "https://0x7f.0.0.1"],
+    ["IPv4 com zero à esquerda", "https://1.2.3.04"],
+  ])("recusa %s", (_name, raw) => {
+    expect(normalizeSocialLink(raw)).toBeNull();
+  });
+
+  it("aspas e <> no caminho: o navegador aceitaria (codificando), só a lista FORBIDDEN barra", () => {
+    for (const raw of ['https://instagram.com/a"b', "https://instagram.com/<b>", "https://instagram.com/a'b", "https://instagram.com/a`b"]) {
+      expect(() => new URL(raw)).not.toThrow();
+      expect(normalizeSocialLink(raw)).toBeNull();
+    }
+  });
+});
+
 describe("socialLinkView", () => {
   it("mostra domínio (sem www.) e caminho, como texto", () => {
     expect(socialLinkView("https://www.instagram.com/maria/")).toEqual({
@@ -63,6 +103,27 @@ describe("socialLinkView", () => {
       text: "instagram.com/maria",
     });
     expect(socialLinkView("https://exemplo.org")).toEqual({ href: "https://exemplo.org/", text: "exemplo.org" });
+  });
+
+  it("a busca e o fragmento aparecem no texto (redirecionamento à vista), e continuam no href", () => {
+    expect(socialLinkView("https://google.com/url?q=https://evil.example")).toEqual({
+      href: "https://google.com/url?q=https://evil.example",
+      text: "google.com/url?q=https://evil.example",
+    });
+    expect(socialLinkView("https://www.youtube.com/watch?v=abc123#t=30")).toEqual({
+      href: "https://www.youtube.com/watch?v=abc123#t=30",
+      text: "youtube.com/watch?v=abc123#t=30",
+    });
+    expect(socialLinkView("https://exemplo.org/?ref=x")?.text).toBe("exemplo.org?ref=x");
+  });
+
+  it("texto longo: o domínio fica inteiro e o resto é cortado com …; o href não é cortado", () => {
+    const rest = `/url?q=https://evil.example/${"a".repeat(100)}`;
+    const view = socialLinkView(`https://google.com${rest}`)!;
+    expect(view.href).toBe(`https://google.com${rest}`);
+    expect(view.text.startsWith("google.com/url?q=https://evil.example/")).toBe(true);
+    expect(view.text.endsWith("…")).toBe(true);
+    expect(view.text).toHaveLength("google.com".length + socialLinkTextRestMax);
   });
 
   it("valor guardado que não passa na regra não aparece", () => {
@@ -107,6 +168,31 @@ describe("SocialLinkList (o que vai para o HTML)", () => {
     const out = html(["https://exemplo.org/%3Cscript%3Ealert(1)%3C/script%3E"]);
     expect(out).not.toMatch(/<script/i);
     expect(out).toContain(">exemplo.org/%3Cscript%3Ealert(1)%3C/script%3E</a>");
+  });
+
+  it("lista hostil salva (com e sem nova aba): só o https limpo vira <a>, sempre com o rel seguro", () => {
+    const hostile = [
+      "javascript:alert(document.cookie)",
+      " JaVaScRiPt:alert(1)",
+      "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+      "vbscript:msgbox(1)",
+      "<img src=x onerror=alert(1)>",
+      'https://exemplo.org/" target="_self" onclick="alert(1)',
+      "https://usuario:senha@golpe.example/",
+      "https://0x7f.1/",
+      "http://instagram.com/maria",
+      "https://google.com/url?q=https://evil.example",
+    ];
+    for (const newTab of [false, true]) {
+      const out = html(hostile, newTab);
+      expect(out.match(/<a /g)).toHaveLength(1);
+      expect(out).not.toMatch(/javascript:|vbscript:|data:|onerror|onclick|<img|senha|127\.0\.0\.1|http:\/\//i);
+      expect(out).toContain('href="https://google.com/url?q=https://evil.example"');
+      expect(out).toContain(">google.com/url?q=https://evil.example</a>");
+      expect(out).toContain('rel="noopener noreferrer nofollow"');
+      if (newTab) expect(out).toContain('target="_blank"');
+      else expect(out).not.toContain("target=");
+    }
   });
 
   it("sem link válido, não desenha nada", () => {

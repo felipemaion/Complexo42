@@ -52,9 +52,15 @@ export function normalizeSocialLink(raw: string): string | null {
   return href.length <= socialLinkMaxLength ? href : null;
 }
 
+/** Depois do domínio, o texto mostra até isto e corta com "…" (o domínio sempre aparece inteiro). */
+export const socialLinkTextRestMax = 60;
+
 /**
- * O que a tela mostra de um link guardado: domínio (sem `www.`) e caminho, como texto puro.
- * Link que não passa em `normalizeSocialLink` volta `null` e não é mostrado.
+ * O que a tela mostra de um link guardado, como texto puro: domínio (sem `www.`), caminho,
+ * busca (`?...`) e fragmento (`#...`). A busca aparece porque pode levar a outro lugar
+ * (`google.com/url?q=https://golpe.example`); ela continua no link guardado (o YouTube precisa).
+ * O que vem depois do domínio é cortado com "…" se passar de 60 caracteres. Link que não passa
+ * em `normalizeSocialLink` volta `null` e não é mostrado.
  */
 export function socialLinkView(stored: string): SocialLinkView | null {
   const href = normalizeSocialLink(stored);
@@ -62,7 +68,9 @@ export function socialLinkView(stored: string): SocialLinkView | null {
   const url = new URL(href);
   const host = url.hostname.replace(/^www\./, "");
   const path = url.pathname === "/" ? "" : url.pathname.replace(/\/$/, "");
-  return { href, text: `${host}${path}` };
+  const rest = `${path}${url.search}${url.hash}`;
+  const shown = rest.length > socialLinkTextRestMax ? `${rest.slice(0, socialLinkTextRestMax - 1)}…` : rest;
+  return { href, text: `${host}${shown}` };
 }
 
 /** Os links que podem aparecer, na ordem guardada, sem repetidos. */
