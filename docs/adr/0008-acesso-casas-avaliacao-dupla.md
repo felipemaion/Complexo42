@@ -61,33 +61,19 @@ profiles.access_status: 'pending' | 'active' | 'waitlisted' | 'blocked'
   - um e-mail fora da lista nunca vira `active` sem aprovação;
   - o HMAC não é reversível pela interface.
 
-### 2. Casas como segundo eixo de vínculo
+### 2. Casas
 
-As casas são **unidades** do ADR 0005, com um tipo próprio. O vínculo com a casa é separado do
-vínculo com a equipe:
+**O modelo de casa está no ADR 0011.** A casa é nacional, e o coordenador de casa tem casa e
+território. Daqui continuam valendo:
 
-```
-unit_types.membership_axis: 'team' | 'house'    -- novo campo; configuração da instância
-  ex.: national > state > region > { house (axis=house), team (axis=team) }
-```
-
-- **Índice único parcial:** cada pessoa tem **um vínculo aberto por eixo**, ou seja, uma casa
-  e uma equipe ao mesmo tempo. Isso substitui a regra de "um vínculo aberto por pessoa" do
-  ADR 0007 §2.
-- **Os coordenadores usam os papéis que já existem:**
-  - o coordenador de casa tem `monitor` na unidade da casa e enxerga os membros dela,
-    qualquer que seja a equipe;
-  - o coordenador de equipe tem `monitor` na unidade da equipe;
-  - a coordenação regional e a estadual têm `manager` no nó correspondente.
-
-  A regra única de escopo do ADR 0005 continua valendo.
-- **A escolha da casa** fica em `unit_members` (`axis = house`), com `join_method`
-  (`self` ou `questionnaire`) e `accepted_at`. Sem aceite, o vínculo não conta.
-- **O questionário** vem do stakeholder, que o enviou em 2026-11-18 (detalhes no §2.1). A
-  plataforma guarda **só a casa sugerida**, e não as respostas, que formariam um perfil
-  psicológico desnecessário (coleta mínima, LGPD).
+- **Uma casa e uma equipe por pessoa ao mesmo tempo.**
+- **A escolha da casa**, com `join_method` (`self` ou `questionnaire`) e `accepted_at`. Sem
+  aceite, o vínculo não conta.
+- **O questionário**, enviado pelo stakeholder em 2026-11-18 (detalhes no §2.1). A plataforma
+  guarda **só a casa sugerida**, e não as respostas, que formariam um perfil psicológico
+  desnecessário (coleta mínima, LGPD).
 - **Os nomes das casas e o texto de "primeiros passos"** (história e objetivos, com links de
-  vídeo) também ficam em `config/`. Não há nomes fixos no código (R17).
+  vídeo), que ficam em `config/`. Não há nomes fixos no código (R17).
 
 ### 2.1 Questionário das casas
 
