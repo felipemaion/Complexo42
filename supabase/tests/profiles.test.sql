@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(68);
+select plan(84);
 
 -- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
 create function pg_temp.enc(p_tag text) returns text language sql as $$
@@ -16,13 +16,15 @@ create function pg_temp.login(p_id uuid) returns void language sql as $$
 $$;
 
 -- u1: cadastra-se pela API; u2: outro perfil ativo; u3: bloqueado; u4: na espera;
--- u5: conta suspensa.
+-- u5: conta suspensa; u6 e u7: sem perfil, para o limite de WhatsApp repetido (#127).
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000b1'),
   ('00000000-0000-0000-0000-0000000000b2'),
   ('00000000-0000-0000-0000-0000000000b3'),
   ('00000000-0000-0000-0000-0000000000b4'),
-  ('00000000-0000-0000-0000-0000000000b5');
+  ('00000000-0000-0000-0000-0000000000b5'),
+  ('00000000-0000-0000-0000-0000000000b6'),
+  ('00000000-0000-0000-0000-0000000000b7');
 insert into public.municipalities (code, name, state_code) values (3106200, 'Belo Horizonte', 'MG');
 
 -- ---------------------------------------------------------------------------------------
@@ -167,7 +169,7 @@ create function pg_temp.save(
   p_name text, p_whatsapp_hmac text,
   p_municipality int default 3550308, p_district text default null,
   p_whatsapp text default null, p_links text default null
-) returns void language sql as $$
+) returns text language sql as $$
   select public.save_own_profile(
     p_display_name_enc => p_name,
     p_municipality_code => p_municipality,
@@ -177,19 +179,6 @@ create function pg_temp.save(
     p_social_links_enc => p_links
   )
 $$;
--- O DETAIL do erro de WhatsApp repetido (o do Postgres traria o HMAC).
-create function pg_temp.duplicate_detail(p_hmac text) returns text language plpgsql as $$
-declare
-  detail text;
-begin
-  perform pg_temp.save(pg_temp.enc('dup'), p_hmac);
-  return 'sem erro';
-exception when unique_violation then
-  get stacked diagnostics detail = pg_exception_detail;
-  return detail;
-end;
-$$;
-
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
 
@@ -260,16 +249,17 @@ select lives_ok(
   'volta para São Paulo com distrito'
 );
 
--- WhatsApp de outra pessoa (o HMAC de u2): erro fixo, sem DETAIL, nada gravado.
-select throws_ok(
-  $$ select pg_temp.save(pg_temp.enc('b1outro'), repeat('b', 64)) $$,
-  '23505', 'WhatsApp já cadastrado',
-  'o mesmo WhatsApp (HMAC) não se cadastra duas vezes'
+-- WhatsApp de outra pessoa (o HMAC de u2): resposta fixa, sem o HMAC, nada gravado. Desde a
+-- #127 é retorno, e não erro, para o registro da tentativa sobreviver à chamada.
+select is(
+  pg_temp.save(pg_temp.enc('b1outro'), repeat('b', 64)),
+  'duplicate_whatsapp',
+  'o mesmo WhatsApp (HMAC) não se cadastra duas vezes: a resposta é só `duplicate_whatsapp`'
 );
 select is(
-  pg_temp.duplicate_detail(repeat('b', 64)),
-  '',
-  'o erro de WhatsApp repetido não traz o DETAIL do Postgres (com o HMAC)'
+  pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 'Sé'),
+  'saved',
+  'salvar com o próprio WhatsApp responde `saved`'
 );
 select results_eq(
   $$ select p.display_name_enc, p.district, c.whatsapp_hmac
@@ -393,6 +383,113 @@ select results_eq(
 select throws_ok($$ select pg_temp.save(pg_temp.enc('b5'), repeat('f', 64)) $$,
   '42501', 'sem permissão para editar este perfil', 'conta suspensa NÃO edita o perfil nem o contato');
 
+-- ---------------------------------------------------------------------------------------
+-- Limite de WhatsApp repetido (#127): 5 por pessoa, por hora
+-- ---------------------------------------------------------------------------------------
+-- u6 testa números já usados (o de u2, 'b'). Cada tentativa é registrada, sem o número.
+select pg_temp.login('00000000-0000-0000-0000-0000000000b6');
+select is(
+  (select array_agg(pg_temp.save(pg_temp.enc('b6'), repeat('b', 64))) from generate_series(1, 5)),
+  array_fill('duplicate_whatsapp'::text, array[5]),
+  'as 5 primeiras tentativas com WhatsApp repetido na hora respondem `duplicate_whatsapp`'
+);
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b6'), repeat('b', 64)) $$,
+  'PT429', 'too_many_attempts',
+  'a 6ª tentativa na hora é recusada com `too_many_attempts`'
+);
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b6'), repeat('7', 64)) $$,
+  'PT429', 'too_many_attempts',
+  'depois do limite, até um número LIVRE é recusado igual (o limite não vira oráculo)'
+);
+select throws_ok(
+  $$ select 1 from app.profile_save_attempts $$,
+  '42501', null,
+  'quem está logado NÃO lê as tentativas (nem as próprias)'
+);
+select throws_ok(
+  $$ delete from app.profile_save_attempts $$,
+  '42501', null,
+  'quem está logado NÃO apaga as próprias tentativas para driblar o limite'
+);
+
+-- u7: outra pessoa, não é afetada pelo limite de u6.
+select pg_temp.login('00000000-0000-0000-0000-0000000000b7');
+select is(
+  pg_temp.save(pg_temp.enc('b7'), repeat('b', 64)),
+  'duplicate_whatsapp',
+  'o limite é por pessoa: outra pessoa ainda recebe `duplicate_whatsapp`'
+);
+select is(
+  pg_temp.save(pg_temp.enc('b7'), repeat('c', 64)),
+  'saved',
+  'e salva o próprio cadastro normalmente'
+);
+
+-- Conferência e relógio como dono do banco.
+reset role;
+select is_empty(
+  $$ select 1 from public.profiles where id = '00000000-0000-0000-0000-0000000000b6'
+     union all
+     select 1 from public.profile_contacts where whatsapp_hmac = repeat('7', 64) $$,
+  'nada de u6 foi gravado: nem perfil, nem contato, nem o número livre recusado'
+);
+select results_eq(
+  $$ select profile_id, count(*)::int from app.profile_save_attempts
+     where profile_id in ('00000000-0000-0000-0000-0000000000b6', '00000000-0000-0000-0000-0000000000b7')
+     group by profile_id order by profile_id $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b6'::uuid, 5),
+            ('00000000-0000-0000-0000-0000000000b7'::uuid, 1) $$,
+  'só os repetidos contam; as recusas pelo limite e os salvamentos não'
+);
+select columns_are(
+  'app', 'profile_save_attempts', array['profile_id', 'attempted_at'],
+  'a tentativa guarda só quem e quando, nunca o número nem o HMAC'
+);
+update app.profile_save_attempts set attempted_at = now() - interval '59 minutes'
+  where profile_id = '00000000-0000-0000-0000-0000000000b6';
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000b6');
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b6'), repeat('7', 64)) $$,
+  'PT429', 'too_many_attempts',
+  'com as tentativas a 59 minutos, ainda dentro da hora: recusado'
+);
+reset role;
+update app.profile_save_attempts set attempted_at = now() - interval '61 minutes'
+  where profile_id = '00000000-0000-0000-0000-0000000000b6';
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000b6');
+select is(
+  pg_temp.save(pg_temp.enc('b6'), repeat('7', 64)),
+  'saved',
+  'passada a hora, a pessoa volta a salvar'
+);
+select is(
+  pg_temp.save(pg_temp.enc('b6'), repeat('b', 64)),
+  'duplicate_whatsapp',
+  'e um repetido novo volta a ser só `duplicate_whatsapp`'
+);
+reset role;
+select is(
+  (select count(*)::int from app.profile_save_attempts
+   where profile_id = '00000000-0000-0000-0000-0000000000b6'),
+  1,
+  'ao registrar a tentativa nova, as de mais de uma hora foram apagadas'
+);
+select ok(
+  (select c.relrowsecurity from pg_catalog.pg_class as c
+   where c.oid = 'app.profile_save_attempts'::regclass)
+  and not exists (
+    select 1 from unnest(array['anon', 'authenticated', 'service_role']) as r(role_name)
+    cross join unnest(array['select', 'insert', 'update', 'delete']) as p(priv)
+    where has_table_privilege(r.role_name, 'app.profile_save_attempts', p.priv)
+  ),
+  'tentativas: RLS ligada e nenhum grant para os papéis da API (só a função usa)'
+);
+set local role authenticated;
+
 -- Visitante anônimo
 reset role;
 set local role anon;
@@ -406,6 +503,11 @@ select throws_ok(
   $$ select pg_temp.save(pg_temp.enc('anon'), repeat('2', 64)) $$,
   '42501', null,
   'visitante anônimo NÃO chama a função de gravar perfil'
+);
+select throws_ok(
+  $$ select 1 from app.profile_save_attempts $$,
+  '42501', null,
+  'visitante anônimo NÃO lê as tentativas'
 );
 
 -- Conferência como dono do banco

@@ -476,7 +476,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 98);
+select plan((select count(*)::int from matrix) + 101);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 11 unidades da árvore foram capturadas.
@@ -1022,6 +1022,18 @@ select throws_ok($$ select 1 from public.access_waitlist_hmac $$, '42501', null,
 select pg_temp.login('stu_wait');
 select throws_ok($$ select 1 from public.access_waitlist_hmac $$, '42501', null,
   'quem está na espera NÃO lê os HMACs da espera');
+
+-- Tentativas de WhatsApp repetido (#127): só `save_own_profile` usa; nenhum papel lê pela API,
+-- nem o gestor nacional, nem o admin técnico, nem a própria pessoa.
+select pg_temp.login('nat_mgr');
+select throws_ok($$ select 1 from app.profile_save_attempts $$, '42501', null,
+  'gestor nacional NÃO lê as tentativas de WhatsApp repetido');
+select pg_temp.login('tech');
+select throws_ok($$ select 1 from app.profile_save_attempts $$, '42501', null,
+  'admin técnico NÃO lê as tentativas de WhatsApp repetido');
+select pg_temp.login('team_a_mon');
+select throws_ok($$ delete from app.profile_save_attempts $$, '42501', null,
+  'coordenador NÃO apaga tentativas (nem para liberar o limite de um membro)');
 
 -- Visitante anônimo
 set local role anon;
