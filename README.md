@@ -29,7 +29,7 @@ npm run dev        # http://localhost:3000
 npm run check      # lint + tipos + testes + build, obrigatório antes do PR
 ```
 
-O banco local (`supabase start`) e o `npm run setup` chegam com as #4 e #52.
+Banco local: `npm run db:start` e `npm run db:test` (ver [`CONTRIBUTING.md`](CONTRIBUTING.md)). O `npm run setup` chega com a #52.
 
 ## 👋 Chegou agora? Comece pelo [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
 
