@@ -6,12 +6,23 @@ export {
   type AllowlistImportErrorCode,
   type ParsedAllowlist,
 } from "./domain/allowlist-csv";
-export { decideAccess, importAllowlist, listWaitlist, resolveAccessAfterSignIn } from "./server/access";
+export {
+  decideAccess,
+  importAllowlist,
+  listWaitlist,
+  resolveAccessAfterSignIn,
+  waitlistPageLimit,
+} from "./server/access";
+export { AccessError } from "./types";
 export type {
-  AccessRpc,
+  AccessClient,
+  AccessErrorCode,
   AllowlistImportResult,
   AllowlistSource,
   ResolvedAccess,
+  SessionUser,
+  WaitlistCursor,
   WaitlistDecision,
   WaitlistEntry,
+  WaitlistPage,
 } from "./types";

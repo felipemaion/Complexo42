@@ -38,3 +38,9 @@ jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
 minimum_password_length = 8
+
+[auth.email]
+# E-mail confirmado antes do primeiro login (#26): é ele que liga a conta ao e-mail cujo
+# HMAC é comparado com a lista de autorizados. No servidor, GOTRUE_MAILER_AUTOCONFIRM=false.
+enable_confirmations = true
+double_confirm_changes = true

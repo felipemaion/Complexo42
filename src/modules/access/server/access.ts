@@ -6,17 +6,22 @@ import { z } from "zod";
 import { accessStatuses } from "@/modules/profiles";
 import { decryptField, emailBlindIndex } from "@/server/crypto";
 import { parseAllowlistCsv } from "../domain/allowlist-csv";
-import type {
-  AccessRpc,
-  AllowlistImportResult,
-  AllowlistSource,
-  ResolvedAccess,
-  WaitlistDecision,
-  WaitlistEntry,
+import {
+  AccessError,
+  type AccessClient,
+  type AllowlistImportResult,
+  type AllowlistSource,
+  type ResolvedAccess,
+  type WaitlistCursor,
+  type WaitlistDecision,
+  type WaitlistPage,
 } from "../types";
 
 type BlindIndex = (email: string) => Promise<string>;
 type Decrypt = typeof decryptField;
+
+/** Teto de itens por página da fila; o banco aplica o mesmo (`list_waitlist`). */
+export const waitlistPageLimit = { default: 50, max: 200 } as const;
 
 const sourceSchema = z.enum(["form", "academy", "manual"]);
 const decisionSchema = z.enum(["active", "blocked"]);
@@ -31,21 +36,33 @@ const waitlistRowsSchema = z.array(
   }),
 );
 
+/** Chama a RPC e devolve `data`; erro do banco vira `AccessError` sem o texto do banco. */
+async function callRpc(client: AccessClient, fn: string, args: Record<string, unknown>): Promise<unknown> {
+  const { data, error } = await client.rpc(fn, args);
+  if (error) throw new AccessError("db_error");
+  return data;
+}
+
 /**
- * Chamar logo depois do login (e de novo depois de criar o perfil, se ele ainda não existia).
- * Calcula o HMAC do e-mail da sessão e pede ao banco a decisão, que vale só para o perfil de
- * quem está logado e só uma vez (`pending` → `active` ou `waitlisted`). Devolve o estado de
- * acesso; com `waitlisted`, a interface mostra a tela de espera.
+ * Chamar logo depois do login (e de novo depois de criar o perfil, se ele ainda não existia),
+ * com o cliente do Supabase que carrega o JWT da sessão. O e-mail vem de `auth.getUser()`
+ * (validado no servidor de Auth), nunca de um parâmetro: assim ninguém pede a decisão com o
+ * e-mail de outra pessoa. E-mail não confirmado é recusado antes de chamar o banco, porque só
+ * a confirmação prova que a conta é dona do e-mail.
  *
- * `email` precisa vir da sessão verificada pelo servidor, nunca de um campo do formulário.
+ * O banco decide só para o perfil de quem está logado e só uma vez (`pending` → `active` ou
+ * `waitlisted`). Com `waitlisted`, a interface mostra a tela de espera (`/espera`).
  */
 export async function resolveAccessAfterSignIn(
-  rpc: AccessRpc,
-  sessionEmail: string,
+  client: AccessClient,
   blindIndex: BlindIndex = emailBlindIndex,
 ): Promise<ResolvedAccess> {
-  const emailHmac = await blindIndex(sessionEmail);
-  return resolvedSchema.parse(await rpc("resolve_access", { p_email_hmac: emailHmac }));
+  const { data, error } = await client.auth.getUser();
+  const user = error ? null : data.user;
+  if (!user) throw new AccessError("no_session");
+  if (!user.email || !user.email_confirmed_at) throw new AccessError("email_not_confirmed");
+  const emailHmac = await blindIndex(user.email);
+  return resolvedSchema.parse(await callRpc(client, "resolve_access", { p_email_hmac: emailHmac }));
 }
 
 /**
@@ -54,7 +71,7 @@ export async function resolveAccessAfterSignIn(
  * `audit_log` com a quantidade.
  */
 export async function importAllowlist(
-  rpc: AccessRpc,
+  client: AccessClient,
   csv: string,
   source: AllowlistSource,
   blindIndex: BlindIndex = emailBlindIndex,
@@ -63,15 +80,32 @@ export async function importAllowlist(
   const { emails, invalidLines } = parseAllowlistCsv(csv);
   const hmacs = [...new Set(await Promise.all(emails.map((email) => blindIndex(email))))];
   const received = z.number().int().nonnegative().parse(
-    await rpc("import_allowlist", { p_email_hmacs: hmacs, p_source: validSource }),
+    await callRpc(client, "import_allowlist", { p_email_hmacs: hmacs, p_source: validSource }),
   );
   return { received, invalidLines };
 }
 
-/** Fila de espera do gestor (só quem está no escopo dele), com o nome decifrado. */
-export async function listWaitlist(rpc: AccessRpc, decrypt: Decrypt = decryptField): Promise<WaitlistEntry[]> {
-  const rows = waitlistRowsSchema.parse(await rpc("list_waitlist", {}));
-  return Promise.all(
+/**
+ * Uma página da fila de espera do gestor (só quem está no escopo dele), dos mais antigos para
+ * os mais novos, com o nome decifrado. Para a próxima página, passar `nextCursor`.
+ */
+export async function listWaitlist(
+  client: AccessClient,
+  options: { limit?: number; after?: WaitlistCursor } = {},
+  decrypt: Decrypt = decryptField,
+): Promise<WaitlistPage> {
+  const limit = z.number().int().min(1).max(waitlistPageLimit.max).parse(options.limit ?? waitlistPageLimit.default);
+  const after = options.after
+    ? z.object({ createdAt: z.string().min(1), profileId: z.guid() }).parse(options.after)
+    : undefined;
+  const rows = waitlistRowsSchema.parse(
+    await callRpc(client, "list_waitlist", {
+      p_limit: limit,
+      p_after_created_at: after?.createdAt ?? null,
+      p_after_id: after?.profileId ?? null,
+    }),
+  );
+  const entries = await Promise.all(
     rows.map(async (row) => ({
       profileId: row.profile_id,
       displayName: await decrypt(row.display_name_enc, {
@@ -84,14 +118,19 @@ export async function listWaitlist(rpc: AccessRpc, decrypt: Decrypt = decryptFie
       createdAt: row.created_at,
     })),
   );
+  const last = entries.at(-1);
+  return {
+    entries,
+    nextCursor: entries.length === limit && last ? { createdAt: last.createdAt, profileId: last.profileId } : null,
+  };
 }
 
 /** Aprova (`active`) ou bloqueia (`blocked`) quem está na espera; o banco audita a decisão. */
 export async function decideAccess(
-  rpc: AccessRpc,
+  client: AccessClient,
   profileId: string,
   decision: WaitlistDecision,
 ): Promise<WaitlistDecision> {
   const args = { p_profile: z.guid().parse(profileId), p_decision: decisionSchema.parse(decision) };
-  return decisionSchema.parse(await rpc("decide_access", args));
+  return decisionSchema.parse(await callRpc(client, "decide_access", args));
 }
