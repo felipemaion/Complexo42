@@ -22,12 +22,12 @@ export async function reencryptField(value: string, context: FieldContext): Prom
   return reencryptWith(await getKeyring(), value, context);
 }
 
-/** `whatsapp_hmac`: HMAC-SHA256 em hex do WhatsApp em E.164. */
+/** `whatsapp_hmac`: HMAC-SHA256 em hex de "wa:" + WhatsApp em E.164. */
 export async function whatsappBlindIndex(whatsappE164: string): Promise<string> {
   return whatsappBlindIndexWith(await getKeyring(), whatsappE164);
 }
 
-/** `access_allowlist.email_hmac`: HMAC-SHA256 em hex do e-mail em minúsculas e sem espaços. */
+/** `access_allowlist.email_hmac`: HMAC-SHA256 em hex de "em:" + e-mail em minúsculas e sem espaços. */
 export async function emailBlindIndex(email: string): Promise<string> {
   return emailBlindIndexWith(await getKeyring(), email);
 }

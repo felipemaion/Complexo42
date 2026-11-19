@@ -98,17 +98,24 @@ export function normalizeE164(whatsapp: string): string {
   return normalized;
 }
 
-async function hmacHex(keyring: Keyring, normalized: string): Promise<string> {
-  const mac = await crypto.subtle.sign("HMAC", keyring.blindIndexKey, encoder.encode(normalized));
+/**
+ * Separação de domínio: cada tipo de índice prefixa o valor ("wa:", "em:") antes do HMAC, então
+ * o mesmo texto nunca gera o mesmo índice em dois domínios, mesmo com a mesma BLIND_INDEX_KEY.
+ */
+export type BlindIndexDomain = "wa" | "em";
+
+/** HMAC-SHA256(BLIND_INDEX_KEY, "<domínio>:" + valor já normalizado) em hex. */
+export async function blindIndexWith(keyring: Keyring, domain: BlindIndexDomain, normalized: string): Promise<string> {
+  const mac = await crypto.subtle.sign("HMAC", keyring.blindIndexKey, encoder.encode(`${domain}:${normalized}`));
   return Buffer.from(mac).toString("hex");
 }
 
-/** HMAC-SHA256(BLIND_INDEX_KEY, whatsapp E.164) em hex: unicidade e busca exata (ADR 0003 §3). */
+/** HMAC-SHA256(BLIND_INDEX_KEY, "wa:" + whatsapp E.164) em hex: unicidade e busca exata (ADR 0003 §3). */
 export async function whatsappBlindIndexWith(keyring: Keyring, whatsappE164: string): Promise<string> {
-  return hmacHex(keyring, normalizeE164(whatsappE164));
+  return blindIndexWith(keyring, "wa", normalizeE164(whatsappE164));
 }
 
-/** HMAC-SHA256(BLIND_INDEX_KEY, e-mail normalizado) em hex: lista de autorizados (ADR 0008 §1). */
+/** HMAC-SHA256(BLIND_INDEX_KEY, "em:" + e-mail normalizado) em hex: lista de autorizados (ADR 0008 §1). */
 export async function emailBlindIndexWith(keyring: Keyring, email: string): Promise<string> {
-  return hmacHex(keyring, normalizeEmail(email));
+  return blindIndexWith(keyring, "em", normalizeEmail(email));
 }

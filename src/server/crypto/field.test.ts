@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { FieldCryptoError, type FieldCryptoErrorCode } from "./errors";
 import {
+  blindIndexWith,
   decryptWith,
   emailBlindIndexWith,
   encryptWith,
@@ -176,7 +177,18 @@ describe("índice cego (HMAC-SHA256)", () => {
     expect(a).toMatch(/^[0-9a-f]{64}$/);
     expect(await whatsappBlindIndexWith(k, SECRET)).toBe(a);
     const { createHmac } = await import("node:crypto");
-    expect(a).toBe(createHmac("sha256", blind).update(SECRET).digest("hex"));
+    expect(a).toBe(createHmac("sha256", blind).update(`wa:${SECRET}`).digest("hex"));
+    const email = await emailBlindIndexWith(k, "Pessoa@Exemplo.org ");
+    expect(email).toBe(createHmac("sha256", blind).update("em:pessoa@exemplo.org").digest("hex"));
+  });
+
+  it("separa domínios: o mesmo texto bruto dá índices diferentes em \"wa\" e \"em\"", async () => {
+    const k = await keyring({ 1: randomKey() }, 1);
+    for (const raw of [SECRET, "pessoa@exemplo.org"]) {
+      expect(await blindIndexWith(k, "wa", raw)).not.toBe(await blindIndexWith(k, "em", raw));
+    }
+    expect(await whatsappBlindIndexWith(k, SECRET)).toBe(await blindIndexWith(k, "wa", SECRET));
+    expect(await emailBlindIndexWith(k, "pessoa@exemplo.org")).toBe(await blindIndexWith(k, "em", "pessoa@exemplo.org"));
   });
 
   it("normaliza o e-mail (minúsculas e sem espaços nas pontas)", async () => {
