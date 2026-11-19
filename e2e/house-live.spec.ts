@@ -6,8 +6,8 @@ import type { QuestionnaireConfig } from "../src/modules/questionnaire/domain/sc
 // Escolha da casa de ponta a ponta (#76, ADR 0008 §2 e §2.1; casa nacional, ADR 0011), contra um
 // Supabase local. Prova
 // que as respostas do questionário não saem do aparelho: inspeciona TODAS as requisições do
-// navegador, o localStorage e o sessionStorage. Não roda no CI (o job de E2E não sobe o
-// Supabase). Para rodar, com o banco de pé (`npm run db:start`):
+// navegador, o localStorage e o sessionStorage. No CI, roda no job "E2E com banco".
+// Para rodar localmente, com o banco de pé (`npm run db:start`):
 //   E2E_LIVE_SUPABASE_URL=<API_URL> E2E_LIVE_ANON_KEY=<ANON_KEY> \
 //   E2E_LIVE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY> npm run test:e2e -- house-live
 // A chave service_role fica só neste processo de teste (cria a pessoa e confere o banco); o

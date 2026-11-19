@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-// Login (#9). O CI não sobe o Supabase neste job: o Auth aponta para um endereço sem serviço
-// (playwright.config.ts). O fluxo completo do link mágico foi testado à mão com o Supabase
-// local (descrito no PR); aqui ficam a tela, a proteção das rotas e os caminhos de erro.
+// Login (#9). No job "E2E" do CI, sem Supabase, o Auth aponta para um endereço sem serviço
+// (playwright.config.ts). O fluxo real do link mágico está em e2e/auth-live.spec.ts (job "E2E
+// com banco"); aqui ficam a tela, a proteção das rotas e os caminhos de erro.
 
 // Com o Supabase de verdade (E2E_LIVE_SUPABASE_URL), os testes que dependem do Auth fora do ar
 // ficam de fora; o fluxo real está em e2e/auth-live.spec.ts.

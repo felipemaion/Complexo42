@@ -14,6 +14,17 @@ const E2E_ANON_KEY =
 // Chaves de teste (ADR 0003), aleatórias a cada execução: o gancho do primeiro login (#26)
 // compara o HMAC do e-mail com a lista de autorizados.
 const randomKey = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64");
+// A BLIND_INDEX_KEY do app também vai para os testes (e2e/fluxo-completo.spec.ts calcula o HMAC
+// do e-mail que o gestor importa, como faria o servidor). O config roda de novo em cada worker:
+// guardada no ambiente do processo principal, ela é a mesma em todos e no app.
+process.env.E2E_BLIND_INDEX_KEY ||= randomKey();
+// O webServer herda o process.env do Playwright: as chaves de serviço do Supabase local, só do
+// processo de teste, saem do ambiente do app (valor undefined = variável ausente no filho, R6).
+const testOnlySecrets = Object.fromEntries(
+  Object.keys(process.env)
+    .filter((name) => name.startsWith("E2E_LIVE_SERVICE"))
+    .map((name) => [name, undefined]),
+) as unknown as Record<string, string>;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -39,16 +50,17 @@ export default defineConfig({
     stdout: "ignore",
     stderr: "pipe",
     // Em produção o app exige DB_HEALTH_URL e o Supabase e não sobe sem eles (src/server/env.ts).
-    // O E2E não usa banco nem Auth (o CI não sobe o Supabase aqui): URLs sem serviço deixam o
-    // healthz em 503 e o login respondendo "indisponível", com o resto no ar. A chave é um JWT
-    // anon fictício, só no formato.
+    // Sem E2E_LIVE_SUPABASE_URL (job "E2E" do CI), URLs sem serviço deixam o healthz em 503 e o
+    // login respondendo "indisponível", com o resto no ar; a chave é um JWT anon fictício, só no
+    // formato. O job "E2E com banco" passa o Supabase local (ver .github/workflows/ci.yml).
     env: {
+      ...testOnlySecrets,
       DB_HEALTH_URL: "http://127.0.0.1:9/ready",
       SUPABASE_URL: E2E_SUPABASE_URL,
       SUPABASE_ANON_KEY: E2E_ANON_KEY,
       SITE_URL: baseURL,
       FIELD_ENCRYPTION_KEY: randomKey(),
-      BLIND_INDEX_KEY: randomKey(),
+      BLIND_INDEX_KEY: process.env.E2E_BLIND_INDEX_KEY,
       LOG_DIR: "test-results/logs",
       // Turnstile (#116): chaves de TESTE oficiais e públicas da Cloudflare, que sempre passam
       // (as mesmas de src/server/auth/turnstile.ts). Em produção as reais são obrigatórias.

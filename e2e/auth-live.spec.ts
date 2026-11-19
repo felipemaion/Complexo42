@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-// Fluxo real do link mágico (#9), contra um Supabase local com o Mailpit. Não roda no CI (o job
-// de E2E não sobe o Supabase). Para rodar:
+// Fluxo real do link mágico (#9), contra um Supabase local com o Mailpit. No CI, roda no job
+// "E2E com banco". Para rodar localmente:
 //   1. `npm run db:start` com `site_url` do supabase/config.toml apontando para a porta do E2E
 //      (http://127.0.0.1:3100) e o Mailpit ligado;
 //   2. E2E_LIVE_SUPABASE_URL=<API_URL> E2E_LIVE_ANON_KEY=<ANON_KEY> E2E_MAILPIT_URL=<Mailpit>

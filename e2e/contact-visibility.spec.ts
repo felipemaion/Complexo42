@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
-// "Quem vê meu contato" (#119, ADR 0010). Sem Supabase (o CI): só a proteção da rota. Com o
+// "Quem vê meu contato" (#119, ADR 0010). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o
 // Supabase local, o fluxo real: A e B se cadastram, são liberadas e postas na mesma equipe
 // (como faria a coordenação); A autoriza a equipe a ver o WhatsApp, B vê (pela função do banco,
 // com o JWT dela: a tela de membros é de outra issue), A vê o registro, volta para "só a
