@@ -86,6 +86,29 @@
 73. **Questionário das casas:** a licença permite usá-lo na plataforma?
 74. **Tamanho da equipe** (cerca de 12?) e **duração do ciclo** (4 meses?).
 
+### Questionário das casas (recebido em 2026-11-18, ADR 0008 §2.1)
+
+75. **Chave de correção:**
+    - qual alternativa conta para qual polo em cada pergunta?
+    - como desempatar um eixo (por exemplo, 4 × 4)?
+    - o que vale quando a pessoa marca "as duas"?
+76. **Do temperamento à casa:** nossa hipótese é
+    - idealista (NF) → porta-vozes;
+    - guardião (SJ) → coordenação de equipe;
+    - racional (NT) → intelectuais;
+    - artesão (SP) → produção.
+
+    Confere?
+77. **Extroversão × introversão:** esse eixo não define o temperamento. As cinco perguntas
+    dele continuam? Sem elas, o questionário fica mais curto e coleta menos.
+78. **Termo de consentimento:** podemos adaptá-lo assim?
+    - **Resultado:** só a própria pessoa vê o temperamento. A plataforma guarda apenas a
+      casa sugerida.
+    - **Assinatura e e-mail:** dão lugar a um aceite na tela, registrado com data e versão.
+    - **Desistência:** vira o botão "escolher outra casa".
+79. **Licença:** quem detém os direitos das perguntas e da adaptação? Até a resposta, o texto
+    fica fora do repositório público (pergunta 73).
+
 ## Novas perguntas (após as definições)
 
 46. ⛔ **O que é uma turma?** Tem monitor fixo, datas de início e fim? Um aluno pode estar em
