@@ -17,13 +17,11 @@ truncate public.role_assignments, public.unit_members, public.units;
 --       │           └─ zl ──── team_c
 --       └─ mg (MG) ──── central ── team_m
 -- ---------------------------------------------------------------------------------------
-create function pg_temp.unit(p_slug text) returns uuid language sql as $$
-  select id from public.units where slug = p_slug
-$$;
 create function pg_temp.add_unit(p_type text, p_parent text, p_slug text, p_state char(2) default null)
 returns void language sql as $$
   insert into public.units (type_id, parent_id, slug, name, state_code, path)
-  select t.id, pg_temp.unit(p_parent), p_slug, p_slug, p_state, p_slug::extensions.ltree
+  select t.id, (select u.id from public.units as u where u.slug = p_parent), p_slug, p_slug,
+         p_state, p_slug::extensions.ltree
   from public.unit_types as t where t.key = p_type
 $$;
 
@@ -38,6 +36,25 @@ select pg_temp.add_unit('team', 'abc', 'team_b');
 select pg_temp.add_unit('house', 'abc', 'house_1');
 select pg_temp.add_unit('team', 'zl', 'team_c');
 select pg_temp.add_unit('team', 'central', 'team_m');
+
+-- Ids das unidades lidos aqui, como dono do banco, ANTES de qualquer troca de papel (#113).
+-- Depois de `set local role authenticated`, uma consulta a `public.units` passa pela RLS: a
+-- unidade fora do escopo viria nula e o teste negaria o acesso pelo motivo errado. O helper
+-- lê só desta tabela e falha (P0002) com nome desconhecido, em vez de devolver nulo.
+create temp table unit_ids (slug text primary key, id uuid not null unique);
+insert into unit_ids select slug, id from public.units;
+grant select on unit_ids to authenticated;
+create function pg_temp.unit(p_slug text) returns uuid language plpgsql stable as $$
+declare
+  found_id uuid;
+begin
+  select id into found_id from unit_ids where slug = p_slug;
+  if found_id is null then
+    raise exception 'unidade de teste desconhecida: %', p_slug using errcode = 'no_data_found';
+  end if;
+  return found_id;
+end;
+$$;
 
 -- ---------------------------------------------------------------------------------------
 -- Pessoas (ids fictícios em auth.users)
@@ -68,7 +85,10 @@ insert into people values
   ('mon_susp',    '00000000-0000-0000-0000-00000000001b'),  -- monitor da equipe B, suspenso
   ('stu_pend',    '00000000-0000-0000-0000-00000000001c'),  -- na equipe A, ainda pendente
   ('stu_susp',    '00000000-0000-0000-0000-00000000001d'),  -- na equipe A, conta suspensa
-  ('tech_wait',   '00000000-0000-0000-0000-00000000001e');  -- admin técnico, mas na espera
+  ('tech_wait',   '00000000-0000-0000-0000-00000000001e'),  -- admin técnico, mas na espera
+  ('nat_mon',     '00000000-0000-0000-0000-00000000001f'),  -- monitor na raiz (monitor nunca concede)
+  ('tech_rev',    '00000000-0000-0000-0000-000000000020'),  -- ex-admin técnico (revogado)
+  ('wait_moved',  '00000000-0000-0000-0000-000000000021');  -- na espera; saiu da equipe A, foi para MG
 
 insert into auth.users (id) select id from people;
 
@@ -82,13 +102,23 @@ where id not in ('00000000-0000-0000-0000-00000000001c');
 update public.profiles set access_status = 'waitlisted'
 where id in ('00000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-00000000001a',
              '00000000-0000-0000-0000-00000000001e');
+update public.profiles set access_status = 'waitlisted'
+where id = (select id from people where name = 'wait_moved');
 update public.profiles set access_status = 'blocked'
 where id = '00000000-0000-0000-0000-000000000019';
 update public.profiles set status = 'suspended'
 where id in ('00000000-0000-0000-0000-00000000001b', '00000000-0000-0000-0000-00000000001d');
 
-create function pg_temp.person(p_name text) returns uuid language sql as $$
-  select id from people where name = p_name
+create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
+declare
+  found_id uuid;
+begin
+  select id into found_id from people where name = p_name;
+  if found_id is null then
+    raise exception 'pessoa de teste desconhecida: %', p_name using errcode = 'no_data_found';
+  end if;
+  return found_id;
+end;
 $$;
 
 insert into public.role_assignments (profile_id, role, unit_id) values
@@ -102,12 +132,14 @@ insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('spokes_a'), 'spokesperson', pg_temp.unit('team_a')),
   (pg_temp.person('mon_wait'), 'monitor', pg_temp.unit('sp')),
   (pg_temp.person('mon_susp'), 'monitor', pg_temp.unit('team_b')),
-  (pg_temp.person('tech_wait'), 'tech_admin', pg_temp.unit('br'));
+  (pg_temp.person('tech_wait'), 'tech_admin', pg_temp.unit('br')),
+  (pg_temp.person('nat_mon'), 'monitor', pg_temp.unit('br'));
 -- Papel concedido por quem hoje está na espera (para o caso "revoga o que concedeu").
 insert into public.role_assignments (profile_id, role, unit_id, granted_by) values
   (pg_temp.person('stu_m'), 'spokesperson', pg_temp.unit('team_m'), pg_temp.person('tech_wait'));
 insert into public.role_assignments (profile_id, role, unit_id, revoked_at) values
-  (pg_temp.person('revoked_mgr'), 'manager', pg_temp.unit('mg'), now());
+  (pg_temp.person('revoked_mgr'), 'manager', pg_temp.unit('mg'), now()),
+  (pg_temp.person('tech_rev'), 'tech_admin', pg_temp.unit('br'), now());
 
 insert into public.unit_members (unit_id, profile_id, left_at) values
   (pg_temp.unit('team_a'), pg_temp.person('stu_a'), null),
@@ -122,7 +154,9 @@ insert into public.unit_members (unit_id, profile_id, left_at) values
   (pg_temp.unit('team_a'), pg_temp.person('stu_wait'), null),
   (pg_temp.unit('team_a'), pg_temp.person('stu_blocked'), null),
   (pg_temp.unit('team_a'), pg_temp.person('stu_pend'), null),
-  (pg_temp.unit('team_a'), pg_temp.person('stu_susp'), null);
+  (pg_temp.unit('team_a'), pg_temp.person('stu_susp'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('wait_moved'), now()),
+  (pg_temp.unit('team_m'), pg_temp.person('wait_moved'), null);
 
 -- Contatos fictícios (formato válido; o banco não decifra nada).
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
@@ -138,6 +172,8 @@ from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_susp', 'team_a_mon
 --   audit_import / audit_decision → app.can_read_audit (importação / decisão sobre o alvo)
 --   grant_<papel>     → app.can_grant_role('<papel>', unidade, outsider)
 --   selfgrant_<papel> → app.can_grant_role('<papel>', unidade, o próprio ator)
+--   revoke     → app.can_revoke_role(unidade, concedido por outra pessoa: outsider)
+--   revoke_own → app.can_revoke_role(unidade, concedido pelo próprio ator)
 -- ---------------------------------------------------------------------------------------
 create temp table matrix (
   ord int generated always as identity,
@@ -357,7 +393,48 @@ insert into matrix (actor, action, target, expected) values
   ('stu_a', 'audit_decision', 'stu_a', false),
   ('nat_mgr', 'audit_decision', 'nat_mgr', false),
   ('nat_mgr', 'decide', 'nat_mgr', false),
-  ('anon', 'audit_decision', 'stu_wait', false);
+  ('anon', 'audit_decision', 'stu_wait', false),
+  -- Checagem de mutação (#113): cada linha abaixo derruba uma guarda que antes não tinha teste
+  -- Contato: vínculo encerrado não dá escopo
+  ('team_a_mon', 'contact', 'stu_moved', false),
+  ('sp_mgr', 'contact', 'stu_moved', false),
+  ('mg_mgr', 'contact', 'stu_moved', true),
+  -- Unidades: tech_admin revogado não vê a estrutura; vínculo encerrado não mostra a unidade
+  ('tech_rev', 'unit', 'team_a', false),
+  ('tech_rev', 'unit', 'br', false),
+  ('stu_gone', 'unit', 'team_a', false),
+  ('stu_moved', 'unit', 'team_a', false),
+  ('stu_moved', 'unit', 'team_m', true),
+  -- Monitor na raiz: vê e gerencia tudo, mas nunca concede, revoga, importa nem decide
+  ('nat_mon', 'profile', 'stu_m', true),
+  ('nat_mon', 'contact', 'stu_a', true),
+  ('nat_mon', 'manage', 'sp', true),
+  ('nat_mon', 'grant_monitor', 'team_a', false),
+  ('nat_mon', 'grant_spokesperson', 'sp', false),
+  ('nat_mon', 'revoke', 'sp', false),
+  ('nat_mon', 'import', 'br', false),
+  ('nat_mon', 'audit_import', 'br', false),
+  ('nat_mon', 'decide', 'stu_wait', false),
+  -- tech_admin só cria manager na raiz, nunca em outra unidade sem manager
+  ('tech', 'grant_manager', 'team_a', false),
+  -- Fila: o vínculo encerrado não dá escopo para decidir; vale o aberto
+  ('sp_mgr', 'decide', 'wait_moved', false),
+  ('abc_mgr', 'decide', 'wait_moved', false),
+  ('sp_mgr', 'audit_decision', 'wait_moved', false),
+  ('mg_mgr', 'decide', 'wait_moved', true),
+  -- Revogar: só o que concedeu, ou manager estritamente acima e no mesmo ramo
+  ('sp_mgr', 'revoke', 'team_a', true),
+  ('nat_mgr', 'revoke', 'mg', true),
+  ('tech', 'revoke_own', 'br', true),
+  ('sp_mgr', 'revoke', 'sp', false),
+  ('sp_mgr', 'revoke', 'team_m', false),
+  ('abc_mgr', 'revoke', 'zl', false),
+  ('team_a_mon', 'revoke', 'team_a', false),
+  ('spokes_a', 'revoke', 'team_a', false),
+  ('tech', 'revoke', 'team_a', false),
+  ('revoked_mgr', 'revoke', 'team_m', false),
+  ('stu_a', 'revoke', 'team_a', false),
+  ('anon', 'revoke', 'team_a', false);
 
 create function pg_temp.check_access(p_actor text, p_action text, p_target text)
 returns boolean language plpgsql as $$
@@ -384,6 +461,10 @@ begin
       app.can_grant_role(substr(p_action, 7), pg_temp.unit(p_target), pg_temp.person('outsider'))
     when p_action like 'selfgrant\_%' then
       app.can_grant_role(substr(p_action, 11), pg_temp.unit(p_target), pg_temp.person(p_actor))
+    when p_action = 'revoke' then
+      app.can_revoke_role(pg_temp.unit(p_target), pg_temp.person('outsider'))
+    when p_action = 'revoke_own' then
+      app.can_revoke_role(pg_temp.unit(p_target), pg_temp.person(p_actor))
   end;
 end;
 $$;
@@ -395,7 +476,29 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 85);
+select plan((select count(*)::int from matrix) + 96);
+
+-- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
+-- existe nas tabelas lidas como dono, e as 11 unidades da árvore foram capturadas.
+select is((select count(*)::int from unit_ids), 11, 'ids das 11 unidades lidos como dono do banco');
+select is_empty(
+  $$ select actor from matrix where actor <> 'anon' and actor not in (select name from people)
+     union all
+     select target from matrix
+     where action in ('profile', 'contact', 'edit', 'decide', 'audit_decision')
+       and target not in (select name from people)
+     union all
+     select target from matrix
+     where (action in ('manage', 'unit', 'import', 'audit_import', 'revoke', 'revoke_own')
+            or action like 'grant\_%' or action like 'selfgrant\_%')
+       and target not in (select slug from unit_ids) $$,
+  'toda pessoa e toda unidade citada na matriz tem id (nenhum id nulo)'
+);
+select is_empty(
+  $$ select name from people where id is null
+     union all select slug from unit_ids where id is null $$,
+  'nenhum id de pessoa ou unidade é nulo'
+);
 
 select is(
   pg_temp.check_access(actor, action, target),
@@ -405,6 +508,21 @@ select is(
 )
 from matrix
 order by ord;
+
+-- Casos de borda das funções (checagem de mutação, #113). O resultado tem que ser `false`,
+-- não nulo: a RLS trata nulo como negado, mas quem chama a função pelo servidor não.
+select set_config('request.jwt.claims', '{"role": "authenticated"}', true);
+select is(app.can_read_municipalities(), false,
+  'JWT sem `sub` (auth.uid() nulo) NÃO lê municípios');
+select pg_temp.login('sp_mgr');
+select is(app.can_grant_role('monitor', pg_temp.unit('team_a'), null), false,
+  'conceder papel sem dizer a quem é negado (false, não nulo)');
+select pg_temp.login('nat_mgr');
+select is(app.manages_member(null), false,
+  'gestor da raiz NÃO gerencia alvo nulo (false, não nulo)');
+select pg_temp.login('tech');
+select is_empty($$ select 1 from app.my_scopes() $$,
+  'admin técnico não tem escopo de dados (my_scopes vazio)');
 
 reset request.jwt.claims;
 
@@ -643,34 +761,52 @@ select throws_ok(
 reset role;
 update public.role_assignments set revoked_at = now()
 where profile_id = pg_temp.person('nat_mgr');
--- O id da raiz é lido aqui, como dono: quem está na espera não lê `units`, e o helper
--- devolveria nulo (o teste passaria pelo motivo errado).
-select set_config('test.root_unit', pg_temp.unit('br')::text, true),
-       set_config('test.team_m_unit', pg_temp.unit('team_m')::text, true);
 set local role authenticated;
 select pg_temp.login('tech_wait');
 select is(
-  app.can_grant_role('manager', current_setting('test.root_unit')::uuid, pg_temp.person('outsider')),
+  app.can_grant_role('manager', pg_temp.unit('br'), pg_temp.person('outsider')),
   false,
   'admin técnico na espera NÃO cria o gestor nacional'
 );
 select throws_ok(
   $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
-     values (pg_temp.person('outsider'), 'manager', current_setting('test.root_unit')::uuid,
+     values (pg_temp.person('outsider'), 'manager', pg_temp.unit('br'),
              pg_temp.person('tech_wait')) $$,
   '42501', null,
   'admin técnico na espera NÃO insere o gestor nacional'
 );
 select is(
-  app.can_revoke_role(current_setting('test.team_m_unit')::uuid, pg_temp.person('tech_wait')),
+  app.can_revoke_role(pg_temp.unit('team_m'), pg_temp.person('tech_wait')),
   false,
   'quem está na espera NÃO revoga nem o papel que concedeu'
 );
+-- Sem manager na raiz, só o tech_admin ativo cria, e só o papel de manager.
+select pg_temp.login('tech_rev');
+select is(
+  app.can_grant_role('manager', pg_temp.unit('br'), pg_temp.person('outsider')),
+  false,
+  'admin técnico revogado NÃO cria o gestor nacional'
+);
+select pg_temp.login('sp_mgr');
+select is(
+  app.can_grant_role('manager', pg_temp.unit('br'), pg_temp.person('outsider')),
+  false,
+  'gestor de SP NÃO cria o gestor nacional, nem com a raiz vaga'
+);
 select pg_temp.login('tech');
+select is(
+  app.can_grant_role('monitor', pg_temp.unit('br'), pg_temp.person('outsider')),
+  false,
+  'admin técnico NÃO concede monitor na raiz, nem com a raiz vaga'
+);
+select is(
+  app.can_grant_role('spokesperson', pg_temp.unit('br'), pg_temp.person('outsider')),
+  false,
+  'admin técnico NÃO concede porta-voz na raiz, nem com a raiz vaga'
+);
 select throws_ok(
   $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
-     select (select auth.uid()), 'manager', id, (select auth.uid())
-     from public.units where slug = 'br' $$,
+     values ((select auth.uid()), 'manager', pg_temp.unit('br'), (select auth.uid())) $$,
   '42501', null,
   'admin técnico NÃO concede a si mesmo o papel de gestor nacional'
 );
