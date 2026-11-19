@@ -284,7 +284,8 @@ automática na importação) e em `house_accepted` (a forma de entrada: `self` o
 (`app.can_read_audit`): `allowlist_imported`, o gestor da raiz; eventos sobre uma pessoa, o
 gestor com escopo sobre ela. Ninguém grava, altera nem apaga pela API: só as funções do banco.
 Um trigger recusa `UPDATE`, `DELETE` e `TRUNCATE` até para o dono do banco: o log só aceita
-inserções. Limpeza (retenção, LGPD) precisa de migration própria que desligue o trigger de
+inserções. `account_deleted` (#18): ator e alvo = o id da conta apagada, que fica como uuid solto
+em todos os eventos (veja "Excluir minha conta"). Limpeza (retenção, LGPD) precisa de migration própria que desligue o trigger de
 forma explícita; nenhum teste ou migration atual limpa o log.
 
 ### "Baixar meus dados" (#20, LGPD art. 18)
@@ -302,6 +303,64 @@ decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.
   `audit_log`, que só aceita inserções.
 - **Resposta:** anexo `meus-dados-AAAA-MM-DD.json`, `Cache-Control: private, no-store`. O
   conteúdo nunca vai para log (R11).
+
+### "Excluir minha conta" (#18, LGPD art. 18, VI)
+A pessoa exclui a própria conta pelo link da página inicial (ou da tela de espera), em
+`/excluir-conta`. A exclusão é **real e imediata**: não há "conta desativada".
+
+- **Quem:** qualquer pessoa com sessão, inclusive quem está na espera ou ainda não preencheu o
+  perfil. A página fica fora do portão de acesso de propósito. Quem está `blocked` perde a
+  sessão no login e hoje pede a exclusão ao encarregado (pendência anotada no PR).
+- **Como:** o servidor chama `public.delete_own_account()` (`security definer`) com o JWT da
+  pessoa. A função **não recebe alvo**: apaga só `auth.uid()`. Nunca `service_role` (R6): o app
+  não tem essa chave, e o `postgres` (dono da função) já tem DELETE em `auth.users`.
+- **Confirmação forte:** escrever `EXCLUIR` (conferido no servidor, com Zod) **e** ter entrado
+  há no máximo 10 minutos. A hora do login vem do `amr` do JWT, assinado pelo GoTrue, e o
+  **banco** confere (erro `PT401`, `reauth_required`); a tela só decide se mostra a
+  confirmação ou o botão "Sair e entrar de novo". Cookie roubado ou aparelho esquecido aberto
+  não bastam.
+- **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
+  `profiles`, `profile_contacts`, `unit_members` e `role_assignments` da pessoa,
+  `access_waitlist_hmac`, `questionnaire_consents` e `app.profile_save_attempts`. A função
+  apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`) e o
+  `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
+- **O que fica dos outros:** quando a pessoa aparece no dado de outra
+  (`role_assignments.granted_by`, `unit_members.ended_by`), a linha fica e a referência vira
+  nula. O trigger de `ended_by` aceita esse nulo só quando o perfil citado não existe mais.
+- **`audit_log`:** continua só-inserção (o trigger não muda; ninguém pseudonimiza linhas). Os
+  eventos antigos guardam o id da conta apagada como uuid solto, sem FK: sem `auth.users` e
+  sem perfil, nada no banco liga esse id a uma pessoa. A função grava `account_deleted` (ator e
+  alvo = o id apagado, sem mais nada). Esse evento serve também para **reaplicar** a exclusão
+  quando um backup antigo for restaurado (`docs/OPERACAO.md`). Gestores não leem esse evento
+  pela API (o escopo depende de vínculo, que já não existe).
+- **Fica de fora, por decisão:** `access_allowlist` é a lista que a organização importa (só
+  HMAC do e-mail, sem ligação com a conta). Ela não muda: se a pessoa quiser sair da lista, o
+  pedido vai à organização, que a reimporta sem ela. `access_allowlist.added_by` é uuid solto.
+- **Contagem anônima de ações:** ainda não existe tabela de ações (missões, entregas, pontos);
+  nada a preservar hoje. A regra abaixo diz como as futuras tratam a exclusão.
+- **Backups:** saem do ar em até 35 dias (7 diários + 4 semanais, `docs/OPERACAO.md`), como
+  diz o termo.
+
+#### Regra para tabelas novas (`on delete`)
+Toda tabela que cita uma pessoa precisa sobreviver à exclusão da conta sem guardar nada dela:
+
+| Caso | `on delete` | Exemplos (futuros) |
+|---|---|---|
+| A linha é **dado da pessoa** | `cascade` | `profile_skills`, `profile_badges`, `portfolio_items`, `mission_run_members` |
+| A pessoa é **autora/ator** numa linha de outra pessoa ou de uma unidade | `set null` | `granted_by`, `ended_by`, `reviewed_by`, `awarded_by`, `created_by`, `member_evaluations.evaluator_id` |
+| **Contagem anônima** que precisa ficar (ações da unidade) | `set null` na coluna da pessoa | `points_ledger.profile_id`, `step_submissions.submitted_by`: o lançamento fica para a unidade, sem dono |
+| Log só-inserção | **sem FK** (uuid solto) | `audit_log.actor_id`/`target_id` |
+
+- `restrict` ou `no action` para `auth.users`/`profiles` é proibido: impediria a exclusão. O
+  teste `supabase/tests/delete_own_account.test.sql` falha se alguma FK de `public`/`app`
+  fizer isso.
+- Texto livre que possa identificar a pessoa numa linha que fica (ex.: `badges.story` de uma
+  medalha com `named_after_profile_id`) precisa ser apagado junto, na própria função ou por
+  trigger.
+- Trigger que "protege" uma coluna de referência (como o de `ended_by`) precisa aceitar o nulo
+  da cascata.
+- Quem cria tabela que cita pessoa acrescenta uma linha da pessoa A no teste da exclusão: a
+  checagem `leftovers` varre toda coluna uuid e falha se o id sobrar.
 
 ## Acesso
 

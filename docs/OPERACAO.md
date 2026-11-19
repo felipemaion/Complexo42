@@ -259,6 +259,29 @@ a copia nem a imprime. No servidor, apague a cópia temporária ao terminar.
 
 Rodar **antes do primeiro dado real** e **todo mês**, anotando o tempo na #84.
 
+### Restaurar em produção: reaplicar as exclusões de conta (#18)
+
+Um backup é anterior às exclusões feitas depois dele. Restaurar sem cuidado traria de volta
+contas que as pessoas apagaram (LGPD art. 18, VI). Se o banco atual ainda abre, **antes** de
+restaurar, guarde os ids:
+
+```sql
+select distinct target_id from public.audit_log where event = 'account_deleted';
+```
+
+Depois de restaurar, como `postgres`, apague cada id da lista que voltou:
+
+```sql
+delete from auth.audit_log_entries where payload ->> 'actor_id' = '<id>' or payload -> 'traits' ->> 'user_id' = '<id>';
+delete from auth.flow_state where user_id = '<id>';
+delete from auth.users where id = '<id>';  -- o resto vai em cascata
+insert into public.audit_log (actor_id, event, target_id) values ('<id>', 'account_deleted', '<id>');
+```
+
+Se o banco atual se perdeu, as exclusões feitas depois do último backup se perdem com ele
+(no máximo um dia, com o backup diário): avise no canal de incidentes e trate como pedido
+pendente de quem tiver reclamado.
+
 ### Cópia fora da VPS (Google Drive via rclone)
 
 Backup que mora no mesmo disco do banco não é backup: se a instância sumir, ele
