@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
+import { MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { hasOwnProfile } from "@/modules/profiles";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
@@ -16,7 +17,9 @@ export default async function SignedInHome({ searchParams }: Props) {
   // A página também confere (o layout e a página renderizam em paralelo); `cache` evita repetir.
   const { user, client } = await requireUserClient();
   if (!(await hasOwnProfile(client, user.id))) redirect(PROFILE_PATH);
-  const saved = (await searchParams).salvo === "1";
+  const params = await searchParams;
+  const saved = params.salvo === "1";
+  const myDataStatus = parseMyDataStatus(params[MY_DATA_STATUS_PARAM]);
   const text = instance.auth;
   return (
     <main className="mx-auto flex max-w-md flex-col justify-center gap-6 p-6 pt-16">
@@ -36,6 +39,24 @@ export default async function SignedInHome({ searchParams }: Props) {
       >
         {instance.profile.editLink}
       </Link>
+      {/* "Baixar meus dados" (#20): POST para o servidor montar o arquivo; nada no navegador. */}
+      <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-3">
+        {myDataStatus && (
+          <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+            {myDataStatus === "limite" ? instance.myData.rateLimited : instance.myData.failed}
+          </p>
+        )}
+        <button
+          type="submit"
+          aria-describedby="my-data-hint"
+          className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+        >
+          {instance.myData.downloadButton}
+        </button>
+        <p id="my-data-hint" className="text-base">
+          {instance.myData.downloadHint}
+        </p>
+      </form>
     </main>
   );
 }

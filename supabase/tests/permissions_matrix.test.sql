@@ -476,7 +476,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 101);
+select plan((select count(*)::int from matrix) + 104);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 11 unidades da árvore foram capturadas.
@@ -1035,6 +1035,24 @@ select pg_temp.login('team_a_mon');
 select throws_ok($$ delete from app.profile_save_attempts $$, '42501', null,
   'coordenador NÃO apaga tentativas (nem para liberar o limite de um membro)');
 
+-- "Baixar meus dados" (#20): escopo não alcança a exportação. Quem gerencia todo mundo
+-- recebe só os próprios vínculos e papéis; nunca os de quem está no seu escopo.
+set local role authenticated;
+select pg_temp.login('nat_mgr');
+select is(
+  (select jsonb_array_length(d->'memberships') || '/' || jsonb_array_length(d->'roles') || '/'
+          || (d->'roles'->0->>'unit_name') from public.export_own_data() as d),
+  '0/1/br',
+  'gestor nacional exporta só o próprio papel, sem os vínculos de quem está no escopo'
+);
+select pg_temp.login('team_a_mon');
+select is(
+  (select jsonb_array_length(d->'memberships') || '/' || (d->'roles'->0->>'role')
+     from public.export_own_data() as d),
+  '0/monitor',
+  'monitor da equipe NÃO recebe os vínculos dos alunos da equipe na exportação'
+);
+
 -- Visitante anônimo
 set local role anon;
 set local request.jwt.claims to '{"role": "anon"}';
@@ -1052,6 +1070,12 @@ select throws_ok(
   $$ select 1 from public.profile_contacts $$,
   '42501', null,
   'visitante anônimo não lê contatos'
+);
+
+select throws_ok(
+  $$ select public.export_own_data() $$,
+  '42501', null,
+  'visitante anônimo NÃO exporta dados'
 );
 
 reset role;

@@ -231,7 +231,7 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `id`, `actor_id`, `event` (`contact_viewed`, `role_granted`,
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
-`access_granted`, `access_blocked`), `target_id`, `item_count`, `reason`, `created_at`.
+`access_granted`, `access_blocked`, `data_exported`), `target_id`, `item_count`, `reason`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` só existe nas decisões de acesso: `manual` (fila do gestor) ou `import` (liberação
 automática na importação).
@@ -241,6 +241,22 @@ gestor com escopo sobre ela. Ninguém grava, altera nem apaga pela API: só as f
 Um trigger recusa `UPDATE`, `DELETE` e `TRUNCATE` até para o dono do banco: o log só aceita
 inserções. Limpeza (retenção, LGPD) precisa de migration própria que desligue o trigger de
 forma explícita; nenhum teste ou migration atual limpa o log.
+
+### "Baixar meus dados" (#20, LGPD art. 18)
+A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
+ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
+lê só as linhas de `auth.uid()` (perfil, contato, vínculos inclusive encerrados, papéis e
+eventos do `audit_log` cujo alvo é a pessoa) e devolve os valores ainda cifrados. O servidor
+decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.
+
+- **Fica de fora:** `whatsapp_hmac`, os HMACs de e-mail (lista e espera), ids de terceiros
+  (`granted_by`, `actor_id`), colegas de unidade e o próprio id interno. Dos vínculos e papéis
+  vão só o nome e o tipo da unidade. Quem acessou o contato (ADR 0010) entra com a #119.
+- **Auditoria e limite:** cada exportação grava `data_exported` (ator e alvo = a pessoa, sem
+  dado pessoal); a 6ª na mesma hora é recusada (erro 54000). O contador é o próprio
+  `audit_log`, que só aceita inserções.
+- **Resposta:** anexo `meus-dados-AAAA-MM-DD.json`, `Cache-Control: private, no-store`. O
+  conteúdo nunca vai para log (R11).
 
 ## Acesso
 
