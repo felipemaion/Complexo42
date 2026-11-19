@@ -18,7 +18,8 @@
 --    banco confere que existe a casa na região da pessoa (`app.house_unit_for`). O seed e a
 --    config são conferidos juntos por tests/house-units.test.ts.
 -- 5. RPCs (`security definer`, só para quem está logado e ativo, e só sobre si mesmo), com
---    registro no audit_log (`questionnaire_consented`, `house_accepted`):
+--    registro no audit_log (`questionnaire_consented`, `house_accepted`; os eventos e a
+--    coluna `term_version` entram em `20261119190100_house_audit_events.sql`):
 --    - `record_questionnaire_consent(term_version)`;
 --    - `accept_house(house_key, join_method, term_version)`: grava o vínculo de casa aceito.
 --
@@ -102,42 +103,6 @@ create trigger unit_members_set_ended_by
   for each row execute function app.tg_unit_members_set_ended_by();
 
 revoke execute on function app.tg_unit_members_set_ended_by() from public, anon, authenticated;
-
--- ---------------------------------------------------------------------------------------
--- audit_log: os dois eventos novos
--- ---------------------------------------------------------------------------------------
--- `house_accepted`: actor = a pessoa, target = a unidade da casa, reason = a forma de
--- entrada (self ou questionnaire), term_version = a versão do termo (só no questionário).
--- `questionnaire_consented`: actor = a pessoa, term_version = a versão. Nunca respostas.
-alter table public.audit_log
-  add column term_version text
-    constraint audit_log_term_version_format check (term_version ~ '^[A-Za-z0-9._-]{1,32}$');
-
-alter table public.audit_log
-  drop constraint audit_log_event_check,
-  add constraint audit_log_event_check check (event in (
-    'contact_viewed', 'role_granted', 'role_revoked', 'member_moved', 'logo_approved',
-    'export', 'badge_granted', 'badge_revoked', 'submission_approved',
-    'submission_rejected', 'points_adjusted', 'account_deleted',
-    'allowlist_imported', 'access_granted', 'access_blocked',
-    'house_accepted', 'questionnaire_consented'
-  )),
-  drop constraint audit_log_reason_check,
-  drop constraint audit_log_reason_only_for_access,
-  add constraint audit_log_reason_by_event check (
-    case
-      when event in ('access_granted', 'access_blocked') then reason in ('manual', 'import')
-      when event = 'house_accepted' then reason in ('self', 'questionnaire')
-      else reason is null
-    end
-  ),
-  add constraint audit_log_term_version_by_event check (
-    case
-      when event = 'questionnaire_consented' then term_version is not null
-      when event = 'house_accepted' then (term_version is not null) = (reason = 'questionnaire')
-      else term_version is null
-    end
-  );
 
 -- ---------------------------------------------------------------------------------------
 -- 4. Região e casa da pessoa

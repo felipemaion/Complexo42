@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(73);
+select plan(74);
 
 truncate public.role_assignments, public.unit_members, public.units;
 
@@ -427,6 +427,23 @@ select throws_ok(
   $$ insert into public.audit_log (actor_id, event) values (pg_temp.person('p_q'), 'questionnaire_consented') $$,
   '23514', null,
   'questionnaire_consented exige a versão'
+);
+
+-- A constraint de eventos é redefinida inteira (20261119190100): nenhum evento anterior some,
+-- inclusive `data_exported` (#20).
+select lives_ok(
+  $$ insert into public.audit_log (actor_id, event, item_count, reason, term_version)
+     select pg_temp.person('p_q'), e,
+            case when e = 'allowlist_imported' then 1 end,
+            case when e in ('access_granted', 'access_blocked') then 'manual'
+                 when e = 'house_accepted' then 'self' end,
+            case when e = 'questionnaire_consented' then 'termo-1' end
+     from unnest(array['contact_viewed', 'role_granted', 'role_revoked', 'member_moved',
+       'logo_approved', 'export', 'badge_granted', 'badge_revoked', 'submission_approved',
+       'submission_rejected', 'points_adjusted', 'account_deleted', 'allowlist_imported',
+       'access_granted', 'access_blocked', 'data_exported', 'house_accepted',
+       'questionnaire_consented']) as e $$,
+  'o audit_log aceita todos os eventos anteriores (inclusive data_exported) e os dois novos'
 );
 
 -- Só a casa: nenhuma coluna nem parâmetro recebe as respostas do questionário.
