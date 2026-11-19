@@ -1,0 +1,83 @@
+# Implanta uma tag já publicada (issue #81, ADR 0009 §3).
+#
+# Chamado pelo build.yml com a tag e o ambiente EXPLÍCITOS. Preferi
+# `workflow_call` a `workflow_run`: ali os valores chegam como entradas
+# declaradas, em vez de serem garimpados do payload do evento -- menos chance
+# de o ambiente errado ser escolhido por uma leitura equivocada.
+#
+# O environment `production` é quem exige a aprovação do mantenedor; o
+# `staging` não exige. Os secrets são POR AMBIENTE, então a mesma chave nunca
+# serve para os dois.
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      tag: { required: true, type: string }
+      ambiente: { required: true, type: string }
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag já publicada (sha-<hex> ou vAAAA.MM.DD)"
+        required: true
+        type: string
+      ambiente:
+        required: true
+        type: choice
+        options: [staging, production]
+
+# Nenhuma permissão de token: este workflow não fala com a API do GitHub.
+permissions: {}
+
+jobs:
+  implantar:
+    name: Implanta em ${{ inputs.ambiente }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.ambiente }}
+    # No job, e não no topo: em `workflow_call` o contexto `inputs` nem sempre
+    # é avaliável no nível do workflow, e um deploy a mais por engano é pior
+    # que uma linha a mais de YAML.
+    concurrency:
+      group: deploy-${{ inputs.ambiente }}
+      cancel-in-progress: false
+    steps:
+      - name: A tag tem de ser do formato esperado
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            sha-*) printf %s "$TAG" | grep -Eq '^sha-[0-9a-f]{7,40}$' ;;
+            v*) printf %s "$TAG" | grep -Eq '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$' ;;
+            *) false ;;
+          esac || { echo "ERRO: tag '$TAG' fora do padrao"; exit 1; }
+        env:
+          TAG: ${{ inputs.tag }}
+
+      - name: Implantar por SSH
+        env:
+          CHAVE: ${{ secrets.DEPLOY_SSH_KEY }}
+          CONHECIDOS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          USUARIO: ${{ secrets.DEPLOY_USER }}
+          MAQUINA: ${{ secrets.DEPLOY_HOST }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          for v in CHAVE CONHECIDOS USUARIO MAQUINA; do
+            [ -n "${!v}" ] || { echo "ERRO: falta o secret de $v no environment"; exit 1; }
+          done
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$CHAVE" > ~/.ssh/deploy
+          # A host key vem do SECRET, fixa. NUNCA `ssh-keyscan`: o fail2ban do
+          # servidor bane o runner, e aí o deploy passa a falhar por um motivo
+          # que não tem nada a ver com o deploy.
+          printf '%s\n' "$CONHECIDOS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy ~/.ssh/known_hosts
+          # O ÚNICO dado enviado é a tag. A chave está presa a um comando só
+          # (forced-command) no authorized_keys do servidor.
+          ssh -i ~/.ssh/deploy \
+              -o IdentitiesOnly=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              -o ConnectTimeout=15 \
+              "$USUARIO@$MAQUINA" "$TAG"

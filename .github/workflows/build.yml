@@ -1,0 +1,102 @@
+# Constrói e publica a imagem no GHCR (issue #81, ADR 0009 §3), e chama o
+# deploy. Runner ARM64 NATIVO: sem QEMU, que o servidor é aarch64.
+#
+# Sem actions de terceiros para Docker: `docker buildx` e `docker login` já
+# existem no runner. Cada action a mais é um SHA a fixar, acompanhar e
+# confiar -- e aqui o shell resolve.
+name: Imagem
+
+on:
+  push:
+    branches: [main]
+  release:
+    types: [published]
+
+# Mínimo no topo; o job de publicação pede `packages: write` para si.
+permissions:
+  contents: read
+
+concurrency:
+  group: imagem-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    name: Publica no GHCR (ARM64 nativo)
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.tags.outputs.tag }}
+      ambiente: ${{ steps.tags.outputs.ambiente }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+
+      - name: Decidir tags e ambiente
+        id: tags
+        run: |
+          set -euo pipefail
+          curto=$(printf %s "$GITHUB_SHA" | cut -c1-7)
+          principal="sha-$curto"
+          extra=main
+          ambiente=staging
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            # A tag de release vira tag de imagem E entra no deploy.sh, que
+            # só aceita este formato. Validar aqui evita descobrir lá.
+            case "$REF_NAME" in
+              v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]|v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].[0-9]*) : ;;
+              *) echo "ERRO: release '$REF_NAME' fora do padrao vAAAA.MM.DD[.n]"; exit 1 ;;
+            esac
+            principal=$REF_NAME
+            extra=
+            ambiente=production
+          fi
+          {
+            echo "tag=$principal"
+            echo "extra=$extra"
+            echo "ambiente=$ambiente"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          REF_NAME: ${{ github.ref_name }}
+
+      - name: Entrar no GHCR
+        run: printf %s "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Construir e publicar
+        run: |
+          set -euo pipefail
+          repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
+          args="-t $repo:$TAG"
+          [ -n "$EXTRA" ] && args="$args -t $repo:$EXTRA"
+          # shellcheck disable=SC2086
+          docker buildx build --push --provenance=false \
+            --build-arg GIT_SHA="$GITHUB_SHA" \
+            --build-arg APP_VERSION="$TAG" \
+            $args .
+        env:
+          TAG: ${{ steps.tags.outputs.tag }}
+          EXTRA: ${{ steps.tags.outputs.extra }}
+
+      - name: As migrations foram junto
+        run: |
+          set -euo pipefail
+          repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
+          na_imagem=$(docker run --rm --entrypoint ls "$repo:$TAG" /app/supabase/migrations | grep -c '\.sql$')
+          no_repo=$(ls -1 supabase/migrations/*.sql | wc -l | tr -d ' ')
+          echo "na imagem: $na_imagem | no repositorio: $no_repo"
+          [ "$na_imagem" = "$no_repo" ]
+        env:
+          TAG: ${{ steps.tags.outputs.tag }}
+
+  implantar:
+    name: Implanta
+    needs: publicar
+    uses: ./.github/workflows/deploy.yml
+    with:
+      tag: ${{ needs.publicar.outputs.tag }}
+      ambiente: ${{ needs.publicar.outputs.ambiente }}
+    secrets: inherit
