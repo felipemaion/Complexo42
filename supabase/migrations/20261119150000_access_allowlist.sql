@@ -17,7 +17,8 @@
 --    - `resolve_access(email_hmac)`: no primeiro login, decide o próprio `access_status`;
 --    - `import_allowlist(email_hmacs, source)`: importação pelo gestor, auditada com a
 --      quantidade;
---    - `list_waitlist()` e `decide_access(profile, decision)`: fila de espera do gestor.
+--    - `list_waitlist(limit, cursor)` e `decide_access(profile, decision)`: fila de espera do
+--      gestor.
 --
 -- `status` (situação da conta) sai de `pending` para `active` junto com a liberação: sem
 -- isso ninguém ficaria ativo (`app.is_active_profile` exige os dois). `suspended` não muda.
@@ -65,6 +66,29 @@ create table public.audit_log (
 
 comment on table public.audit_log is
   'Auditoria sem dado pessoal. Gravada só por funções do banco; lida por gestores no escopo.';
+
+-- Só aceita inserções: nem o dono do banco altera ou apaga um registro. Limpeza (retenção,
+-- LGPD) exige migration própria que desligue este trigger de forma explícita e auditável.
+create or replace function app.tg_audit_log_append_only()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  raise exception 'audit_log só aceita inserções'
+    using errcode = 'insufficient_privilege';
+end;
+$$;
+
+revoke execute on function app.tg_audit_log_append_only() from public;
+
+create trigger audit_log_append_only
+  before update or delete on public.audit_log
+  for each row execute function app.tg_audit_log_append_only();
+
+create trigger audit_log_no_truncate
+  before truncate on public.audit_log
+  for each statement execute function app.tg_audit_log_append_only();
 
 create index audit_log_target_id_idx on public.audit_log (target_id);
 create index audit_log_created_at_idx on public.audit_log (created_at);
@@ -316,7 +340,13 @@ comment on function public.import_allowlist(text[], text) is
 -- Quem está na espera não aparece em busca nem em painel (a RLS de `profiles` só mostra
 -- perfis ativos a terceiros). A fila é a única exceção: o gestor no escopo vê quem espera
 -- para decidir. O nome vem cifrado; o servidor decifra.
-create or replace function public.list_waitlist()
+-- Paginada por cursor (mais antigos primeiro): `p_limit` de 1 a 200 e, a partir da segunda
+-- página, o `created_at` e o `profile_id` do último item recebido.
+create or replace function public.list_waitlist(
+  p_limit integer default 50,
+  p_after_created_at timestamptz default null,
+  p_after_id uuid default null
+)
 returns table (
   profile_id uuid,
   display_name_enc text,
@@ -324,20 +354,32 @@ returns table (
   state_code char(2),
   created_at timestamptz
 )
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
+begin
+  if p_limit is null or p_limit < 1 or p_limit > 200 then
+    raise exception 'limite precisa ser de 1 a 200' using errcode = 'invalid_parameter_value';
+  end if;
+  if (p_after_created_at is null) <> (p_after_id is null) then
+    raise exception 'cursor incompleto' using errcode = 'invalid_parameter_value';
+  end if;
+
+  return query
   select p.id, p.display_name_enc, p.municipality_code, p.state_code, p.created_at
   from public.profiles as p
   where p.access_status = 'waitlisted'
+    and (p_after_created_at is null or (p.created_at, p.id) > (p_after_created_at, p_after_id))
     and app.can_decide_access(p.id)
-  order by p.created_at, p.id;
+  order by p.created_at, p.id
+  limit p_limit;
+end;
 $$;
 
-comment on function public.list_waitlist() is
-  'Fila de espera do gestor: só quem está em waitlisted dentro do escopo de quem chama.';
+comment on function public.list_waitlist(integer, timestamptz, uuid) is
+  'Fila de espera do gestor, paginada: só quem está em waitlisted dentro do escopo de quem chama.';
 
 -- Aprova (`active`) ou bloqueia (`blocked`) quem está na espera, com auditoria. Fora do
 -- escopo, perfil inexistente e perfil fora da espera dão o mesmo erro (sem oráculo).
@@ -352,8 +394,14 @@ begin
     raise exception 'decisão inválida' using errcode = 'invalid_parameter_value';
   end if;
 
-  perform 1 from public.profiles as p where p.id = p_profile for update;
+  -- Permissão antes da trava: quem não pode decidir não chega a travar a linha de ninguém.
+  if not app.can_decide_access(p_profile) then
+    raise exception 'sem permissão para decidir este acesso'
+      using errcode = 'insufficient_privilege';
+  end if;
 
+  -- Trava e confere de novo: outra decisão simultânea pode ter tirado o perfil da espera.
+  perform 1 from public.profiles as p where p.id = p_profile for update;
   if not app.can_decide_access(p_profile) then
     raise exception 'sem permissão para decidir este acesso'
       using errcode = 'insufficient_privilege';
@@ -381,13 +429,13 @@ comment on function public.decide_access(uuid, text) is
 revoke execute on function
   public.resolve_access(text),
   public.import_allowlist(text[], text),
-  public.list_waitlist(),
+  public.list_waitlist(integer, timestamptz, uuid),
   public.decide_access(uuid, text)
 from public, anon;
 
 grant execute on function
   public.resolve_access(text),
   public.import_allowlist(text[], text),
-  public.list_waitlist(),
+  public.list_waitlist(integer, timestamptz, uuid),
   public.decide_access(uuid, text)
 to authenticated;

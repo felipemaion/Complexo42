@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(76);
+select plan(105);
 
 -- HMAC fictício (64 hex): o banco não calcula o HMAC de verdade, só guarda e compara.
 create function pg_temp.h(p_tag text) returns text language sql as $$
@@ -138,7 +138,7 @@ select is_empty(
 select ok(
   not has_function_privilege('anon', 'public.resolve_access(text)', 'execute')
   and not has_function_privilege('anon', 'public.import_allowlist(text[], text)', 'execute')
-  and not has_function_privilege('anon', 'public.list_waitlist()', 'execute')
+  and not has_function_privilege('anon', 'public.list_waitlist(integer, timestamptz, uuid)', 'execute')
   and not has_function_privilege('anon', 'public.decide_access(uuid, text)', 'execute'),
   'visitante anônimo não executa nenhuma RPC de acesso'
 );
@@ -471,6 +471,152 @@ select is_empty($$ select 1 from public.audit_log $$, 'admin técnico NÃO lê a
 select pg_temp.login('wait_a');
 select is_empty($$ select 1 from public.audit_log $$,
   'quem foi aprovado NÃO lê a auditoria sobre si');
+
+-- ---------------------------------------------------------------------------------------
+-- Revisão do PR #114: guardas de quem chama, entradas inválidas e casos de borda
+-- ---------------------------------------------------------------------------------------
+reset role;
+-- Sem JWT: o trigger de bootstrap da raiz só vale para chamadas da API.
+select set_config('request.jwt.claims', '', true);
+insert into public.municipalities (code, name, state_code) values (3304557, 'Rio de Janeiro', 'RJ')
+on conflict do nothing;
+insert into people values
+  ('root_wait',   '00000000-0000-0000-0000-0000000000d1'),  -- manager da raiz, na espera
+  ('root_blk',    '00000000-0000-0000-0000-0000000000d2'),  -- manager da raiz, bloqueado
+  ('root_susp',   '00000000-0000-0000-0000-0000000000d3'),  -- manager da raiz, conta suspensa
+  ('sp_mgr_susp', '00000000-0000-0000-0000-0000000000d4'),  -- manager de SP, conta suspensa
+  ('wait_nounit', '00000000-0000-0000-0000-0000000000d5'),  -- na espera, sem unidade (RJ)
+  ('blk',         '00000000-0000-0000-0000-0000000000d6'),  -- bloqueado
+  ('pend_susp',   '00000000-0000-0000-0000-0000000000d7');  -- pendente, conta suspensa
+insert into auth.users (id) select id from people where name in
+  ('root_wait', 'root_blk', 'root_susp', 'sp_mgr_susp', 'wait_nounit', 'blk', 'pend_susp');
+-- RJ não tem unidade de estado: essas pessoas ficam sem vínculo.
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+select id, pg_temp.enc(name), case when name = 'sp_mgr_susp' then 3550308 else 3304557 end, 'v1'
+from people where name in ('root_wait', 'root_blk', 'root_susp', 'sp_mgr_susp', 'wait_nounit', 'blk', 'pend_susp');
+update public.profiles set access_status = 'waitlisted' where id in (pg_temp.person('root_wait'), pg_temp.person('wait_nounit'));
+update public.profiles set access_status = 'blocked', status = 'active' where id in (pg_temp.person('root_blk'), pg_temp.person('blk'));
+update public.profiles set access_status = 'active', status = 'suspended'
+where id in (pg_temp.person('root_susp'), pg_temp.person('sp_mgr_susp'));
+update public.profiles set status = 'suspended' where id = pg_temp.person('pend_susp');
+insert into public.role_assignments (profile_id, role, unit_id) values
+  (pg_temp.person('root_wait'), 'manager', current_setting('test.br')::uuid),
+  (pg_temp.person('root_blk'), 'manager', current_setting('test.br')::uuid),
+  (pg_temp.person('root_susp'), 'manager', current_setting('test.br')::uuid),
+  (pg_temp.person('sp_mgr_susp'), 'manager', current_setting('test.sp')::uuid);
+-- Registro de auditoria sobre o próprio gestor de SP (para o teste "não lê sobre si").
+insert into public.audit_log (actor_id, event, target_id)
+values (pg_temp.person('root_mgr'), 'access_granted', pg_temp.person('sp_mgr'));
+select is(
+  (select count(*)::int from public.unit_members where profile_id = pg_temp.person('wait_nounit')),
+  0,
+  'a pessoa na espera do RJ não tem vínculo nenhum'
+);
+
+-- Gestor da raiz fora de active/active não importa
+set local role authenticated;
+select pg_temp.login('root_wait');
+select throws_ok($$ select public.import_allowlist(array[pg_temp.h('q@x.org')], 'manual') $$,
+  '42501', null, 'gestor da raiz na espera NÃO importa');
+select pg_temp.login('root_blk');
+select throws_ok($$ select public.import_allowlist(array[pg_temp.h('q@x.org')], 'manual') $$,
+  '42501', null, 'gestor da raiz bloqueado NÃO importa');
+select pg_temp.login('root_susp');
+select throws_ok($$ select public.import_allowlist(array[pg_temp.h('q@x.org')], 'manual') $$,
+  '42501', null, 'gestor da raiz com conta suspensa NÃO importa');
+
+-- Gestor com conta suspensa não lista nem decide
+select pg_temp.login('sp_mgr_susp');
+select is_empty($$ select 1 from public.list_waitlist() $$, 'gestor suspenso NÃO vê a fila');
+select throws_ok($$ select public.decide_access(pg_temp.person('pend_out'), 'active') $$,
+  '42501', null, 'gestor suspenso NÃO decide');
+
+-- Gestor não lê a auditoria sobre si mesmo
+select pg_temp.login('sp_mgr');
+select is(app.can_read_audit('access_granted', pg_temp.person('sp_mgr')), false,
+  'can_read_audit: gestor NÃO lê registro sobre si mesmo');
+select is_empty($$ select 1 from public.audit_log where target_id = pg_temp.person('sp_mgr') $$,
+  'gestor de SP NÃO vê a linha de auditoria sobre si');
+
+-- Na espera sem unidade: só o gestor da raiz decide
+select throws_ok($$ select public.decide_access(pg_temp.person('wait_nounit'), 'active') $$,
+  '42501', null, 'gestor de SP NÃO decide sobre quem está na espera sem unidade');
+select pg_temp.login('root_mgr');
+select is(public.decide_access(pg_temp.person('wait_nounit'), 'active'), 'active',
+  'gestor da raiz decide sobre quem está na espera sem unidade');
+
+-- Entradas inválidas
+select throws_ok($$ select public.import_allowlist(array[pg_temp.h('q@x.org')], null) $$,
+  '22023', null, 'importação recusa origem nula');
+select throws_ok($$ select public.import_allowlist(array[pg_temp.h('q@x.org'), null], 'manual') $$,
+  '22023', null, 'importação recusa item nulo no meio da lista');
+select throws_ok($$ select public.import_allowlist(null, 'manual') $$,
+  '22023', null, 'importação recusa lista nula');
+select throws_ok(
+  $$ select public.import_allowlist(array_fill(pg_temp.h('q@x.org'), array[50001]), 'manual') $$,
+  '22023', null, 'importação recusa mais de 50000 itens');
+select pg_temp.login('pend_in');
+select throws_ok($$ select public.resolve_access(null) $$, '22023', null, 'resolve_access recusa HMAC nulo');
+select set_config('request.jwt.claims', '{"role": "authenticated"}', true);
+select throws_ok($$ select public.resolve_access(pg_temp.h('a@x.org')) $$,
+  '42501', null, 'resolve_access sem sessão (sem sub) é recusado');
+
+-- Bloqueado e suspenso: o login não muda o que a coordenação decidiu
+select pg_temp.login('blk');
+select is(public.resolve_access(pg_temp.h('a@x.org')), 'blocked',
+  'bloqueado continua bloqueado, mesmo com HMAC da lista');
+select pg_temp.login('pend_susp');
+select is(public.resolve_access(pg_temp.h('a@x.org')), 'active',
+  'pendente com conta suspensa: a lista libera o acesso...');
+reset role;
+select results_eq(
+  $$ select p.name, pr.access_status, pr.status from people as p
+     join public.profiles as pr on pr.id = p.id
+     where p.name in ('blk', 'pend_susp') order by p.name $$,
+  $$ values ('blk', 'blocked', 'active'), ('pend_susp', 'active', 'suspended') $$,
+  '...mas a conta suspensa continua suspensa, e o bloqueado não mudou'
+);
+
+-- Paginação da fila (mais antigos primeiro). As datas são acertadas como dono do banco, com
+-- o trigger que fixa created_at desligado só nesta transação.
+alter table public.profiles disable trigger profiles_before_write;
+update public.profiles set created_at = '2026-01-02T00:00:00Z' where id = pg_temp.person('pend_out');
+update public.profiles set created_at = '2026-01-01T00:00:00Z' where id = pg_temp.person('sp_mgr_w');
+alter table public.profiles enable trigger profiles_before_write;
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select results_eq(
+  $$ select profile_id from public.list_waitlist(p_limit => 1) $$,
+  array[pg_temp.person('sp_mgr_w')],
+  'primeira página (limite 1) traz o mais antigo'
+);
+select results_eq(
+  $$ select profile_id from public.list_waitlist(1, '2026-01-01T00:00:00Z', pg_temp.person('sp_mgr_w')) $$,
+  array[pg_temp.person('pend_out')],
+  'o cursor do último item traz o seguinte'
+);
+select is_empty(
+  $$ select 1 from public.list_waitlist(1, '2026-01-02T00:00:00Z', pg_temp.person('pend_out')) $$,
+  'depois do último, a fila acaba'
+);
+select throws_ok($$ select * from public.list_waitlist(0) $$, '22023', null, 'limite 0 é recusado');
+select throws_ok($$ select * from public.list_waitlist(201) $$, '22023', null, 'limite acima de 200 é recusado');
+select throws_ok($$ select * from public.list_waitlist(10, now(), null) $$, '22023', null,
+  'cursor incompleto é recusado');
+
+-- A auditoria só aceita inserções, nem o dono do banco altera ou apaga
+reset role;
+select throws_ok($$ update public.audit_log set event = 'export' $$, '42501', 'audit_log só aceita inserções',
+  'dono do banco NÃO altera a auditoria');
+select throws_ok($$ delete from public.audit_log $$, '42501', 'audit_log só aceita inserções',
+  'dono do banco NÃO apaga a auditoria');
+select throws_ok($$ truncate public.audit_log $$, '42501', 'audit_log só aceita inserções',
+  'dono do banco NÃO esvazia a auditoria');
+select lives_ok(
+  $$ insert into public.audit_log (actor_id, event, target_id)
+     values (pg_temp.person('root_mgr'), 'access_blocked', pg_temp.person('blk')) $$,
+  'inserir continua permitido'
+);
 
 reset role;
 select * from finish();

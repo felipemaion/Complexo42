@@ -90,7 +90,8 @@ O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
   - `import_allowlist(email_hmacs[], source)`: só o gestor (`manager`) da raiz. Recebe só HMACs
     (o servidor lê o CSV e descarta os e-mails) e grava `allowlist_imported` com a quantidade
     de HMACs distintos recebidos (não a de novos, para não revelar quem já estava).
-  - `list_waitlist()` e `decide_access(profile, 'active' | 'blocked')`: o gestor com escopo
+  - `list_waitlist(limit, cursor)` (paginada, mais antigos primeiro, até 200 por página) e
+    `decide_access(profile, 'active' | 'blocked')`: o gestor com escopo
     sobre o vínculo aberto de quem espera (sem vínculo, o gestor da raiz) aprova ou bloqueia;
     cada decisão gera `access_granted` ou `access_blocked`.
 - Liberar (`active`) também tira a conta de `status = pending`; `suspended` não muda.
@@ -210,6 +211,9 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 **Nunca contém dados pessoais em claro.** Só os gestores leem, e só dentro do seu escopo
 (`app.can_read_audit`): `allowlist_imported`, o gestor da raiz; eventos sobre uma pessoa, o
 gestor com escopo sobre ela. Ninguém grava, altera nem apaga pela API: só as funções do banco.
+Um trigger recusa `UPDATE`, `DELETE` e `TRUNCATE` até para o dono do banco: o log só aceita
+inserções. Limpeza (retenção, LGPD) precisa de migration própria que desligue o trigger de
+forma explícita; nenhum teste ou migration atual limpa o log.
 
 ## Acesso
 
