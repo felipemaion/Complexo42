@@ -196,6 +196,8 @@ Uma tarefa só está pronta quando:
 - [ ] Há testes cobrindo o caminho feliz **e** pelo menos um caso de erro ou permissão negada.
 - [ ] `npm run check` passa localmente e no CI.
 - [ ] Nenhum dado pessoal novo; se a tarefa cria tabela, há teste de RLS.
+- [ ] O que roda em cada fase (PR, deploy, lançamento) e as lacunas conhecidas estão em
+      [`docs/TESTES.md`](docs/TESTES.md); mudança que fecha uma lacuna atualiza a tabela.
 - [ ] Documentação atualizada se a mudança altera comportamento, dados ou o modo de rodar.
 - [ ] O PR foi revisado e aprovado por **outra pessoa** (não pelo autor nem pela IA do autor).
 
