@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
-// "Baixar meus dados" (#20). Sem Supabase (o CI): só a proteção da rota. Com o Supabase local,
+// "Baixar meus dados" (#20). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o Supabase local,
 // o fluxo real: duas pessoas se cadastram, são liberadas e cada uma baixa o próprio arquivo,
 // sem nada da outra. Para rodar (stack local de pé, `site_url` do supabase/config.toml
 // apontando para a porta do E2E):

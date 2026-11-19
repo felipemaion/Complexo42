@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
-// "Excluir minha conta" (#18). Sem Supabase (o CI): a página exige sessão e a despedida é
+// "Excluir minha conta" (#18). Sem Supabase (job "E2E" do CI): a página exige sessão e a despedida é
 // pública. Com o Supabase local, o fluxo real: duas pessoas se cadastram, uma exclui a conta
 // pela página inicial e some do Auth e do banco; a outra continua; quem está na espera também
 // exclui. Para rodar (stack local de pé, `site_url` do supabase/config.toml apontando para a

@@ -33,6 +33,18 @@ npm run test:e2e   # Playwright: build de produção + testes de e2e/ (porta 310
 
 Banco local: `npm run db:start`, `db:stop`, `db:reset` e `db:test` (ver [`CONTRIBUTING.md`](CONTRIBUTING.md)).
 
+E2E com o banco (login pelo link mágico, perfil, casa, contato, meus dados, exclusão e o fluxo
+completo do cadastro em `e2e/fluxo-completo.spec.ts`): com o Supabase local de pé e o app na
+porta do `site_url` (3000), passe as chaves do `npx supabase status -o env` só para o teste,
+como faz o job "E2E com banco" do CI:
+
+```bash
+eval "$(npx supabase status -o env)"
+E2E_PORT=3000 E2E_LIVE_SUPABASE_URL=$API_URL E2E_LIVE_ANON_KEY=$ANON_KEY E2E_MAILPIT_URL=$MAILPIT_URL \
+E2E_LIVE_SERVICE_KEY=$SERVICE_ROLE_KEY E2E_LIVE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY \
+E2E_LIVE_DB_CONTAINER=supabase_db_complexo42 npm run test:e2e
+```
+
 ## 👋 Chegou agora? Comece pelo [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
 
 Ele leva você do zero ao projeto rodando (Docker ou Codespaces) e ao primeiro PR.

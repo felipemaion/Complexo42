@@ -80,6 +80,70 @@ jobs:
             playwright-report/
           retention-days: 7
 
+  # Os mesmos specs do job acima, agora com o Supabase local de pé (#21): os casos "com o
+  # Supabase local" (login pelo link mágico, perfil, casa, contato, meus dados, exclusão e o
+  # fluxo completo do cadastro) deixam de rodar só na máquina de quem desenvolve. Os que
+  # precisam do Auth fora do ar ficam no job acima.
+  e2e-live:
+    name: E2E com banco (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # Mesma porta do `site_url` do supabase/config.toml: o link do e-mail volta para o app.
+      E2E_PORT: 3000
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
+        with: { version: 3.2.0 }
+      # Em segundo plano, enquanto o npm e o navegador instalam. Fica de fora só o que nenhum
+      # spec usa; o Mailpit fica (os specs leem o link mágico nele). Migrations + seed na subida.
+      - name: Sobe o Supabase local (em segundo plano)
+        run: |
+          nohup bash -c 'supabase start -x studio,imgproxy,edge-runtime,logflare,vector; echo $? > "$RUNNER_TEMP/supabase-start.exit"' \
+            > "$RUNNER_TEMP/supabase-start.log" 2>&1 &
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Espera o Supabase e passa as chaves locais só para os testes
+        run: |
+          for _ in $(seq 1 120); do
+            [ -f "$RUNNER_TEMP/supabase-start.exit" ] && break
+            sleep 5
+          done
+          # O log só aparece na falha: no sucesso, ele traz as chaves do stack.
+          if [ "$(cat "$RUNNER_TEMP/supabase-start.exit" 2>/dev/null)" != 0 ]; then
+            cat "$RUNNER_TEMP/supabase-start.log"
+            exit 1
+          fi
+          supabase status -o env > "$RUNNER_TEMP/supabase.env"
+          # Chaves do stack descartável deste job (geradas pela CLI na subida, nada no
+          # repositório). A de serviço vai só para o processo de teste: o playwright.config.ts
+          # a tira do ambiente do app (R6).
+          set -a; . "$RUNNER_TEMP/supabase.env"; set +a
+          rm "$RUNNER_TEMP/supabase.env"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          {
+            echo "E2E_LIVE_SUPABASE_URL=$API_URL"
+            echo "E2E_LIVE_ANON_KEY=$ANON_KEY"
+            echo "E2E_LIVE_SERVICE_KEY=$SERVICE_ROLE_KEY"
+            echo "E2E_LIVE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "E2E_MAILPIT_URL=$MAILPIT_URL"
+            echo "E2E_LIVE_DB_CONTAINER=$(docker ps --filter name=supabase_db_ --format '{{.Names}}' | head -n1)"
+          } >> "$GITHUB_ENV"
+      # Build de produção pelo webServer do Playwright; chaves de criptografia de teste
+      # aleatórias a cada execução e chaves de teste públicas do Turnstile (playwright.config.ts).
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-traces-live
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+
   database:
     name: Banco (migrations + testes de RLS)
     runs-on: ubuntu-latest

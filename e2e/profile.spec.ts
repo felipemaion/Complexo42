@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 
-// Formulário do perfil (#12). Sem Supabase (o CI): só a proteção da rota. Com o Supabase local
+// Formulário do perfil (#12). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o Supabase local
 // e o Mailpit (como em e2e/auth-live.spec.ts), o fluxo real: entrar, cair no formulário, máscara,
 // distrito só na capital, erros acessíveis, salvar e WhatsApp repetido. Para rodar:
 //   E2E_LIVE_SUPABASE_URL=<API_URL> E2E_LIVE_ANON_KEY=<ANON_KEY> E2E_MAILPIT_URL=<Mailpit>
