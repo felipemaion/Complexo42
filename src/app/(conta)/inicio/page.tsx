@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
-import { hasOwnProfile } from "@/modules/profiles";
+import { CONTACT_VISIBILITY_PATH, hasOwnProfile } from "@/modules/profiles";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -38,6 +38,13 @@ export default async function SignedInHome({ searchParams }: Props) {
         className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
       >
         {instance.profile.editLink}
+      </Link>
+      {/* Quem vê meu contato (#119, ADR 0010). */}
+      <Link
+        href={CONTACT_VISIBILITY_PATH}
+        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+      >
+        {instance.contactVisibility.homeLink}
       </Link>
       {/* "Baixar meus dados" (#20): POST para o servidor montar o arquivo; nada no navegador. */}
       <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-3">

@@ -40,6 +40,7 @@ async function dbRows() {
     memberships: [],
     roles: [],
     audit_events: [{ event: "data_exported", reason: null, created_at: "2026-11-19T12:00:00+00:00" }],
+    contact_views: [],
   };
 }
 

@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 1;
+export const exportFormatVersion = 2;
 
 const timestamp = z.string().min(1);
 
@@ -73,6 +73,15 @@ export const ownDataRowsSchema = z.object({
       created_at: timestamp,
     }),
   ),
+  /** Quem acessou o contato (#119, ADR 0010). O id serve só para decifrar o nome. */
+  contact_views: z.array(
+    z.object({
+      viewer_id: z.string().nullable(),
+      viewer_name_enc: z.string().nullable(),
+      kind: z.string(),
+      viewed_at: timestamp,
+    }),
+  ),
 });
 
 export type OwnDataRows = z.output<typeof ownDataRowsSchema>;
@@ -98,11 +107,13 @@ export type OwnDataExport = {
   contato: { whatsapp: string | null; redesSociais: string[] | null; atualizadoEm: string } | null;
   vinculos: { unidade: string; tipo: string; papelNoGrupo: string; entrouEm: string; saiuEm: string | null }[];
   papeis: { papel: string; unidade: string; tipo: string; concedidoEm: string; revogadoEm: string | null }[];
-  /**
-   * Registros da auditoria sobre a pessoa. Quem acessou o contato (ADR 0010) entra com a #119:
-   * ela acrescenta aqui o que mostrar de quem viu, sem mudar o resto do formato.
-   */
+  /** Registros da auditoria sobre a pessoa. */
   registrosSobreVoce: { evento: string; motivo: string | null; em: string }[];
+  /**
+   * Quem acessou o contato (#119, ADR 0010): o nome de quem viu (nulo se a conta foi excluída
+   * ou o nome não decifra), qual contato e quando. Nunca o id de quem viu.
+   */
+  quemViuSeuContato: { quem: string | null; contato: string; em: string }[];
 };
 
 export type BuildExportInput = {
@@ -133,6 +144,16 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       return await decrypt(value, { table, column, rowId });
     } catch (error) {
       input.onDecryptError?.(column, error);
+      return null;
+    }
+  };
+
+  // O nome de quem viu o contato é de outra linha de `profiles`: o AAD usa o id dela.
+  const openAs = async (value: string, viewerId: string) => {
+    try {
+      return await decrypt(value, { table: "profiles", column: "display_name_enc", rowId: viewerId });
+    } catch (error) {
+      input.onDecryptError?.("viewer_name_enc", error);
       return null;
     }
   };
@@ -190,6 +211,13 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       revogadoEm: r.revoked_at,
     })),
     registrosSobreVoce: rows.audit_events.map((e) => ({ evento: e.event, motivo: e.reason, em: e.created_at })),
+    quemViuSeuContato: await Promise.all(
+      rows.contact_views.map(async (v) => ({
+        quem: v.viewer_id && v.viewer_name_enc ? await openAs(v.viewer_name_enc, v.viewer_id) : null,
+        contato: v.kind,
+        em: v.viewed_at,
+      })),
+    ),
   };
 }
 

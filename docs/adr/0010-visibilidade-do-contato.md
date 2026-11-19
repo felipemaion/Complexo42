@@ -44,6 +44,25 @@
 - **Exportação em massa** de contatos fica fora deste ADR. Se for preciso, exige um ADR
   próprio e base no termo de consentimento.
 
+## Implementação (#119)
+
+- **"Minha casa" é a mesma casa na mesma região.** O colega de casa vê o contato autorizado
+  para `minha equipe e minha casa` só se os dois estão na mesma casa, com o vínculo aceito há
+  pelo menos 7 dias, e no mesmo território mais próximo: a região do vínculo de equipe (ou o
+  estado, se não houver região). Decisão do orquestrador na revisão do #138; o gestor pode
+  afrouxar depois. Motivo: com a casa nacional do ADR 0011, "a mesma casa" seria o país inteiro;
+  e sem a carência, entrar numa casa daria acesso no mesmo dia.
+- **"Minha equipe"** é uma unidade ativa de um tipo marcado como equipe
+  (`unit_types.is_team`), não inferida pela forma da árvore.
+- **Ver contato tem limite:** 60 pessoas distintas por hora por quem vê. O registro é feito só
+  quando há o que ver, e uma vez a cada 10 minutos por pessoa e tipo.
+- **Limite conhecido de "quem viu":** o nome de quem viu é cifrado com o id dessa pessoa (ADR
+  0003), então a função que lista os acessos devolve esse id ao servidor, que decifra e mostra só
+  o nome. Quem chama a função direto, com a própria sessão, vê o id. É aceitável: a pessoa já
+  tem o direito de saber quem viu o contato dela. Alternativas descartadas: uma chave de serviço
+  no servidor (quebra R6 e R14) e guardar uma cópia do nome no `audit_log` (sobreviveria à
+  exclusão da conta).
+
 ## Alternativas consideradas
 
 - **Equipe vendo o contato por padrão:** é mais simples, mas expõe o celular de quem não

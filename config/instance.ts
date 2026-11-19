@@ -120,6 +120,29 @@ export const instance = parseInstanceConfig({
       "Apagamos a sua conta e os seus dados. Obrigado por ter participado. Se quiser voltar um dia, é só se cadastrar de novo.",
     goodbyeLink: "Ir para a página inicial",
   },
+  // "Quem vê meu contato" (#119, ADR 0010): a escolha de cada pessoa e a lista de quem viu.
+  contactVisibility: {
+    title: "Quem vê meu contato",
+    homeLink: "Quem vê meu contato",
+    intro:
+      "A coordenação da sua equipe e da sua casa sempre pode ver seu contato, para falar com você. Aqui você escolhe se os seus colegas também podem ver. Toque numa opção: a mudança vale na hora.",
+    kinds: { whatsapp: "Seu WhatsApp", social: "Suas redes sociais", email: "Seu e-mail de login" },
+    scopes: { none: "Só a coordenação", team: "Minha equipe", team_house: "Minha equipe e minha casa" },
+    explain: {
+      none: "Agora: só a coordenação vê.",
+      team: "Agora: a coordenação e quem está na mesma equipe que você veem.",
+      team_house: "Agora: a coordenação e quem está na mesma equipe ou na mesma casa que você veem.",
+    },
+    leaveNote: "Quem sai da sua equipe ou da sua casa deixa de ver na hora. Toda vez que alguém vê o seu contato, fica registrado.",
+    saved: "Pronto! Sua escolha foi salva e já vale.",
+    failed: "Não foi possível salvar agora. Tente de novo em alguns minutos.",
+    viewsTitle: "Quem viu seu contato",
+    viewsEmpty: "Ninguém viu seu contato até agora.",
+    viewsLine: "{name} viu {kind} em {date}",
+    viewsKinds: { whatsapp: "seu WhatsApp", social: "suas redes sociais", email: "seu e-mail" },
+    viewsUnknownPerson: "Uma pessoa que saiu da plataforma",
+    viewsNote: "Aqui aparecem os 200 acessos mais recentes. A lista completa vem no arquivo de \"Baixar meus dados\".",
+  },
   // Escolha da casa (#76): "Você sabe o que quer fazer?" → lista de atividades ou questionário.
   houseSelection: {
     title: "Sua casa de formação",

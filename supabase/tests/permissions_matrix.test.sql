@@ -191,6 +191,10 @@ insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, 
   (pg_temp.unit('house_1'), pg_temp.person('wait_honly'), 'self', null, null);
 insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, consent_version)
 values (pg_temp.unit('house_1'), pg_temp.person('stu_ah'), 'questionnaire', now(), 'termo-exemplo-1');
+-- Contato entre colegas de casa (#119): só depois de 7 dias de casa aceita pelos dois.
+update public.unit_members set joined_at = now() - interval '8 days', accepted_at = now() - interval '8 days'
+where axis = 'house' and profile_id in (pg_temp.person('stu_ah'), pg_temp.person('stu_bh'),
+                                         pg_temp.person('stu_ah2'));
 
 -- Contatos fictícios (formato válido; o banco não decifra nada).
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
@@ -198,9 +202,24 @@ select id, 'v1.AAAAAAAAAAAAAAAA.CCCCCCCCCCCCCCCCCCCCCC', encode(sha256(id::text:
 from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_susp', 'team_a_mon',
                            'stu_ah', 'stu_bh', 'stu_ah2', 'stu_hpend');
 
+-- Quem vê o contato (#119, ADR 0010): a escolha de cada pessoa, contato por contato. Sem linha
+-- é `none` (stu_a e os demais).
+insert into public.contact_visibility (profile_id, kind, scope)
+select pg_temp.person(v.name), v.kind, v.scope
+from (values
+  ('stu_ah', 'whatsapp', 'team'), ('stu_ah', 'social', 'team_house'), ('stu_ah', 'email', 'none'),
+  ('stu_bh', 'whatsapp', 'team_house'), ('stu_bh', 'email', 'team_house'),
+  ('stu_hpend', 'whatsapp', 'team_house'),
+  ('stu_moved', 'whatsapp', 'team'), ('stu_gone', 'whatsapp', 'team_house'),
+  ('stu_hleft', 'whatsapp', 'team_house'),
+  ('stu_wait', 'whatsapp', 'team_house'), ('stu_susp', 'whatsapp', 'team_house'),
+  ('stu_blocked', 'whatsapp', 'team_house'), ('stu_pend', 'whatsapp', 'team_house')
+) as v (name, kind, scope);
+
 -- ---------------------------------------------------------------------------------------
 -- Parte 1: matriz das funções
---   profile → app.can_view_profile   contact → app.can_view_contact
+--   profile → app.can_view_profile
+--   contact / contact_social / contact_email → app.can_view_contact(alvo, whatsapp/social/email)
 --   manage  → app.can_manage_unit    unit    → app.can_view_unit
 --   edit    → app.can_edit_profile (criar/editar perfil e contato)
 --   import  → app.can_import_allowlist   decide → app.can_decide_access (fila de espera)
@@ -470,6 +489,64 @@ insert into matrix (actor, action, target, expected) values
   ('nat_mgr', 'decide', 'nat_mgr', false),
   ('anon', 'audit_decision', 'stu_wait', false),
   -- Checagem de mutação (#113): cada linha abaixo derruba uma guarda que antes não tinha teste
+  -- Quem vê o contato (#119, ADR 0010). A coordenação vê qualquer tipo, sem depender da escolha
+  ('team_a_mon', 'contact_email', 'stu_a', true),
+  ('team_a_mon', 'contact_social', 'stu_ah', true),
+  ('house_mon', 'contact_email', 'stu_bh', true),
+  ('house_mon', 'contact_email', 'stu_ah2', false),
+  ('sp_mgr', 'contact_email', 'stu_m', false),
+  -- Colega de equipe: sem autorização não vê; com `team`, vê só aquele contato
+  ('stu_ah', 'contact', 'stu_a', false),
+  ('stu_ah', 'contact_email', 'stu_a', false),
+  ('stu_a', 'contact', 'stu_ah', true),
+  ('stu_a', 'contact_social', 'stu_ah', true),
+  ('stu_a', 'contact_email', 'stu_ah', false),
+  ('stu_hpend', 'contact', 'stu_ah', true),
+  ('stu_a', 'contact', 'stu_hpend', true),
+  -- Colega de casa: `team` não alcança a casa; `team_house` alcança, de qualquer equipe da
+  -- mesma região, com os dois na casa há 7 dias ou mais (stu_h aceitou hoje e não tem equipe)
+  ('stu_bh', 'contact', 'stu_ah', false),
+  ('stu_h', 'contact', 'stu_ah', false),
+  ('stu_bh', 'contact_social', 'stu_ah', true),
+  ('stu_h', 'contact_social', 'stu_ah', false),
+  ('stu_ah', 'contact', 'stu_bh', true),
+  ('stu_h', 'contact_email', 'stu_bh', false),
+  ('stu_bh', 'contact', 'stu_a', false),
+  -- Outra casa e outra equipe: nada; casa sem aceite não conta (dos dois lados)
+  ('stu_ah2', 'contact', 'stu_bh', false),
+  ('stu_c', 'contact', 'stu_bh', false),
+  ('stu_hpend', 'contact', 'stu_bh', false),
+  ('stu_h', 'contact', 'stu_hpend', false),
+  ('stu_bh', 'contact', 'stu_hpend', false),
+  -- Ex-colega: o vínculo fechado deixa de valer na hora (equipe e casa)
+  ('stu_a', 'contact', 'stu_moved', false),
+  ('stu_m', 'contact', 'stu_moved', true),
+  ('stu_a', 'contact', 'stu_gone', false),
+  ('stu_moved', 'contact', 'stu_ah', false),
+  ('stu_gone', 'contact_social', 'stu_ah', false),
+  ('stu_h', 'contact', 'stu_hleft', false),
+  ('stu_ah', 'contact', 'stu_hleft', false),
+  ('stu_hleft', 'contact_social', 'stu_ah', false),
+  -- Porta-voz e admin técnico: nem com a autorização da pessoa
+  ('spokes_a', 'contact', 'stu_ah', false),
+  ('spokes_a', 'contact_social', 'stu_bh', false),
+  ('tech', 'contact', 'stu_bh', false),
+  ('tech', 'contact_email', 'stu_bh', false),
+  -- Quem não está ativo não vê nem é visto, mesmo autorizado
+  ('stu_a', 'contact', 'stu_wait', false),
+  ('stu_a', 'contact', 'stu_susp', false),
+  ('stu_a', 'contact', 'stu_blocked', false),
+  ('stu_a', 'contact', 'stu_pend', false),
+  ('stu_wait', 'contact', 'stu_ah', false),
+  ('stu_susp', 'contact', 'stu_ah', false),
+  ('stu_blocked', 'contact', 'stu_ah', false),
+  ('stu_pend', 'contact', 'stu_ah', false),
+  ('wait_hpend', 'contact', 'stu_bh', false),
+  -- O próprio vê todos os seus contatos; anônimo e logado sem vínculo, nenhum
+  ('stu_a', 'contact_email', 'stu_a', true),
+  ('stu_wait', 'contact_email', 'stu_wait', true),
+  ('outsider', 'contact_social', 'stu_ah', false),
+  ('anon', 'contact_email', 'stu_bh', false),
   -- Contato: vínculo encerrado não dá escopo
   ('team_a_mon', 'contact', 'stu_moved', false),
   ('sp_mgr', 'contact', 'stu_moved', false),
@@ -523,7 +600,9 @@ begin
   );
   return case
     when p_action = 'profile' then app.can_view_profile(pg_temp.person(p_target))
-    when p_action = 'contact' then app.can_view_contact(pg_temp.person(p_target))
+    when p_action = 'contact' then app.can_view_contact(pg_temp.person(p_target), 'whatsapp')
+    when p_action = 'contact_social' then app.can_view_contact(pg_temp.person(p_target), 'social')
+    when p_action = 'contact_email' then app.can_view_contact(pg_temp.person(p_target), 'email')
     when p_action = 'manage' then app.can_manage_unit(pg_temp.unit(p_target))
     when p_action = 'unit' then app.can_view_unit(pg_temp.unit(p_target))
     when p_action = 'edit' then app.can_edit_profile(pg_temp.person(p_target))
@@ -560,7 +639,8 @@ select is_empty(
   $$ select actor from matrix where actor <> 'anon' and actor not in (select name from people)
      union all
      select target from matrix
-     where action in ('profile', 'contact', 'edit', 'decide', 'audit_decision')
+     where action in ('profile', 'contact', 'contact_social', 'contact_email', 'edit', 'decide',
+                      'audit_decision')
        and target not in (select name from people)
      union all
      select target from matrix
@@ -944,9 +1024,8 @@ select set_eq(
 );
 select set_eq(
   $$ select profile_id from public.profile_contacts $$,
-  $$ select id from people
-     where name in ('team_a_mon', 'stu_a', 'stu_ah', 'stu_ah2', 'stu_hpend') $$,
-  'coordenador da equipe A lê o próprio contato e os da equipe, NÃO o de quem está na espera'
+  array[pg_temp.person('team_a_mon')],
+  'coordenador da equipe A lê pela tabela só o próprio contato (o dos outros, só por view_contact, auditado)'
 );
 select is_empty(
   $$ select 1 from public.profiles where id = pg_temp.person('stu_b') $$,
@@ -1107,10 +1186,9 @@ select set_eq(
   $$ select id from people where name in ('house_mon', 'stu_h', 'stu_ah', 'stu_bh') $$,
   'coordenador da casa 1 lê os perfis da casa 1, de qualquer equipe; NÃO os da casa 2 nem o sem aceite'
 );
-select set_eq(
-  $$ select profile_id from public.profile_contacts $$,
-  $$ select id from people where name in ('stu_ah', 'stu_bh') $$,
-  'coordenador da casa 1 lê os contatos da casa 1; NÃO o da casa 2 nem o sem aceite'
+select is_empty(
+  $$ select 1 from public.profile_contacts $$,
+  'coordenador da casa 1 NÃO lê contatos pela tabela (só por view_contact, auditado)'
 );
 select set_eq(
   $$ select slug from public.units $$,

@@ -14,6 +14,7 @@ import {
 
 const USER = "0b6f2d4e-3c1a-4f8e-9d2b-7a5c6e1f0a93";
 const AT = new Date("2026-11-20T01:30:00Z"); // 22h30 de 19/11 em Brasília
+const VIEWER = "7d1c0a2b-9e8f-4a6b-8c5d-3e2f1a0b9c8d";
 
 const rows: OwnDataRows = {
   profile: {
@@ -41,12 +42,17 @@ const rows: OwnDataRows = {
     { role: "spokesperson", unit_name: "Equipe 1", unit_type: "Equipe", granted_at: "2026-11-19T13:00:00+00:00", revoked_at: null },
   ],
   audit_events: [{ event: "data_exported", reason: null, created_at: "2026-11-20T01:30:00+00:00" }],
+  contact_views: [
+    { viewer_id: VIEWER, viewer_name_enc: "enc:quemviu", kind: "whatsapp", viewed_at: "2026-11-19T15:00:00+00:00" },
+    { viewer_id: null, viewer_name_enc: null, kind: "email", viewed_at: "2026-11-19T16:00:00+00:00" },
+  ],
 };
 
 const plain: Record<string, string> = {
   "enc:nome": "Maria Aparecida",
   "enc:zap": "+5511987654321",
   "enc:redes": JSON.stringify(["https://exemplo.org/maria"]),
+  "enc:quemviu": "Joana Coordena",
 };
 
 function fakeDecrypt() {
@@ -74,7 +80,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 1, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 2, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -90,6 +96,10 @@ describe("buildOwnDataExport", () => {
       vinculos: [{ unidade: "São Paulo", tipo: "Estado", papelNoGrupo: "member", entrouEm: "2026-11-19T11:00:00+00:00", saiuEm: null }],
       papeis: [{ papel: "spokesperson", unidade: "Equipe 1", tipo: "Equipe", concedidoEm: "2026-11-19T13:00:00+00:00", revogadoEm: null }],
       registrosSobreVoce: [{ evento: "data_exported", motivo: null, em: "2026-11-20T01:30:00+00:00" }],
+      quemViuSeuContato: [
+        { quem: "Joana Coordena", contato: "whatsapp", em: "2026-11-19T15:00:00+00:00" },
+        { quem: null, contato: "email", em: "2026-11-19T16:00:00+00:00" },
+      ],
     });
   });
 
@@ -101,9 +111,11 @@ describe("buildOwnDataExport", () => {
         { table: "profiles", column: "display_name_enc", rowId: USER },
         { table: "profile_contacts", column: "whatsapp_enc", rowId: USER },
         { table: "profile_contacts", column: "social_links_enc", rowId: USER },
+        // O nome de quem viu o contato é da linha dela (#119).
+        { table: "profiles", column: "display_name_enc", rowId: VIEWER },
       ]),
     );
-    expect(seen).toHaveLength(3);
+    expect(seen).toHaveLength(4);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {
@@ -117,6 +129,15 @@ describe("buildOwnDataExport", () => {
     expect(text).not.toContain("a".repeat(64));
     expect(text).not.toContain("enc:");
     expect(text).not.toContain(USER);
+    expect(text).not.toContain(VIEWER);
+  });
+
+  it("nome de quem viu que não decifra vira null e avisa só a coluna (#119)", async () => {
+    const onDecryptError = vi.fn();
+    const broken = { ...rows, contact_views: [{ ...rows.contact_views[0]!, viewer_name_enc: "enc:estragado" }] };
+    const out = await build({ rows: broken, onDecryptError });
+    expect(out.quemViuSeuContato).toEqual([{ quem: null, contato: "whatsapp", em: "2026-11-19T15:00:00+00:00" }]);
+    expect(onDecryptError).toHaveBeenCalledWith("viewer_name_enc", expect.any(Error));
   });
 
   it("valor que não decifra vira null, avisa só a coluna e o resto do arquivo sai", async () => {
@@ -149,8 +170,19 @@ describe("buildOwnDataExport", () => {
   });
 
   it("quem ainda não tem perfil recebe perfil e contato nulos e listas vazias", async () => {
-    const out = await build({ rows: { profile: null, contact: null, memberships: [], roles: [], audit_events: [] }, loginEmail: null });
-    expect(out).toMatchObject({ conta: { emailDeLogin: null }, perfil: null, contato: null, vinculos: [], papeis: [], registrosSobreVoce: [] });
+    const out = await build({
+      rows: { profile: null, contact: null, memberships: [], roles: [], audit_events: [], contact_views: [] },
+      loginEmail: null,
+    });
+    expect(out).toMatchObject({
+      conta: { emailDeLogin: null },
+      perfil: null,
+      contato: null,
+      vinculos: [],
+      papeis: [],
+      registrosSobreVoce: [],
+      quemViuSeuContato: [],
+    });
   });
 });
 

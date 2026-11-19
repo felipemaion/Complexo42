@@ -436,7 +436,8 @@ select lives_ok(
      select pg_temp.person('p_q'), e,
             case when e = 'allowlist_imported' then 1 end,
             case when e in ('access_granted', 'access_blocked') then 'manual'
-                 when e = 'house_accepted' then 'self' end,
+                 when e = 'house_accepted' then 'self'
+                 when e = 'contact_viewed' then 'whatsapp' end,  -- o tipo do contato (#119)
             case when e = 'questionnaire_consented' then 'termo-1' end
      from unnest(array['contact_viewed', 'role_granted', 'role_revoked', 'member_moved',
        'logo_approved', 'export', 'badge_granted', 'badge_revoked', 'submission_approved',
