@@ -27,8 +27,14 @@ services:
   db:
     <<: *comum
     image: supabase/postgres:17.12.0.001@sha256:2543d8fb3889ff2ee514af39496f67c30edd1f1e0da923a560e7930d2f59ca16
+    # ATENCAO: sobrescrever `command` descarta os argumentos da imagem, e com
+    # eles a configuracao dela. Sem `listen_addresses=*` o Postgres sobe
+    # escutando SO em localhost: o healthcheck (que roda dentro do container)
+    # passa, e auth e rest levam "connection refused". Medido em 2026-11-19.
     command:
       - postgres
+      - -c
+      - listen_addresses=*
       - -c
       - shared_preload_libraries=pg_stat_statements
       - -c
