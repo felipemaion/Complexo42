@@ -100,6 +100,14 @@ export const instanceConfigSchema = z.strictObject({
     districtHint: text,
     /** Opção vazia do distrito (ele é opcional). */
     districtNone: text,
+    /** Redes sociais (#17): grupo do formulário, cada caixa ("Link 1"...) e os botões. */
+    socialLinksLabel: text,
+    socialLinksHint: text,
+    socialLinkLabel: text,
+    addSocialLink: text,
+    removeSocialLink: text,
+    /** Título da lista dos links salvos na página inicial. */
+    socialLinksTitle: text,
     saveButton: text,
     saving: text,
     /** Aviso na página inicial depois de salvar. */
@@ -114,6 +122,7 @@ export const instanceConfigSchema = z.strictObject({
       whatsapp: text,
       municipalityCode: text,
       district: text,
+      socialLinks: text,
     }),
     /** WhatsApp já usado em outro cadastro (não diz de quem). */
     duplicateWhatsapp: text,

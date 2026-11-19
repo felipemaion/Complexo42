@@ -8,6 +8,8 @@ import { z } from "zod";
 import { decryptField, encryptField, whatsappBlindIndex } from "@/server/crypto";
 import { log as appLog, type Logger } from "@/server/log";
 import { parseProfileForm, type DistrictCatalog } from "../domain/form";
+import { profileLimits, serializeSocialLinks } from "../domain/schema";
+import { socialLinkViews } from "../domain/social";
 import type { MunicipalityOption, OwnProfile, ProfileDbClient, SaveProfileResult } from "../types";
 
 export type ProfileDeps = {
@@ -25,6 +27,8 @@ const defaultDeps: ProfileDeps = {
 };
 
 const uuid = z.guid();
+const keptRow = z.object({ social_links_enc: z.string().nullable() }).nullable();
+const storedSocialLinks = z.array(z.string()).max(profileLimits.socialLinksMax);
 /** O que `save_own_profile` devolve quando não dá erro (#127: o repetido é retorno, não erro). */
 const saveOutcome = z.enum(["saved", "duplicate_whatsapp"]);
 
@@ -49,11 +53,31 @@ export async function saveOwnProfile(
 ): Promise<SaveProfileResult> {
   const rowId = uuid.parse(userId);
   const parsed = parseProfileForm(raw, districtsFor);
-  if (!parsed.ok) return { status: "invalid", fields: parsed.fields };
+  if (!parsed.ok) {
+    return parsed.badLinks ? { status: "invalid", fields: parsed.fields, badLinks: parsed.badLinks } : { status: "invalid", fields: parsed.fields };
+  }
   const { profile, contact } = parsed;
+
+  // Envio sem os links (#17): repassa o valor cifrado que já está guardado, sem abrir. Ele foi
+  // cifrado com o AAD desta mesma linha e coluna, então continua válido.
+  let keptSocialLinks: string | null = null;
+  if (parsed.keepSocialLinks) {
+    const { data, error } = await client
+      .from("profile_contacts")
+      .select("social_links_enc")
+      .eq("profile_id", rowId)
+      .maybeSingle();
+    const kept = keptRow.safeParse(data);
+    if (error || !kept.success) {
+      deps.log.error("profile_save_failed", { reason: error ? errorCode(error) : "unexpected_result" });
+      return { status: "failed" };
+    }
+    keptSocialLinks = kept.data?.social_links_enc ?? null;
+  }
 
   let args: Record<string, unknown>;
   try {
+    const socialLinks = serializeSocialLinks(contact.socialLinks);
     args = {
       p_display_name_enc: await deps.encrypt(profile.displayName, { table: "profiles", column: "display_name_enc", rowId }),
       p_municipality_code: profile.municipalityCode,
@@ -61,8 +85,12 @@ export async function saveOwnProfile(
       // Sem versão do termo: o banco grava `none` e só o aceite (#11) a avança (revisão do #125).
       p_whatsapp_enc: await deps.encrypt(contact.whatsapp, { table: "profile_contacts", column: "whatsapp_enc", rowId }),
       p_whatsapp_hmac: await deps.blindIndex(contact.whatsapp),
-      // Redes sociais entram com a #17; até lá, sem links.
-      p_social_links_enc: null,
+      // Redes sociais (#17): JSON da lista, cifrado com AAD `profile_contacts.social_links_enc.<id>`.
+      p_social_links_enc: parsed.keepSocialLinks
+        ? keptSocialLinks
+        : socialLinks === null
+          ? null
+          : await deps.encrypt(socialLinks, { table: "profile_contacts", column: "social_links_enc", rowId }),
     };
   } catch (error) {
     deps.log.error("profile_encrypt_failed", { reason: errorCode(error) });
@@ -96,7 +124,7 @@ const ownRow = z
     display_name_enc: z.string(),
     municipality_code: z.number().int(),
     district: z.string().nullable(),
-    profile_contacts: z.object({ whatsapp_enc: z.string() }).nullable(),
+    profile_contacts: z.object({ whatsapp_enc: z.string(), social_links_enc: z.string().nullable().optional() }).nullable(),
   })
   .nullable();
 
@@ -112,7 +140,7 @@ export async function loadOwnProfile(
   const rowId = uuid.parse(userId);
   const { data, error } = await client
     .from("profiles")
-    .select("display_name_enc, municipality_code, district, profile_contacts(whatsapp_enc)")
+    .select("display_name_enc, municipality_code, district, profile_contacts(whatsapp_enc, social_links_enc)")
     .eq("id", rowId)
     .maybeSingle();
   if (error) throw new Error(`profile_read_failed:${errorCode(error)}`);
@@ -127,12 +155,28 @@ export async function loadOwnProfile(
       return "";
     }
   };
+  const socialRaw = await open(row.profile_contacts?.social_links_enc ?? undefined, "profile_contacts", "social_links_enc");
+  let socialLinks: string[] = [];
+  if (socialRaw !== "") {
+    const parsed = storedSocialLinks.safeParse(safeJson(socialRaw));
+    if (parsed.success) socialLinks = socialLinkViews(parsed.data).map((view) => view.href);
+    else deps.log.warn("profile_decrypt_failed", { column: "social_links_enc", reason: "invalid_json" });
+  }
   return {
     displayName: await open(row.display_name_enc, "profiles", "display_name_enc"),
     whatsapp: await open(row.profile_contacts?.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
     municipalityCode: row.municipality_code,
     district: row.district,
+    socialLinks,
   };
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 /** A pessoa já tem perfil? (Sem perfil, a página inicial manda para o formulário.) */

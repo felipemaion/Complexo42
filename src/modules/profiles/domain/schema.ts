@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizeSocialLink, socialLinkInputMaxLength, socialLinkMaxLength } from "./social";
 
 /**
  * Regras do texto dos dados do perfil (issue #10, docs/MODELO_DADOS.md). O banco só vê o valor
@@ -12,7 +13,7 @@ export const profileLimits = {
   districtMin: 2,
   districtMax: 60,
   socialLinksMax: 5,
-  socialLinkMaxLength: 256,
+  socialLinkMaxLength,
 } as const;
 
 /** Espelham os CHECKs de `public.profiles` (o servidor é quem grava estes valores, não o titular). */
@@ -34,9 +35,21 @@ function shortText(min: number, max: number) {
     .refine((value) => codePoints(value) >= min && codePoints(value) <= max, `use de ${min} a ${max} caracteres`);
 }
 
+/**
+ * Um link de rede (#17): só https, sem usuário/senha, até 256 caracteres; sai normalizado (ver
+ * `./social.ts`). `javascript:`, `data:`, `http:` e o que não é endereço são recusados.
+ */
 const httpsUrl = z
-  .url({ protocol: /^https$/, error: "use um endereço https" })
-  .max(profileLimits.socialLinkMaxLength, `até ${profileLimits.socialLinkMaxLength} caracteres`);
+  .string()
+  .max(socialLinkInputMaxLength)
+  .transform((value, ctx) => {
+    const href = normalizeSocialLink(value);
+    if (href === null) {
+      ctx.addIssue({ code: "custom", message: "use um endereço https" });
+      return z.NEVER;
+    }
+    return href;
+  });
 
 export const profileInputSchema = z.strictObject({
   displayName: shortText(profileLimits.displayNameMin, profileLimits.displayNameMax),
@@ -52,6 +65,7 @@ export const profileContactInputSchema = z.strictObject({
   socialLinks: z
     .array(httpsUrl)
     .max(profileLimits.socialLinksMax, `até ${profileLimits.socialLinksMax} links`)
+    // Repetidos depois de normalizar (`instagram.com/a` e `https://instagram.com/a` são o mesmo).
     .refine((links) => new Set(links).size === links.length, "links repetidos")
     .default([]),
 });

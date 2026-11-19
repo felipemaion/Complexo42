@@ -13,10 +13,20 @@ export {
   consentNotYetGiven,
   parseProfileForm,
   profileFormFields,
+  socialLinkFormEntriesMax,
+  socialLinksSentField,
   type DistrictCatalog,
   type ParsedProfileForm,
   type ProfileFormField,
 } from "./domain/form";
+export {
+  normalizeSocialLink,
+  socialLinkInputMaxLength,
+  socialLinkRel,
+  socialLinkView,
+  socialLinkViews,
+  type SocialLinkView,
+} from "./domain/social";
 export { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./domain/whatsapp";
 export { hasOwnProfile, listMunicipalities, loadOwnProfile, saveOwnProfile, type ProfileDeps } from "./server/profile";
 export {
@@ -49,6 +59,7 @@ export {
   type ViewMemberContactResult,
 } from "./server/contact";
 export { ProfileForm } from "./components/profile-form";
+export { SocialLinkList } from "./components/social-links";
 export { ContactViewsList, ContactVisibilityChoices, type ContactVisibilityText } from "./components/contact-visibility";
 export type {
   AccessStatus,

@@ -160,6 +160,12 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 ### `profile_contacts` (1:1 com `profiles`)
 `profile_id` PK, `whatsapp_enc` 🔒, `whatsapp_hmac` (único, hex de 64), `social_links_enc` 🔒 null
 (JSON da lista de URLs), `updated_at`.
+Redes (#17): até 5 links, normalizados no servidor antes de cifrar (`src/modules/profiles/domain/social.ts`):
+só `https://`, sem usuário/senha nem porta, com domínio (nada de IP ou `localhost`), até 256
+caracteres; domínio em outro alfabeto fica em punycode (`xn--`), que é o que aparece na tela. Na tela,
+links de rede só saem por `SocialLinkList` (texto puro, `rel="noopener noreferrer nofollow"`).
+Salvar o perfil sem mexer nos links os mantém: o formulário volta com eles, e um envio sem o campo
+`socialLinksSent` repassa o valor cifrado guardado.
 Fica **separada** para que listagens de perfis nunca tragam contato por engano. Pela tabela,
 só o próprio titular lê (RLS). O contato de outra pessoa sai só por `public.view_contact` (abaixo),
 que registra cada acesso. Ideia adaptada do protótipo original Vguedess/Complexo42

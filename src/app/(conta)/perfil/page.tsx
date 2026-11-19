@@ -23,6 +23,8 @@ export default async function ProfilePage() {
           whatsapp: own ? formatBrazilianWhatsapp(own.whatsapp) : "",
           municipalityCode: own ? String(own.municipalityCode) : "",
           district: own?.district ?? "",
+          // Os links salvos voltam para as caixas: salvar sem mexer neles os mantém (#17).
+          socialLinks: own?.socialLinks ?? [],
         }}
         municipalities={municipalities}
         districts={districtsByMunicipality}
