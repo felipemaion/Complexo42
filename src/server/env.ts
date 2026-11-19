@@ -56,6 +56,9 @@ const envSchema = z.object({
     .refine((v) => parsePreviousKeys(v) !== null, { error: "formato v1:<base64>,v2:<base64> com chaves de 32 bytes" })
     .optional(),
   BLIND_INDEX_KEY: key32.optional(),
+  // Questionário real das casas (ADR 0008 §2.1, #91), instalado só no servidor. Sem ela, vale o
+  // exemplo fictício de config/questionnaire.example.json. O conteúdo é validado na subida.
+  QUESTIONNAIRE_PATH: z.string().optional(),
 });
 
 // Obrigatórias só em produção. Checadas fora do schema para aparecerem junto com os
