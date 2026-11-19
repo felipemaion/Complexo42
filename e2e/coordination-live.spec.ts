@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { acceptTermIfAsked } from "./accept-term";
 
 // Telas da coordenação (#26, ADR 0008 §1): lista de autorizados e fila de espera. Sem Supabase
 // (o CI): só a proteção das rotas. Com o Supabase local, o fluxo real: pessoas se cadastram e
@@ -50,6 +51,7 @@ test.describe("coordenação com o Supabase local", () => {
   async function waitlisted(browser: Browser, baseURL: string, tag: string) {
     const person = { email: `espera.${tag}.${run}@exemplo.org`, name: `Pessoa Espera ${tag.toUpperCase()} ${run}` };
     const { page, id } = await openSession(browser, person.email);
+    await acceptTermIfAsked(page);
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill(person.name);
     await page.getByLabel("Seu WhatsApp, com DDD").fill(`11 9${String(run + ++phone).slice(-8)}`);
@@ -82,6 +84,13 @@ test.describe("coordenação com o Supabase local", () => {
       }),
     });
     expect(profile.status).toBe(201);
+    // Já aceitou o termo vigente (#11): sem a linha, o portão manda a pessoa para /termo.
+    const consent = await admin("/rest/v1/consent_acceptances", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ user_id: user.id, version: "v1" }),
+    });
+    expect(consent.status).toBe(201);
     if (!root) return { email };
     const [unit] = await (await admin("/rest/v1/units?parent_id=is.null&select=id")).json();
     const [role] = await (
