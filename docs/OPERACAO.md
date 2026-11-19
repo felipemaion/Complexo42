@@ -635,3 +635,78 @@ e duração. O script recusa escrever se o log for link simbólico.
 
 `deploy/deploy.test.sh` — **47 asserções** com dublês de `docker`, `flock` e
 `sleep`: roda no CI sem container, sem rede e sem servidor.
+
+
+## O pipeline no GitHub (#81)
+
+Dois workflows: `build.yml` publica a imagem, e chama `deploy.yml` passando a
+**tag e o ambiente como entradas declaradas**.
+
+Preferi `workflow_call` a `workflow_run`: ali os valores chegam explícitos em
+vez de serem garimpados do payload do evento. Escolher o ambiente errado por
+uma leitura equivocada do payload é o tipo de erro que só aparece quando algo
+vai para produção sem querer.
+
+| Evento | Tags publicadas | Ambiente |
+|---|---|---|
+| push na `main` | `sha-<curto>` e `main` | `staging`, automático |
+| release publicada | `vAAAA.MM.DD[.n]` | `production`, **com aprovação** |
+
+Quem exige a aprovação é o **environment `production`** do GitHub, não o
+workflow. Os secrets são **por ambiente**, então a chave do staging não serve
+para produção.
+
+### Por que a `main` só se move depois da conferência
+
+A tag imutável (`sha-*` ou `v*`) é publicada primeiro; a conferência das
+migrations roda contra ela; e só então `main` é movida com
+`buildx imagetools create`. Publicando tudo de uma vez, uma imagem que
+reprova na conferência já estaria respondendo por `main` para quem puxasse
+nesse intervalo.
+
+A conferência compara a **impressão digital da lista ordenada de nomes e
+conteúdos**, não a contagem: um arquivo renomeado ou alterado passaria por
+uma contagem igual.
+
+### Sem actions de terceiros
+
+Só `actions/checkout`, fixado por SHA. Docker e SSH são shell: cada action a
+mais é um SHA para fixar, acompanhar e confiar, e aqui não havia ganho.
+
+### Nunca `ssh-keyscan`
+
+A host key vem do secret `DEPLOY_KNOWN_HOSTS`, fixa. O `fail2ban` do servidor
+bane o runner que faz varredura — e o deploy passa a falhar por um motivo que
+não tem nada a ver com deploy.
+
+### O que o Felipe precisa configurar uma vez
+
+1. **Tornar o pacote do GHCR público.** Ele nasce **privado** mesmo em
+   repositório público; sem isso o servidor não consegue baixar a imagem.
+2. **Criar os environments** `staging` e `production`. Em **ambos**, em
+   *Deployment branches and tags*, selecionar **Selected branches and tags** e
+   permitir só o branch `main` e o padrão de tag `v*`. Em `production`, marcar
+   os **revisores obrigatórios** e **Prevent self-review**.
+
+   > Isto não é capricho de configuração: **é a defesa principal.** O
+   > `workflow_dispatch` roda o arquivo **do branch escolhido**, então sem
+   > essa restrição alguém com permissão de push cria um branch com o
+   > `deploy.yml` editado e o staging — que não pede aprovação — entrega o
+   > `DEPLOY_SSH_KEY`. Em produção, o revisor aprovaria um código que não leu.
+   > O workflow também recusa referência fora de `main`/`v*`, mas essa é a
+   > segunda linha: quem impede os secrets de chegarem é o environment.
+
+3. **Secrets por environment:** `DEPLOY_HOST`, `DEPLOY_USER`,
+   `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS` (saída de `ssh-keyscan` rodada **na
+   máquina dele**, uma vez, não no runner).
+4. **Proteger as tags `v*` com um ruleset**, restringindo quem pode criá-las.
+   A release é o gatilho de produção; o workflow já exige que o commit da
+   release seja ancestral de `origin/main`, mas limitar quem cria a tag fecha
+   o caminho antes.
+5. **No servidor:** usuário e chave de deploy por ambiente, `authorized_keys`
+   com forced-command, e a regra de sudo — as linhas exatas estão na seção
+   "Deploy do app" acima.
+
+Enquanto 1 a 4 não existirem, o `build.yml` publica a imagem e o `deploy.yml`
+falha dizendo qual secret falta — que é o comportamento desejado, e não um
+deploy pela metade.

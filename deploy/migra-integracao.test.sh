@@ -15,7 +15,7 @@ verifica() {
 docker info > /dev/null 2>&1 || { echo "sem Docker em funcionamento -- integracao PULADA"; exit 0; }
 
 IMG=${PG_IMAGEM:-postgres:17-alpine}
-NOME=migra-it-$$
+NOME=migra-it-$$-$(head -c 4 /dev/urandom | od -An -tx1 | tr -d ' \n')
 BASE=$(mktemp -d)
 limpar() { docker rm -f "$NOME" > /dev/null 2>&1; rm -rf -- "$BASE"; return 0; }
 trap limpar EXIT
@@ -26,13 +26,26 @@ printf 'create table beta(id int);\nselect 1/0;\n' > "$BASE/m/20260202000000_bet
 
 echo "== subindo Postgres descartavel ($IMG)"
 docker run -d --name "$NOME" -e POSTGRES_PASSWORD=x "$IMG" > /dev/null
-for i in $(seq 1 60); do
-  docker exec "$NOME" psql -U postgres -c 'select 1' > /dev/null 2>&1 && break
-  [ "$i" = 60 ] && { echo "banco nao ficou pronto"; exit 1; }
+# Esperar por TCP, nao pelo socket: a imagem oficial sobe um servidor
+# TEMPORARIO durante o initdb que escuta SO no socket Unix e e derrubado em
+# seguida. Uma consulta pelo socket pode dar "pronto" contra ele, e o teste
+# segue contra um banco que esta reiniciando -- falha intermitente, que foi
+# exatamente o que apareceu no CI. Pelo TCP isso nao acontece.
+pronto=0
+for i in $(seq 1 90); do
+  if docker exec -e PGPASSWORD=x "$NOME" psql -h 127.0.0.1 -U postgres -c 'select 1' > /dev/null 2>&1; then
+    pronto=$((pronto + 1))
+    # Duas leituras seguidas: uma so ainda poderia pegar a janela entre o fim
+    # do initdb e o restart definitivo.
+    [ "$pronto" -ge 2 ] && { echo "   pronto em ${i}s"; break; }
+  else
+    pronto=0
+  fi
+  [ "$i" = 90 ] && { echo "banco nao ficou pronto em 90s"; docker logs "$NOME" | tail -20; exit 1; }
   sleep 1
 done
 
-q() { docker exec -i "$NOME" psql -U postgres -At -c "$1" 2>/dev/null; }
+q() { docker exec -i -e PGPASSWORD=x "$NOME" psql -h 127.0.0.1 -U postgres -At -c "$1" 2>/dev/null; }
 corre() { DB_CONTAINER="$NOME" DB_USER=postgres DB_NOME=postgres bash "$SCRIPT" --de "$BASE/m" "$@"; }
 
 echo "== migration que quebra no meio"

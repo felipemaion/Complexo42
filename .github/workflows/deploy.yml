@@ -1,0 +1,106 @@
+# Implanta uma tag já publicada (issue #81, ADR 0009 §3).
+#
+# Chamado pelo build.yml com a tag e o ambiente EXPLÍCITOS. Preferi
+# `workflow_call` a `workflow_run`: os valores chegam como entradas
+# declaradas, em vez de garimpados do payload -- menos chance de o ambiente
+# errado ser escolhido por uma leitura equivocada.
+#
+# ATENÇÃO ao `workflow_dispatch`: ele roda o arquivo DO BRANCH ESCOLHIDO. Sem
+# trava, alguém com permissão de push cria um branch com este arquivo editado
+# e o staging entrega o DEPLOY_SSH_KEY; em produção, o revisor aprovaria um
+# código que não leu. Duas defesas, e as duas precisam existir:
+#   1. no GitHub: "Deployment branches and tags" nos dois environments,
+#      limitado a `main` e ao padrão `v*` (ver docs/OPERACAO.md);
+#   2. aqui embaixo: o job recusa se a referência não for `main` nem `v*`.
+# A (1) é a que vale, porque impede os secrets de chegarem. A (2) é o aviso
+# claro de quem tentou.
+name: Deploy
+
+on:
+  workflow_call:
+    inputs:
+      tag: { required: true, type: string }
+      ambiente: { required: true, type: string }
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag já publicada (sha-<hex> ou vAAAA.MM.DD)"
+        required: true
+        type: string
+      ambiente:
+        required: true
+        type: choice
+        options: [staging, production]
+
+# Nenhuma permissão de token: este workflow não fala com a API do GitHub.
+permissions: {}
+
+jobs:
+  implantar:
+    name: Implanta em ${{ inputs.ambiente }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: ${{ inputs.ambiente }}
+    # No job, e não no topo: em `workflow_call` o contexto `inputs` nem sempre
+    # é avaliável no nível do workflow.
+    concurrency:
+      group: deploy-${{ inputs.ambiente }}
+      cancel-in-progress: false
+    steps:
+      - name: A referência tem de ser a main ou uma tag de release
+        env:
+          REFERENCIA: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          case "$REFERENCIA" in
+            refs/heads/main) : ;;
+            refs/tags/v*) : ;;
+            *) echo "ERRO: deploy so a partir da main ou de uma tag v* (veio de '$REFERENCIA')"; exit 1 ;;
+          esac
+
+      - name: A tag tem de ser do formato esperado
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          # `[[ =~ ]]`, nao `grep`: grep casa por LINHA, entao uma tag com
+          # quebra de linha passaria olhando so a primeira.
+          if [[ $TAG =~ ^sha-[0-9a-f]{7,40}$ ]] || [[ $TAG =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+            echo "tag aceita: $TAG"
+          else
+            echo "ERRO: tag '$TAG' fora do padrao"; exit 1
+          fi
+
+      - name: Implantar por SSH
+        env:
+          CHAVE: ${{ secrets.DEPLOY_SSH_KEY }}
+          CONHECIDOS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          USUARIO: ${{ secrets.DEPLOY_USER }}
+          MAQUINA: ${{ secrets.DEPLOY_HOST }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          for v in CHAVE CONHECIDOS USUARIO MAQUINA; do
+            [ -n "${!v}" ] || { echo "ERRO: falta o secret de $v no environment"; exit 1; }
+          done
+          umask 077
+          mkdir -p ~/.ssh
+          # A chave sai do disco no fim, dê certo ou não.
+          trap 'rm -f ~/.ssh/deploy' EXIT
+          printf '%s\n' "$CHAVE" > ~/.ssh/deploy
+          # A host key vem do SECRET, fixa. NUNCA `ssh-keyscan`: o fail2ban do
+          # servidor bane o runner, e o deploy passa a falhar por um motivo que
+          # não tem nada a ver com deploy.
+          printf '%s\n' "$CONHECIDOS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy ~/.ssh/known_hosts
+          # O ÚNICO dado enviado é a tag; a chave está presa a um comando só
+          # (forced-command) no authorized_keys do servidor.
+          ssh -i ~/.ssh/deploy \
+              -o IdentitiesOnly=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              -o ConnectTimeout=15 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=4 \
+              "$USUARIO@$MAQUINA" "$TAG"
