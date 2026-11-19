@@ -15,7 +15,7 @@
     "54321": { "label": "Supabase API" },
     "54323": { "label": "Supabase Studio (dados fictícios)" }
   },
-  "postCreateCommand": "if [ -f package.json ]; then npm ci; else echo 'Scaffold ainda não existe (ver issues do M0).'; fi",
+  "postCreateCommand": "npm ci",
   "customizations": {
     "vscode": {
       "extensions": [

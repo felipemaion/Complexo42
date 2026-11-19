@@ -3,9 +3,6 @@
 Bem-vindo(a)! Seguindo este guia, você sai **com o projeto rodando e o primeiro PR aberto**.
 Tempo estimado: 2 a 3 horas.
 
-> Já funcionam `npm run dev`, `npm run check` e `npm test`. Os comandos `setup` e `db:*`
-> chegam com as #4 e #52.
-
 ---
 
 ## Passo 1 — Leia (30 min)
@@ -62,7 +59,8 @@ npm run check     # lint + tipos + testes + build: tem que passar ANTES de todo 
   Codespace quando parar**.
 - **Devcontainer local:** VS Code + extensão *Dev Containers* → "Reopen in Container".
 
-Depois rode `npm run setup` e `npm run dev`, como no caminho A.
+O contêiner já roda `npm ci` ao ser criado e traz Docker dentro dele. Depois rode
+`npm run setup` e `npm run dev`, como no caminho A.
 
 ### Por que o Docker roda só o banco, e não o app inteiro?
 
@@ -75,7 +73,8 @@ caminho B.
 
 | Comando | O que faz |
 |---|---|
-| `npm run setup` | Prepara tudo do zero (pode rodar de novo) |
+| `npm run setup` | Prepara tudo do zero (pode rodar de novo): `.env.local`, chaves de teste, `npm ci`, Supabase e migrations |
+| `npm run gen-test-keys` | Preenche só as chaves de criptografia de teste vazias no `.env.local` |
 | `npm run dev` | App em modo desenvolvimento |
 | `npm run check` | Tudo o que o CI roda. **Obrigatório antes do PR** |
 | `npm test` | Testes unitários (Vitest) |
