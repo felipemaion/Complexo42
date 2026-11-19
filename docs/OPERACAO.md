@@ -8,16 +8,47 @@ quem opera tem o runbook privado.
 ## Antes da primeira subida
 
 ```bash
-./gen-secrets.sh <arquivo-de-segredos> https://<endereco-do-ambiente>
+./gen-secrets.sh <arquivo-de-segredos> https://<endereco-do-ambiente> <nome-do-ambiente>
 ```
 
-Gera `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `POSTGRES_PASSWORD` e as
-duas chaves do ADR 0003, com modo 0600. Não imprime valor nenhum — só nome e
-tamanho. **Cada ambiente tem as suas chaves** (ADR 0009 §2).
+Gera `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, as **três senhas do banco**
+(abaixo) e as duas chaves do ADR 0003, com modo 0600. Não imprime valor nenhum
+— só nome e tamanho. **Cada ambiente tem as suas chaves** (ADR 0009 §2).
 
 > Perder `FIELD_ENCRYPTION_KEY` torna ilegível todo dado pessoal já cifrado.
 > Guarde cópia offline em cofre de senhas. O script se recusa a sobrescrever
 > um arquivo existente sem `--force`.
+
+## Senhas por papel do Postgres
+
+Uma senha por papel, nunca uma para todos (issue #95). Quem recebe cada uma:
+
+| Variável | Papel no banco | Quem a recebe |
+|---|---|---|
+| `POSTGRES_PASSWORD` | `supabase_admin` (superusuário) | só o container `db` e o job de migrations (#81) |
+| `AUTHENTICATOR_PASSWORD` | `authenticator` | só o `rest` (PostgREST) |
+| `AUTH_ADMIN_PASSWORD` | `supabase_auth_admin` | só o `auth` (GoTrue) |
+
+O motivo é conter o estrago: `rest` e `auth` são os serviços mais expostos, e
+com senha compartilhada vazar o ambiente de um deles entregava o superusuário
+do banco. O papel `postgres` existe (as migrations do GoTrue fazem `grant … to
+postgres`), mas é **NOLOGIN**: ninguém se conecta com ele.
+
+O `02-roles.sh` aplica as senhas **na criação do volume**. Em volume que já
+existe, a troca é por `ALTER ROLE`, de dentro do container do banco:
+
+```bash
+# le a senha do arquivo de segredos, sem ecoar no terminal nem no histórico
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  -v senha="$(grep -m1 '^AUTHENTICATOR_PASSWORD=' <segredos> | cut -d= -f2-)" \
+  -c "ALTER ROLE authenticator WITH LOGIN PASSWORD :'senha'"
+# idem para supabase_auth_admin, com AUTH_ADMIN_PASSWORD
+```
+
+Depois do `ALTER ROLE`, reinicie quem usa aquela senha (`restart rest` ou
+`restart auth`): a conexão antiga continua válida até o processo reconectar, e
+sem o restart o erro só aparece horas depois.
 
 ## Subir, parar, ver
 
@@ -61,8 +92,8 @@ não o kong — ver `docs/adr/0009` §1.
 
 ## Armadilhas
 
-Três erros encontrados ao montar isto, todos corrigidos aqui. Valem para
-qualquer serviço novo, não só para o Supabase.
+Erros encontrados ao montar isto, todos corrigidos aqui. Valem para qualquer
+serviço novo, não só para o Supabase.
 
 **Dois ambientes no mesmo host colidem calados.** Nomes de container e de
 volume derivam do nome do projeto Compose. Com `name:` fixo no YAML, staging
@@ -82,6 +113,14 @@ fecha o pipe ao atingir N bytes, o `tr` morre com SIGPIPE e a substituição
 devolve status diferente de zero. Pior: a **primeira** chamada costuma
 passar, então o bug parece intermitente. Para gerar segredo alfanumérico,
 `python3 -c "import secrets, string; …"`, sem pipe.
+
+**Senha compartilhada entre papéis vira escalada de privilégio.** No primeiro
+desenho, `postgres`, `authenticator` e `supabase_auth_admin` dividiam a
+`POSTGRES_PASSWORD` — que é a senha do superusuário. Ela ficava no ambiente do
+PostgREST e do GoTrue, os dois serviços que o mundo alcança. Nada quebrava, e
+era exatamente esse o problema: só a revisão pega. Hoje são três senhas, e o
+teste do `gen-secrets.test.sh` falha se o compose entregar a do superusuário ao
+`rest` ou ao `auth`.
 
 **Valor de exemplo não tem cara de chave.** `env.example` usa
 `gerado-por-gen-secrets` e descreve o formato em comentário. Base64 ou JWT
