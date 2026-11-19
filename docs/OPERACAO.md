@@ -555,6 +555,35 @@ diz que não há rollback possível em vez de fingir que fez.
 > Remoção vem num PR **posterior**, depois que a versão que não usa mais a
 > coluna estiver no ar.
 
+### As migrations: `deploy/migra.sh`
+
+**Elas viajam na imagem**, não num checkout do repositório no servidor. O
+deploy recebe só a tag, então o que aplica o schema tem de ser exatamente o
+que veio com aquela tag; um checkout à parte seria uma segunda fonte de
+verdade, que diverge em silêncio e só aparece no pior momento. O Dockerfile
+copia `supabase/migrations` para a imagem final — são `.sql` já públicos, e o
+container do app não os lê.
+
+O `migra.sh` cria um container da imagem **daquela tag**, copia as migrations
+de dentro dele, apaga o container, e aplica no banco **só as pendentes**,
+comparando com `supabase_migrations.schema_migrations` — a mesma tabela que o
+CLI do Supabase usa.
+
+**Uma transação por migration.** Falhou, nada *dela* fica gravado, e as
+anteriores que passaram continuam valendo. Sem isso, uma falha no meio deixa
+o schema num estado que nenhum arquivo descreve. A seguinte nem é tentada.
+
+**O `psql` roda dentro do container do banco** (`docker exec`), não num
+container com rede. Assim a senha do Postgres não atravessa lugar nenhum:
+conexão local dentro do container é confiável. É uma troca consciente em
+relação ao "container de uso único" da #81 — o isolamento que importa, abortar
+sem tocar o app, continua valendo.
+
+Variáveis: `APP_TAG` (vem do `deploy.sh`), `IMAGEM`, `DB_CONTAINER` e,
+opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
+
+Teste: `deploy/migra.test.sh`, 18 asserções com dublê de `docker`.
+
 ### Duas proteções que não são óbvias
 
 **Projeto Compose próprio.** O `secrets/env` traz o `COMPOSE_PROJECT_NAME` do
