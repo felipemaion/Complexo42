@@ -1,11 +1,11 @@
 // API pública do módulo lida do ambiente (#45): chaves via variáveis, erro claro sem elas,
-// marcação server-only e chaves de teste do .env.example.
-import { execFileSync } from "node:child_process";
+// marcação server-only e chaves de teste do setup local.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseEnv as parseDotenv } from "node:util";
+import { fillTestKeys } from "../../../scripts/gen-test-keys.mjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { parseEnv, testKey } from "../env";
+import { parseEnv } from "../env";
 import { decryptField, emailBlindIndex, encryptField, keyVersionOf, reencryptField, whatsappBlindIndex } from "./index";
 import { resetKeyringCache } from "./keys";
 
@@ -60,17 +60,16 @@ describe("chaves vindas do ambiente", () => {
   });
 });
 
-describe("chaves de teste do .env.example", () => {
-  it("são as do scripts/gen-test-keys.sh, válidas e diferentes entre si", () => {
-    const script = execFileSync("./scripts/gen-test-keys.sh", { encoding: "utf8" });
+describe("chaves de teste do setup local (#52)", () => {
+  it("o .env.example com as chaves geradas por gen-test-keys passa na validação e cifra", async () => {
     const example = readFileSync(".env.example", "utf8");
-    for (const line of script.trim().split("\n")) expect(example).toContain(line);
+    // Vazias no .env.example: contam como ausentes e não derrubam a subida.
+    expect(parseEnv({ ...parseDotenv(example), NODE_ENV: "development" }).ok).toBe(true);
 
-    // O .env.example é lido como .env (o comentário na linha não entra no valor).
-    const vars = parseDotenv(example);
-    expect(vars.FIELD_ENCRYPTION_KEY).toBe(testKey("FIELD_ENCRYPTION_KEY"));
-    expect(vars.BLIND_INDEX_KEY).toBe(testKey("BLIND_INDEX_KEY"));
+    const vars = parseDotenv(fillTestKeys(example).content);
     expect(parseEnv({ ...vars, NODE_ENV: "development" }).ok).toBe(true);
+    stubKeys({ FIELD_ENCRYPTION_KEY: vars.FIELD_ENCRYPTION_KEY, BLIND_INDEX_KEY: vars.BLIND_INDEX_KEY });
+    expect(await decryptField(await encryptField("Maria", ctx), ctx)).toBe("Maria");
   });
 });
 

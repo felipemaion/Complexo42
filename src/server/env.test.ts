@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeKey, parseEnv, testKey } from "./env";
+import { decodeKey, parseEnv } from "./env";
 
 describe("parseEnv", () => {
   it("aceita produção com a URL de saúde do banco e aplica padrões", () => {
@@ -87,15 +87,6 @@ describe("chaves de criptografia (#45)", () => {
     expect(fail({ ...base, FIELD_ENCRYPTION_PREVIOUS_KEYS: b64() })[0]).toMatch(/^FIELD_ENCRYPTION_PREVIOUS_KEYS: formato/);
     expect(fail({ NODE_ENV: "development", FIELD_ENCRYPTION_KEY_VERSION: "2", FIELD_ENCRYPTION_PREVIOUS_KEYS: `v1:${b64()}` })).toEqual([
       "FIELD_ENCRYPTION_PREVIOUS_KEYS: exige FIELD_ENCRYPTION_KEY",
-    ]);
-  });
-
-  it("produção recusa as chaves de teste públicas do .env.example", () => {
-    const test = { FIELD_ENCRYPTION_KEY: testKey("FIELD_ENCRYPTION_KEY"), BLIND_INDEX_KEY: testKey("BLIND_INDEX_KEY") };
-    expect(parseEnv({ NODE_ENV: "development", ...test }).ok).toBe(true);
-    expect(fail({ ...prod, ...test })).toEqual([
-      "FIELD_ENCRYPTION_KEY: chave de teste pública, proibida em produção",
-      "BLIND_INDEX_KEY: chave de teste pública, proibida em produção",
     ]);
   });
 });

@@ -1,6 +1,5 @@
 // Configuração do servidor só por variáveis de ambiente, validadas com Zod (#80).
 // As mensagens citam o NOME da variável, nunca o valor: elas vão para o log.
-import { createHash } from "node:crypto";
 import { z } from "zod";
 
 // Chaves de criptografia de campo (ADR 0003, #45). 32 bytes em base64 padrão, como gera
@@ -26,12 +25,6 @@ export function parsePreviousKeys(value: string): Map<number, Uint8Array> | null
     keys.set(version, key);
   }
   return keys;
-}
-
-// Chaves de TESTE publicadas no .env.example. São derivadas de um rótulo público (ver
-// scripts/gen-test-keys.sh), então qualquer um as conhece: produção as recusa.
-export function testKey(name: "FIELD_ENCRYPTION_KEY" | "BLIND_INDEX_KEY"): string {
-  return createHash("sha256").update(`complexo42-test-only:${name}`).digest("base64");
 }
 
 const key32 = z.string().refine((v) => decodeKey(v) !== null, { error: "precisa ter 32 bytes em base64 (openssl rand -base64 32)" });
@@ -95,11 +88,6 @@ function keyProblems(env: ServerEnv): string[] {
   if (previous && !field) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: exige FIELD_ENCRYPTION_KEY");
   for (const version of previous?.keys() ?? []) {
     if (version >= env.FIELD_ENCRYPTION_KEY_VERSION) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: versões antigas precisam ser menores que FIELD_ENCRYPTION_KEY_VERSION");
-  }
-  if (env.NODE_ENV === "production") {
-    for (const key of ["FIELD_ENCRYPTION_KEY", "BLIND_INDEX_KEY"] as const) {
-      if (env[key] === testKey(key)) problems.push(`${key}: chave de teste pública, proibida em produção`);
-    }
   }
   return [...new Set(problems)];
 }
