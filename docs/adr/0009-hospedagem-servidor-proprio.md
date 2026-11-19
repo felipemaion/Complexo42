@@ -142,3 +142,13 @@ lançamento**, com o tempo medido.
   gratuito.
 - (−) **Os recursos são compartilhados com outros projetos do servidor.** É preciso
   respeitar os limites e evitar build e deploy simultâneos.
+- (−) **A rede interna do proxy também é compartilhada.**
+  - **Situação:** só o `kong` entra nela, porque o Caddy precisa alcançá-lo. Ainda assim,
+    um container de outro projeto do servidor consegue chamar `/rest/v1` por dentro, com a
+    chave `anon`. De fora, `/rest/v1` dá 404.
+  - **O que fica protegido:** o `db`, o `auth` e o `rest` ficam numa rede própria do
+    projeto, fora da rede do proxy.
+  - **Barreira real:** a **RLS**, porque a chave `anon` só enxerga o que as políticas
+    liberam para quem não tem login (R14).
+  - **Para fechar de vez:** uma rede de proxy só do Complexo42, o que exige recriar o
+    proxy, numa janela combinada. **Risco aceito até o lançamento [?].**
