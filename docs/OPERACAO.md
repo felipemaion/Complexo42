@@ -463,3 +463,58 @@ qualquer erro.
 bom; só o `--do-remoto` prova que a cópia fora da VPS existe, chegou inteira e
 pode ser recuperada — ele baixa o `.age` mais novo do Drive, restaura num
 Postgres descartável e apaga o que baixou no fim.
+
+
+## Deploy do app (#81)
+
+`deploy/deploy.sh` é a versão de **referência**, usada no staging. A produção
+roda a cópia do repositório de infraestrutura (ADR 0009 §3): quem tem push
+aqui não decide portas, volumes nem limites de produção.
+
+### A tag é a única entrada
+
+O Actions chama o script por SSH com **forced-command**, e o único dado que
+atravessa é a tag. Por isso ela é validada antes de chegar perto de um
+`docker`: aceita `sha-<hex>`, `vAAAA.MM.DD[.n]` e `main`; recusa o resto.
+
+> O forced-command restringe o **comando**, não o argumento. Sem a validação,
+> `sha-abc; docker rm -f db` chegaria a um shell com acesso ao Docker.
+
+### As quatro etapas, e por que nesta ordem
+
+1. `docker pull` da tag;
+2. **migrations** — falhou aqui, aborta e o app **não** é trocado. Migration
+   quebrada não pode conviver com app novo;
+3. `up -d` do app;
+4. **smoke** em `/api/healthz` (até 60 s); falhou, volta para a tag anterior e
+   sai com erro.
+
+A tag anterior sai do container **que está no ar** (`docker inspect`), não de
+um arquivo de estado: arquivo mente quando alguém mexe à mão, container não.
+
+### Duas proteções que não são óbvias
+
+**Projeto Compose próprio para o app.** O `secrets/env` traz o
+`COMPOSE_PROJECT_NAME` do **Supabase**. Herdá-lo faria app e banco dividirem
+projeto, e um `up --remove-orphans` derrubaria o banco. O script passa `-p`
+explícito e **nunca** usa `--remove-orphans`. Há teste para as duas coisas.
+
+**`flock`.** Um deploy por vez. Sem isso, dois merges seguidos na `main`
+trocam a imagem ao mesmo tempo e o rollback de um desfaz o outro.
+
+### Variáveis que o script espera
+
+`PROJECT_DIR`, `ENV_FILE`, `COMPOSE_APP`, `APP_PROJETO` (≠ o do Supabase),
+`REDE_PROXY`, `ALVO_SAUDE` e `MIGRA`. Opcionais: `IMAGEM`, `ESPERA_SMOKE`,
+`SMOKE_IMAGEM`, `TRAVA`, `REGISTRO`.
+
+### Registro
+
+Cada execução acrescenta uma linha em `data/logs/deploy.log` com data, tag,
+resultado (`ok`, `migrations_falharam`, `rollback_ok=<tag>`,
+`rollback_falhou=<tag>`, `smoke_falhou_sem_rollback`) e duração em segundos.
+
+### Teste
+
+`deploy/deploy.test.sh` — 27 asserções com dublês de `docker`, `flock` e
+`sleep`: roda no CI sem container, sem rede e sem servidor.
