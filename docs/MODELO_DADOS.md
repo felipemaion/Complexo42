@@ -80,6 +80,21 @@ tem um vínculo aberto **por eixo**: uma casa e uma equipe.
 O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
 (`pending`, `active`, `waitlisted`, `blocked`). Quem está `waitlisted` só lê o próprio perfil.
 
+- **Ninguém lê nem grava a tabela pela API** (sem grant). Tudo passa por funções do banco
+  (`security definer`), chamadas pelo servidor com o JWT de quem está logado (#26):
+  - `resolve_access(email_hmac)`: no primeiro login, decide só o perfil de quem chama e só a
+    partir de `pending` (`active` se o HMAC está na lista, senão `waitlisted`). Depois disso
+    devolve o estado atual sem consultar a lista: entrar na lista mais tarde não libera
+    sozinho, e a função não serve para testar HMACs em série. Devolve só o estado, nunca dados
+    da lista.
+  - `import_allowlist(email_hmacs[], source)`: só o gestor (`manager`) da raiz. Recebe só HMACs
+    (o servidor lê o CSV e descarta os e-mails) e grava `allowlist_imported` com a quantidade
+    de HMACs distintos recebidos (não a de novos, para não revelar quem já estava).
+  - `list_waitlist()` e `decide_access(profile, 'active' | 'blocked')`: o gestor com escopo
+    sobre o vínculo aberto de quem espera (sem vínculo, o gestor da raiz) aprova ou bloqueia;
+    cada decisão gera `access_granted` ou `access_blocked`.
+- Liberar (`active`) também tira a conta de `status = pending`; `suspended` não muda.
+
 ### `profiles`
 | Coluna | Tipo | Observação |
 |---|---|---|
@@ -189,8 +204,12 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 ### `audit_log`
 `id`, `actor_id`, `event` (`contact_viewed`, `role_granted`,
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
-`submission_rejected`, `points_adjusted`, `account_deleted`), `target_id`, `created_at`.
-**Nunca contém dados pessoais em claro.** Só os gestores leem, e só dentro do seu escopo.
+`submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
+`access_granted`, `access_blocked`), `target_id`, `item_count`, `created_at`.
+`item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
+**Nunca contém dados pessoais em claro.** Só os gestores leem, e só dentro do seu escopo
+(`app.can_read_audit`): `allowlist_imported`, o gestor da raiz; eventos sobre uma pessoa, o
+gestor com escopo sobre ela. Ninguém grava, altera nem apaga pela API: só as funções do banco.
 
 ## Acesso
 

@@ -134,6 +134,8 @@ from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_susp', 'team_a_mon
 --   profile → app.can_view_profile   contact → app.can_view_contact
 --   manage  → app.can_manage_unit    unit    → app.can_view_unit
 --   edit    → app.can_edit_profile (criar/editar perfil e contato)
+--   import  → app.can_import_allowlist   decide → app.can_decide_access (fila de espera)
+--   audit_import / audit_decision → app.can_read_audit (importação / decisão sobre o alvo)
 --   grant_<papel>     → app.can_grant_role('<papel>', unidade, outsider)
 --   selfgrant_<papel> → app.can_grant_role('<papel>', unidade, o próprio ator)
 -- ---------------------------------------------------------------------------------------
@@ -309,7 +311,53 @@ insert into matrix (actor, action, target, expected) values
   ('stu_pend', 'edit', 'stu_pend', true),
   ('stu_pend', 'unit', 'team_a', false),
   ('stu_wait', 'unit', 'team_a', false),
-  ('stu_blocked', 'unit', 'team_a', false);
+  ('stu_blocked', 'unit', 'team_a', false),
+  -- Lista de autorizados (#26): só o gestor da raiz importa
+  ('nat_mgr', 'import', 'br', true),
+  ('sp_mgr', 'import', 'br', false),
+  ('abc_mgr', 'import', 'br', false),
+  ('team_a_mon', 'import', 'br', false),
+  ('tech', 'import', 'br', false),
+  ('tech_wait', 'import', 'br', false),
+  ('revoked_mgr', 'import', 'br', false),
+  ('stu_wait', 'import', 'br', false),
+  ('outsider', 'import', 'br', false),
+  ('anon', 'import', 'br', false),
+  -- Fila de espera (#26): o gestor com escopo sobre o vínculo de quem espera decide; sem
+  -- vínculo, só o gestor da raiz; monitor, porta-voz e admin técnico não
+  ('nat_mgr', 'decide', 'stu_wait', true),
+  ('sp_mgr', 'decide', 'stu_wait', true),
+  ('abc_mgr', 'decide', 'stu_wait', true),
+  ('mg_mgr', 'decide', 'stu_wait', false),
+  ('team_a_mon', 'decide', 'stu_wait', false),
+  ('house_mon', 'decide', 'stu_wait', false),
+  ('spokes_a', 'decide', 'stu_wait', false),
+  ('tech', 'decide', 'stu_wait', false),
+  ('revoked_mgr', 'decide', 'stu_wait', false),
+  ('mon_wait', 'decide', 'stu_wait', false),
+  ('stu_a', 'decide', 'stu_wait', false),
+  ('stu_wait', 'decide', 'stu_wait', false),
+  ('outsider', 'decide', 'stu_wait', false),
+  ('anon', 'decide', 'stu_wait', false),
+  ('sp_mgr', 'decide', 'stu_a', false),
+  ('sp_mgr', 'decide', 'stu_blocked', false),
+  ('sp_mgr', 'decide', 'stu_pend', false),
+  ('nat_mgr', 'decide', 'mon_wait', true),
+  ('sp_mgr', 'decide', 'mon_wait', false),
+  ('nat_mgr', 'decide', 'tech_wait', true),
+  -- Auditoria (#26): importação só para o gestor da raiz; decisão, para o gestor no escopo
+  ('nat_mgr', 'audit_import', 'br', true),
+  ('sp_mgr', 'audit_import', 'br', false),
+  ('tech', 'audit_import', 'br', false),
+  ('sp_mgr', 'audit_decision', 'stu_wait', true),
+  ('abc_mgr', 'audit_decision', 'stu_wait', true),
+  ('mg_mgr', 'audit_decision', 'stu_wait', false),
+  ('team_a_mon', 'audit_decision', 'stu_a', false),
+  ('tech', 'audit_decision', 'stu_a', false),
+  ('stu_a', 'audit_decision', 'stu_a', false),
+  ('nat_mgr', 'audit_decision', 'nat_mgr', false),
+  ('nat_mgr', 'decide', 'nat_mgr', false),
+  ('anon', 'audit_decision', 'stu_wait', false);
 
 create function pg_temp.check_access(p_actor text, p_action text, p_target text)
 returns boolean language plpgsql as $$
@@ -327,6 +375,11 @@ begin
     when p_action = 'manage' then app.can_manage_unit(pg_temp.unit(p_target))
     when p_action = 'unit' then app.can_view_unit(pg_temp.unit(p_target))
     when p_action = 'edit' then app.can_edit_profile(pg_temp.person(p_target))
+    when p_action = 'import' then app.can_import_allowlist()
+    when p_action = 'decide' then app.can_decide_access(pg_temp.person(p_target))
+    when p_action = 'audit_import' then app.can_read_audit('allowlist_imported', null)
+    when p_action = 'audit_decision' then
+      app.can_read_audit('access_granted', pg_temp.person(p_target))
     when p_action like 'grant\_%' then
       app.can_grant_role(substr(p_action, 7), pg_temp.unit(p_target), pg_temp.person('outsider'))
     when p_action like 'selfgrant\_%' then
