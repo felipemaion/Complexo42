@@ -1,0 +1,22 @@
+# Só o necessário para o build entra no contexto (#80). Segredos nunca.
+.env*
+**/.env*
+.git
+.github
+.devcontainer
+.claude
+node_modules
+.next
+data
+coverage
+supabase/.temp
+supabase
+deploy
+docs
+scripts
+tests
+**/*.test.ts
+**/*.test.tsx
+*.md
+Dockerfile
+.dockerignore
