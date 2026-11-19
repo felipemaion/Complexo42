@@ -1,0 +1,193 @@
+# Supabase auto-hospedado MÍNIMO — referência (ADR 0009 §1, issue #79)
+#
+# Este arquivo é referência: cada ambiente roda a sua cópia, com o seu
+# próprio arquivo de segredos, fora do repositório. O servidor é ARM64,
+# então todas as imagens estão fixadas por tag + digest linux/arm64.
+#
+# Serviços: db, auth (GoTrue), rest (PostgREST) e kong. Realtime, Storage,
+# Functions e Analytics ficam de fora de propósito (RAM e superfície).
+# studio e meta só sobem com `--profile admin` e NUNCA são publicados.
+#
+# Rede: db, auth e rest ficam em `interna`, sem rota para fora. Só o kong
+# entra também em `proxy`, que é como o proxy reverso alcança os apps.
+# Quem decide o que o mundo vê é o proxy reverso, não o kong.
+
+# O nome do projeto NAO e fixo aqui de proposito: staging e producao rodam no
+# MESMO host. Com `name:` fixo, os dois ambientes dividiriam nomes de container
+# e de volume, e o segundo `up` sequestraria o primeiro. O nome vem do
+# COMPOSE_PROJECT_NAME do arquivo de segredos (ex.: complexo42stg).
+
+x-comum: &comum
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  db:
+    <<: *comum
+    image: supabase/postgres:17.12.0.001@sha256:2543d8fb3889ff2ee514af39496f67c30edd1f1e0da923a560e7930d2f59ca16
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - max_connections=60
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?obrigatorio}
+      POSTGRES_DB: postgres
+    volumes:
+      - db-dados:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    mem_limit: 768m
+    cpus: 0.50
+    networks: [interna]
+
+  auth:
+    <<: *comum
+    image: supabase/gotrue:v2.198.0@sha256:952105b3aa2831bc246270d6701687373f594cc7526f2566db599d82dfaf9d07
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      GOTRUE_SITE_URL: ${SITE_URL:?obrigatorio}
+      GOTRUE_URI_ALLOW_LIST: ${URI_ALLOW_LIST:?obrigatorio}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?obrigatorio}
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      # Cadastro aberto só depois de #87 e #26. Até lá, convite pelo gestor.
+      GOTRUE_DISABLE_SIGNUP: "true"
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      # Porta 25 bloqueada no servidor: e-mail só por relay (ver OPERACAO.md).
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-}
+      GOTRUE_LOG_LEVEL: info
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    mem_limit: 192m
+    cpus: 0.25
+    networks: [interna]
+
+  rest:
+    <<: *comum
+    image: postgrest/postgrest:v16.6@sha256:c20c387ea5e89134f987c833ffa66459dd506e2e9102c8c5fb688d881a8acd45
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:?}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_SERVER_PORT: "3000"
+      PGRST_LOG_LEVEL: error
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 192m
+    cpus: 0.25
+    networks: [interna]
+
+  kong:
+    <<: *comum
+    image: kong:3.9.4@sha256:dd41dedd859a459617f595ef7c5ea7607dd7fd9252a0cc9de13b43f770360c8c
+    depends_on:
+      auth: { condition: service_healthy }
+      rest: { condition: service_healthy }
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: "off"
+      KONG_PLUGINS: request-transformer,cors,key-auth
+      KONG_LOG_LEVEL: notice
+    volumes:
+      - ./kong.yml:/etc/kong/kong.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "kong health"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 512m
+    cpus: 0.25
+    networks:
+      interna:
+      # Alias POR AMBIENTE na rede compartilhada: sem isso, staging e producao
+      # teriam ambos o nome `kong` nela, e o proxy reverso cairia em round-robin
+      # entre os dois ambientes. E este alias que o proxy usa como destino.
+      proxy:
+        aliases:
+          - ${KONG_ALIAS:?obrigatorio}
+
+  # ─── perfil admin: NUNCA publicado, acesso só por túnel SSH ───
+  studio:
+    <<: *comum
+    profiles: ["admin"]
+    image: supabase/studio:2026.11.16-sha-51bd16d@sha256:5d6f359e2d4d93a56e3d13ac2c753b60f6d02a49ffaf2d1196ab0077c19a4f42
+    depends_on:
+      meta: { condition: service_healthy }
+    environment:
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_ANON_KEY: ${ANON_KEY:?}
+      SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY:?}
+    mem_limit: 512m
+    cpus: 0.25
+    networks: [interna]
+
+  meta:
+    <<: *comum
+    profiles: ["admin"]
+    image: supabase/postgres-meta:v0.100.1@sha256:e94dc6bcf67649b8549244ab1f04b64028108fb63c5c207c27cc033e668dd686
+    depends_on:
+      db: { condition: service_healthy }
+    environment:
+      PG_META_PORT: "8080"
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: "5432"
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    mem_limit: 192m
+    cpus: 0.25
+    networks: [interna]
+
+volumes:
+  db-dados:
+
+networks:
+  interna:
+  proxy:
+    external: true
