@@ -2,7 +2,7 @@
 // em `src/`. Os nomes vêm de config/instance.ts; a semente do banco fica em supabase/ (#46).
 import { describe, expect, it } from "vitest";
 import { instance } from "@config/instance";
-import { findInstanceTerms, instanceTerms, readTree } from "./lib/instance-terms";
+import { findInstanceTerms, instanceTerms, normalize, readTree } from "./lib/instance-terms";
 
 /**
  * Exceções por arquivo (caminho relativo a `src/` → termos tolerados). Mantenha pequena e
@@ -15,7 +15,7 @@ const terms = instanceTerms(instance);
 describe("guarda de nomes da instância em src/", () => {
   it("inclui os termos fixos e os nomes vindos da configuração", () => {
     expect(terms).toEqual(expect.arrayContaining(["academia", "turma"]));
-    for (const house of instance.houses) expect(terms).toContain(house.name.toLowerCase());
+    for (const house of instance.houses) expect(terms).toContain(normalize(house.name));
     expect(terms).toContain("organizacao exemplo");
   });
 

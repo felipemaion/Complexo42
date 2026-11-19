@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(33);
+select plan(42);
 
 truncate public.role_assignments, public.unit_members, public.units;
 
@@ -155,7 +155,8 @@ insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a1'),
   ('00000000-0000-0000-0000-0000000000a2'),
   ('00000000-0000-0000-0000-0000000000a3'),
-  ('00000000-0000-0000-0000-0000000000a4');
+  ('00000000-0000-0000-0000-0000000000a4'),
+  ('00000000-0000-0000-0000-0000000000a5');
 
 -- Municípios de teste fora de SP (a migration só traz a região metropolitana de SP).
 insert into public.municipalities (code, name, state_code) values
@@ -172,23 +173,67 @@ from unnest(array['00000000-0000-0000-0000-0000000000a1',
 insert into public.unit_members (unit_id, profile_id)
 values (pg_temp.unit('br.sp.abc.equipe_a'), '00000000-0000-0000-0000-0000000000a1');
 
+-- Um vínculo aberto por pessoa e por eixo (#76, ADR 0008 §2): uma equipe e uma casa.
+select throws_ok(
+  $$ insert into public.unit_members (unit_id, profile_id)
+     values (pg_temp.unit('br.sp'), '00000000-0000-0000-0000-0000000000a1') $$,
+  '23505', null,
+  'uma pessoa tem um só vínculo aberto no eixo da equipe'
+);
+select lives_ok(
+  $$ insert into public.unit_members (unit_id, profile_id, join_method, accepted_at)
+     values (pg_temp.unit('br.sp.abc.casa_1'), '00000000-0000-0000-0000-0000000000a1',
+             'self', now()) $$,
+  'e, ao mesmo tempo, um vínculo aberto no eixo da casa'
+);
 select throws_ok(
   $$ insert into public.unit_members (unit_id, profile_id)
      values (pg_temp.unit('br.sp.abc.casa_1'), '00000000-0000-0000-0000-0000000000a1') $$,
   '23505', null,
-  'uma pessoa tem um só vínculo aberto'
+  'mas não duas casas abertas'
 );
+select results_eq(
+  $$ select u.slug, m.axis from public.unit_members m join public.units u on u.id = m.unit_id
+     where m.profile_id = '00000000-0000-0000-0000-0000000000a1' order by m.axis $$,
+  $$ values ('casa_1'::text, 'house'::text), ('equipe_a', 'team') $$,
+  'o eixo do vínculo vem do tipo da unidade'
+);
+select throws_ok(
+  $$ insert into public.unit_members (unit_id, profile_id, join_method)
+     values (pg_temp.unit('br.mg'), '00000000-0000-0000-0000-0000000000a2', 'self') $$,
+  '23514', null,
+  'forma de entrada só existe no eixo da casa'
+);
+insert into public.unit_members (unit_id, profile_id, axis)
+values (pg_temp.unit('br.mg'), '00000000-0000-0000-0000-0000000000a2', 'house');
+select is(
+  (select axis from public.unit_members where profile_id = '00000000-0000-0000-0000-0000000000a2'),
+  'team',
+  'o eixo enviado é ignorado: vale o do tipo da unidade'
+);
+select throws_ok(
+  $$ update public.unit_types set membership_axis = 'team' where key = 'house' $$,
+  '23514', 'o eixo de um tipo com vínculos não muda',
+  'o eixo de um tipo com vínculos não muda'
+);
+select throws_ok(
+  $$ update public.units set type_id = (select id from public.unit_types where key = 'team')
+     where path = 'br.sp.abc.casa_1' $$,
+  '23514', 'uma unidade com vínculos não muda de eixo',
+  'uma unidade com vínculos não troca de tipo para outro eixo'
+);
+delete from public.unit_members where profile_id = '00000000-0000-0000-0000-0000000000a2';
 
 update public.unit_members set left_at = now()
-where profile_id = '00000000-0000-0000-0000-0000000000a1';
+where profile_id = '00000000-0000-0000-0000-0000000000a1' and axis = 'team';
 select lives_ok(
   $$ insert into public.unit_members (unit_id, profile_id)
-     values (pg_temp.unit('br.sp.abc.casa_1'), '00000000-0000-0000-0000-0000000000a1') $$,
-  'depois de encerrar o vínculo, a pessoa entra em outra unidade'
+     values (pg_temp.unit('br.sp'), '00000000-0000-0000-0000-0000000000a1') $$,
+  'depois de encerrar o vínculo, a pessoa entra em outra unidade do mesmo eixo'
 );
 select is(
   (select count(*)::int from public.unit_members
-   where profile_id = '00000000-0000-0000-0000-0000000000a1'),
+   where profile_id = '00000000-0000-0000-0000-0000000000a1' and axis = 'team'),
   2,
   'o vínculo encerrado continua no histórico'
 );
@@ -270,6 +315,27 @@ select is_empty(
   $$ select 1 from public.unit_members
      where profile_id = '00000000-0000-0000-0000-0000000000a4' $$,
   'estado sem unidade: nenhum vínculo é criado'
+);
+
+-- Com uma casa aceita (#76): a entrada no estado só olha o eixo da equipe.
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+values ('00000000-0000-0000-0000-0000000000a5',
+        'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3550308, 'v1');
+insert into public.unit_members (unit_id, profile_id, join_method, accepted_at)
+values (pg_temp.unit('br.sp.abc.casa_1'), '00000000-0000-0000-0000-0000000000a5', 'self', now());
+update public.profiles set municipality_code = 3106200
+where id = '00000000-0000-0000-0000-0000000000a5';
+select set_eq(
+  $$ select u.path::text from public.unit_members m join public.units u on u.id = m.unit_id
+     where m.profile_id = '00000000-0000-0000-0000-0000000000a5' and m.left_at is null $$,
+  array['br.mg', 'br.sp.abc.casa_1'],
+  'trocar de estado move o vínculo do estado e não encerra a casa'
+);
+select is(
+  (select count(*)::int from public.unit_members
+   where profile_id = '00000000-0000-0000-0000-0000000000a5' and left_at is not null),
+  1,
+  'só o vínculo do estado anterior foi encerrado'
 );
 
 -- ---------------------------------------------------------------------------------------

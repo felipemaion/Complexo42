@@ -18,8 +18,11 @@ const roleLabelsShape = Object.fromEntries(roleKeys.map((key) => [key, text])) a
 >;
 
 const houseSchema = z.strictObject({
-  /** Identificador estável da casa (casa com a unidade do eixo `house`, #46). */
-  id: slug,
+  /**
+   * Identificador estável da casa. Liga a casa à unidade do eixo `house` (#76): o `slug` da
+   * unidade é este id com `_` no lugar de `-`, e por isso tem no máximo 63 caracteres.
+   */
+  id: slug.max(63),
   name: text,
   /** Descrição curta exibida na escolha da casa. */
   description: text,

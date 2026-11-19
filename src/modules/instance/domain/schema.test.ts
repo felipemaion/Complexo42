@@ -107,6 +107,7 @@ describe("parseInstanceConfig", () => {
     const [a, b] = valid.houses;
     expect(fieldsOf({ ...valid, houses: [a, { ...b, id: "a" }] })).toEqual(["houses.1.id"]);
     expect(fieldsOf({ ...valid, houses: [{ ...a, id: "Casa A" }] })).toEqual(["houses.0.id"]);
+    expect(fieldsOf({ ...valid, houses: [{ ...a, id: "a".repeat(64) }] })).toEqual(["houses.0.id"]);
     expect(
       fieldsOf({ ...valid, houses: [{ ...a, firstSteps: { text: "t", videoUrls: ["http://v.example/1"] } }] }),
     ).toEqual(["houses.0.firstSteps.videoUrls.0"]);
