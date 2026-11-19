@@ -16,3 +16,5 @@ backups/
 .DS_Store
 .vercel
 .wrangler
+next-env.d.ts
+*.tsbuildinfo

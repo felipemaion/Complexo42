@@ -3,9 +3,8 @@
 Bem-vindo(a)! Seguindo este guia, você sai **com o projeto rodando e o primeiro PR aberto**.
 Tempo estimado: 2 a 3 horas.
 
-> Os comandos `npm run …` abaixo são o **contrato do projeto**. Eles passam a existir quando
-> as issues de scaffold e de ambiente do M0 forem concluídas. Até lá, o passo 3 ainda não
-> funciona.
+> Já funcionam `npm run dev`, `npm run check` e `npm test`. Os comandos `setup` e `db:*`
+> chegam com as #4 e #52.
 
 ---
 
