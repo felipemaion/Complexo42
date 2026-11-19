@@ -126,3 +126,33 @@ teste do `gen-secrets.test.sh` falha se o compose entregar a do superusuário ao
 `gerado-por-gen-secrets` e descreve o formato em comentário. Base64 ou JWT
 de mentira ali fazem gitleaks e GitGuardian acusarem vazamento — e a
 correção certa é tirar a entropia do arquivo, nunca silenciar o scanner.
+
+## App (imagem Docker e `/api/healthz`)
+
+A imagem sai do `Dockerfile` da raiz (#80): várias etapas, saída `standalone`,
+usuário `node` (uid 1000), sem npm e sem nenhum `.env` dentro. Para construir
+e verificar localmente:
+
+```bash
+docker build --build-arg GIT_SHA=<commit> --build-arg APP_VERSION=vAAAA.MM.DD -t complexo42 .
+./scripts/check-image.sh complexo42   # sem .env, não-root, < 250 MB, healthz 200/503
+```
+
+Configuração só por variável de ambiente, validada com Zod na subida
+(`src/server/env.ts`). Variável inválida, ou faltando em produção, derruba o
+processo com o **nome** da variável no log, nunca o valor.
+
+| Variável | Para quê |
+|---|---|
+| `DB_HEALTH_URL` | obrigatória em produção; no servidor, `http://rest:3001/ready` (admin do PostgREST) |
+| `HEALTH_TIMEOUT_MS` | tempo máximo da checagem do banco (padrão 2000) |
+| `LOG_DIR` | onde fica o `app.log` (padrão `data/logs`) |
+
+`GET /api/healthz` responde `{status, version, db}` com `Cache-Control: no-store`:
+200 quando o banco responde e 503 (`degraded`) quando não responde ou não está
+configurado. O motivo da falha (`timeout`, `network`, `http_error`) vai só para
+o log. Os logs são JSON, no stdout e em `data/logs/app.log`, e mascaram nome,
+telefone e e-mail (R11). O compose de referência é `deploy/docker-compose.app.yml`:
+sistema de arquivos só leitura, sem `ports:`, com `mem_limit`. Use nele um
+`COMPOSE_PROJECT_NAME` diferente do Supabase e aponte `SUPABASE_NETWORK` para a
+rede `<projeto-do-supabase>_interna`.

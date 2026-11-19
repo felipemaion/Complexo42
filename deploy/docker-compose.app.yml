@@ -1,0 +1,48 @@
+# App Next.js — referência (ADR 0009 §1 e §3, issue #80)
+#
+# Como o compose do Supabase, é referência: cada ambiente roda a sua cópia e o
+# deploy de produção vive no repositório de infraestrutura. Sobe DEPOIS do
+# docker-compose.supabase.yml do mesmo ambiente e entra na rede interna dele.
+# Use um COMPOSE_PROJECT_NAME PRÓPRIO para o app (ex.: <ambiente>-app): com o
+# mesmo nome do Supabase, um `up --remove-orphans` derrubaria o banco.
+#
+# Sem `ports:`: só o proxy reverso alcança o app, pela rede `proxy`.
+
+services:
+  app:
+    image: ghcr.io/felipemaion/complexo42:${APP_TAG:?obrigatorio}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    environment:
+      # Prontidão do banco: admin do PostgREST na rede interna (nunca publicado).
+      DB_HEALTH_URL: http://rest:3001/ready
+      HEALTH_TIMEOUT_MS: "2000"
+    # Sistema de arquivos só leitura; gravável apenas /tmp (memória) e os logs.
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      # Sobrevive à recriação do container. O diretório do host precisa ser do
+      # uid 1000 (usuário `node` da imagem); sem permissão, o app loga só no stdout.
+      - ./data/logs:/app/data/logs
+    mem_limit: 384m
+    cpus: 0.50
+    networks:
+      interna:
+      # Alias POR AMBIENTE, pelo mesmo motivo do KONG_ALIAS: staging e produção
+      # dividem a rede `proxy`, e o proxy reverso usa este nome como destino.
+      proxy:
+        aliases:
+          - ${APP_ALIAS:?obrigatorio}
+
+networks:
+  # Rede interna criada pelo compose do Supabase deste ambiente
+  # (<projeto-do-supabase>_interna). É nela que o nome `rest` resolve.
+  interna:
+    external: true
+    name: ${SUPABASE_NETWORK:?obrigatorio}
+  proxy:
+    external: true
