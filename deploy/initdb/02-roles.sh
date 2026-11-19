@@ -14,6 +14,12 @@ BANCO=${POSTGRES_DB:-postgres}
 # Papéis sem senha primeiro: se algo aqui falhar, a mensagem de erro não
 # carrega credencial para o log do container.
 psql -v ON_ERROR_STOP=1 --username "$SUPER" --dbname "$BANCO" <<'SQL'
+-- As migrations do GoTrue fazem `grant ... to postgres`, e esta imagem NAO
+-- cria esse papel (so o supabase_admin). Sem ele, a migration
+-- 20240612123726_enable_rls_update_grants falha com
+-- 'role "postgres" does not exist' e o auth nao sobe. Medido em 2026-11-19.
+CREATE ROLE postgres SUPERUSER CREATEDB CREATEROLE NOLOGIN;
+
 CREATE ROLE anon          NOLOGIN NOINHERIT;
 CREATE ROLE authenticated NOLOGIN NOINHERIT;
 CREATE ROLE service_role  NOLOGIN NOINHERIT BYPASSRLS;
@@ -33,8 +39,9 @@ SQL
 # Só agora as senhas, em statements separados e mínimos.
 psql -v ON_ERROR_STOP=1 --username "$SUPER" --dbname "$BANCO" \
      -v senha="$POSTGRES_PASSWORD" <<'SQL'
+ALTER ROLE postgres            WITH LOGIN PASSWORD :'senha';
 ALTER ROLE authenticator       WITH LOGIN PASSWORD :'senha';
 ALTER ROLE supabase_auth_admin WITH LOGIN PASSWORD :'senha';
 SQL
 
-echo "papeis criados: anon, authenticated, service_role, authenticator, supabase_auth_admin"
+echo "papeis criados: postgres, anon, authenticated, service_role, authenticator, supabase_auth_admin"
