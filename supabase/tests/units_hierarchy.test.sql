@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(32);
+select plan(33);
 
 truncate public.role_assignments, public.unit_members, public.units;
 
@@ -143,6 +143,18 @@ insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a3'),
   ('00000000-0000-0000-0000-0000000000a4');
 
+-- Municípios de teste fora de SP (a migration só traz a região metropolitana de SP).
+insert into public.municipalities (code, name, state_code) values
+  (3106200, 'Belo Horizonte', 'MG'),
+  (3304557, 'Rio de Janeiro', 'RJ');
+
+-- Vínculos e papéis exigem perfil (#10). a1 e a2 moram num estado sem unidade, para o
+-- trigger de entrada no estado não criar vínculo sozinho.
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+select id::uuid, 'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3304557, 'v1'
+from unnest(array['00000000-0000-0000-0000-0000000000a1',
+                  '00000000-0000-0000-0000-0000000000a2']) as id;
+
 insert into public.unit_members (unit_id, profile_id)
 values (pg_temp.unit('br.sp.abc.equipe_a'), '00000000-0000-0000-0000-0000000000a1');
 
@@ -189,15 +201,18 @@ select throws_ok(
 );
 
 -- ---------------------------------------------------------------------------------------
--- Entrada automática na unidade do estado (função de trigger para `profiles`, #10).
--- Tabela temporária com o mesmo formato (`id`, `state_code`).
+-- Entrada automática na unidade do estado (trigger `profiles_join_state_unit`, #10)
 -- ---------------------------------------------------------------------------------------
-create temp table people_probe (id uuid primary key, state_code char(2));
-create trigger people_probe_join_state
-  after insert or update of state_code on people_probe
-  for each row execute function app.tg_join_state_unit();
+select ok(
+  exists (select 1 from pg_trigger where tgname = 'profiles_join_state_unit'
+          and tgrelid = 'public.profiles'::regclass
+          and tgfoid = 'app.tg_join_state_unit()'::regprocedure),
+  'app.tg_join_state_unit está ligado à tabela profiles'
+);
 
-insert into people_probe values ('00000000-0000-0000-0000-0000000000a3', 'SP');
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+values ('00000000-0000-0000-0000-0000000000a3',
+        'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3550308, 'v1');
 select results_eq(
   $$ select u.path::text from public.unit_members m join public.units u on u.id = m.unit_id
      where m.profile_id = '00000000-0000-0000-0000-0000000000a3' and m.left_at is null $$,
@@ -205,7 +220,8 @@ select results_eq(
   'ao se cadastrar, a pessoa entra na unidade do seu estado'
 );
 
-update people_probe set state_code = 'MG' where id = '00000000-0000-0000-0000-0000000000a3';
+update public.profiles set municipality_code = 3106200
+where id = '00000000-0000-0000-0000-0000000000a3';
 select results_eq(
   $$ select u.path::text from public.unit_members m join public.units u on u.id = m.unit_id
      where m.profile_id = '00000000-0000-0000-0000-0000000000a3' and m.left_at is null $$,
@@ -224,7 +240,8 @@ update public.unit_members set left_at = now()
 where profile_id = '00000000-0000-0000-0000-0000000000a3' and left_at is null;
 insert into public.unit_members (unit_id, profile_id)
 values (pg_temp.unit('br.sp.abc.equipe_a'), '00000000-0000-0000-0000-0000000000a3');
-update people_probe set state_code = 'SP' where id = '00000000-0000-0000-0000-0000000000a3';
+update public.profiles set municipality_code = 3550308
+where id = '00000000-0000-0000-0000-0000000000a3';
 select results_eq(
   $$ select u.path::text from public.unit_members m join public.units u on u.id = m.unit_id
      where m.profile_id = '00000000-0000-0000-0000-0000000000a3' and m.left_at is null $$,
@@ -232,7 +249,9 @@ select results_eq(
   'quem já está numa equipe não é tirado dela pelo trigger'
 );
 
-insert into people_probe values ('00000000-0000-0000-0000-0000000000a4', 'RJ');
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+values ('00000000-0000-0000-0000-0000000000a4',
+        'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3304557, 'v1');
 select is_empty(
   $$ select 1 from public.unit_members
      where profile_id = '00000000-0000-0000-0000-0000000000a4' $$,

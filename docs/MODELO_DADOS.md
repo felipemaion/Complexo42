@@ -87,22 +87,38 @@ O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
 | `display_name_enc` | text | 🔒 `v1.iv.ct` (ADR 0003 §3) |
 | `municipality_code` | int FK | IBGE |
 | `state_code` | char(2) | derivado do município (trigger); no cadastro, o aluno entra na unidade do seu estado |
-| `district` | text null | distrito da capital [?] |
-| `status` | enum | `pending`, `active`, `suspended` |
-| `consent_version`, `consent_at` | text, timestamptz | |
-| `created_at`, `updated_at` | timestamptz | |
+| `district` | text null | distrito da capital [?] (2 a 60 caracteres) |
+| `status` | text | `pending`, `active`, `suspended` |
+| `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
+| `consent_version`, `consent_at` | text, timestamptz | `consent_at` gravado pelo trigger quando a versão muda |
+| `created_at`, `updated_at` | timestamptz | gravados pelo trigger |
 
 O papel **não** fica no perfil: fica em `role_assignments`.
 
+- **O titular** cria e edita só o próprio perfil, e só `display_name_enc`, `municipality_code`,
+  `district` e `consent_version`. `status`, `access_status`, `state_code` e as datas não têm
+  grant para a API. Perfil `blocked` ou com conta `suspended` não edita (mas lê o próprio).
+- **Terceiros** (escopo, via `app.can_view_profile`) só enxergam perfis com `access_status` e
+  `status` = `active` (`app.is_active_profile`).
+- **Quem chama também precisa estar ativo** (`app.is_active_member`): sem isso, o papel não
+  vale (sem escopo, não concede nem revoga) e a pessoa não lê `unit_types`, `units`,
+  `unit_members` nem `role_assignments`. Em `waitlisted` ou `blocked`, lê só o próprio perfil;
+  em `pending` (ou ainda sem perfil), lê também `municipalities`, para se cadastrar.
+- **Validação do texto** (nome de 2 a 80 caracteres, WhatsApp em E.164, até 5 URLs https) fica
+  no schema Zod de `src/modules/profiles/`, aplicado no servidor antes de cifrar. O banco só
+  confere o formato `v<n>.<iv>.<ct>` e um teto de tamanho.
+
 ### `profile_contacts` (1:1 com `profiles`)
-`profile_id` PK, `whatsapp_enc` 🔒, `whatsapp_hmac` (único), `social_links_enc` 🔒 null,
-`updated_at`.
+`profile_id` PK, `whatsapp_enc` 🔒, `whatsapp_hmac` (único, hex de 64), `social_links_enc` 🔒 null
+(JSON da lista de URLs), `updated_at`.
 Fica **separada** para que listagens de perfis nunca tragam contato por engano. A RLS é mais
 restrita: o próprio titular e `app.can_view_contact()`. Ideia adaptada do protótipo original
 Vguedess/Complexo42 (`member_contacts`).
 
 ### `municipalities` (referência pública, só leitura)
-`code` (IBGE), `name`, `state_code`, `metro_region`.
+`code` (IBGE, 7 dígitos), `name`, `state_code`, `metro_region` (ex.: `rmsp`). Carregada por
+migration (referência de produção), conferida com a API de localidades do IBGE. Hoje: os 39
+municípios da Região Metropolitana de São Paulo.
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `membership_axis` (`team` ou `house`, ADR 0008)
@@ -122,8 +138,8 @@ Vguedess/Complexo42 (`member_contacts`).
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`), `unit_id`, `granted_by`,
 `granted_at`, `revoked_at`. O papel vale na unidade **e em todas abaixo dela**.
-Enquanto `profiles` não existe (#10), `unit_members.profile_id` e
-`role_assignments.profile_id` apontam para `auth.users(id)`, que é o mesmo id.
+`unit_members.profile_id`, `role_assignments.profile_id` e `role_assignments.granted_by`
+apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo ou papel sem perfil.
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
 `supabase/migrations/20261119130100_access_functions.sql`.
 

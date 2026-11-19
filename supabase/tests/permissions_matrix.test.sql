@@ -61,9 +61,31 @@ insert into people values
   ('stu_sp',      '00000000-0000-0000-0000-000000000014'),  -- só na unidade de SP
   ('stu_h',       '00000000-0000-0000-0000-000000000015'),  -- membro da casa 1
   ('stu_moved',   '00000000-0000-0000-0000-000000000016'),  -- saiu da equipe A, foi para MG
-  ('stu_gone',    '00000000-0000-0000-0000-000000000017');  -- saiu da equipe A, sem vínculo
+  ('stu_gone',    '00000000-0000-0000-0000-000000000017'),  -- saiu da equipe A, sem vínculo
+  ('stu_wait',    '00000000-0000-0000-0000-000000000018'),  -- na equipe A, em lista de espera
+  ('stu_blocked', '00000000-0000-0000-0000-000000000019'),  -- na equipe A, bloqueado
+  ('mon_wait',    '00000000-0000-0000-0000-00000000001a'),  -- monitor de SP, mas na espera
+  ('mon_susp',    '00000000-0000-0000-0000-00000000001b'),  -- monitor da equipe B, suspenso
+  ('stu_pend',    '00000000-0000-0000-0000-00000000001c'),  -- na equipe A, ainda pendente
+  ('stu_susp',    '00000000-0000-0000-0000-00000000001d'),  -- na equipe A, conta suspensa
+  ('tech_wait',   '00000000-0000-0000-0000-00000000001e');  -- admin técnico, mas na espera
 
 insert into auth.users (id) select id from people;
+
+-- Perfis (#10). Todos num município de teste sem unidade de estado, para o trigger de entrada
+-- no estado não criar vínculos além dos desta matriz. Só `active` aparece para terceiros.
+insert into public.municipalities (code, name, state_code) values (3304557, 'Rio de Janeiro', 'RJ');
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+select id, 'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3304557, 'v1' from people;
+update public.profiles set access_status = 'active', status = 'active'
+where id not in ('00000000-0000-0000-0000-00000000001c');
+update public.profiles set access_status = 'waitlisted'
+where id in ('00000000-0000-0000-0000-000000000018', '00000000-0000-0000-0000-00000000001a',
+             '00000000-0000-0000-0000-00000000001e');
+update public.profiles set access_status = 'blocked'
+where id = '00000000-0000-0000-0000-000000000019';
+update public.profiles set status = 'suspended'
+where id in ('00000000-0000-0000-0000-00000000001b', '00000000-0000-0000-0000-00000000001d');
 
 create function pg_temp.person(p_name text) returns uuid language sql as $$
   select id from people where name = p_name
@@ -77,7 +99,13 @@ insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('team_a_mon'), 'monitor', pg_temp.unit('team_a')),
   (pg_temp.person('house_mon'), 'monitor', pg_temp.unit('house_1')),
   (pg_temp.person('tech'), 'tech_admin', pg_temp.unit('br')),
-  (pg_temp.person('spokes_a'), 'spokesperson', pg_temp.unit('team_a'));
+  (pg_temp.person('spokes_a'), 'spokesperson', pg_temp.unit('team_a')),
+  (pg_temp.person('mon_wait'), 'monitor', pg_temp.unit('sp')),
+  (pg_temp.person('mon_susp'), 'monitor', pg_temp.unit('team_b')),
+  (pg_temp.person('tech_wait'), 'tech_admin', pg_temp.unit('br'));
+-- Papel concedido por quem hoje está na espera (para o caso "revoga o que concedeu").
+insert into public.role_assignments (profile_id, role, unit_id, granted_by) values
+  (pg_temp.person('stu_m'), 'spokesperson', pg_temp.unit('team_m'), pg_temp.person('tech_wait'));
 insert into public.role_assignments (profile_id, role, unit_id, revoked_at) values
   (pg_temp.person('revoked_mgr'), 'manager', pg_temp.unit('mg'), now());
 
@@ -90,12 +118,22 @@ insert into public.unit_members (unit_id, profile_id, left_at) values
   (pg_temp.unit('house_1'), pg_temp.person('stu_h'), null),
   (pg_temp.unit('team_a'), pg_temp.person('stu_moved'), now()),
   (pg_temp.unit('team_m'), pg_temp.person('stu_moved'), null),
-  (pg_temp.unit('team_a'), pg_temp.person('stu_gone'), now());
+  (pg_temp.unit('team_a'), pg_temp.person('stu_gone'), now()),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_wait'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_blocked'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_pend'), null),
+  (pg_temp.unit('team_a'), pg_temp.person('stu_susp'), null);
+
+-- Contatos fictícios (formato válido; o banco não decifra nada).
+insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+select id, 'v1.AAAAAAAAAAAAAAAA.CCCCCCCCCCCCCCCCCCCCCC', encode(sha256(id::text::bytea), 'hex')
+from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_susp', 'team_a_mon');
 
 -- ---------------------------------------------------------------------------------------
 -- Parte 1: matriz das funções
 --   profile → app.can_view_profile   contact → app.can_view_contact
 --   manage  → app.can_manage_unit    unit    → app.can_view_unit
+--   edit    → app.can_edit_profile (criar/editar perfil e contato)
 --   grant_<papel>     → app.can_grant_role('<papel>', unidade, outsider)
 --   selfgrant_<papel> → app.can_grant_role('<papel>', unidade, o próprio ator)
 -- ---------------------------------------------------------------------------------------
@@ -228,7 +266,50 @@ insert into matrix (actor, action, target, expected) values
   ('anon', 'contact', 'stu_a', false),
   ('anon', 'manage', 'br', false),
   ('anon', 'unit', 'br', false),
-  ('anon', 'grant_manager', 'br', false);
+  ('anon', 'grant_manager', 'br', false),
+  -- Perfis (#10): só `active` aparece para terceiros; só o titular edita, e não se bloqueado
+  ('team_a_mon', 'profile', 'stu_wait', false),
+  ('team_a_mon', 'contact', 'stu_wait', false),
+  ('team_a_mon', 'profile', 'stu_blocked', false),
+  ('sp_mgr', 'profile', 'stu_wait', false),
+  ('nat_mgr', 'profile', 'stu_wait', false),
+  ('nat_mgr', 'contact', 'stu_blocked', false),
+  ('stu_wait', 'profile', 'stu_wait', true),
+  ('stu_wait', 'contact', 'stu_wait', true),
+  ('stu_wait', 'profile', 'stu_a', false),
+  ('stu_wait', 'edit', 'stu_wait', true),
+  ('stu_blocked', 'profile', 'stu_blocked', true),
+  ('stu_blocked', 'edit', 'stu_blocked', false),
+  ('stu_a', 'edit', 'stu_a', true),
+  ('stu_a', 'edit', 'stu_b', false),
+  ('team_a_mon', 'edit', 'stu_a', false),
+  ('sp_mgr', 'edit', 'stu_a', false),
+  ('nat_mgr', 'edit', 'stu_a', false),
+  ('tech', 'edit', 'stu_a', false),
+  ('outsider', 'edit', 'stu_a', false),
+  ('anon', 'edit', 'stu_a', false),
+  -- Quem chama também precisa estar ativo (revisão do PR #112): papel de quem está na espera
+  -- ou suspenso não vale; conta suspensa some para terceiros e não edita
+  ('mon_wait', 'profile', 'stu_sp', false),
+  ('mon_wait', 'contact', 'stu_sp', false),
+  ('mon_wait', 'manage', 'sp', false),
+  ('mon_wait', 'unit', 'sp', false),
+  ('mon_wait', 'unit', 'br', false),
+  ('mon_wait', 'profile', 'mon_wait', true),
+  ('mon_susp', 'profile', 'stu_b', false),
+  ('mon_susp', 'contact', 'stu_b', false),
+  ('mon_susp', 'manage', 'team_b', false),
+  ('mon_susp', 'unit', 'team_b', false),
+  ('team_a_mon', 'profile', 'stu_susp', false),
+  ('team_a_mon', 'contact', 'stu_susp', false),
+  ('team_a_mon', 'profile', 'stu_pend', false),
+  ('stu_susp', 'profile', 'stu_susp', true),
+  ('stu_susp', 'edit', 'stu_susp', false),
+  ('stu_pend', 'profile', 'stu_pend', true),
+  ('stu_pend', 'edit', 'stu_pend', true),
+  ('stu_pend', 'unit', 'team_a', false),
+  ('stu_wait', 'unit', 'team_a', false),
+  ('stu_blocked', 'unit', 'team_a', false);
 
 create function pg_temp.check_access(p_actor text, p_action text, p_target text)
 returns boolean language plpgsql as $$
@@ -245,6 +326,7 @@ begin
     when p_action = 'contact' then app.can_view_contact(pg_temp.person(p_target))
     when p_action = 'manage' then app.can_manage_unit(pg_temp.unit(p_target))
     when p_action = 'unit' then app.can_view_unit(pg_temp.unit(p_target))
+    when p_action = 'edit' then app.can_edit_profile(pg_temp.person(p_target))
     when p_action like 'grant\_%' then
       app.can_grant_role(substr(p_action, 7), pg_temp.unit(p_target), pg_temp.person('outsider'))
     when p_action like 'selfgrant\_%' then
@@ -260,7 +342,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 45);
+select plan((select count(*)::int from matrix) + 81);
 
 select is(
   pg_temp.check_access(actor, action, target),
@@ -284,7 +366,7 @@ select pg_temp.login('team_a_mon');
 select set_eq(
   $$ select profile_id from public.unit_members $$,
   $$ select id from people where name in ('stu_a', 'stu_moved', 'stu_gone') $$,
-  'coordenador da equipe A lê os vínculos da equipe A (inclusive o histórico)'
+  'coordenador da equipe A lê os vínculos de perfis ativos da equipe A (inclusive o histórico)'
 );
 select is_empty(
   $$ select 1 from public.unit_members where unit_id = pg_temp.unit('team_b') $$,
@@ -508,7 +590,29 @@ select throws_ok(
 reset role;
 update public.role_assignments set revoked_at = now()
 where profile_id = pg_temp.person('nat_mgr');
+-- O id da raiz é lido aqui, como dono: quem está na espera não lê `units`, e o helper
+-- devolveria nulo (o teste passaria pelo motivo errado).
+select set_config('test.root_unit', pg_temp.unit('br')::text, true),
+       set_config('test.team_m_unit', pg_temp.unit('team_m')::text, true);
 set local role authenticated;
+select pg_temp.login('tech_wait');
+select is(
+  app.can_grant_role('manager', current_setting('test.root_unit')::uuid, pg_temp.person('outsider')),
+  false,
+  'admin técnico na espera NÃO cria o gestor nacional'
+);
+select throws_ok(
+  $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
+     values (pg_temp.person('outsider'), 'manager', current_setting('test.root_unit')::uuid,
+             pg_temp.person('tech_wait')) $$,
+  '42501', null,
+  'admin técnico na espera NÃO insere o gestor nacional'
+);
+select is(
+  app.can_revoke_role(current_setting('test.team_m_unit')::uuid, pg_temp.person('tech_wait')),
+  false,
+  'quem está na espera NÃO revoga nem o papel que concedeu'
+);
 select pg_temp.login('tech');
 select throws_ok(
   $$ insert into public.role_assignments (profile_id, role, unit_id, granted_by)
@@ -563,14 +667,157 @@ select results_eq(
   'o gestor nacional foi revogado por quem concedeu; o monitor de SP continua'
 );
 
--- Visitante anônimo
+-- Perfis e contatos pela RLS (#10)
 reset role;
+set local role authenticated;
+select pg_temp.login('team_a_mon');
+select set_eq(
+  $$ select id from public.profiles $$,
+  $$ select id from people where name in ('team_a_mon', 'stu_a') $$,
+  'coordenador da equipe A lê o próprio perfil e os ativos da equipe (não espera, bloqueado nem ex-membros)'
+);
+select set_eq(
+  $$ select profile_id from public.profile_contacts $$,
+  $$ select id from people where name in ('team_a_mon', 'stu_a') $$,
+  'coordenador da equipe A lê o próprio contato e os da equipe, NÃO o de quem está na espera'
+);
+select is_empty(
+  $$ select 1 from public.profiles where id = pg_temp.person('stu_b') $$,
+  'coordenador da equipe A NÃO lê perfil da equipe B'
+);
+select lives_ok(
+  $$ update public.profiles set district = 'Centro' where id = pg_temp.person('stu_a') $$,
+  'coordenador tenta editar perfil de membro: não alcança linha nenhuma'
+);
+select lives_ok(
+  $$ update public.profile_contacts set social_links_enc = whatsapp_enc
+     where profile_id = pg_temp.person('stu_a') $$,
+  'coordenador tenta editar contato de membro: não alcança linha nenhuma'
+);
+
+select pg_temp.login('spokes_a');
+select set_eq(
+  $$ select id from public.profiles $$,
+  $$ select id from people where name in ('spokes_a', 'stu_a') $$,
+  'porta-voz lê os perfis ativos da equipe que o apoia'
+);
+select is_empty(
+  $$ select 1 from public.profile_contacts $$,
+  'porta-voz NÃO lê contatos'
+);
+
+select pg_temp.login('sp_mgr');
+select set_eq(
+  $$ select id from public.profiles $$,
+  $$ select id from people
+     where name in ('sp_mgr', 'stu_a', 'stu_b', 'stu_c', 'stu_sp', 'stu_h') $$,
+  'gestor de SP lê os perfis ativos de SP; NÃO os de MG nem os da espera'
+);
+
+select pg_temp.login('tech');
+select set_eq(
+  $$ select id from public.profiles $$,
+  array[pg_temp.person('tech')],
+  'admin técnico lê só o próprio perfil'
+);
+select is_empty(
+  $$ select 1 from public.profile_contacts $$,
+  'admin técnico NÃO lê contatos'
+);
+
+select pg_temp.login('stu_a');
+select set_eq(
+  $$ select id from public.profiles $$,
+  array[pg_temp.person('stu_a')],
+  'membro lê só o próprio perfil (NÃO o dos colegas)'
+);
+select set_eq(
+  $$ select profile_id from public.profile_contacts $$,
+  array[pg_temp.person('stu_a')],
+  'membro lê só o próprio contato'
+);
+
+select pg_temp.login('stu_wait');
+select set_eq(
+  $$ select id from public.profiles $$,
+  array[pg_temp.person('stu_wait')],
+  'quem está na espera lê só o próprio perfil'
+);
+select is_empty($$ select 1 from public.municipalities $$, 'quem está na espera NÃO lê municípios');
+select is_empty($$ select 1 from public.unit_types $$, 'quem está na espera NÃO lê tipos de unidade');
+select is_empty($$ select 1 from public.units $$, 'quem está na espera NÃO lê unidades');
+select is_empty($$ select 1 from public.unit_members $$, 'quem está na espera NÃO lê nem o próprio vínculo');
+select is_empty($$ select 1 from public.role_assignments $$, 'quem está na espera NÃO lê papéis');
+
+-- Monitor de SP, mas na espera: o papel não vale
+select pg_temp.login('mon_wait');
+select set_eq(
+  $$ select id from public.profiles $$,
+  array[pg_temp.person('mon_wait')],
+  'monitor na espera lê só o próprio perfil'
+);
+select is_empty($$ select 1 from public.profile_contacts $$, 'monitor na espera NÃO lê contatos');
+select is_empty($$ select 1 from public.units $$, 'monitor na espera NÃO lê unidades');
+select is_empty($$ select 1 from public.unit_members $$, 'monitor na espera NÃO lê vínculos');
+select is_empty($$ select 1 from public.role_assignments $$, 'monitor na espera NÃO lê papéis, nem o próprio');
+select is_empty($$ select 1 from app.my_scopes() $$, 'monitor na espera não tem escopo (my_scopes vazio)');
+select is(
+  app.has_scope_over('sp'::extensions.ltree, array['monitor']),
+  false,
+  'monitor na espera não tem escopo (has_scope_over)'
+);
+
+-- Pendente: ainda escolhe o município, mas não vê a estrutura
+select pg_temp.login('stu_pend');
+select isnt_empty($$ select 1 from public.municipalities $$, 'quem está pendente lê municípios (cadastro)');
+select is_empty($$ select 1 from public.units $$, 'quem está pendente NÃO lê unidades');
+
+-- Coordenador da equipe A e os vínculos de quem não está ativo
+select pg_temp.login('team_a_mon');
+select is_empty(
+  $$ select 1 from public.unit_members
+     where profile_id in (pg_temp.person('stu_wait'), pg_temp.person('stu_blocked'),
+                          pg_temp.person('stu_pend'), pg_temp.person('stu_susp')) $$,
+  'coordenador NÃO vê vínculo de quem está na espera, bloqueado, pendente ou suspenso'
+);
+-- Sem WHERE, só a política de UPDATE filtra (a de SELECT não entra).
+select lives_ok(
+  $$ update public.unit_members set member_role = 'lead' $$,
+  'coordenador altera vínculos em massa: os de quem não está ativo não são alcançados'
+);
+
+reset role;
+select results_eq(
+  $$ select district, (select social_links_enc from public.profile_contacts
+                       where profile_id = pg_temp.person('stu_a'))
+     from public.profiles where id = pg_temp.person('stu_a') $$,
+  $$ values (null::text, null::text) $$,
+  'perfil e contato do membro não foram alterados pelo coordenador'
+);
+select is_empty(
+  $$ select 1 from public.unit_members where member_role = 'lead'
+     and profile_id in (pg_temp.person('stu_wait'), pg_temp.person('stu_blocked'),
+                        pg_temp.person('stu_pend'), pg_temp.person('stu_susp')) $$,
+  'os vínculos de quem não está ativo não foram alterados'
+);
+
+-- Visitante anônimo
 set local role anon;
 set local request.jwt.claims to '{"role": "anon"}';
 select throws_ok(
   $$ select 1 from public.units $$,
   '42501', null,
   'visitante anônimo não lê unidades'
+);
+select throws_ok(
+  $$ select 1 from public.profiles $$,
+  '42501', null,
+  'visitante anônimo não lê perfis'
+);
+select throws_ok(
+  $$ select 1 from public.profile_contacts $$,
+  '42501', null,
+  'visitante anônimo não lê contatos'
 );
 
 reset role;
