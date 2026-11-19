@@ -4,6 +4,16 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = Number(process.env.E2E_PORT ?? 3100);
 const baseURL = `http://127.0.0.1:${PORT}`;
 const isCI = Boolean(process.env.CI);
+// Sem Supabase (padrão, e o CI): Auth num endereço sem serviço e chave anon fictícia, só no
+// formato. Com E2E_LIVE_SUPABASE_URL (Supabase local de pé, ver e2e/auth-live.spec.ts), os
+// testes do fluxo real do link mágico também rodam.
+const live = process.env.E2E_LIVE_SUPABASE_URL;
+const E2E_SUPABASE_URL = live ?? "http://127.0.0.1:9";
+const E2E_ANON_KEY =
+  (live && process.env.E2E_LIVE_ANON_KEY) || `eyJhbGciOiJIUzI1NiJ9.${Buffer.from('{"role":"anon"}').toString("base64url")}.e2e`;
+// Chaves de teste (ADR 0003), aleatórias a cada execução: o gancho do primeiro login (#26)
+// compara o HMAC do e-mail com a lista de autorizados.
+const randomKey = () => Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -28,8 +38,18 @@ export default defineConfig({
     timeout: 180_000,
     stdout: "ignore",
     stderr: "pipe",
-    // Em produção o app exige DB_HEALTH_URL e não sobe sem ela (src/server/env.ts, #80).
-    // O E2E ainda não usa banco: uma URL sem serviço deixa o healthz em 503 e o resto no ar.
-    env: { DB_HEALTH_URL: "http://127.0.0.1:9/ready", LOG_DIR: "test-results/logs" },
+    // Em produção o app exige DB_HEALTH_URL e o Supabase e não sobe sem eles (src/server/env.ts).
+    // O E2E não usa banco nem Auth (o CI não sobe o Supabase aqui): URLs sem serviço deixam o
+    // healthz em 503 e o login respondendo "indisponível", com o resto no ar. A chave é um JWT
+    // anon fictício, só no formato.
+    env: {
+      DB_HEALTH_URL: "http://127.0.0.1:9/ready",
+      SUPABASE_URL: E2E_SUPABASE_URL,
+      SUPABASE_ANON_KEY: E2E_ANON_KEY,
+      SITE_URL: baseURL,
+      FIELD_ENCRYPTION_KEY: randomKey(),
+      BLIND_INDEX_KEY: randomKey(),
+      LOG_DIR: "test-results/logs",
+    },
   },
 });

@@ -13,6 +13,10 @@ function setup(fetchImpl: () => Promise<Response>) {
   vi.stubEnv("DB_HEALTH_URL", "http://rest:3001/ready");
   vi.stubEnv("GIT_SHA", "abc1234def5678");
   vi.stubEnv("APP_VERSION", "v2026.11.19");
+  // Login (#9): obrigatório em produção.
+  vi.stubEnv("SUPABASE_URL", "http://kong:8000");
+  vi.stubEnv("SUPABASE_ANON_KEY", "sb_publishable_teste");
+  vi.stubEnv("SITE_URL", "https://app.exemplo.org");
   vi.stubGlobal("fetch", vi.fn(fetchImpl));
 }
 

@@ -52,7 +52,9 @@ Na prática, isso vira quatro camadas:
 | Segredo commitado | gitleaks no CI + `.gitignore` + rotação de chaves |
 | Conta de admin roubada | MFA obrigatório nas contas do GitHub, Supabase e hospedagem; no máximo 3 admins |
 | Injeção (XSS) via redes sociais ou "feitos" | Escape padrão do React; proibido `dangerouslySetInnerHTML`; links só `https://` e com `rel="noopener noreferrer"` |
-| Cadastro em massa por robô | Link de convite; rate limit do Supabase Auth; aprovação [?] |
+| Cadastro em massa por robô | Lista de autorizados: quem não está nela fica em espera (ADR 0008 §1, #26); rate limit do Auth por IP e de e-mails por hora (`supabase/config.toml` e `GOTRUE_RATE_LIMIT_*`, #9); regra de rate limit da Cloudflare em `/auth/v1/*` (ADR 0009 §6) |
+| Sessão roubada por script injetado | Cookie de sessão `httpOnly`, `SameSite=Lax` e `Secure`; não há cliente Supabase no navegador (#9) |
+| Link de login usado para mandar a pessoa a outro site | Destino pós-login só por caminho interno (`safeNextPath`, #9); mensagens de erro só por código conhecido |
 | Planilha exportada vazando | Exportação sem WhatsApp, ou só para admin, com registro no `audit_log` |
 | Dependência maliciosa | Dependabot; regra R9 (justificar toda dependência); `npm ci` com lockfile |
 | Voluntário com acesso a produção | Voluntários **não** têm acesso a produção; usam o Supabase local com dados fictícios |

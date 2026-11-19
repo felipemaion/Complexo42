@@ -27,8 +27,6 @@ test.describe("fumaça: página inicial", () => {
     await expect(page.getByRole("main")).toContainText("lista de pessoas autorizadas");
   });
 
-  test("rota inexistente responde 404", async ({ page }) => {
-    const response = await page.goto("/rota-que-nao-existe");
-    expect(response?.status()).toBe(404);
-  });
+  // Rota inexistente sem sessão não chega ao 404: o login nega por padrão e manda para /entrar
+  // (e2e/auth.spec.ts, #9). Assim, quem não entrou não descobre quais rotas existem.
 });

@@ -78,7 +78,7 @@ trap 'rm -f "$TMP"' EXIT
   echo "COMPOSE_PROJECT_NAME=$AMB"
   echo "KONG_ALIAS=$AMB-kong"
   echo "SITE_URL=$SITE"
-  echo "URI_ALLOW_LIST=$SITE"
+  echo "URI_ALLOW_LIST=$SITE/**"
   echo "SMTP_HOST="
   echo "SMTP_PORT=587"
   echo "SMTP_USER="
