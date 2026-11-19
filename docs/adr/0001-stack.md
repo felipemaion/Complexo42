@@ -1,6 +1,6 @@
 # ADR 0001: Stack tecnológica
 
-- **Status:** Proposto
+- **Status:** Aceito (pelo gestor, em 2026-11-19)
 - **Data:** 2026-11-09, revisado em 2026-11-19 para refletir o ADR 0009
 
 ## Contexto

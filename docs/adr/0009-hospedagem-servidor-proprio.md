@@ -1,9 +1,8 @@
 # ADR 0009: Hospedagem da POC em servidor próprio, com Supabase auto-hospedado
 
-- **Status:** Proposto
+- **Status:** Aceito (pelo gestor, em 2026-11-19)
 - **Data:** 2026-11-18
-- **Substitui:** a linha "Hospedagem" e a nota sobre hospedagem do ADR 0001. O resto do ADR
-  0001 continua valendo: Next.js, TypeScript, Supabase, Zod e os testes.
+- **Complementa:** o ADR 0001 (stack).
 
 ## Contexto
 
@@ -120,6 +119,18 @@ máquina (outra VPS ou uma infraestrutura da organização) é seguir o **runboo
 provisionar, restaurar o backup, trocar o DNS e conferir. O runbook é **ensaiado antes do
 lançamento**, com o tempo medido.
 
+### 8. Servidor dedicado (em avaliação, #98)
+
+A intenção é rodar o Complexo42 numa **VM própria**, igual à atual (Oracle Always Free:
+ARM64, 2 OCPU, 12 GB), se a cota gratuita da conta permitir. O Always Free da Oracle soma
+**4 OCPU e 24 GB de A1 por conta**, e a VM atual usa metade, mas isso precisa ser confirmado
+no console da Oracle.
+
+- **Se houver cota,** a VM dedicada acaba com os recursos e a rede de proxy compartilhados
+  (veja as Consequências). Todo o resto deste ADR continua igual, porque a pilha é
+  portátil (§7).
+- **Se não houver,** o Complexo42 segue no servidor atual, com os limites por serviço.
+
 ## Alternativas consideradas
 
 | Opção | Por que não |
@@ -140,9 +151,9 @@ lançamento**, com o tempo medido.
 - (−) **Ponto único de falha:** uma VPS só. Mitigado pelo backup fora dela e pelo runbook de
   migração ensaiado. Em queda prolongada, a contingência é restaurar no Supabase Cloud
   gratuito.
-- (−) **Os recursos são compartilhados com outros projetos do servidor.** É preciso
+- (−) **Os recursos são compartilhados com outros projetos do servidor** (até a VM dedicada, §8). É preciso
   respeitar os limites e evitar build e deploy simultâneos.
-- (−) **A rede interna do proxy também é compartilhada.**
+- (−) **A rede interna do proxy também é compartilhada** (até a VM dedicada, §8).
   - **Situação:** só o `kong` entra nela, porque o Caddy precisa alcançá-lo. Ainda assim,
     um container de outro projeto do servidor consegue chamar `/rest/v1` por dentro, com a
     chave `anon`. De fora, `/rest/v1` dá 404.
