@@ -76,11 +76,45 @@ unit_types.membership_axis: 'team' | 'house'    -- novo campo; configuração da
   A regra única de escopo do ADR 0005 continua valendo.
 - **A escolha da casa** fica em `unit_members` (`axis = house`), com `join_method`
   (`self` ou `questionnaire`) e `accepted_at`. Sem aceite, o vínculo não conta.
-- **O questionário** vem do stakeholder [?]. A plataforma guarda **só a casa sugerida**, e não
-  as respostas, que formariam um perfil psicológico desnecessário (coleta mínima, LGPD).
-  O questionário em si, com perguntas e pesos, fica em `config/` da instância.
+- **O questionário** vem do stakeholder, que o enviou em 2026-11-18 (detalhes no §2.1). A
+  plataforma guarda **só a casa sugerida**, e não as respostas, que formariam um perfil
+  psicológico desnecessário (coleta mínima, LGPD).
 - **Os nomes das casas e o texto de "primeiros passos"** (história e objetivos, com links de
   vídeo) também ficam em `config/`. Não há nomes fixos no código (R17).
+
+### 2.1 Questionário das casas
+
+**Formato recebido:**
+- **26 perguntas** de escolha entre duas alternativas (a/b). A pessoa pode marcar **as duas**
+  quando estiver indecisa.
+- **Quatro eixos** de temperamento, no modelo de Keirsey: extroversão × introversão,
+  sensação × intuição, pensamento × sentimento e julgamento × percepção.
+- **Um termo de consentimento** próprio.
+
+A chave de correção e a correspondência entre temperamento e casa ainda vão ser confirmadas
+[?] (PERGUNTAS_STAKEHOLDER 75–79).
+
+**Decisões de implementação:**
+- **A pontuação roda no navegador.** O servidor recebe só a casa sugerida, e as respostas
+  nunca saem do dispositivo: não vão para a rede, para logs nem para o `localStorage`. Não é
+  uma questão de segurança, porque a pessoa pode escolher qualquer casa de qualquer forma.
+- **A pontuação é uma função pura,** configurável e coberta por testes: quais itens contam
+  para cada eixo, qual alternativa corresponde a cada polo, o critério de desempate, o
+  tratamento de "as duas" e a correspondência entre temperamento e casa.
+- **Interface:**
+  - uma pergunta por tela, com o progresso visível ("3 de 26") e botões grandes "a", "b" e
+    "as duas";
+  - o botão de voltar aparece sempre;
+  - o resultado mostra a casa sugerida e o botão **"escolher outra casa"**.
+- **O aceite do termo** é registrado com a versão do texto e a data, sem assinatura nem
+  e-mail, porque a conta já identifica a pessoa. Quem recusar o termo escolhe a casa
+  diretamente (`join_method = self`).
+- **O texto das perguntas e do termo não entra no repositório público** enquanto a licença
+  não for confirmada (pergunta 73).
+  - Em `config/` fica um **questionário fictício** com o mesmo formato, usado no
+    desenvolvimento e nos testes.
+  - O questionário real é um arquivo instalado só no servidor (`data/config/`), validado pelo
+    mesmo esquema Zod na inicialização do app.
 
 ### 3. Avaliação dupla (complementa o ADR 0007 §4)
 
