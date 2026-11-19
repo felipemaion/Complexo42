@@ -119,12 +119,15 @@ services:
       PGRST_DB_USE_LEGACY_GUCS: "false"
       PGRST_SERVER_PORT: "3000"
       PGRST_LOG_LEVEL: error
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ready || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 6
-      start_period: 20s
+      # Servidor de administracao do PostgREST: expoe /live e /ready para quem
+      # checa de FORA do container (ver OPERACAO.md). Nao e publicado.
+      PGRST_ADMIN_SERVER_PORT: "3001"
+    # SEM healthcheck, de proposito. A imagem do PostgREST nao tem shell nem
+    # wget/curl -- `docker run --entrypoint sh` nela nem executa --, entao
+    # qualquer teste CMD-SHELL falha para sempre e o container fica eternamente
+    # unhealthy MESMO COM O SERVICO NO AR (medido em 2026-11-19: o log dizia
+    # "Schema cache loaded" enquanto o compose o marcava unhealthy e barrava o
+    # kong). A prontidao se verifica de fora, pelo /ready da porta 3001.
     mem_limit: 192m
     cpus: 0.25
     networks: [interna]
@@ -134,7 +137,8 @@ services:
     image: kong:3.9.4@sha256:dd41dedd859a459617f595ef7c5ea7607dd7fd9252a0cc9de13b43f770360c8c
     depends_on:
       auth: { condition: service_healthy }
-      rest: { condition: service_healthy }
+      # service_started, nao service_healthy: o rest nao tem healthcheck (acima).
+      rest: { condition: service_started }
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
