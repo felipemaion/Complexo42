@@ -24,14 +24,14 @@ Desenvolvida pelos próprios alunos de TI da Academia.
 ```bash
 git clone https://github.com/felipemaion/Complexo42.git && cd Complexo42
 nvm use            # Node 22 (arquivo .nvmrc)
-npm ci
+npm run setup      # .env.local com chaves de TESTE, npm ci, Supabase local (Docker) e migrations
 npm run dev        # http://localhost:3000
 npm run check      # lint + tipos + testes + build, obrigatório antes do PR
 npx playwright install chromium   # uma vez, para os testes E2E
 npm run test:e2e   # Playwright: build de produção + testes de e2e/ (porta 3100)
 ```
 
-Banco local: `npm run db:start` e `npm run db:test` (ver [`CONTRIBUTING.md`](CONTRIBUTING.md)). O `npm run setup` chega com a #52.
+Banco local: `npm run db:start`, `db:stop`, `db:reset` e `db:test` (ver [`CONTRIBUTING.md`](CONTRIBUTING.md)).
 
 ## 👋 Chegou agora? Comece pelo [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
 
