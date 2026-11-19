@@ -26,6 +26,11 @@ const houseSchema = z.strictObject({
   name: text,
   /** Descrição curta exibida na escolha da casa. */
   description: text,
+  /**
+   * Atividades que levam a esta casa, na lista de quem já sabe o que quer fazer (#76). Cada
+   * atividade aponta para uma casa só.
+   */
+  activities: z.array(text).min(1),
   /** "Primeiros passos": história e objetivos da casa, com vídeos opcionais (ADR 0008 §2). */
   firstSteps: z.strictObject({
     text,
@@ -126,16 +131,71 @@ export const instanceConfigSchema = z.strictObject({
     /** Campo `sobre.descricao` do arquivo baixado. */
     fileDescription: text,
   }),
+  /**
+   * Textos da escolha da casa (#76, ADR 0008 §2 e §2.1). O texto do termo do questionário vem
+   * do arquivo do questionário, não daqui.
+   */
+  houseSelection: z.strictObject({
+    title: text,
+    /** Pergunta inicial: "Você sabe o que quer fazer?". */
+    knowsQuestion: text,
+    knowsYes: text,
+    knowsNo: text,
+    activitiesTitle: text,
+    consentTitle: text,
+    consentAccept: text,
+    /** Recusar o termo leva à escolha direta (join_method = self). */
+    consentDecline: text,
+    /** Progresso do questionário, com `{current}` e `{total}` (ex.: "{current} de {total}"). */
+    progress: text.refine((v) => v.includes("{current}") && v.includes("{total}"), "use {current} e {total}"),
+    /** Botão de quem marca as duas alternativas (indecisão). */
+    bothButton: text,
+    backButton: text,
+    /** Título do resultado do questionário (a casa sugerida). */
+    suggestedTitle: text,
+    /** Título da apresentação de uma casa escolhida na lista. */
+    chosenTitle: text,
+    firstStepsTitle: text,
+    videosTitle: text,
+    acceptButton: text,
+    chooseOtherButton: text,
+    /** Tela de quem já aceitou a casa. */
+    acceptedTitle: text,
+    /** Link da página inicial para a escolha da casa. */
+    homeLink: text,
+    errors: z.strictObject({
+      /** A casa não está disponível na região da pessoa. */
+      unavailable: text,
+      /** A pessoa já aceitou outra casa. */
+      already_accepted: text,
+      /** Cadastro incompleto ou acesso ainda não liberado. */
+      not_active: text,
+      /** O termo mudou enquanto a pessoa respondia: recarregar. */
+      stale_consent: text,
+      /** A pessoa ainda não está numa região (só no estado). */
+      region_undefined: text,
+      /** A coordenação encerrou a casa da pessoa: a volta é com ela. */
+      removed_by_coordination: text,
+      failed: text,
+    }),
+  }),
   houses: z
     .array(houseSchema)
     .min(1)
     .superRefine((houses, ctx) => {
       const seen = new Set<string>();
+      const activities = new Set<string>();
       houses.forEach((house, index) => {
         if (seen.has(house.id)) {
           ctx.addIssue({ code: "custom", message: "id de casa repetido", path: [index, "id"] });
         }
         seen.add(house.id);
+        house.activities.forEach((activity, i) => {
+          if (activities.has(activity)) {
+            ctx.addIssue({ code: "custom", message: "atividade em mais de uma casa", path: [index, "activities", i] });
+          }
+          activities.add(activity);
+        });
       });
     }),
 });

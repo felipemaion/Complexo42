@@ -67,12 +67,13 @@ describe("questionnaireSchema", () => {
     expect(fieldsOf(noEi)).toEqual([]);
   });
 
-  it("exige o mapa dos quatro temperamentos, a versão do termo e campos conhecidos", () => {
+  it("exige o mapa dos quatro temperamentos, a versão e o texto do termo e campos conhecidos", () => {
     const raw = clone() as Partial<Raw> & { extra?: number };
     delete (raw.houseByTemperament as Partial<Raw["houseByTemperament"]>).SP;
     delete raw.consentTermVersion;
+    delete raw.consentTerm;
     raw.extra = 1;
-    expect(fieldsOf(raw).sort()).toEqual(["(raiz)", "consentTermVersion", "houseByTemperament.SP"]);
+    expect(fieldsOf(raw).sort()).toEqual(["(raiz)", "consentTerm", "consentTermVersion", "houseByTemperament.SP"]);
   });
 
   it("aplica a regra de desempate padrão quando ela não vem no arquivo", () => {

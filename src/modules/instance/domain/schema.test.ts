@@ -50,9 +50,39 @@ const valid = {
     failed: "t",
   },
   myData: { downloadButton: "t", downloadHint: "t", rateLimited: "t", failed: "t", fileDescription: "t" },
+  houseSelection: {
+    title: "t",
+    knowsQuestion: "t",
+    knowsYes: "t",
+    knowsNo: "t",
+    activitiesTitle: "t",
+    consentTitle: "t",
+    consentAccept: "t",
+    consentDecline: "t",
+    progress: "{current} de {total}",
+    bothButton: "t",
+    backButton: "t",
+    suggestedTitle: "t",
+    chosenTitle: "t",
+    firstStepsTitle: "t",
+    videosTitle: "t",
+    acceptButton: "t",
+    chooseOtherButton: "t",
+    acceptedTitle: "t",
+    homeLink: "t",
+    errors: {
+      unavailable: "t",
+      already_accepted: "t",
+      not_active: "t",
+      stale_consent: "t",
+      region_undefined: "t",
+      removed_by_coordination: "t",
+      failed: "t",
+    },
+  },
   houses: [
-    { id: "a", name: "A", description: "d", firstSteps: { text: "t", videoUrls: ["https://v.example/1"] } },
-    { id: "b", name: "B", description: "d", firstSteps: { text: "t" } },
+    { id: "a", name: "A", description: "d", activities: ["x"], firstSteps: { text: "t", videoUrls: ["https://v.example/1"] } },
+    { id: "b", name: "B", description: "d", activities: ["y"], firstSteps: { text: "t" } },
   ],
 };
 
@@ -108,6 +138,15 @@ describe("parseInstanceConfig", () => {
     expect(fieldsOf({ ...valid, houses: [a, { ...b, id: "a" }] })).toEqual(["houses.1.id"]);
     expect(fieldsOf({ ...valid, houses: [{ ...a, id: "Casa A" }] })).toEqual(["houses.0.id"]);
     expect(fieldsOf({ ...valid, houses: [{ ...a, id: "a".repeat(64) }] })).toEqual(["houses.0.id"]);
+  });
+
+  it("escolha da casa (#76): atividades obrigatórias e únicas; progresso com {current} e {total}", () => {
+    const [a, b] = valid.houses;
+    expect(fieldsOf({ ...valid, houses: [{ ...a, activities: [] }, b] })).toEqual(["houses.0.activities"]);
+    expect(fieldsOf({ ...valid, houses: [a, { ...b, activities: ["x"] }] })).toEqual(["houses.1.activities.0"]);
+    expect(fieldsOf({ ...valid, houseSelection: { ...valid.houseSelection, progress: "{current}" } })).toEqual([
+      "houseSelection.progress",
+    ]);
     expect(
       fieldsOf({ ...valid, houses: [{ ...a, firstSteps: { text: "t", videoUrls: ["http://v.example/1"] } }] }),
     ).toEqual(["houses.0.firstSteps.videoUrls.0"]);

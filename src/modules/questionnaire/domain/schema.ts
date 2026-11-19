@@ -80,6 +80,11 @@ export const questionnaireSchema = z
     version: text,
     /** Versão do termo de consentimento, registrada junto com o aceite. */
     consentTermVersion: text,
+    /**
+     * Texto do termo de consentimento, mostrado antes da primeira pergunta (#76). Como as
+     * perguntas, o texto real fica fora do repositório (no arquivo de QUESTIONNAIRE_PATH).
+     */
+    consentTerm: text,
     /** Regra de desempate por eixo: o polo que vence em caso de empate. */
     tieBreak: tieBreakSchema.default(defaultTieBreak),
     /** Casa sugerida para cada temperamento (id de uma casa de config/instance.ts). */

@@ -1,0 +1,29 @@
+export type { FlowContext, FlowEvent, FlowState, JoinMethod, Step } from "./domain/flow";
+
+/** Motivo de recusa mostrado na tela (texto em `houseSelection.errors` da config). */
+export type HouseErrorCode =
+  | "unavailable"
+  | "already_accepted"
+  | "not_active"
+  | "stale_consent"
+  | "region_undefined"
+  | "removed_by_coordination"
+  | "failed";
+
+export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCode };
+
+/**
+ * O subconjunto do cliente do Supabase que este módulo usa: **o cliente do servidor com o JWT
+ * de quem está logado** (R14), para a RLS e as funções do banco valerem. Nunca `service_role`.
+ */
+export type HouseQuery = PromiseLike<{ data: unknown; error: unknown }> & {
+  eq(column: string, value: string): HouseQuery;
+  is(column: string, value: null): HouseQuery;
+  not(column: string, operator: string, value: null): HouseQuery;
+  maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
+};
+
+export type HouseClient = {
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
+  from(table: string): { select(columns: string): HouseQuery };
+};
