@@ -16,8 +16,20 @@ Desenvolvida pelos próprios alunos de TI da Academia.
   alguém invadir, quase nada de valor a levar.
 - **Time:** voluntários, a maioria desenvolvendo com assistentes de IA.
 
-> **Estado atual:** planejamento (Milestone M0). A stack ainda é uma *proposta* e precisa ser
-> validada na reunião com o stakeholder. Veja `docs/PERGUNTAS_STAKEHOLDER.md`.
+> **Estado atual:** fundação (M0). A stack está decidida nos ADRs 0001 e 0009, e o app
+> está só no esqueleto, ainda sem telas de negócio.
+
+## Como rodar localmente
+
+```bash
+git clone https://github.com/felipemaion/Complexo42.git && cd Complexo42
+nvm use            # Node 22 (arquivo .nvmrc)
+npm ci
+npm run dev        # http://localhost:3000
+npm run check      # lint + tipos + testes + build, obrigatório antes do PR
+```
+
+O banco local (`supabase start`) e o `npm run setup` chegam com as #4 e #52.
 
 ## 👋 Chegou agora? Comece pelo [`docs/ONBOARDING.md`](docs/ONBOARDING.md)
 
