@@ -1,10 +1,10 @@
--- Perfil, contato e municípios (issue #10): estrutura, formato dos valores cifrados,
--- triggers e RLS do ponto de vista do titular. A matriz papel × escopo fica em
+-- Perfil, contato e municípios (issues #10 e #12): estrutura, formato dos valores cifrados,
+-- triggers, RLS do ponto de vista do titular e a gravação só por `save_own_profile`. A matriz papel × escopo fica em
 -- permissions_matrix.test.sql. Pessoas fictícias, só dentro desta transação.
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(55);
+select plan(67);
 
 -- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
 create function pg_temp.enc(p_tag text) returns text language sql as $$
@@ -160,15 +160,43 @@ select throws_ok(
 );
 
 -- ---------------------------------------------------------------------------------------
--- O titular pela API (authenticated + RLS)
+-- O titular pela API: só por `save_own_profile` (#12, achado do #112)
 -- ---------------------------------------------------------------------------------------
+-- Chamada como a server action faz: valores já cifrados e HMAC calculado no servidor.
+create function pg_temp.save(
+  p_name text, p_whatsapp_hmac text,
+  p_municipality int default 3550308, p_district text default null,
+  p_consent text default 'v1', p_whatsapp text default null, p_links text default null
+) returns void language sql as $$
+  select public.save_own_profile(
+    p_display_name_enc => p_name,
+    p_municipality_code => p_municipality,
+    p_district => p_district,
+    p_consent_version => p_consent,
+    p_whatsapp_enc => coalesce(p_whatsapp, pg_temp.enc('wa')),
+    p_whatsapp_hmac => p_whatsapp_hmac,
+    p_social_links_enc => p_links
+  )
+$$;
+-- O DETAIL do erro de WhatsApp repetido (o do Postgres traria o HMAC).
+create function pg_temp.duplicate_detail(p_hmac text) returns text language plpgsql as $$
+declare
+  detail text;
+begin
+  perform pg_temp.save(pg_temp.enc('dup'), p_hmac);
+  return 'sem erro';
+exception when unique_violation then
+  get stacked diagnostics detail = pg_exception_detail;
+  return detail;
+end;
+$$;
+
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
 
 select lives_ok(
-  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
-     values ('00000000-0000-0000-0000-0000000000b1', pg_temp.enc('b1'), 3550308, 'v1') $$,
-  'a pessoa cria o próprio perfil'
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64)) $$,
+  'a pessoa sem perfil cria o próprio perfil e contato pela função'
 );
 -- Conferido como dono: quem está pendente ainda não lê a estrutura.
 reset role;
@@ -190,28 +218,113 @@ select is_empty(
   'quem está pendente NÃO lê vínculos, nem o próprio'
 );
 select results_eq(
-  $$ select status, access_status, state_code::text from public.profiles $$,
-  $$ values ('pending', 'pending', 'SP') $$,
+  $$ select status, access_status, state_code::text, consent_version from public.profiles $$,
+  $$ values ('pending', 'pending', 'SP', 'v1') $$,
   'o perfil nasce pendente, com a UF do município, e é o único que ela lê'
 );
-select throws_ok(
-  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
-     values (gen_random_uuid(), pg_temp.enc('xx'), 3550308, 'v1') $$,
-  '42501', null,
-  'ninguém cria perfil com o id de outra pessoa'
+select results_eq(
+  $$ select profile_id, whatsapp_hmac, social_links_enc from public.profile_contacts $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b1'::uuid, repeat('a', 64), null::text) $$,
+  'o contato foi gravado e ela lê só o próprio'
 );
 select is_empty(
   $$ select 1 from public.profiles where id = '00000000-0000-0000-0000-0000000000b2' $$,
   'a pessoa NÃO lê o perfil de outra'
 );
+
+-- Edição pela função: troca nome, município, distrito e WhatsApp; o termo não muda aqui.
 select lives_ok(
-  $$ update public.profiles set display_name_enc = pg_temp.enc('b1novo'), district = 'Centro' $$,
-  'a pessoa edita o próprio perfil (a RLS limita a ela mesma)'
+  $$ select pg_temp.save(pg_temp.enc('b1novo'), repeat('9', 64), 3106200, null, 'v2',
+                         pg_temp.enc('w1novo'), pg_temp.enc('links')) $$,
+  'a pessoa edita o próprio perfil e contato pela função'
 );
 select results_eq(
-  $$ select display_name_enc, district from public.profiles $$,
-  $$ values (pg_temp.enc('b1novo'), 'Centro') $$,
-  'a edição do próprio perfil foi gravada'
+  $$ select p.display_name_enc, p.state_code::text, p.district, p.consent_version,
+            c.whatsapp_enc, c.whatsapp_hmac, c.social_links_enc
+     from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id $$,
+  $$ values (pg_temp.enc('b1novo'), 'MG', null::text, 'v1',
+             pg_temp.enc('w1novo'), repeat('9', 64), pg_temp.enc('links')) $$,
+  'a edição foi gravada, a UF foi recalculada e a versão do termo NÃO mudou (é do fluxo do termo)'
+);
+select lives_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 'Sé') $$,
+  'volta para São Paulo com distrito'
+);
+
+-- WhatsApp de outra pessoa (o HMAC de u2): erro fixo, sem DETAIL, nada gravado.
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1outro'), repeat('b', 64)) $$,
+  '23505', 'WhatsApp já cadastrado',
+  'o mesmo WhatsApp (HMAC) não se cadastra duas vezes'
+);
+select is(
+  pg_temp.duplicate_detail(repeat('b', 64)),
+  '',
+  'o erro de WhatsApp repetido não traz o DETAIL do Postgres (com o HMAC)'
+);
+select results_eq(
+  $$ select p.display_name_enc, p.district, c.whatsapp_hmac
+     from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id $$,
+  $$ values (pg_temp.enc('b1'), 'Sé', repeat('a', 64)) $$,
+  'com o WhatsApp repetido, nem o perfil nem o contato mudaram'
+);
+
+-- Formato: o banco não decifra, mas recusa o que não é valor cifrado nem HMAC.
+select throws_ok($$ select pg_temp.save('Maria Silva', repeat('a', 64)) $$,
+  '22023', 'nome em formato inválido', 'função recusa nome em texto puro');
+select throws_ok($$ select pg_temp.save(null, repeat('a', 64)) $$,
+  '22023', 'nome em formato inválido', 'função recusa nome nulo');
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), p_whatsapp => '+5511999998888') $$,
+  '22023', 'WhatsApp em formato inválido', 'função recusa WhatsApp em texto puro');
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('A', 64)) $$,
+  '22023', 'HMAC em formato inválido', 'função recusa HMAC fora do formato');
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), null) $$,
+  '22023', 'HMAC em formato inválido', 'função recusa HMAC nulo');
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), p_links => '["https://exemplo.org"]') $$,
+  '22023', 'redes em formato inválido', 'função recusa redes em texto puro');
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), p_consent => 'versão 1') $$,
+  '22023', 'versão do termo em formato inválido', 'função recusa versão do termo fora do formato');
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), null) $$,
+  '22023', 'município obrigatório', 'função recusa município nulo');
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 1234567) $$,
+  '23503', null, 'função recusa município desconhecido');
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, ' x ') $$,
+  '23514', null, 'função recusa distrito fora do formato');
+
+-- Sem atalho pela API: nada de INSERT/UPDATE direto, nem na própria linha.
+select throws_ok(
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+     values (gen_random_uuid(), pg_temp.enc('xx'), 3550308, 'v1') $$,
+  '42501', 'permission denied for table profiles',
+  'ninguém cria perfil direto pela API'
+);
+select throws_ok(
+  $$ update public.profiles set display_name_enc = pg_temp.enc('direto') $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO grava o nome cifrado direto pela API'
+);
+select throws_ok(
+  $$ update public.profiles set district = 'Centro' $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO grava o distrito direto pela API'
+);
+select throws_ok(
+  $$ update public.profile_contacts set whatsapp_hmac = repeat('c', 64) $$,
+  '42501', 'permission denied for table profile_contacts',
+  'a pessoa NÃO grava o HMAC do WhatsApp direto pela API (achado do #112)'
+);
+select throws_ok(
+  $$ update public.profile_contacts set whatsapp_enc = pg_temp.enc('direto') $$,
+  '42501', 'permission denied for table profile_contacts',
+  'a pessoa NÃO grava o WhatsApp cifrado direto pela API'
+);
+select throws_ok(
+  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
+     values ('00000000-0000-0000-0000-0000000000b4', pg_temp.enc('w4'), repeat('d', 64)) $$,
+  '42501', 'permission denied for table profile_contacts',
+  'ninguém cadastra contato direto pela API'
 );
 select throws_ok(
   $$ update public.profiles set status = 'active' $$,
@@ -224,66 +337,9 @@ select throws_ok(
   'a pessoa NÃO altera o próprio access_status'
 );
 select throws_ok(
-  $$ update public.profiles set state_code = 'MG' $$,
-  '42501', 'permission denied for table profiles',
-  'a pessoa NÃO altera a UF (derivada do município)'
-);
-select throws_ok(
-  $$ update public.profiles set consent_at = '2000-01-01' $$,
-  '42501', 'permission denied for table profiles',
-  'a pessoa NÃO escreve a data do consentimento'
-);
-select throws_ok(
-  $$ update public.profiles set id = '00000000-0000-0000-0000-0000000000b2' $$,
-  '42501', 'permission denied for table profiles',
-  'a pessoa NÃO troca o id do perfil'
-);
-select throws_ok(
   $$ delete from public.profiles $$,
   '42501', 'permission denied for table profiles',
   'perfil não é apagado pela API'
-);
-select lives_ok(
-  $$ update public.profiles set district = 'Invadido'
-     where id = '00000000-0000-0000-0000-0000000000b2' $$,
-  'tentativa de editar perfil de outra pessoa não alcança linha nenhuma'
-);
-select lives_ok(
-  $$ update public.profiles set municipality_code = 3106200 $$,
-  'trocar de município pela API'
-);
-select results_eq(
-  $$ select state_code::text from public.profiles $$,
-  array['MG'],
-  'trocar de município recalcula a UF'
-);
-
--- Contato
-select lives_ok(
-  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
-     values ('00000000-0000-0000-0000-0000000000b1', pg_temp.enc('w1'), repeat('a', 64)) $$,
-  'a pessoa cadastra o próprio contato'
-);
-select throws_ok(
-  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
-     values ('00000000-0000-0000-0000-0000000000b4', pg_temp.enc('w4'), repeat('d', 64)) $$,
-  '42501', null,
-  'ninguém cadastra contato em nome de outra pessoa'
-);
-select set_eq(
-  $$ select profile_id from public.profile_contacts $$,
-  array['00000000-0000-0000-0000-0000000000b1'::uuid],
-  'a pessoa lê só o próprio contato'
-);
-select throws_ok(
-  $$ update public.profile_contacts set whatsapp_hmac = repeat('b', 64) $$,
-  '23505', null,
-  'o mesmo WhatsApp (HMAC) não se cadastra duas vezes'
-);
-select throws_ok(
-  $$ update public.profile_contacts set profile_id = '00000000-0000-0000-0000-0000000000b2' $$,
-  '42501', 'permission denied for table profile_contacts',
-  'a pessoa NÃO move o contato para outro perfil'
 );
 select throws_ok(
   $$ delete from public.profile_contacts $$,
@@ -291,18 +347,15 @@ select throws_ok(
   'contato não é apagado pela API'
 );
 
--- Bloqueado: lê o próprio perfil, mas não edita.
+-- Sem `sub` no JWT (auth.uid() nulo): nada é gravado.
+select set_config('request.jwt.claims', '{"role": "authenticated"}', true);
+select throws_ok($$ select pg_temp.save(pg_temp.enc('x'), repeat('1', 64)) $$,
+  '42501', 'sessão obrigatória', 'JWT sem `sub` NÃO grava perfil');
+
+-- Bloqueado: lê o próprio perfil, mas não edita nem cadastra contato.
 select pg_temp.login('00000000-0000-0000-0000-0000000000b3');
-select lives_ok(
-  $$ update public.profiles set district = 'Bloqueado' $$,
-  'perfil bloqueado tenta editar: não alcança linha nenhuma'
-);
-select throws_ok(
-  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
-     values ('00000000-0000-0000-0000-0000000000b3', pg_temp.enc('w3'), repeat('e', 64)) $$,
-  '42501', null,
-  'perfil bloqueado NÃO cadastra contato'
-);
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b3'), repeat('e', 64)) $$,
+  '42501', 'sem permissão para editar este perfil', 'perfil bloqueado NÃO edita o perfil nem o contato');
 
 -- Na espera: lê só o próprio perfil e consegue completá-lo.
 select pg_temp.login('00000000-0000-0000-0000-0000000000b4');
@@ -315,6 +368,8 @@ select is_empty(
   $$ select 1 from public.municipalities $$,
   'quem está na espera NÃO lê municípios'
 );
+select lives_ok($$ select pg_temp.save(pg_temp.enc('b4'), repeat('d', 64)) $$,
+  'quem está na espera completa o próprio cadastro');
 
 -- Conta suspensa: lê o próprio perfil, mas não edita nem cadastra contato.
 select pg_temp.login('00000000-0000-0000-0000-0000000000b5');
@@ -323,16 +378,8 @@ select results_eq(
   $$ values ('00000000-0000-0000-0000-0000000000b5'::uuid, 'suspended') $$,
   'conta suspensa lê o próprio perfil'
 );
-select lives_ok(
-  $$ update public.profiles set district = 'Suspenso' $$,
-  'conta suspensa tenta editar: não alcança linha nenhuma'
-);
-select throws_ok(
-  $$ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)
-     values ('00000000-0000-0000-0000-0000000000b5', pg_temp.enc('w5'), repeat('f', 64)) $$,
-  '42501', null,
-  'conta suspensa NÃO cadastra contato'
-);
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b5'), repeat('f', 64)) $$,
+  '42501', 'sem permissão para editar este perfil', 'conta suspensa NÃO edita o perfil nem o contato');
 
 -- Visitante anônimo
 reset role;
@@ -343,18 +390,24 @@ select throws_ok(
   '42501', null,
   'visitante anônimo não lê municípios'
 );
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('anon'), repeat('2', 64)) $$,
+  '42501', null,
+  'visitante anônimo NÃO chama a função de gravar perfil'
+);
 
 -- Conferência como dono do banco
 reset role;
 select results_eq(
-  $$ select id, district from public.profiles
-     where id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3',
-                  '00000000-0000-0000-0000-0000000000b5')
-     order by id $$,
-  $$ values ('00000000-0000-0000-0000-0000000000b2'::uuid, null::text),
-            ('00000000-0000-0000-0000-0000000000b3'::uuid, null::text),
-            ('00000000-0000-0000-0000-0000000000b5'::uuid, null::text) $$,
-  'os perfis de outra pessoa, o bloqueado e o suspenso não foram alterados'
+  $$ select p.id, p.display_name_enc, p.district, c.whatsapp_hmac
+     from public.profiles as p left join public.profile_contacts as c on c.profile_id = p.id
+     where p.id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3',
+                    '00000000-0000-0000-0000-0000000000b5')
+     order by p.id $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b2'::uuid, pg_temp.enc('b2'), null::text, repeat('b', 64)),
+            ('00000000-0000-0000-0000-0000000000b3'::uuid, pg_temp.enc('b3'), null::text, null::text),
+            ('00000000-0000-0000-0000-0000000000b5'::uuid, pg_temp.enc('b5'), null::text, null::text) $$,
+  'os perfis e contatos de outra pessoa, do bloqueado e do suspenso não foram alterados'
 );
 select ok(
   has_table_privilege('authenticated', 'public.municipalities', 'select')
@@ -367,6 +420,21 @@ select ok(
   and not has_column_privilege('authenticated', 'public.profiles', 'status', 'insert')
   and not has_column_privilege('authenticated', 'public.profiles', 'state_code', 'insert'),
   'ninguém cria perfil já liberado, com status ou com UF escolhida'
+);
+select is_empty(
+  $$ select table_name, column_name, privilege_type
+     from information_schema.column_privileges
+     where grantee in ('authenticated', 'anon', 'PUBLIC')
+       and table_schema = 'public' and table_name in ('profiles', 'profile_contacts')
+       and privilege_type in ('INSERT', 'UPDATE') $$,
+  'nenhuma coluna de perfil ou contato tem INSERT/UPDATE para a API (só a função grava)'
+);
+select ok(
+  has_function_privilege('authenticated',
+    'public.save_own_profile(text, integer, text, text, text, text, text)', 'execute')
+  and not has_function_privilege('anon',
+    'public.save_own_profile(text, integer, text, text, text, text, text)', 'execute'),
+  'a função de gravar perfil é de quem está logado; visitante anônimo não executa'
 );
 
 select * from finish();
