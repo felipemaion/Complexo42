@@ -1,5 +1,7 @@
 // Seed local de perfis fictícios (issue #8): pessoas determinísticas, só dados de teste, e o
 // guarda de "só local" do script. O banco em si é conferido em supabase/tests/skills.test.sql.
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { buildFakePeople, fakePeopleCount } from "../scripts/fake-people.mjs";
 import { readLocalStack } from "../scripts/seed-fake-profiles.mjs";
@@ -59,6 +61,13 @@ describe("readLocalStack", () => {
     expect(() => readLocalStack(output("https://projeto.exemplo.org"))).toThrow(/não é local/);
   });
 
+  it.each(["http://127.0.0.1.evil.com:54321", "http://localhost.evil.com", "http://evil.com/127.0.0.1"])(
+    "recusa host que só começa como o local: %s",
+    (url) => {
+      expect(() => readLocalStack(output(url))).toThrow(/não é local/);
+    },
+  );
+
   it("falha fechado quando o status não traz a chave", () => {
     expect(() => readLocalStack("API_URL=http://127.0.0.1:54321\n")).toThrow(/SERVICE_ROLE_KEY/);
   });
@@ -76,7 +85,9 @@ describe("resolveTarget (execução de src/ em script)", () => {
     expect(resolveTarget("./field.ts", parent)).toBeNull();
   });
 
-  it("troca server-only pela versão vazia do Next", () => {
-    expect(resolveTarget("server-only", parent)).toMatch(/server-only\/empty\.js$/);
+  it("troca server-only pela versão vazia do Next, que existe no disco", () => {
+    const target = resolveTarget("server-only", parent);
+    expect(target).toMatch(/server-only\/empty\.js$/);
+    expect(existsSync(fileURLToPath(target as string))).toBe(true);
   });
 });

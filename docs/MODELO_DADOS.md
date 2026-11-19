@@ -303,7 +303,7 @@ arquivo e rode `npm run db:reset`. Aprovado, o catálogo entra em produção por
 
 **Perfis fictícios (~50):** `npm run db:seed-profiles` (depois do `db:reset`) cria, só no
 Supabase local, 50 contas `perfil-ficticio-NN@example.com` com nome e WhatsApp
-(`+55119000000NN`) cifrados pelo código do app, município, distrito (capital) e 2 a 6
+(`+55119000000NN`, convenção deste projeto para teste) cifrados pelo código do app, município, distrito (capital) e 2 a 6
 habilidades. Roda de novo sem duplicar; recusa produção e qualquer endereço não local.
 
 ### Missões, entregas e pontos (ADR 0006)

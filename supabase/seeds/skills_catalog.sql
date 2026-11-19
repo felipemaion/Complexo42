@@ -4,7 +4,9 @@
 --
 -- Para trocar o catálogo, edite SÓ este arquivo (uma linha por habilidade:
 -- categoria, nome, sinônimos da busca) e rode `npm run db:reset`. O comando é idempotente:
--- a chave é o nome, e uma habilidade que sair daqui deve ser apagada à mão ou pelo reset.
+-- a chave é o nome. Rodar de novo REATIVA as habilidades que estiverem desativadas (`active`
+-- volta a true) e restaura categoria e sinônimos; uma habilidade que sair daqui não é apagada,
+-- só some com o reset.
 -- Testes: supabase/tests/skills.test.sql (quantidade e grupos).
 
 insert into public.skills (category, name, aliases) values

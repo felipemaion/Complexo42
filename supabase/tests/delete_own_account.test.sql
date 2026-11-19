@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(51);
+select plan(53);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -115,6 +115,9 @@ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac) va
   ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('ZapA'), repeat('a', 64)),
   ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('ZapB'), repeat('b', 64));
 insert into app.profile_save_attempts (profile_id) values ('00000000-0000-0000-0000-0000000000a1');
+insert into public.profile_skills (profile_id, skill_id)
+select p.id, (select id from public.skills order by name limit 1)
+from public.profiles as p where p.id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2');
 insert into public.questionnaire_consents (profile_id, term_version)
 select '00000000-0000-0000-0000-0000000000a1', v.version
 from app.questionnaire_term_versions as v limit 1;
@@ -163,6 +166,8 @@ select isnt_empty($$ select pg_temp.leftovers('00000000-0000-0000-0000-000000000
   'preparo: o id de A aparece em várias tabelas');
 select is(pg_temp.rows_of('00000000-0000-0000-0000-0000000000a1'), '1/1/1/1',
   'preparo: A tem perfil, contato, vínculo e papel');
+select is((select count(*)::int from public.profile_skills where profile_id = '00000000-0000-0000-0000-0000000000a1'), 1,
+  'preparo: A tem uma habilidade marcada');
 -- Regra para tabelas novas (docs/MODELO_DADOS.md): toda FK para a pessoa é `cascade` (dado
 -- dela) ou `set null` (ela citada no dado de outra pessoa). `restrict`/`no action` impediria
 -- a exclusão da conta.
@@ -250,6 +255,10 @@ select is_empty($$ select pg_temp.leftovers('00000000-0000-0000-0000-0000000000a
   'nenhum registro com o id de A permanece fora do audit_log (perfil, contato, vínculos, papéis, tentativas, aceites, sessões, identidades, rastro do GoTrue)');
 select is((select count(*)::int from auth.users where id = '00000000-0000-0000-0000-0000000000a1'), 0,
   'auth.users de A apagado');
+select is((select array_agg(profile_id) from public.profile_skills
+           where profile_id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2')),
+  array['00000000-0000-0000-0000-0000000000a2'::uuid],
+  'a habilidade de A some com a conta; a de B fica');
 select is((select count(*)::int from auth.sessions where id = '00000000-0000-0000-0000-00000000005a'), 0,
   'sessão de A apagada');
 select is((select count(*)::int from auth.audit_log_entries

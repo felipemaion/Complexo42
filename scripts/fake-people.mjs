@@ -1,7 +1,8 @@
 // Pessoas 100% fictícias para o seed local (issue #8). Puro e determinístico: sem
 // `Math.random` nem `Date.now`, então rodar de novo gera as mesmas pessoas.
 // Nomes combinam um prenome comum com um sobrenome inventado que deixa claro ser teste, e os
-// telefones ficam no bloco +55119000000xx (reservado para teste neste projeto).
+// telefones seguem a convenção deste projeto para dados de teste: +55119000000xx (não é faixa
+// reservada pela Anatel; só é fictício por convenção, então nunca use em dado real).
 
 const givenNames = ["Ana", "Bruno", "Carla", "Diego", "Elisa", "Fábio", "Gabriela", "Hugo", "Isabela", "João"];
 const fictionalSurnames = ["Exemplo", "Teste", "Modelo", "Demo", "Fictício"];
