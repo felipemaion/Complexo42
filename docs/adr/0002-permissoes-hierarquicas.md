@@ -60,6 +60,10 @@ implicitamente; não há linha para isso.
 
 1. **Só se delega para baixo.** Ninguém concede papel igual ou superior ao seu; o gestor
    estadual só concede dentro da sua UF.
+   **Ninguém concede papel a si mesmo** (nem o gestor, nem o admin técnico). Revoga um papel
+   quem o concedeu ou um gestor acima da unidade dele. O gestor da raiz não tem ninguém acima:
+   se quem o concedeu não o revogar, removê-lo é tarefa do **operador**, com acesso direto ao
+   banco (issue #46).
 2. **Separação de funções.** O admin técnico (quem cuida do sistema) **não vê dados
    pessoais**, e os desenvolvedores não têm papel em produção.
 3. **Uma única fonte de verdade.** As decisões de acesso ficam em funções SQL
