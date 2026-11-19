@@ -78,6 +78,17 @@ export const requireUser = cache(async (): Promise<CurrentUser> => {
 });
 
 /**
+ * Igual a `requireUser`, mas devolve também o cliente do Supabase com o JWT da pessoa (R14),
+ * para as páginas e server actions que leem ou gravam dados dela. Nunca `service_role`.
+ */
+export async function requireUserClient(): Promise<{ user: CurrentUser; client: AuthClient }> {
+  const user = await requireUser();
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  return { user, client: session.client };
+}
+
+/**
  * Portão de acesso logo depois do login (callback e confirmação do link) e em requireUser.
  * Devolve para onde mandar a pessoa quando ela não pode seguir, ou null se pode.
  */

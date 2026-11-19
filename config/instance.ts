@@ -60,6 +60,33 @@ export const instance = parseInstanceConfig({
       blocked: "Seu acesso está bloqueado. Fale com a coordenação.",
     },
   },
+  profile: {
+    title: "Seus dados",
+    intro: "Preencha os campos abaixo e toque em salvar. Seu nome e seu WhatsApp ficam guardados de forma protegida.",
+    nameLabel: "Seu nome",
+    nameHint: "Como você quer ser chamado. De 2 a 80 letras.",
+    whatsappLabel: "Seu WhatsApp, com DDD",
+    whatsappHint: "Só números de celular. Exemplo: (11) 91234-5678",
+    municipalityLabel: "Sua cidade",
+    municipalityPlaceholder: "Toque para escolher a cidade",
+    districtLabel: "Seu distrito",
+    districtHint: "Distrito da cidade de São Paulo. Se não souber, pode deixar em branco.",
+    districtNone: "Não sei ou prefiro não dizer",
+    saveButton: "Salvar meus dados",
+    saving: "Salvando...",
+    saved: "Pronto! Seus dados foram salvos.",
+    editLink: "Ver ou mudar meus dados",
+    errorSummary: "Falta arrumar alguns campos:",
+    fieldErrors: {
+      displayName: "Escreva seu nome, com 2 a 80 letras.",
+      whatsapp: "Confira o WhatsApp: DDD e celular com 9 dígitos, como (11) 91234-5678.",
+      municipalityCode: "Escolha a sua cidade na lista.",
+      district: "Escolha o distrito na lista ou deixe em branco.",
+    },
+    duplicateWhatsapp:
+      "Este WhatsApp já está em outro cadastro. Confira o número. Se ele é mesmo seu, fale com a coordenação.",
+    failed: "Não foi possível salvar agora. Seus dados não foram perdidos: tente de novo em alguns minutos.",
+  },
   houses: [
     {
       id: "casa-exemplo-1",

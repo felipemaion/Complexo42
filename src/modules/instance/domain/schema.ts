@@ -78,6 +78,39 @@ export const instanceConfigSchema = z.strictObject({
       blocked: text,
     }),
   }),
+  /** Formulário do perfil (#12): nome, WhatsApp e localização. Linguagem simples. */
+  profile: z.strictObject({
+    title: text,
+    intro: text,
+    nameLabel: text,
+    nameHint: text,
+    whatsappLabel: text,
+    whatsappHint: text,
+    municipalityLabel: text,
+    municipalityPlaceholder: text,
+    districtLabel: text,
+    districtHint: text,
+    /** Opção vazia do distrito (ele é opcional). */
+    districtNone: text,
+    saveButton: text,
+    saving: text,
+    /** Aviso na página inicial depois de salvar. */
+    saved: text,
+    /** Botão da página inicial para voltar ao formulário. */
+    editLink: text,
+    /** Título da lista de erros no topo do formulário. */
+    errorSummary: text,
+    /** Mensagem de cada campo inválido. */
+    fieldErrors: z.strictObject({
+      displayName: text,
+      whatsapp: text,
+      municipalityCode: text,
+      district: text,
+    }),
+    /** WhatsApp já usado em outro cadastro (não diz de quem). */
+    duplicateWhatsapp: text,
+    failed: text,
+  }),
   houses: z
     .array(houseSchema)
     .min(1)
