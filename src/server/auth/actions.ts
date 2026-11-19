@@ -1,11 +1,13 @@
 "use server";
 // Server actions do login (#9). Os formulários de /entrar e /auth/confirmar postam aqui; nada
 // de cliente Supabase no navegador. O e-mail digitado nunca volta para a URL nem para a tela.
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuthConfig } from "./config";
 import { confirmMagicLink, requestMagicLink, startGoogleSignIn } from "./flows";
 import { LOGIN_PATH } from "./routes";
 import { accessRedirect, clearAuthCookies, requestAuthClient } from "./session";
+import { getTurnstileConfig, TURNSTILE_FIELD, verifyTurnstile } from "./turnstile";
 
 const loginWith = (query: string) => `${LOGIN_PATH}?${query}`;
 
@@ -24,7 +26,10 @@ export async function sendMagicLink(formData: FormData): Promise<never> {
   // Mesmo sem Auth configurado, a resposta é a neutra (M4); o motivo vai para o log no fluxo.
   if (!config) redirect(loginWith("enviado=1"));
   const auth = (await requestAuthClient(config)).auth;
-  const result = await requestMagicLink(auth, { email: formData.get("email"), siteUrl: config.siteUrl });
+  // Turnstile (#116): o IP vai junto só quando confiável (mesma regra do rate limit do Auth).
+  const remoteIp = config.trustCfConnectingIp ? (await headers()).get("cf-connecting-ip") : null;
+  const verifyHuman = () => verifyTurnstile(formData.get(TURNSTILE_FIELD), { secretKey: getTurnstileConfig().secretKey, remoteIp });
+  const result = await requestMagicLink(auth, { email: formData.get("email"), siteUrl: config.siteUrl, verifyHuman });
   redirect(loginWith(result.ok ? "enviado=1" : `erro=${result.error}`));
 }
 

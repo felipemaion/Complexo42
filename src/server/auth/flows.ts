@@ -61,10 +61,17 @@ export async function startGoogleSignIn(auth: AuthApi, opts: { siteUrl: string; 
  * ou não, esteja o envio limitado ou o Auth fora do ar: a tela não revela quem existe (M4). O
  * motivo real vai só para o log, como código. Quem não está na lista de autorizados fica em
  * espera depois (ADR 0008 §1, #26), então o cadastro não é bloqueado aqui.
+ *
+ * `verifyHuman` (Turnstile, #116) roda depois da validação do e-mail e antes do Auth: se ele
+ * falhar, nenhum e-mail sai, mas a resposta continua a neutra.
  */
-export async function requestMagicLink(auth: AuthApi, opts: { email: unknown; siteUrl: string }): Promise<FlowResult> {
+export async function requestMagicLink(
+  auth: AuthApi,
+  opts: { email: unknown; siteUrl: string; verifyHuman: () => Promise<{ ok: boolean }> },
+): Promise<FlowResult> {
   const email = emailSchema.safeParse(opts.email);
   if (!email.success) return { ok: false, error: "invalid_email" };
+  if (!(await opts.verifyHuman()).ok) return { ok: true };
   const { error } = await auth.signInWithOtp({
     email: email.data,
     options: { emailRedirectTo: callbackUrl(opts.siteUrl), shouldCreateUser: true },

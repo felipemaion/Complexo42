@@ -32,6 +32,9 @@ export function parsePreviousKeys(value: string): Map<number, Uint8Array> | null
 const anonKey = z.string().regex(/^(?:[\w-]+\.[\w-]+\.[\w-]+|sb_publishable_[\w-]+)$/, { error: "precisa ser a chave anon (JWT) ou sb_publishable_" });
 const httpUrl = z.url({ protocol: /^https?$/, error: "precisa ser uma URL http(s)" });
 
+// Chaves do Turnstile: "0x..." (produção) ou "1x/2x/3x..." (teste da Cloudflare).
+const turnstileKey = z.string().regex(/^[0-9]x[\w-]{16,100}$/, { error: "formato de chave do Turnstile inválido" });
+
 const key32 = z.string().refine((v) => decodeKey(v) !== null, { error: "precisa ter 32 bytes em base64 (openssl rand -base64 32)" });
 
 const envSchema = z.object({
@@ -80,11 +83,16 @@ const envSchema = z.object({
     .enum(["true", "false"], { error: "use true ou false" })
     .default("false")
     .transform((v) => v === "true"),
+  // Cloudflare Turnstile no pedido do link por e-mail (#116). A site key é pública, mas é lida
+  // aqui em tempo de execução (sem NEXT_PUBLIC_) e passada à tela; a secret só fica no
+  // servidor. Fora de produção, sem valor, valem as chaves de teste oficiais (turnstile.ts).
+  TURNSTILE_SITE_KEY: turnstileKey.optional(),
+  TURNSTILE_SECRET_KEY: turnstileKey.optional(),
 });
 
 // Obrigatórias só em produção. Checadas fora do schema para aparecerem junto com os
 // demais erros (o Zod pula refinamentos quando algum campo já falhou).
-const REQUIRED_IN_PRODUCTION = ["DB_HEALTH_URL", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SITE_URL"] as const;
+const REQUIRED_IN_PRODUCTION = ["DB_HEALTH_URL", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SITE_URL", "TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"] as const;
 
 export type ServerEnv = z.infer<typeof envSchema>;
 

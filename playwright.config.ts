@@ -50,6 +50,10 @@ export default defineConfig({
       FIELD_ENCRYPTION_KEY: randomKey(),
       BLIND_INDEX_KEY: randomKey(),
       LOG_DIR: "test-results/logs",
+      // Turnstile (#116): chaves de TESTE oficiais e públicas da Cloudflare, que sempre passam
+      // (as mesmas de src/server/auth/turnstile.ts). Em produção as reais são obrigatórias.
+      TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+      TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
     },
   },
 });

@@ -30,6 +30,8 @@ async function requestLink(page: import("@playwright/test").Page): Promise<numbe
   const at = Date.now() - 1000;
   await page.goto("/entrar");
   await page.getByLabel("Seu e-mail").fill(email);
+  // Turnstile (#116) com a chave de teste que sempre passa: sem o token, o e-mail não sai.
+  await expect(page.locator('input[name="cf-turnstile-response"]')).not.toHaveValue("", { timeout: 20_000 });
   await page.getByRole("button", { name: "Receber link por e-mail" }).click();
   await expect(page.getByRole("main").getByRole("status")).toHaveText(/Se este e-mail puder entrar/);
   return at;

@@ -15,6 +15,7 @@ const valid = {
     googleButton: "t",
     emailLabel: "t",
     emailButton: "t",
+    emailNeedsScript: "t",
     emailSent: "t",
     signedOut: "t",
     signOutButton: "t",

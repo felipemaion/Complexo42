@@ -40,6 +40,8 @@ export const instance = parseInstanceConfig({
     googleButton: "Entrar com Google",
     emailLabel: "Seu e-mail",
     emailButton: "Receber link por e-mail",
+    // Sem JavaScript, a verificação anti-robô (Turnstile, #116) não roda e o e-mail não sai.
+    emailNeedsScript: "Para receber o link por e-mail, ative o JavaScript do navegador. Ou entre com Google.",
     // Mesma resposta para qualquer e-mail (não revela quem tem conta).
     emailSent: "Se este e-mail puder entrar, você vai receber um link. Abra a mensagem e toque no botão para entrar.",
     signedOut: "Você saiu da sua conta.",

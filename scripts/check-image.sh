@@ -35,9 +35,11 @@ grep -q "DB_HEALTH_URL" <<<"$out" || fail "mensagem não cita a variável"
 
 # Sobe só leitura, com /tmp em memória, e consulta o healthz de dentro do container.
 healthz() {
-  # Login (#9): obrigatório em produção. Valores fictícios; o healthz não depende do Auth.
+  # Login (#9) e Turnstile (#116): obrigatórios em produção. Valores fictícios (chaves de
+  # teste públicas da Cloudflare); o healthz não depende do Auth.
   docker run -d --name "$name" --read-only --tmpfs /tmp -e DB_HEALTH_URL="$1" \
     -e SUPABASE_URL=http://127.0.0.1:9 -e SITE_URL=http://127.0.0.1:3000 \
+    -e TURNSTILE_SITE_KEY=1x00000000000000000000AA -e TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
     -e SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiJ9.$(printf %s '{"role":"anon"}' | base64).ci" "$img" >/dev/null
   # Imprime "<status> <cache-control>" e o corpo. wget do busybox esconde o corpo do 503.
   local js='fetch("http://127.0.0.1:3000/api/healthz").then(async r=>console.log(r.status, r.headers.get("cache-control"), await r.text()))'
