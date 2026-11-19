@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(53);
+select plan(55);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -118,6 +118,9 @@ insert into app.profile_save_attempts (profile_id) values ('00000000-0000-0000-0
 insert into public.profile_skills (profile_id, skill_id)
 select p.id, (select id from public.skills order by name limit 1)
 from public.profiles as p where p.id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2');
+insert into public.consent_acceptances (user_id, version) values
+  ('00000000-0000-0000-0000-0000000000a1', 'v1'),
+  ('00000000-0000-0000-0000-0000000000a2', 'v1');
 insert into public.questionnaire_consents (profile_id, term_version)
 select '00000000-0000-0000-0000-0000000000a1', v.version
 from app.questionnaire_term_versions as v limit 1;
@@ -335,7 +338,7 @@ set local role authenticated;
 select throws_ok($$ select public.export_own_data() $$, '42501', null,
   'JWT de conta apagada NÃO exporta (nem grava data_exported)');
 select throws_ok($$ select public.save_own_profile(pg_temp.enc('Nova'), 3550308, null, pg_temp.enc('Zap'), repeat('c', 64), null) $$,
-  '23503', null, 'JWT de conta apagada NÃO recria o perfil');
+  '42501', null, 'JWT de conta apagada NÃO recria o perfil (o aceite do termo foi apagado junto)');
 select throws_ok($$ select public.accept_house('casa-exemplo-1', 'self', null) $$, '42501', null,
   'JWT de conta apagada NÃO escolhe casa');
 select throws_ok($$ select public.record_questionnaire_consent((select version from app.questionnaire_term_versions limit 1)) $$,
@@ -343,6 +346,10 @@ select throws_ok($$ select public.record_questionnaire_consent((select version f
 reset role;
 select is((select count(*)::int from public.audit_log), (select n from audit_before),
   'nenhum evento novo no audit_log depois das tentativas');
+select is((select count(*)::int from public.consent_acceptances where user_id = '00000000-0000-0000-0000-0000000000a1'),
+  0, 'a exclusão da conta apaga os aceites do termo');
+select is((select count(*)::int from public.consent_acceptances where user_id = '00000000-0000-0000-0000-0000000000a2'),
+  1, 'os aceites de outra pessoa ficam');
 select throws_ok($$ insert into public.audit_log (actor_id, event, target_id)
   values ('00000000-0000-0000-0000-0000000000a1', 'data_exported', '00000000-0000-0000-0000-0000000000a1') $$,
   '42501', null, 'nem o dono do banco grava evento com o uuid de conta apagada como ator');

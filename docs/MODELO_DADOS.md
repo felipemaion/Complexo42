@@ -47,6 +47,7 @@ profiles ───────┼─< unit_members >── units
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
+consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
 missions ─< mission_steps
 missions ─< mission_runs (uma turma assume a missão) ─< step_submissions (entregas)
@@ -129,7 +130,7 @@ com a lista importada.
 | `district` | text null | distrito, só para município com lista em `config/districts.ts` (hoje a capital paulista, 96 distritos do IBGE); nulo nos demais (2 a 60 caracteres) |
 | `status` | text | `pending`, `active`, `suspended` |
 | `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
-| `consent_version`, `consent_at` | text, timestamptz | `consent_at` gravado pelo trigger quando a versão muda. O perfil nasce com `none` (ainda sem aceite); só a função do aceite (#11) muda |
+| `consent_version`, `consent_at` | text, timestamptz | Espelho do último aceite do termo (#11), para leitura rápida; a prova é `consent_acceptances`. `save_own_profile` cria o perfil já com a versão vigente (e recusa quem não aceitou); `accept_consent` avança a versão de quem já tem perfil, e o trigger grava `consent_at`. Nenhuma outra via muda |
 | `created_at`, `updated_at` | timestamptz | gravados pelo trigger |
 
 O papel **não** fica no perfil: fica em `role_assignments`.
@@ -260,6 +261,18 @@ guarda-se só a casa sugerida.
   pessoa encerrou o vínculo de casa, a pessoa não volta sozinha, nem para a mesma casa nem para
   outra (erro C7602): a volta é decisão da coordenação.
 
+### `consent_acceptances` (#11)
+`user_id` (FK `auth.users`, `on delete cascade`), `version`, `accepted_at`; PK `(user_id, version)`.
+A prova do aceite do termo de consentimento, ligada à conta e não ao navegador. Gravada só por
+`public.accept_consent(versão)` (a própria pessoa, ainda sem perfil ou não), que aceita **só a
+versão vigente** (`app.current_consent_version()`, definida por migration; versão nova = migration
+nova + texto novo em `config/consent.ts`, e um teste confere que os dois batem) e registra
+`consent_accepted` no `audit_log`. RLS: a pessoa lê só os seus; nenhum INSERT, UPDATE ou DELETE
+pela API. `save_own_profile` recusa (42501) quem não aceitou a vigente; `requireUser` manda para
+`/termo`. `/termo`, `/meus-dados` e `/excluir-conta` funcionam sem aceite (direitos do titular).
+A exportação inclui os aceites; a exclusão da conta os apaga em cascata.
+**Perfil anterior a esta tabela** (criado antes da migration do #11, sem linha aqui) passa pelo termo uma vez no próximo acesso; o aceite então grava a linha e atualiza o espelho. O seed local (`npm run db:seed-profiles`) grava o aceite fictício da versão vigente, lida de `config/consent.ts`.
+
 ### `questionnaire_consents` (ADR 0008 §2.1)
 `profile_id` (FK `profiles`, `on delete cascade`), `term_version` (FK
 `app.questionnaire_term_versions`), `consented_at`; PK `(profile_id, term_version)`. Aceite do
@@ -354,7 +367,7 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `id`, `actor_id`, `event` (`contact_viewed`, `role_granted`,
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
-`access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`),
+`access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`),
 `target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
@@ -417,7 +430,7 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   aberto não bastam.
 - **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
   `profiles`, `profile_contacts`, `unit_members`, `house_members` e `role_assignments` da pessoa,
-  `access_waitlist_hmac`, `questionnaire_consents` e `app.profile_save_attempts`. A função
+  `access_waitlist_hmac`, `questionnaire_consents`, `consent_acceptances` e `app.profile_save_attempts`. A função
   apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`, pelo id ou pelo
   e-mail exato da conta, lido antes de apagar) e o `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
 - **O que fica dos outros:** quando a pessoa aparece no dado de outra

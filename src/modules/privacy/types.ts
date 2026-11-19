@@ -18,3 +18,9 @@ export type DeleteOwnAccountResult =
   | { status: "invalid_confirmation" }
   | { status: "reauth_required" }
   | { status: "failed" };
+
+/** O cliente do Supabase do aceite do termo (#11): o da sessão, com `from` (ler a versão) e `rpc`. */
+export type ConsentDbClient = Pick<AuthClient, "from" | "rpc">;
+
+/** Resultado do aceite do termo (#11). */
+export type AcceptConsentResult = { status: "accepted" } | { status: "failed" };

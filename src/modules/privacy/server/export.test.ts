@@ -40,6 +40,7 @@ async function dbRows() {
     memberships: [],
     house_memberships: [],
     questionnaire_consents: [],
+    consent_acceptances: [],
     roles: [],
     audit_events: [{ event: "data_exported", reason: null, term_version: null, house_key: null, created_at: "2026-11-19T12:00:00+00:00" }],
     contact_views: [],

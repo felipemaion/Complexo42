@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { acceptTermIfAsked } from "./accept-term";
 
 // Redes sociais (#17). Sem Supabase (o CI): só a proteção da rota. Com o Supabase local, o fluxo
 // real: a pessoa se cadastra pondo links, um `javascript:` é recusado só naquela caixa, o banco
@@ -49,6 +50,7 @@ test.describe("redes sociais com o Supabase local", () => {
 
   test("cadastro com links: javascript: recusado na caixa certa; links cifrados no banco", async ({ browser, baseURL }) => {
     page = await signIn(browser);
+    await acceptTermIfAsked(page);
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill("Pessoa Redes");
     await page.getByLabel("Seu WhatsApp, com DDD").fill(phone);

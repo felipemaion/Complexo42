@@ -27,6 +27,16 @@ export {
   REAUTH_WINDOW_SECONDS,
   type DeleteAccountStatus,
 } from "./domain/delete-account";
+export {
+  CONSENT_PATH,
+  consentFormSchema,
+  parseConsentTerm,
+  type ConsentFormState,
+  type ConsentTerm,
+} from "./domain/consent";
+export { ConsentForm } from "./components/consent-form";
+export { ConsentTermView } from "./components/consent-term-view";
+export { acceptConsent, hasAcceptedConsent } from "./server/consent";
 export { deleteOwnAccount, type DeleteDeps } from "./server/delete-account";
 export { exportOwnData, type ExportDeps } from "./server/export";
-export type { DeleteOwnAccountResult, ExportOwnDataResult, PrivacyDbClient } from "./types";
+export type { AcceptConsentResult, ConsentDbClient, DeleteOwnAccountResult, ExportOwnDataResult, PrivacyDbClient } from "./types";

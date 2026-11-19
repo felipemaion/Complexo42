@@ -47,6 +47,8 @@ async function createMember(tag: string, inRegion = true): Promise<{ id: string;
     }),
   });
   expect(res.status).toBe(201);
+  // Já aceitou o termo vigente (#11): sem a linha, o portão manda a pessoa para /termo.
+  await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
   if (inRegion) {
     const [team] = await (await admin("/rest/v1/units?path=eq.br.sp.abc.equipe_1&select=id")).json();
     await admin(`/rest/v1/unit_members?profile_id=eq.${user.id}&left_at=is.null`, {

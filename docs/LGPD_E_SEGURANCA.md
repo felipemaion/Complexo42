@@ -24,7 +24,7 @@ Na prática, isso vira quatro camadas:
 
 | Item | Como atendemos |
 |---|---|
-| Base legal | Consentimento (art. 7º, I) ao entrar [jurídico] |
+| Base legal | Consentimento (art. 7º, I) ao entrar [jurídico]. Tela `/termo` antes do perfil: caixa desmarcada, botão só habilita depois de marcar; o aceite (versão e data) fica na conta, em `consent_acceptances`, com auditoria, e o banco só deixa gravar o perfil de quem aceitou a versão vigente; versão nova pede novo aceite. Baixar os dados e excluir a conta funcionam sem aceite (#11) |
 | Finalidade | Organizar alunos em equipes e ações da Academia. Texto no termo |
 | Minimização | Lista fechada de campos + checagem no CI |
 | Transparência | Página "Seus dados": o que guardamos, por quê e quem vê |

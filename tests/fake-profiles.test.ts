@@ -1,10 +1,11 @@
 // Seed local de perfis fictícios (issue #8): pessoas determinísticas, só dados de teste, e o
 // guarda de "só local" do script. O banco em si é conferido em supabase/tests/skills.test.sql.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { consentTerm } from "@config/consent";
 import { buildFakePeople, fakePeopleCount } from "../scripts/fake-people.mjs";
-import { readLocalStack } from "../scripts/seed-fake-profiles.mjs";
+import { readConsentVersion, readLocalStack } from "../scripts/seed-fake-profiles.mjs";
 import { resolveTarget } from "../scripts/ts-resolve-hook.mjs";
 
 const catalog = { municipalityCount: 39, skillCount: 47 };
@@ -89,5 +90,16 @@ describe("resolveTarget (execução de src/ em script)", () => {
     const target = resolveTarget("server-only", parent);
     expect(target).toMatch(/server-only\/empty\.js$/);
     expect(existsSync(fileURLToPath(target as string))).toBe(true);
+  });
+});
+
+describe("readConsentVersion", () => {
+  it("lê de config/consent.ts a mesma versão que o app exige no portão do termo", () => {
+    const source = readFileSync(fileURLToPath(new URL("../config/consent.ts", import.meta.url)), "utf8");
+    expect(readConsentVersion(source)).toBe(consentTerm.version);
+  });
+
+  it("sem versão no texto, recusa em vez de gravar um aceite qualquer", () => {
+    expect(() => readConsentVersion("export const x = 1;")).toThrow("versão do termo");
   });
 });

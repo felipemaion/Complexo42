@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(84);
+select plan(86);
 
 -- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
 create function pg_temp.enc(p_tag text) returns text language sql as $$
@@ -25,6 +25,12 @@ insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000b5'),
   ('00000000-0000-0000-0000-0000000000b6'),
   ('00000000-0000-0000-0000-0000000000b7');
+-- Aceitaram o termo vigente (#11); b2 não aceitou.
+insert into public.consent_acceptances (user_id, version)
+select id, 'v1' from auth.users where id in (
+  '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000b3',
+  '00000000-0000-0000-0000-0000000000b4', '00000000-0000-0000-0000-0000000000b5',
+  '00000000-0000-0000-0000-0000000000b6', '00000000-0000-0000-0000-0000000000b7');
 insert into public.municipalities (code, name, state_code) values (3106200, 'Belo Horizonte', 'MG');
 
 -- ---------------------------------------------------------------------------------------
@@ -186,8 +192,20 @@ select lives_ok(
   $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64)) $$,
   'a pessoa sem perfil cria o próprio perfil e contato pela função'
 );
+select pg_temp.login('00000000-0000-0000-0000-0000000000b2');
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b2'), repeat('8', 64)) $$,
+  '42501', 'consent_required',
+  'sem aceite do termo vigente, save_own_profile recusa (42501)'
+);
+select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
 -- Conferido como dono: quem está pendente ainda não lê a estrutura.
 reset role;
+select is(
+  (select consent_version from public.profiles where id = '00000000-0000-0000-0000-0000000000b1'),
+  'v1',
+  'o perfil nasce com a versão vigente do termo aceita'
+);
 select results_eq(
   $$ select u.path::text from public.unit_members as m
      join public.units as u on u.id = m.unit_id
@@ -207,8 +225,8 @@ select is_empty(
 );
 select results_eq(
   $$ select status, access_status, state_code::text, consent_version from public.profiles $$,
-  $$ values ('pending', 'pending', 'SP', 'none') $$,
-  'o perfil nasce pendente, com a UF do município, sem aceite do termo (none), e é o único que ela lê'
+  $$ values ('pending', 'pending', 'SP', 'v1') $$,
+  'o perfil nasce pendente, com a UF do município, com a versão vigente do termo aceita antes, e é o único que ela lê'
 );
 -- Revisão do PR #125: a versão do termo não vem do cliente. Chamar a RPC direto pedindo
 -- outra versão não acha a função; nem a criação nem a edição a mudam.
@@ -240,9 +258,9 @@ select results_eq(
   $$ select p.display_name_enc, p.state_code::text, p.district, p.consent_version,
             c.whatsapp_enc, c.whatsapp_hmac, c.social_links_enc
      from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id $$,
-  $$ values (pg_temp.enc('b1novo'), 'MG', null::text, 'none',
+  $$ values (pg_temp.enc('b1novo'), 'MG', null::text, 'v1',
              pg_temp.enc('w1novo'), repeat('9', 64), pg_temp.enc('links')) $$,
-  'a edição foi gravada, a UF foi recalculada e a versão do termo NÃO mudou (é do fluxo do termo)'
+  'a edição foi gravada, a UF foi recalculada e a versão do termo NÃO mudou (é do aceite do termo)'
 );
 select lives_ok(
   $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 'Sé') $$,
