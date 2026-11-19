@@ -68,7 +68,8 @@ export async function resolveAccessAfterSignIn(
 /**
  * Importação da lista pelo gestor: lê o CSV, calcula o HMAC de cada e-mail e envia só os
  * HMACs. O banco confere se quem chama é o gestor da raiz e grava `allowlist_imported` no
- * `audit_log` com a quantidade.
+ * `audit_log` com a quantidade. Quem estava na espera com um dos HMACs importados é liberado
+ * na hora (`promoted`), com um `access_granted` (motivo `import`) por pessoa.
  */
 export async function importAllowlist(
   client: AccessClient,
@@ -79,10 +80,10 @@ export async function importAllowlist(
   const validSource = sourceSchema.parse(source);
   const { emails, invalidLines } = parseAllowlistCsv(csv);
   const hmacs = [...new Set(await Promise.all(emails.map((email) => blindIndex(email))))];
-  const received = z.number().int().nonnegative().parse(
-    await callRpc(client, "import_allowlist", { p_email_hmacs: hmacs, p_source: validSource }),
-  );
-  return { received, invalidLines };
+  const { received, promoted } = z
+    .object({ received: z.number().int().nonnegative(), promoted: z.number().int().nonnegative() })
+    .parse(await callRpc(client, "import_allowlist", { p_email_hmacs: hmacs, p_source: validSource }));
+  return { received, promoted, invalidLines };
 }
 
 /**

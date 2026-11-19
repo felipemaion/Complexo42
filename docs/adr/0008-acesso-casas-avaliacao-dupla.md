@@ -44,6 +44,13 @@ profiles.access_status: 'pending' | 'active' | 'waitlisted' | 'blocked'
   - Se o e-mail está na lista, o perfil fica `active`.
   - Se não está, o perfil fica `waitlisted`: a pessoa vê só a mensagem de espera e o próprio
     perfil, e não aparece em busca nem em painel.
+- **Quem já está na espera é liberado pela importação** (aprovado pelo gestor em
+  2026-11-19). Ao mandar alguém para a espera, o servidor guarda o HMAC apresentado no
+  primeiro login em `access_waitlist_hmac` (privada: sem acesso pela API, e nenhuma função
+  devolve o HMAC). Quando uma importação traz esse HMAC, a pessoa em `waitlisted` (nunca
+  `blocked`, nem com a conta `suspended`) vira `active`, a linha é apagada e cada liberação
+  gera `access_granted` com motivo `import`. Guardar esse HMAC não expõe nada novo: o e-mail
+  da conta já está em `auth.users`.
 - **A coordenação pode aprovar alguém da espera manualmente**, e cada aprovação gera
   `access_granted` no `audit_log`. A importação da lista é feita só pelo gestor e também fica
   auditada (`allowlist_imported`, com a quantidade de e-mails, nunca os e-mails).

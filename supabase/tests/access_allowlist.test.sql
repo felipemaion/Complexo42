@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(105);
+select plan(125);
 
 -- HMAC fictício (64 hex): o banco não calcula o HMAC de verdade, só guarda e compara.
 create function pg_temp.h(p_tag text) returns text language sql as $$
@@ -86,8 +86,11 @@ select columns_are('public', 'access_allowlist',
   array['id', 'email_hmac', 'source', 'added_by', 'added_at'],
   'access_allowlist tem exatamente as colunas do modelo de dados (sem e-mail nem nome)');
 select columns_are('public', 'audit_log',
-  array['id', 'actor_id', 'event', 'target_id', 'item_count', 'created_at'],
-  'audit_log tem só ids, evento, quantidade e data');
+  array['id', 'actor_id', 'event', 'target_id', 'item_count', 'reason', 'created_at'],
+  'audit_log tem só ids, evento, quantidade, motivo e data');
+select columns_are('public', 'access_waitlist_hmac',
+  array['profile_id', 'email_hmac', 'created_at'],
+  'access_waitlist_hmac tem só o perfil, o HMAC e a data');
 select throws_ok(
   $$ insert into public.access_allowlist (email_hmac, source) values ('maria@exemplo.org', 'manual') $$,
   '23514', null,
@@ -103,8 +106,9 @@ select is_empty(
      from information_schema.columns as c
      where c.table_schema in ('public', 'app')
        and c.column_name ~* 'e-?mail'
-       and (c.table_name, c.column_name) <> ('access_allowlist', 'email_hmac') $$,
-  'nenhuma coluna de e-mail nas tabelas do app além de access_allowlist.email_hmac'
+       and (c.table_name, c.column_name) not in
+           (('access_allowlist', 'email_hmac'), ('access_waitlist_hmac', 'email_hmac')) $$,
+  'nenhuma coluna de e-mail nas tabelas do app além dos dois email_hmac (só HMAC)'
 );
 
 -- ---------------------------------------------------------------------------------------
@@ -210,12 +214,12 @@ select is(
   public.import_allowlist(
     array[pg_temp.h('a@x.org'), pg_temp.h('b@x.org'), pg_temp.h('a@x.org'), pg_temp.h('pend_in@exemplo.org')],
     'academy'),
-  3,
+  '{"received": 3, "promoted": 0}'::jsonb,
   'gestor da raiz importa: devolve a quantidade de HMACs distintos recebidos'
 );
 -- Um item que já estava na lista conta igual: a quantidade não revela quem já estava.
 select is(
-  public.import_allowlist(array[pg_temp.h('pend_in@exemplo.org')], 'manual'),
+  (public.import_allowlist(array[pg_temp.h('pend_in@exemplo.org')], 'manual') ->> 'received')::int,
   1,
   'reimportar um HMAC que já estava na lista devolve 1 (não revela se era novo)'
 );
@@ -285,12 +289,18 @@ select is_empty(
   $$ select 1 from public.profiles where id = pg_temp.person('noprof') $$,
   'resolve_access não cria perfil'
 );
--- Mesmo com a lista mudando, quem foi para a espera continua lá até um gestor decidir.
+select results_eq(
+  $$ select profile_id, email_hmac from public.access_waitlist_hmac $$,
+  $$ values (pg_temp.person('pend_out'), pg_temp.h('pend_out@exemplo.org')) $$,
+  'quem foi para a espera no login tem o HMAC guardado (e só essa pessoa)'
+);
+-- Inserir direto na lista (sem a importação) e logar de novo não libera: só a importação
+-- (que confere o HMAC guardado) ou o gestor.
 insert into public.access_allowlist (email_hmac, source) values (pg_temp.h('pend_out@exemplo.org'), 'manual');
 set local role authenticated;
 select pg_temp.login('pend_out');
 select is(public.resolve_access(pg_temp.h('pend_out@exemplo.org')), 'waitlisted',
-  'entrar na lista depois não libera sozinho: precisa de aprovação do gestor');
+  'logar de novo não libera, mesmo com o HMAC já na lista');
 select throws_ok(
   $$ update public.profiles set access_status = 'active' where id = (select auth.uid()) $$,
   '42501', null,
@@ -505,8 +515,8 @@ insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('root_susp'), 'manager', current_setting('test.br')::uuid),
   (pg_temp.person('sp_mgr_susp'), 'manager', current_setting('test.sp')::uuid);
 -- Registro de auditoria sobre o próprio gestor de SP (para o teste "não lê sobre si").
-insert into public.audit_log (actor_id, event, target_id)
-values (pg_temp.person('root_mgr'), 'access_granted', pg_temp.person('sp_mgr'));
+insert into public.audit_log (actor_id, event, target_id, reason)
+values (pg_temp.person('root_mgr'), 'access_granted', pg_temp.person('sp_mgr'), 'manual');
 select is(
   (select count(*)::int from public.unit_members where profile_id = pg_temp.person('wait_nounit')),
   0,
@@ -604,6 +614,117 @@ select throws_ok($$ select * from public.list_waitlist(201) $$, '22023', null, '
 select throws_ok($$ select * from public.list_waitlist(10, now(), null) $$, '22023', null,
   'cursor incompleto é recusado');
 
+-- ---------------------------------------------------------------------------------------
+-- Liberação automática na importação (aprovada pelo gestor em 2026-11-19)
+-- ---------------------------------------------------------------------------------------
+reset role;
+select set_config('request.jwt.claims', '', true);
+insert into people values
+  ('pw_a',     '00000000-0000-0000-0000-0000000000e1'),  -- espera em SP; será importado
+  ('pw_blk',   '00000000-0000-0000-0000-0000000000e2'),  -- espera, depois bloqueado
+  ('pw_susp',  '00000000-0000-0000-0000-0000000000e3'),  -- espera, conta suspensa
+  ('pw_other', '00000000-0000-0000-0000-0000000000e4');  -- espera, fora da importação
+insert into auth.users (id) select id from people where name like 'pw\_%';
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
+select id, pg_temp.enc(name), case when name = 'pw_a' then 3550308 else 3304557 end, 'v1'
+from people where name like 'pw\_%';
+set local role authenticated;
+select pg_temp.login('pw_a');
+select is(public.resolve_access(pg_temp.h('pw_a@x.org')), 'waitlisted', 'pw_a vai para a espera');
+select pg_temp.login('pw_blk');
+select is(public.resolve_access(pg_temp.h('pw_blk@x.org')), 'waitlisted', 'pw_blk vai para a espera');
+select pg_temp.login('pw_susp');
+select is(public.resolve_access(pg_temp.h('pw_susp@x.org')), 'waitlisted', 'pw_susp vai para a espera');
+select pg_temp.login('pw_other');
+select is(public.resolve_access(pg_temp.h('pw_other@x.org')), 'waitlisted', 'pw_other vai para a espera');
+-- Bloqueio e suspensão feitos fora da fila (a linha guardada continua): a importação
+-- também precisa respeitar os dois.
+reset role;
+update public.profiles set access_status = 'blocked' where id = pg_temp.person('pw_blk');
+update public.profiles set status = 'suspended' where id = pg_temp.person('pw_susp');
+
+-- Nenhum papel da API lê a tabela dos HMACs da espera
+select ok(
+  not has_table_privilege('authenticated', 'public.access_waitlist_hmac', 'select, insert, update, delete')
+  and not has_table_privilege('anon', 'public.access_waitlist_hmac', 'select, insert, update, delete'),
+  'nenhum papel da API tem privilégio em access_waitlist_hmac'
+);
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select throws_ok($$ select 1 from public.access_waitlist_hmac $$, '42501', null,
+  'nem o gestor da raiz lê os HMACs da espera');
+select pg_temp.login('pw_a');
+select throws_ok($$ select 1 from public.access_waitlist_hmac $$, '42501', null,
+  'quem está na espera não lê nem o próprio HMAC guardado');
+
+-- Importação sem nenhum HMAC da espera: nada muda
+select pg_temp.login('root_mgr');
+select is(public.import_allowlist(array[pg_temp.h('ninguem@x.org')], 'manual'),
+  '{"received": 1, "promoted": 0}'::jsonb,
+  'importação sem HMAC da espera não libera ninguém');
+reset role;
+select is((select count(*)::int from public.access_waitlist_hmac
+           where profile_id in (select id from people where name like 'pw\_%')), 4,
+  'as quatro linhas da espera continuam');
+
+-- Importação com os HMACs: só quem está em waitlisted e com a conta não suspensa é liberado
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select is(
+  public.import_allowlist(
+    array[pg_temp.h('pw_a@x.org'), pg_temp.h('pw_blk@x.org'), pg_temp.h('pw_susp@x.org'), pg_temp.h('novo@x.org')],
+    'academy'),
+  '{"received": 4, "promoted": 1}'::jsonb,
+  'importação devolve recebidos e liberados'
+);
+reset role;
+select results_eq(
+  $$ select p.name, pr.access_status, pr.status from people as p
+     join public.profiles as pr on pr.id = p.id
+     where p.name like 'pw\_%' order by p.name $$,
+  $$ values ('pw_a', 'active', 'active'), ('pw_blk', 'blocked', 'pending'),
+            ('pw_other', 'waitlisted', 'pending'), ('pw_susp', 'waitlisted', 'suspended') $$,
+  'na espera e importado vira active; bloqueado, suspenso e não importado não mudam'
+);
+select set_eq(
+  $$ select profile_id from public.access_waitlist_hmac
+     where profile_id in (select id from people where name like 'pw\_%') $$,
+  $$ select id from people where name in ('pw_blk', 'pw_susp', 'pw_other') $$,
+  'a linha de quem foi liberado some; as outras ficam'
+);
+select results_eq(
+  $$ select actor_id, target_id, reason from public.audit_log
+     where event = 'access_granted' and reason = 'import' $$,
+  $$ values (pg_temp.person('root_mgr'), pg_temp.person('pw_a'), 'import'::text) $$,
+  'um access_granted por pessoa liberada, com motivo import e quem importou'
+);
+select results_eq(
+  $$ select item_count from public.audit_log where event = 'allowlist_imported' order by id desc limit 1 $$,
+  array[4],
+  'a importação continua auditada só com a quantidade recebida'
+);
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select ok(
+  exists (select 1 from public.audit_log where target_id = pg_temp.person('pw_a') and reason = 'import'),
+  'o gestor de SP vê, no seu escopo, quem foi liberado pela importação'
+);
+
+-- Decisão manual apaga a linha guardada
+select pg_temp.login('root_mgr');
+select is(public.decide_access(pg_temp.person('pw_other'), 'blocked'), 'blocked',
+  'gestor da raiz bloqueia pw_other (sem unidade)');
+reset role;
+select is_empty(
+  $$ select 1 from public.access_waitlist_hmac where profile_id = pg_temp.person('pw_other') $$,
+  'decisão manual apaga o HMAC guardado'
+);
+select is(
+  (select reason from public.audit_log where target_id = pg_temp.person('pw_other') and event = 'access_blocked'),
+  'manual',
+  'decisão pela fila é auditada com motivo manual'
+);
+
 -- A auditoria só aceita inserções, nem o dono do banco altera ou apaga
 reset role;
 select throws_ok($$ update public.audit_log set event = 'export' $$, '42501', 'audit_log só aceita inserções',
@@ -613,8 +734,8 @@ select throws_ok($$ delete from public.audit_log $$, '42501', 'audit_log só ace
 select throws_ok($$ truncate public.audit_log $$, '42501', 'audit_log só aceita inserções',
   'dono do banco NÃO esvazia a auditoria');
 select lives_ok(
-  $$ insert into public.audit_log (actor_id, event, target_id)
-     values (pg_temp.person('root_mgr'), 'access_blocked', pg_temp.person('blk')) $$,
+  $$ insert into public.audit_log (actor_id, event, target_id, reason)
+     values (pg_temp.person('root_mgr'), 'access_blocked', pg_temp.person('blk'), 'manual') $$,
   'inserir continua permitido'
 );
 

@@ -42,6 +42,8 @@ export type ResolvedAccess = AccessStatus | null;
 export type AllowlistImportResult = {
   /** Quantidade de e-mails distintos enviados ao banco (é o que vai para a auditoria). */
   received: number;
+  /** Quantas pessoas da espera a importação liberou (o HMAC guardado no login estava nela). */
+  promoted: number;
   /** Linhas do arquivo sem e-mail válido (só os números, nunca o conteúdo). */
   invalidLines: number[];
 };

@@ -85,12 +85,12 @@ describe("resolveAccessAfterSignIn", () => {
 
 describe("importAllowlist", () => {
   it("envia só HMACs distintos, nunca os e-mails nem as outras colunas", async () => {
-    const { client, calls } = fakeClient(2);
+    const { client, calls } = fakeClient({ received: 2, promoted: 1 });
     const log = vi.spyOn(console, "log");
     const csv = "Nome,Email\nMaria Silva,Maria@Exemplo.org\nJoão,joao@exemplo.org\nMaria,maria@exemplo.org\nZé,ze@\n";
     const result = await importAllowlist(client, csv, "academy", blindIndex);
 
-    expect(result).toEqual({ received: 2, invalidLines: [5] });
+    expect(result).toEqual({ received: 2, promoted: 1, invalidLines: [5] });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.fn).toBe("import_allowlist");
     expect(calls[0]?.args.p_source).toBe("academy");
@@ -108,6 +108,10 @@ describe("importAllowlist", () => {
     await expect(importAllowlist(client, "a@x.org", "planilha", blindIndex)).rejects.toThrow();
     await expect(importAllowlist(client, "email\n", "manual", blindIndex)).rejects.toMatchObject({ code: "empty" });
     expect(calls).toEqual([]);
+  });
+
+  it("recusa resposta do banco fora do formato {received, promoted}", async () => {
+    await expect(importAllowlist(fakeClient(2).client, "a@x.org", "manual", blindIndex)).rejects.toThrow();
   });
 
   it("propaga a recusa do banco (quem não é gestor)", async () => {

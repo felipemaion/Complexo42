@@ -3,6 +3,10 @@
 -- 1. `access_allowlist`: só o HMAC do e-mail normalizado (domínio "em:"), calculado no
 --    servidor (`src/server/crypto/`). O banco não tem a chave e não vê e-mail nenhum.
 --    Ninguém lê nem grava a tabela pela API: só as funções abaixo.
+-- 1b. `access_waitlist_hmac`: o HMAC de quem foi para a espera no primeiro login, para a
+--    importação seguinte liberar a pessoa sozinha (decisão do gestor em 2026-11-19). Privada
+--    como a lista: nenhuma função devolve o HMAC. Não expõe nada novo: o e-mail da conta já
+--    está em `auth.users`.
 -- 2. `audit_log` (docs/MODELO_DADOS.md): sem dado pessoal; gravado só pelas funções
 --    `security definer`; lido só por gestores, dentro do escopo.
 -- 3. Funções de decisão (R15), usadas pelas políticas e pelas RPCs:
@@ -44,6 +48,25 @@ comment on table public.access_allowlist is
 alter table public.access_allowlist enable row level security;
 
 -- ---------------------------------------------------------------------------------------
+-- access_waitlist_hmac
+-- ---------------------------------------------------------------------------------------
+create table public.access_waitlist_hmac (
+  profile_id uuid primary key references public.profiles (id) on delete cascade,
+  -- O HMAC que a pessoa apresentou no primeiro login (o do e-mail confirmado da sessão).
+  -- Sem índice único: um HMAC repetido não pode impedir o cadastro de outra conta.
+  email_hmac text not null
+    constraint access_waitlist_hmac_email_hmac_format check (email_hmac ~ '^[0-9a-f]{64}$'),
+  created_at timestamptz not null default now()
+);
+
+comment on table public.access_waitlist_hmac is
+  'HMAC de quem está na espera, para a importação liberar sozinha (ADR 0008 §1). Sem API.';
+
+create index access_waitlist_hmac_email_hmac_idx on public.access_waitlist_hmac (email_hmac);
+
+alter table public.access_waitlist_hmac enable row level security;
+
+-- ---------------------------------------------------------------------------------------
 -- audit_log
 -- ---------------------------------------------------------------------------------------
 create table public.audit_log (
@@ -59,9 +82,14 @@ create table public.audit_log (
   target_id uuid,
   -- Quantidade de itens de um evento em lote (`allowlist_imported`), nunca os itens.
   item_count integer check (item_count >= 0),
+  -- Motivo de uma decisão de acesso: `manual` (gestor, pela fila) ou `import` (liberação
+  -- automática na importação da lista). Só em `access_granted`/`access_blocked`.
+  reason text check (reason in ('manual', 'import')),
   created_at timestamptz not null default now(),
   constraint audit_log_item_count_only_for_batches
-    check ((event = 'allowlist_imported') = (item_count is not null))
+    check ((event = 'allowlist_imported') = (item_count is not null)),
+  constraint audit_log_reason_only_for_access
+    check ((event in ('access_granted', 'access_blocked')) = (reason is not null))
 );
 
 comment on table public.audit_log is
@@ -214,11 +242,17 @@ to authenticated;
 -- ---------------------------------------------------------------------------------------
 -- Grants e políticas
 -- ---------------------------------------------------------------------------------------
-revoke all on public.access_allowlist, public.audit_log from anon, authenticated;
+revoke all on public.access_allowlist, public.access_waitlist_hmac, public.audit_log
+  from anon, authenticated;
 
 -- A lista não tem grant nenhum para a API. A política explícita só documenta a regra (R5):
 -- mesmo com um grant por engano, nenhuma linha apareceria.
 create policy access_allowlist_no_api_access on public.access_allowlist
+  for all to anon, authenticated
+  using (false)
+  with check (false);
+
+create policy access_waitlist_hmac_no_api_access on public.access_waitlist_hmac
   for all to anon, authenticated
   using (false)
   with check (false);
@@ -236,7 +270,8 @@ create policy audit_log_select on public.audit_log
 -- O servidor calcula o HMAC do e-mail da sessão e chama esta função com o JWT da pessoa.
 -- Ela só mexe no perfil de quem chama, e só uma vez: em `pending` vira `active` (HMAC na
 -- lista) ou `waitlisted`; em qualquer outro estado devolve o estado atual sem consultar a
--- lista. Sem perfil, devolve nulo sem consultar a lista. Assim a função não serve para
+-- lista. Sem perfil, devolve nulo sem consultar a lista. Ao mandar para a espera, guarda o
+-- HMAC em `access_waitlist_hmac` (a importação seguinte libera; ver `import_allowlist`). Assim a função não serve para
 -- testar HMACs em série: cada conta tem uma única consulta, e ela só devolve o estado de
 -- quem chama, nunca dados da lista.
 create or replace function public.resolve_access(p_email_hmac text)
@@ -278,6 +313,13 @@ begin
       status = case when decided = 'active' and status = 'pending' then 'active' else status end
   where id = caller;
 
+  -- Na espera: guarda o HMAC para a próxima importação que o trouxer liberar a pessoa.
+  if decided = 'waitlisted' then
+    insert into public.access_waitlist_hmac (profile_id, email_hmac)
+    values (caller, p_email_hmac)
+    on conflict (profile_id) do update set email_hmac = excluded.email_hmac, created_at = now();
+  end if;
+
   return decided;
 end;
 $$;
@@ -291,14 +333,23 @@ comment on function public.resolve_access(text) is
 -- Recebe só HMACs (o servidor lê o CSV, calcula e descarta os e-mails). Devolve e audita a
 -- quantidade de HMACs distintos recebidos, e não a de novos: assim nem quem importa
 -- descobre se um e-mail já estava na lista.
+--
+-- Depois de gravar, libera quem está na espera (`waitlisted`, conta não suspensa) com o HMAC
+-- guardado entre os importados: `access_status` e `status` viram `active`, a linha sai de
+-- `access_waitlist_hmac` e cada pessoa liberada gera um `access_granted` com
+-- `reason = 'import'`. Um evento por pessoa (e não um agregado) porque é o `target_id` que
+-- deixa o gestor de cada estado ver, no seu escopo, quem entrou e por quê. `blocked` nunca é
+-- liberado aqui. Devolve `{received, promoted}`: quem importa é o gestor da raiz, que já vê
+-- a fila inteira.
 create or replace function public.import_allowlist(p_email_hmacs text[], p_source text)
-returns integer
+returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
   received integer;
+  promoted integer;
 begin
   if not app.can_import_allowlist() then
     raise exception 'só o gestor importa a lista' using errcode = 'insufficient_privilege';
@@ -327,12 +378,33 @@ begin
   insert into public.audit_log (actor_id, event, item_count)
   values ((select auth.uid()), 'allowlist_imported', received);
 
-  return received;
+  with released as (
+    update public.profiles as p
+    set access_status = 'active', status = 'active'
+    from public.access_waitlist_hmac as w
+    where w.profile_id = p.id
+      and p.access_status = 'waitlisted'
+      and p.status <> 'suspended'
+      and w.email_hmac = any (p_email_hmacs)
+    returning p.id
+  ),
+  forgotten as (
+    delete from public.access_waitlist_hmac as w
+    using released as r
+    where w.profile_id = r.id
+  ),
+  audited as (
+    insert into public.audit_log (actor_id, event, target_id, reason)
+    select (select auth.uid()), 'access_granted', r.id, 'import' from released as r
+  )
+  select count(*)::integer into promoted from released;
+
+  return jsonb_build_object('received', received, 'promoted', promoted);
 end;
 $$;
 
 comment on function public.import_allowlist(text[], text) is
-  'Importação da lista pelo gestor da raiz: só HMACs; audita a quantidade, nunca os itens.';
+  'Importação pelo gestor da raiz: só HMACs; audita a quantidade e libera quem espera com HMAC importado.';
 
 -- ---------------------------------------------------------------------------------------
 -- RPC: fila de espera
@@ -412,11 +484,15 @@ begin
       status = case when p_decision = 'active' and status = 'pending' then 'active' else status end
   where id = p_profile;
 
-  insert into public.audit_log (actor_id, event, target_id)
+  -- Decidido à mão, o HMAC guardado não serve mais.
+  delete from public.access_waitlist_hmac where profile_id = p_profile;
+
+  insert into public.audit_log (actor_id, event, target_id, reason)
   values (
     (select auth.uid()),
     case p_decision when 'active' then 'access_granted' else 'access_blocked' end,
-    p_profile
+    p_profile,
+    'manual'
   );
 
   return p_decision;

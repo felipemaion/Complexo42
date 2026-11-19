@@ -395,7 +395,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 81);
+select plan((select count(*)::int from matrix) + 85);
 
 select is(
   pg_temp.check_access(actor, action, target),
@@ -853,6 +853,20 @@ select is_empty(
                         pg_temp.person('stu_pend'), pg_temp.person('stu_susp')) $$,
   'os vínculos de quem não está ativo não foram alterados'
 );
+
+-- Lista de autorizados e HMACs da espera (#26): nenhum papel lê pela API
+set local role authenticated;
+select pg_temp.login('nat_mgr');
+select throws_ok($$ select 1 from public.access_allowlist $$, '42501', null,
+  'gestor nacional NÃO lê a lista de autorizados');
+select throws_ok($$ select 1 from public.access_waitlist_hmac $$, '42501', null,
+  'gestor nacional NÃO lê os HMACs da espera');
+select pg_temp.login('tech');
+select throws_ok($$ select 1 from public.access_waitlist_hmac $$, '42501', null,
+  'admin técnico NÃO lê os HMACs da espera');
+select pg_temp.login('stu_wait');
+select throws_ok($$ select 1 from public.access_waitlist_hmac $$, '42501', null,
+  'quem está na espera NÃO lê os HMACs da espera');
 
 -- Visitante anônimo
 set local role anon;
