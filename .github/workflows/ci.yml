@@ -29,6 +29,15 @@ jobs:
           ./gitleaks git . --redact --verbose
       - name: Campos pessoais proibidos
         run: ./scripts/check-forbidden-fields.sh
+      # Os testes de deploy/ existiam sem nunca rodar no CI: teste que ninguém
+      # executa não é teste. Rodam aqui porque não dependem de npm nem de
+      # banco -- só de bash, com dublês no lugar de age, docker e rclone.
+      - name: Testes dos scripts de deploy
+        run: |
+          for t in deploy/*.test.sh; do
+            echo "== $t"
+            bash "$t"
+          done
 
   app:
     name: App (lint, tipos, testes, build)
