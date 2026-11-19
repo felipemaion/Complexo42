@@ -271,6 +271,7 @@ from (values
 --   manage  → app.can_manage_unit    unit    → app.can_view_unit
 --   edit    → app.can_edit_profile (criar/editar perfil e contato)
 --   import  → app.can_import_allowlist   decide → app.can_decide_access (fila de espera)
+--   block / unblock → app.can_block_member / app.can_unblock_member (quem já entrou)
 --   audit_import / audit_decision → app.can_read_audit (importação / decisão sobre o alvo)
 --   grant_<papel>     → app.can_grant_role('<papel>', unidade, outsider)
 --   selfgrant_<papel> → app.can_grant_role('<papel>', unidade, o próprio ator)
@@ -782,7 +783,45 @@ insert into matrix (actor, action, target, expected) values
   ('tech', 'revoke', 'team_a', false),
   ('revoked_mgr', 'revoke', 'team_m', false),
   ('stu_a', 'revoke', 'team_a', false),
-  ('anon', 'revoke', 'team_a', false);
+  ('anon', 'revoke', 'team_a', false),
+  -- Bloquear quem está ativo / desbloquear (#26): gestor no escopo, nunca a si nem quem tem
+  -- papel no seu nível ou acima (o gestor da raiz alcança house_coordinator e tech_admin na
+  -- raiz); só alvo ativo (bloquear) ou bloqueado (desbloquear)
+  ('sp_mgr', 'block', 'stu_a', true),
+  ('abc_mgr', 'block', 'stu_a', true),
+  ('nat_mgr', 'block', 'stu_m', true),
+  ('nat_mgr', 'block', 'sp_mgr', true),
+  ('nat_mgr', 'block', 'spokes_a', true),
+  ('mg_mgr', 'block', 'stu_a', false),
+  ('abc_mgr', 'block', 'stu_c', false),
+  ('sp_mgr', 'block', 'spokes_a', false),
+  ('nat_mgr', 'block', 'tech', true),
+  ('sp_mgr', 'block', 'house_sp', false),
+  ('nat_mgr', 'block', 'house_sp', true),
+  ('nat_mgr', 'block', 'tech_wait', false),
+  ('nat_mgr', 'block', 'nat_mon', false),
+  ('nat_mgr', 'block', 'house_nat', true),
+  ('nat_mgr', 'block', 'nat_mgr', false),
+  ('sp_mgr', 'block', 'sp_mgr', false),
+  ('team_a_mon', 'block', 'stu_a', false),
+  ('spokes_a', 'block', 'stu_a', false),
+  ('house_mon', 'block', 'stu_ah', false),
+  ('tech', 'block', 'stu_a', false),
+  ('revoked_mgr', 'block', 'stu_m', false),
+  ('mon_wait', 'block', 'stu_a', false),
+  ('stu_a', 'block', 'stu_b', false),
+  ('anon', 'block', 'stu_a', false),
+  ('sp_mgr', 'block', 'stu_wait', false),
+  ('sp_mgr', 'block', 'stu_blocked', false),
+  ('sp_mgr', 'block', 'stu_pend', false),
+  ('sp_mgr', 'unblock', 'stu_blocked', true),
+  ('abc_mgr', 'unblock', 'stu_blocked', true),
+  ('mg_mgr', 'unblock', 'stu_blocked', false),
+  ('team_a_mon', 'unblock', 'stu_blocked', false),
+  ('stu_blocked', 'unblock', 'stu_blocked', false),
+  ('anon', 'unblock', 'stu_blocked', false),
+  ('sp_mgr', 'unblock', 'stu_a', false),
+  ('sp_mgr', 'unblock', 'stu_wait', false);
 
 create function pg_temp.check_access(p_actor text, p_action text, p_target text)
 returns boolean language plpgsql as $$
@@ -804,6 +843,8 @@ begin
     when p_action = 'edit' then app.can_edit_profile(pg_temp.person(p_target))
     when p_action = 'import' then app.can_import_allowlist()
     when p_action = 'decide' then app.can_decide_access(pg_temp.person(p_target))
+    when p_action = 'block' then app.can_block_member(pg_temp.person(p_target))
+    when p_action = 'unblock' then app.can_unblock_member(pg_temp.person(p_target))
     when p_action = 'audit_import' then app.can_read_audit('allowlist_imported', null)
     when p_action = 'audit_decision' then
       app.can_read_audit('access_granted', pg_temp.person(p_target))
@@ -857,6 +898,7 @@ select is_empty(
      union all
      select target from matrix
      where action in ('profile', 'contact', 'contact_social', 'contact_email', 'edit', 'decide',
+                      'block', 'unblock',
                       'audit_decision', 'audit_house', 'audit_house_other', 'audit_terms')
        and target not in (select name from people)
      union all

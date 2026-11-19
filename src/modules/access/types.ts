@@ -7,6 +7,12 @@ export type AllowlistSource = "form" | "academy" | "manual";
 /** Decisão do gestor sobre quem está na espera. */
 export type WaitlistDecision = "active" | "blocked";
 
+/** Bloquear quem está ativo ou desbloquear quem está bloqueado (#26). */
+export type MemberBlockAction = "block" | "unblock";
+
+/** Motivo opcional do bloqueio: lista fechada, nunca texto livre (sem dado pessoal). */
+export type MemberBlockReason = "impersonation" | "conduct" | "other";
+
 /** Usuário da sessão como `auth.getUser()` devolve (só os campos usados aqui). */
 export type SessionUser = { email?: string | null; email_confirmed_at?: string | null };
 
@@ -21,7 +27,7 @@ export type AccessClient = {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 };
 
-export type AccessErrorCode = "no_session" | "email_not_confirmed" | "forbidden" | "db_error";
+export type AccessErrorCode = "no_session" | "email_not_confirmed" | "forbidden" | "rate_limited" | "db_error";
 
 /** Erro do serviço de acesso. Mensagem fixa: nunca traz e-mail nem o texto do banco (R11). */
 export class AccessError extends Error {
@@ -31,6 +37,7 @@ export class AccessError extends Error {
         no_session: "Sessão ausente ou expirada.",
         email_not_confirmed: "Confirme o e-mail antes de entrar.",
         forbidden: "O banco negou a operação para quem está logado.",
+        rate_limited: "Limite de tentativas atingido.",
         db_error: "O banco recusou a operação.",
       }[code],
     );

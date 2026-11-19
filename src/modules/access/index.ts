@@ -9,6 +9,7 @@ export {
 export {
   decideAccess,
   importAllowlist,
+  setMemberBlock,
   listWaitlist,
   resolveAccessAfterSignIn,
   waitlistPageLimit,
@@ -41,8 +42,21 @@ export {
   type DecisionWord,
   type WaitlistDoneStatus,
 } from "./domain/coordination";
+export {
+  MEMBER_BLOCK_FIELDS,
+  MEMBER_BLOCK_PATH,
+  memberBlockReasons,
+  parseMemberBlockRequest,
+  parseMemberBlockStep,
+  wordOf,
+  type MemberBlockError,
+  type MemberBlockRequest,
+  type MemberBlockState,
+  type MemberBlockWord,
+} from "./domain/member-block";
 export { municipalityNames, readCoordinationMenu } from "./server/coordination";
 export { AllowlistUploadForm, type AllowlistUploadText } from "./components/allowlist-upload";
+export { MemberBlockForm, type MemberBlockText } from "./components/member-block-form";
 export { WaitlistQueue, type WaitlistQueueEntry, type WaitlistQueueText } from "./components/waitlist-queue";
 export { AccessError } from "./types";
 export type {
@@ -52,6 +66,8 @@ export type {
   AllowlistSource,
   CoordinationClient,
   CoordinationMenu,
+  MemberBlockAction,
+  MemberBlockReason,
   ResolvedAccess,
   SessionUser,
   WaitlistCursor,

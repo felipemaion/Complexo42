@@ -37,6 +37,7 @@ vi.mock("@supabase/supabase-js", async (importOriginal) => ({
 
 const { importAllowlistAction } = await import("./autorizados/actions");
 const { decideAccessAction } = await import("./espera/actions");
+const { memberBlockAction } = await import("./bloqueio/actions");
 
 function uploadForm(): FormData {
   const data = new FormData();
@@ -61,12 +62,23 @@ describe("actions da coordenação sem sessão", () => {
     await expect(decideAccessAction(decisionForm())).rejects.toThrow("redirect:/entrar");
     expect(created).toEqual([]);
   });
+
+  it("bloquear: redireciona para o login sem criar cliente nem chamar RPC", async () => {
+    const data = new FormData();
+    data.set("email", "pessoa@exemplo.org");
+    data.set("acao", "bloquear");
+    data.set("etapa", "confirmar");
+    await expect(memberBlockAction({ status: "idle" }, data)).rejects.toThrow("redirect:/entrar");
+    expect(created).toEqual([]);
+  });
 });
 
 describe("nenhum cliente admin ou service_role", () => {
   const sources = [
     "src/app/(conta)/coordenacao/autorizados/actions.ts",
     "src/app/(conta)/coordenacao/espera/actions.ts",
+    "src/app/(conta)/coordenacao/bloqueio/actions.ts",
+    "src/app/(conta)/coordenacao/bloqueio/page.tsx",
     "src/app/(conta)/coordenacao/page.tsx",
     "src/app/(conta)/coordenacao/autorizados/page.tsx",
     "src/app/(conta)/coordenacao/espera/page.tsx",

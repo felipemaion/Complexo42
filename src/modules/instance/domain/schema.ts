@@ -296,6 +296,32 @@ export const instanceConfigSchema = z.strictObject({
       /** Resultado da decisão, mostrado no topo da fila. */
       done: z.strictObject({ liberado: text, bloqueado: text, indisponivel: text, erro: text }),
     }),
+    /** Bloquear ou desbloquear quem já entrou (#26). Por ação: `block` e `unblock`. */
+    memberBlock: z.strictObject({
+      menuLink: text,
+      title: text,
+      intro: text,
+      emailLabel: text,
+      actionLabel: text,
+      actions: z.strictObject({ block: text, unblock: text }),
+      reasonLabel: text,
+      reasonNone: text,
+      reasons: z.strictObject({ impersonation: text, conduct: text, other: text }),
+      continueButton: text,
+      confirm: z.strictObject({ block: text, unblock: text }),
+      confirmReason: text,
+      confirmButton: z.strictObject({ block: text, unblock: text }),
+      cancelButton: text,
+      done: z.strictObject({ block: text, unblock: text }),
+      errors: z.strictObject({
+        invalid_email: text,
+        invalid_action: text,
+        invalid_reason: text,
+        forbidden: text,
+        rate_limited: text,
+        failed: text,
+      }),
+    }),
   }),
   houses: z
     .array(houseSchema)

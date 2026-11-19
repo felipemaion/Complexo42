@@ -236,7 +236,7 @@ export const instance = parseInstanceConfig({
       approveButton: "Liberar",
       blockButton: "Bloquear",
       confirmApprove: "Liberar o acesso de {name}? A pessoa vai poder entrar e usar a plataforma.",
-      confirmBlock: "Bloquear {name}? A pessoa não vai conseguir entrar. Não dá para desfazer por esta tela.",
+      confirmBlock: "Bloquear {name}? A pessoa não vai conseguir entrar. Para desfazer, use “Bloquear ou desbloquear acesso”.",
       confirmApproveButton: "Sim, liberar",
       confirmBlockButton: "Sim, bloquear",
       cancelButton: "Não, voltar",
@@ -249,6 +249,44 @@ export const instance = parseInstanceConfig({
         bloqueado: "Pronto! O acesso foi bloqueado.",
         indisponivel: "Não foi possível decidir: outra pessoa da coordenação já decidiu, ou esta pessoa não está mais na sua área.",
         erro: "Não foi possível salvar agora. Tente de novo em alguns minutos.",
+      },
+    },
+    // Bloquear quem já entrou (#26). A resposta é neutra: não diz se o e-mail é de alguém.
+    memberBlock: {
+      menuLink: "Bloquear ou desbloquear acesso",
+      title: "Bloquear ou desbloquear acesso",
+      intro:
+        "Use quando alguém da sua área não deve mais entrar, por exemplo quem se cadastrou com o e-mail de outra pessoa. Digite o e-mail de login da pessoa. Por segurança, a resposta é a mesma exista ou não uma conta com esse e-mail, e há um limite de tentativas por hora.",
+      emailLabel: "E-mail de login da pessoa",
+      actionLabel: "O que fazer?",
+      actions: { block: "Bloquear o acesso", unblock: "Desbloquear (volta para a lista de espera)" },
+      reasonLabel: "Motivo do bloqueio (opcional)",
+      reasonNone: "Não informar",
+      reasons: {
+        impersonation: "Cadastro com o e-mail de outra pessoa",
+        conduct: "Descumpriu as regras de participação",
+        other: "Outro motivo",
+      },
+      continueButton: "Continuar",
+      confirm: {
+        block: "Bloquear o acesso de {email}? Se for de alguém ativo na sua área, a pessoa sai na hora e não consegue mais entrar.",
+        unblock: "Desbloquear {email}? Se for de alguém bloqueado na sua área, a pessoa volta para a lista de espera.",
+      },
+      confirmReason: "Motivo: {reason}",
+      confirmButton: { block: "Sim, bloquear", unblock: "Sim, desbloquear" },
+      cancelButton: "Não, voltar",
+      done: {
+        block: "Pedido concluído. Se o e-mail é de alguém ativo na sua área, o acesso foi bloqueado agora.",
+        unblock:
+          "Pedido concluído. Se o e-mail é de alguém bloqueado na sua área, a pessoa voltou para a lista de espera. Para liberar, use “Pessoas esperando liberação”: enviar a lista de autorizados não libera essa pessoa sozinha.",
+      },
+      errors: {
+        invalid_email: "Digite um e-mail válido.",
+        invalid_action: "Escolha se quer bloquear ou desbloquear.",
+        invalid_reason: "Escolha um motivo da lista.",
+        forbidden: "Só a coordenação pode bloquear ou desbloquear acessos.",
+        rate_limited: "Muitas tentativas em pouco tempo. Tente de novo mais tarde.",
+        failed: "Não foi possível concluir agora. Nada foi alterado: tente de novo em alguns minutos.",
       },
     },
   },
