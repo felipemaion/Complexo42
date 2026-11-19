@@ -10,6 +10,7 @@
 // carregado (`npm run db:reset`). Rode via npm, que passa as opções do Node.
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { districtsByMunicipality } from "../config/districts.ts";
 import { buildFakePeople, fakePeopleCount } from "./fake-people.mjs";
@@ -30,6 +31,16 @@ export function readLocalStack(statusOutput) {
   if (!url || !serviceKey) throw new Error("não achei API_URL/SERVICE_ROLE_KEY em `supabase status`; o Supabase local está de pé?");
   if (!localHosts.has(new URL(url).hostname)) throw new Error("recusado: o endereço da API não é local.");
   return { url, serviceKey };
+}
+
+/**
+ * A versão do termo de config/consent.ts (a mesma que o app exige no portão, #11). Lida do texto
+ * do arquivo porque o Node deste script não resolve os atalhos `@/` que a config usa.
+ */
+export function readConsentVersion(configSource) {
+  const version = /\bversion:\s*"([A-Za-z0-9._-]{1,32})"/.exec(configSource)?.[1];
+  if (!version) throw new Error("não achei a versão do termo em config/consent.ts");
+  return version;
 }
 
 async function main() {
@@ -56,6 +67,7 @@ async function main() {
     orFail(await db.auth.admin.listUsers({ perPage: 1000 }), "contas").users.map((u) => [u.email, u.id]),
   );
 
+  const consentVersion = readConsentVersion(readFileSync(new URL("../config/consent.ts", import.meta.url), "utf8"));
   const people = buildFakePeople(fakePeopleCount, { municipalityCount: municipalities.length, skillCount: skills.length });
   for (const person of people) {
     let id = existing.get(person.email);
@@ -74,9 +86,14 @@ async function main() {
         district: districts ? districts[person.index % districts.length] : null,
         status: "active",
         access_status: "active",
-        consent_version: "termo-exemplo-1", // fictício: o aceite real é da #11
+        consent_version: consentVersion,
       }),
       "perfil",
+    );
+    // Aceite fictício da versão vigente do termo (#11): sem a linha, o portão levaria a pessoa a /termo.
+    orFail(
+      await db.from("consent_acceptances").upsert({ user_id: id, version: consentVersion }, { onConflict: "user_id,version" }),
+      "aceite do termo",
     );
     orFail(
       await db.from("profile_contacts").upsert({

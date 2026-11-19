@@ -271,6 +271,7 @@ nova + texto novo em `config/consent.ts`, e um teste confere que os dois batem) 
 pela API. `save_own_profile` recusa (42501) quem não aceitou a vigente; `requireUser` manda para
 `/termo`. `/termo`, `/meus-dados` e `/excluir-conta` funcionam sem aceite (direitos do titular).
 A exportação inclui os aceites; a exclusão da conta os apaga em cascata.
+**Perfil anterior a esta tabela** (criado antes da migration do #11, sem linha aqui) passa pelo termo uma vez no próximo acesso; o aceite então grava a linha e atualiza o espelho. O seed local (`npm run db:seed-profiles`) grava o aceite fictício da versão vigente, lida de `config/consent.ts`.
 
 ### `questionnaire_consents` (ADR 0008 §2.1)
 `profile_id` (FK `profiles`, `on delete cascade`), `term_version` (FK
