@@ -476,7 +476,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 96);
+select plan((select count(*)::int from matrix) + 98);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 11 unidades da árvore foram capturadas.
@@ -874,14 +874,26 @@ select is_empty(
   $$ select 1 from public.profiles where id = pg_temp.person('stu_b') $$,
   'coordenador da equipe A NÃO lê perfil da equipe B'
 );
-select lives_ok(
+-- Escrita de perfil e contato só por `save_own_profile` (#12): sem grant direto, e a função
+-- não recebe o id do alvo (grava só a linha de quem chama).
+select throws_ok(
   $$ update public.profiles set district = 'Centro' where id = pg_temp.person('stu_a') $$,
-  'coordenador tenta editar perfil de membro: não alcança linha nenhuma'
+  '42501', 'permission denied for table profiles',
+  'coordenador NÃO edita perfil de membro direto pela API'
 );
-select lives_ok(
+select throws_ok(
   $$ update public.profile_contacts set social_links_enc = whatsapp_enc
      where profile_id = pg_temp.person('stu_a') $$,
-  'coordenador tenta editar contato de membro: não alcança linha nenhuma'
+  '42501', 'permission denied for table profile_contacts',
+  'coordenador NÃO edita contato de membro direto pela API'
+);
+select lives_ok(
+  $$ select public.save_own_profile(
+       p_display_name_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
+       p_municipality_code => 3304557, p_district => 'Centro',
+       p_whatsapp_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
+       p_whatsapp_hmac => repeat('d', 64)) $$,
+  'coordenador grava pela função: só alcança o próprio perfil'
 );
 
 select pg_temp.login('spokes_a');
@@ -982,6 +994,13 @@ select results_eq(
      from public.profiles where id = pg_temp.person('stu_a') $$,
   $$ values (null::text, null::text) $$,
   'perfil e contato do membro não foram alterados pelo coordenador'
+);
+select results_eq(
+  $$ select p.id, p.district, c.whatsapp_hmac
+     from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id
+     where p.district = 'Centro' or c.whatsapp_hmac = repeat('d', 64) $$,
+  $$ select pg_temp.person('team_a_mon'), 'Centro', repeat('d', 64) $$,
+  'a gravação do coordenador pela função caiu só na linha dele'
 );
 select is_empty(
   $$ select 1 from public.unit_members where member_role = 'lead'

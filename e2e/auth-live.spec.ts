@@ -53,7 +53,8 @@ test("usuário novo (modelo de primeiro cadastro): GET não gasta o token; o POS
   const tab = await other.newPage();
   await tab.goto(link);
   await tab.getByRole("button", { name: "Entrar" }).click();
-  await expect(tab).toHaveURL(`${baseURL}/inicio`);
+  // Login vai para /inicio, que manda quem ainda não tem perfil para o formulário (#12).
+  await expect(tab).toHaveURL(`${baseURL}/perfil`);
   // Conta em uso, mascarada, no cabeçalho e na página; o e-mail inteiro nunca.
   await expect(tab.getByTestId("connected-as")).toHaveText("Conectado como pe***@e***.org");
   await expect(tab.locator("body")).not.toContainText(email);
@@ -74,6 +75,7 @@ test("usuário existente (modelo de link mágico) entra pelo botão", async ({ p
   const tab = await (await browser.newContext()).newPage();
   await tab.goto(link);
   await tab.getByRole("button", { name: "Entrar" }).click();
-  await expect(tab).toHaveURL(`${baseURL}/inicio`);
+  // Login vai para /inicio, que manda quem ainda não tem perfil para o formulário (#12).
+  await expect(tab).toHaveURL(`${baseURL}/perfil`);
   await expect(tab.getByTestId("connected-as")).toContainText("pe***@e***.org");
 });

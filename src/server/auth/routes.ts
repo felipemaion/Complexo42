@@ -2,6 +2,8 @@
 
 export const LOGIN_PATH = "/entrar";
 export const HOME_PATH = "/inicio";
+/** Formulário do perfil (#12): quem ainda não tem perfil vai para cá a partir da página inicial. */
+export const PROFILE_PATH = "/perfil";
 export const CALLBACK_PATH = "/auth/callback";
 /** Página intermediária do link mágico: o GET só mostra o botão; o login é um POST. */
 export const CONFIRM_PATH = "/auth/confirmar";
