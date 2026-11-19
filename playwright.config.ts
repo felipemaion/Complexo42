@@ -28,5 +28,8 @@ export default defineConfig({
     timeout: 180_000,
     stdout: "ignore",
     stderr: "pipe",
+    // Em produção o app exige DB_HEALTH_URL e não sobe sem ela (src/server/env.ts, #80).
+    // O E2E ainda não usa banco: uma URL sem serviço deixa o healthz em 503 e o resto no ar.
+    env: { DB_HEALTH_URL: "http://127.0.0.1:9/ready", LOG_DIR: "test-results/logs" },
   },
 });
