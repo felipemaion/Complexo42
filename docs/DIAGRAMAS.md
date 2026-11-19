@@ -151,24 +151,9 @@ sequenceDiagram
 - As avaliações ficam desligadas até o parecer jurídico. Cada uma só é lida por quem avaliou; a
   hierarquia lê por pedido auditado (ADR 0007 §4).
 
-## Divergências entre ADR e código
+## O que ainda não existe
 
-Nenhuma regra foi inventada aqui; o que não bate fica registrado para decisão.
-
-1. **Colegas veem o perfil uns dos outros?** O ADR 0002 diz que o aluno vê "colegas da turma
-   (nome, habilidades)". `app.can_view_profile` só permite o próprio perfil, o escopo (monitor,
-   manager, porta-voz) e o coordenador de casa: **colega não vê colega**. O código é mais
-   restritivo. Decidir: atualizar o ADR 0002 ou abrir a visão de colegas de equipe.
-2. **Quem concede o porta-voz?** O ADR 0007 não diz. O código só deixa um `manager` acima da
-   unidade conceder `spokesperson`; o coordenador da equipe não pode. Confirmar com o
-   stakeholder, porque a rotação a cada 3 a 5 meses pede um `manager` a cada ciclo.
-3. **Gestor concede gestor.** O ADR 0002 diz que o gestor estadual concede "monitores da UF"; o
-   código (e o ADR 0005) deixam o `manager` conceder também `manager` e `spokesperson` abaixo
-   dele. Atualizar o texto do ADR 0002.
-4. **Nome da função.** O ADR 0002 cita `app.can_manage_team`; no código existem
-   `app.can_manage_unit` e `app.can_manage_house_member`.
-5. **Contato do porta-voz.** O ADR 0007 deixa "[?]" em o porta-voz não ver WhatsApp; o ADR 0010 e
-   `app.can_view_contact` já decidem que **não vê**. O [?] do 0007 pode sair.
-6. **Estado do ADR 0007.** Segue "Proposto"; porta-voz, ciclo e avaliação ainda não têm código
-   (#69 e #72). O papel `spokesperson` já existe nas funções de escopo.
-7. **Painel da casa** (ADR 0008 §3) e **avaliação dupla** não têm função `app.can_*` ainda.
+- Colegas verem o perfil uns dos outros: hoje não veem; decisão de produto na pergunta 80 de
+  [`PERGUNTAS_STAKEHOLDER.md`](PERGUNTAS_STAKEHOLDER.md).
+- Porta-voz do ciclo e avaliação (dupla): sem código ainda, nas issues #69 e #72. O painel da casa
+  (ADR 0008 §3) e as funções `app.can_*` dele ainda não têm issue própria.
