@@ -52,10 +52,16 @@ v1.<iv base64url, 12 bytes aleatórios>.<ciphertext+tag base64url>
 - AES-256-GCM via **Web Crypto API** (`crypto.subtle`), nativa do Node 20+.
 - **AAD** (dado associado) = `"<tabela>.<coluna>.<id da linha>"`. Isso impede copiar o valor
   cifrado de uma linha para outra.
-- O prefixo de versão (`v1`) permite **rotacionar a chave**: a nova chave vira `v2` e um
+- O prefixo de versão (`v1`) permite **rotacionar a chave**. A nova chave vira `v2`, e um
   script recifra as linhas aos poucos.
-- HMAC: `HMAC-SHA256(BLIND_INDEX_KEY, whatsapp normalizado em E.164)` em hex, com índice
-  único por organização.
+  - As chaves antigas saem do ambiente assim que a recifragem termina, porque uma chave
+    antiga vazada permitiria forjar valores.
+  - A chave e a versão (`FIELD_ENCRYPTION_KEY_VERSION`) sempre mudam juntas.
+- HMAC: `HMAC-SHA256(BLIND_INDEX_KEY, "<domínio>:" + valor)` em hex.
+  - Domínios: `wa` para o WhatsApp em E.164 e `em` para o e-mail em minúsculas e sem
+    espaços.
+  - O prefixo impede que valores de domínios diferentes se confundam.
+  - O índice é único por organização.
 
 ### 4. Onde cifra e decifra
 
