@@ -34,6 +34,25 @@ issue → branch → testes + código → npm run check → PR → CI verde → 
 
 **Nunca** copie dados reais de produção para o ambiente local ou de preview.
 
+## Banco local e testes de RLS (`supabase test db`)
+
+Precisa do Docker rodando. A CLI do Supabase vem como devDependency (`npm ci` instala).
+
+```bash
+npm run db:start   # npx supabase start: sobe Postgres 17 + Auth + API e aplica as migrations
+npm run db:test    # npx supabase test db: roda os testes pgTAP de supabase/tests/
+npm run db:reset   # recria o banco do zero (use depois de criar ou editar uma migration)
+npm run db:stop    # para os contêineres
+```
+
+- Mudança de banco **só** por migration nova: `npx supabase migration new descricao_curta`
+  cria `supabase/migrations/<timestamp>_descricao_curta.sql` (R8).
+- `supabase/tests/rls_enabled.test.sql` **falha se qualquer tabela em `public` ou `app`
+  estiver sem RLS** e lista as culpadas. Não o desative: habilite RLS na migration.
+- Toda tabela nova traz um teste "usuário A não lê dado do usuário B" (R5). Use
+  `supabase/tests/rls_policy_example.test.sql` como modelo.
+- O job **Banco** do CI roda exatamente `supabase start` + `supabase test db`.
+
 ## Labels
 
 | Label | Significado |

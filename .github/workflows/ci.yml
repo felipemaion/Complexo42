@@ -54,7 +54,8 @@ jobs:
         run: echo "present=$([ -d supabase ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - if: steps.detect.outputs.present == 'true'
         uses: supabase/setup-cli@v1
-        with: { version: latest }
+        # Mesma versão da devDependency `supabase` no package.json.
+        with: { version: 3.2.0 }
       - if: steps.detect.outputs.present == 'true'
         run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
       - if: steps.detect.outputs.present == 'true'

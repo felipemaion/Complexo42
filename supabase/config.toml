@@ -1,0 +1,40 @@
+#:schema https://supabase.com/schemas/config/v1.json
+# Configuração do Supabase local (`npx supabase start`). Só o que difere do padrão da CLI;
+# referência completa: https://supabase.com/docs/guides/local-development/cli/config
+# Produção e staging rodam Supabase auto-hospedado (ADR 0009, pasta deploy/): evitar recursos
+# que só existem no Supabase Cloud.
+project_id = "complexo42"
+
+[api]
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# Igual ao servidor (imagem supabase/postgres:17.x em deploy/).
+major_version = 17
+
+# Recursos fora do escopo (ADR 0009): desligados também no local.
+[realtime]
+enabled = false
+
+[storage]
+enabled = false
+
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["http://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 8
