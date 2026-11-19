@@ -179,13 +179,12 @@ testes de banco. O maior risco dela, que é tabela sem RLS, é coberto por teste
 |---|---|---|---|
 | Tabela sem RLS expõe dados (erro clássico de "vibe coding") | Alta | Alto | Teste no CI falha se alguma tabela não tiver RLS; teste de RLS obrigatório por tabela |
 | Chave vazada no repositório | Média | Alto | gitleaks no CI; `.env*` no `.gitignore`; rotação documentada |
-| Plano gratuito do Supabase pausa após 7 dias sem uso | Média | Médio | Atividade regular no piloto; ping semanal agendado se preciso |
-| Limites gratuitos estourados na expansão | Baixa (piloto) | Médio | Monitorar; orçamento B de US$ 25/mês documentado |
+| Servidor único cai ou se perde | Baixa | Alto | Backup cifrado fora da VPS e migração ensaiada (ADR 0009 §4, §7) |
+| Recursos do servidor (2 vCPU, 12 GB, compartilhados) estouram na expansão | Baixa (piloto) | Médio | Limites por serviço, teste de carga (#75) e monitoramento (#85) |
 | Voluntários abandonam o projeto | Alta | Médio | Issues pequenas e autocontidas; documentação forte; dois mantenedores |
 | Escopo cresce ("vira um Trello completo") | Alta | Médio | Lista "fora do POC" explícita; toda mudança de escopo passa pelo stakeholder |
 | Cadastros falsos ou spam | Média | Baixo | Link de convite + aprovação [?] |
 | Dados de menores | Média | Alto | Bloquear menores de 18 no piloto [?] |
-| Termos de uso do plano gratuito de hospedagem (ex.: Vercel Hobby é "não comercial") | Média | Médio | Avaliar no ADR 0001; alternativa: Cloudflare Pages ou Netlify |
 
 ## 9. Equipe e cadência (sugestão)
 

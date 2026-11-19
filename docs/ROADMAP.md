@@ -29,7 +29,7 @@
 
 ## M0 · Fundação e decisões
 
-- #2 Aprovar ADR 0001 (stack) e escolher a hospedagem gratuita — `precisa-decisao, infra, docs`
+- #2 Aprovar os ADRs 0001 (stack) e 0009 (hospedagem) — `precisa-decisao, infra, docs`
 - #3 Scaffold: Next.js + TypeScript estrito + Tailwind + Zod + Vitest + `npm run check` — `bloqueada, infra`
 - #4 Supabase local + migrations + teste 'toda tabela pública tem RLS' — `bloqueada, seguranca, backend, infra`
 - #5 Playwright configurado com um teste E2E de fumaça no CI — `bloqueada, infra`

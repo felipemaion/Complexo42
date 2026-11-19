@@ -49,7 +49,7 @@ mas não quem é nem como contatar.
 v1.<iv base64url, 12 bytes aleatórios>.<ciphertext+tag base64url>
 ```
 
-- AES-256-GCM via **Web Crypto API** (`crypto.subtle`), que funciona em Node 20+ e em Workers.
+- AES-256-GCM via **Web Crypto API** (`crypto.subtle`), nativa do Node 20+.
 - **AAD** (dado associado) = `"<tabela>.<coluna>.<id da linha>"`. Isso impede copiar o valor
   cifrado de uma linha para outra.
 - O prefixo de versão (`v1`) permite **rotacionar a chave**: a nova chave vira `v2` e um
