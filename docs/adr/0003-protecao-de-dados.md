@@ -62,6 +62,9 @@ v1.<iv base64url, 12 bytes aleatórios>.<ciphertext+tag base64url>
     espaços.
   - O prefixo impede que valores de domínios diferentes se confundam.
   - O índice é único por organização.
+  - Trocar a `BLIND_INDEX_KEY` invalida todos os HMACs. Como a lista de autorizados
+    (`access_allowlist`) só guarda HMACs, a coordenação precisa **reimportá-la** com a chave
+    nova (ADR 0008 §1).
 
 ### 4. Onde cifra e decifra
 

@@ -45,6 +45,11 @@ export const instanceConfigSchema = z.strictObject({
     title: text,
     message: text,
   }),
+  /** Tela de quem está na lista de espera (ADR 0008 §1): ainda não liberado pela coordenação. */
+  waitlist: z.strictObject({
+    title: text,
+    message: text,
+  }),
   houses: z
     .array(houseSchema)
     .min(1)

@@ -29,6 +29,11 @@ export const instance = parseInstanceConfig({
     title: "Em construção",
     message: "A plataforma está sendo preparada. Volte em breve.",
   },
+  waitlist: {
+    title: "Seu cadastro está em análise",
+    message:
+      "Recebemos o seu cadastro, mas o seu e-mail ainda não está na lista de pessoas autorizadas. A coordenação vai analisar e liberar o seu acesso. Você não precisa fazer nada agora: quando o acesso for liberado, é só entrar de novo.",
+  },
   houses: [
     {
       id: "casa-exemplo-1",

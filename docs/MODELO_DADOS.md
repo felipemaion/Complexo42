@@ -16,6 +16,7 @@
 | Avaliação reservada | `member_evaluations.grade_enc`, `note_enc` | AES-256-GCM | **Só quem avaliou**; gestor por pedido auditado (ADR 0007 §4) [jurídico] |
 | E-mail de login | `auth.users` (Supabase) | Texto puro, gerenciado pelo Supabase | **Ninguém**: nunca exibido nem exportado |
 | Lista de autorizados | `access_allowlist.email_hmac` | Só HMAC (sem nome, sem e-mail em claro) | Ninguém; usada só na conferência do primeiro login (ADR 0008 §1) |
+| HMAC de quem espera | `access_waitlist_hmac.email_hmac` | Só HMAC | Ninguém; usado só para a importação liberar quem espera (ADR 0008 §1) |
 
 Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe, casa,
 habilidades, missões, pontos e badges.
@@ -42,6 +43,7 @@ profiles ───────┼─< unit_members >── units
    └── profile_contacts (1:1, RLS mais restrita: WhatsApp e redes)
 
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
+access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 
 missions ─< mission_steps
 missions ─< mission_runs (uma turma assume a missão) ─< step_submissions (entregas)
@@ -79,6 +81,35 @@ tem um vínculo aberto **por eixo**: uma casa e uma equipe.
 `id`, `email_hmac` (único), `source` (`form`, `academy`, `manual`), `added_by`, `added_at`.
 O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
 (`pending`, `active`, `waitlisted`, `blocked`). Quem está `waitlisted` só lê o próprio perfil.
+
+- **Ninguém lê nem grava a tabela pela API** (sem grant). Tudo passa por funções do banco
+  (`security definer`), chamadas pelo servidor com o JWT de quem está logado (#26):
+  - `resolve_access(email_hmac)`: no primeiro login, decide só o perfil de quem chama e só a
+    partir de `pending` (`active` se o HMAC está na lista, senão `waitlisted`). Depois disso
+    devolve o estado atual sem consultar a lista, e a função não serve para testar HMACs em
+    série. Devolve só o estado, nunca dados da lista. Ao mandar para a espera, guarda o HMAC
+    em `access_waitlist_hmac`.
+  - `import_allowlist(email_hmacs[], source)`: só o gestor (`manager`) da raiz. Recebe só HMACs
+    (o servidor lê o CSV e descarta os e-mails) e grava `allowlist_imported` com a quantidade
+    de HMACs distintos recebidos (não a de novos, para não revelar quem já estava). Em
+    seguida **libera quem está na espera** (`waitlisted`, conta não `suspended`; nunca
+    `blocked`) cujo HMAC guardado está entre os importados: `access_status` e `status` viram
+    `active`, a linha sai de `access_waitlist_hmac` e cada pessoa gera um `access_granted`
+    com `reason = import`. Devolve `{received, promoted}`.
+  - `list_waitlist(limit, cursor)` (paginada, mais antigos primeiro, até 200 por página) e
+    `decide_access(profile, 'active' | 'blocked')`: o gestor com escopo
+    sobre o vínculo aberto de quem espera (sem vínculo, o gestor da raiz) aprova ou bloqueia;
+    cada decisão gera `access_granted` ou `access_blocked` (`reason = manual`) e apaga a linha
+    de `access_waitlist_hmac`.
+- Liberar (`active`) também tira a conta de `status = pending`; `suspended` não muda.
+
+### `access_waitlist_hmac` (ADR 0008 §1)
+`profile_id` (PK, FK `profiles` com `on delete cascade`), `email_hmac`, `created_at`. O HMAC
+que a pessoa apresentou no primeiro login quando foi para a espera. RLS ligada, sem grant para
+nenhum papel da API e política `using (false)`: só as funções `resolve_access`,
+`import_allowlist` e `decide_access` leem e escrevem, e nenhuma função devolve o HMAC. Não
+expõe nada novo: o e-mail da conta já está em `auth.users`, e o HMAC só serve para comparar
+com a lista importada.
 
 ### `profiles`
 | Coluna | Tipo | Observação |
@@ -189,8 +220,17 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 ### `audit_log`
 `id`, `actor_id`, `event` (`contact_viewed`, `role_granted`,
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
-`submission_rejected`, `points_adjusted`, `account_deleted`), `target_id`, `created_at`.
-**Nunca contém dados pessoais em claro.** Só os gestores leem, e só dentro do seu escopo.
+`submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
+`access_granted`, `access_blocked`), `target_id`, `item_count`, `reason`, `created_at`.
+`item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
+`reason` só existe nas decisões de acesso: `manual` (fila do gestor) ou `import` (liberação
+automática na importação).
+**Nunca contém dados pessoais em claro.** Só os gestores leem, e só dentro do seu escopo
+(`app.can_read_audit`): `allowlist_imported`, o gestor da raiz; eventos sobre uma pessoa, o
+gestor com escopo sobre ela. Ninguém grava, altera nem apaga pela API: só as funções do banco.
+Um trigger recusa `UPDATE`, `DELETE` e `TRUNCATE` até para o dono do banco: o log só aceita
+inserções. Limpeza (retenção, LGPD) precisa de migration própria que desligue o trigger de
+forma explícita; nenhum teste ou migration atual limpa o log.
 
 ## Acesso
 
