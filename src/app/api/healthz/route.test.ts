@@ -17,6 +17,8 @@ function setup(fetchImpl: () => Promise<Response>) {
   vi.stubEnv("SUPABASE_URL", "http://kong:8000");
   vi.stubEnv("SUPABASE_ANON_KEY", "sb_publishable_teste");
   vi.stubEnv("SITE_URL", "https://app.exemplo.org");
+  vi.stubEnv("TURNSTILE_SITE_KEY", `0x${"a".repeat(22)}`);
+  vi.stubEnv("TURNSTILE_SECRET_KEY", `0x${"b".repeat(33)}`);
   vi.stubGlobal("fetch", vi.fn(fetchImpl));
 }
 

@@ -2,9 +2,17 @@ import { describe, expect, it } from "vitest";
 import { decodeKey, parseEnv } from "./env";
 
 const jwt = (payload: object) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.assinatura`;
-// Login (#9): obrigatórias em produção junto com DB_HEALTH_URL.
-const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org" };
-const AUTH_MISSING = ["SUPABASE_URL: obrigatória em produção", "SUPABASE_ANON_KEY: obrigatória em produção", "SITE_URL: obrigatória em produção"];
+// Login (#9) e Turnstile (#116): obrigatórias em produção junto com DB_HEALTH_URL. Chaves
+// fictícias de baixa entropia, só no formato.
+const TURNSTILE = { TURNSTILE_SITE_KEY: `0x${"a".repeat(22)}`, TURNSTILE_SECRET_KEY: `0x${"b".repeat(33)}` };
+const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org", ...TURNSTILE };
+const AUTH_MISSING = [
+  "SUPABASE_URL: obrigatória em produção",
+  "SUPABASE_ANON_KEY: obrigatória em produção",
+  "SITE_URL: obrigatória em produção",
+  "TURNSTILE_SITE_KEY: obrigatória em produção",
+  "TURNSTILE_SECRET_KEY: obrigatória em produção",
+];
 
 describe("parseEnv", () => {
   it("aceita produção com a URL de saúde do banco e aplica padrões", () => {
@@ -145,5 +153,30 @@ describe("login (#9)", () => {
 
   it("em desenvolvimento o login é opcional", () => {
     expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
+  });
+});
+
+describe("Turnstile (#116)", () => {
+  const prod = { NODE_ENV: "production", DB_HEALTH_URL: "http://rest:3001/ready", ...AUTH };
+
+  it("em produção as duas chaves são obrigatórias", () => {
+    const rest: Record<string, string> = { ...prod };
+    delete rest.TURNSTILE_SITE_KEY;
+    delete rest.TURNSTILE_SECRET_KEY;
+    expect(parseEnv(rest)).toEqual({
+      ok: false,
+      problems: ["TURNSTILE_SITE_KEY: obrigatória em produção", "TURNSTILE_SECRET_KEY: obrigatória em produção"],
+    });
+  });
+
+  it("recusa chave fora do formato sem imprimir o valor", () => {
+    const bad = "chave com espaço";
+    const result = parseEnv({ ...prod, TURNSTILE_SECRET_KEY: bad });
+    expect(result).toEqual({ ok: false, problems: ["TURNSTILE_SECRET_KEY: formato de chave do Turnstile inválido"] });
+    expect(JSON.stringify(result)).not.toContain(bad);
+  });
+
+  it("fora de produção são opcionais", () => {
+    expect(parseEnv({ NODE_ENV: "test" }).ok).toBe(true);
   });
 });

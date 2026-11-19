@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import { sendMagicLink, signInWithGoogle } from "@/server/auth/actions";
 import { parseAuthErrorCode } from "@/server/auth/errors";
+import { getTurnstileConfig } from "@/server/auth/turnstile";
+import { TurnstileWidget } from "./turnstile-widget";
 
 export const metadata: Metadata = { title: instance.auth.title };
 
@@ -53,6 +55,11 @@ export default async function LoginPage({ searchParams }: Props) {
           maxLength={254}
           className="w-full rounded-xl border-2 border-neutral-400 bg-transparent px-4 py-4 text-xl"
         />
+        {/* Turnstile (#116): acima do botão, sem cobri-lo. Site key lida no servidor a cada requisição. */}
+        <TurnstileWidget siteKey={getTurnstileConfig().siteKey} />
+        <noscript>
+          <p className="text-lg">{text.emailNeedsScript}</p>
+        </noscript>
         <button type="submit" className={`${bigButton} border-2 border-current`}>
           {text.emailButton}
         </button>

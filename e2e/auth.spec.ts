@@ -23,6 +23,47 @@ test.describe("login", () => {
     for (const button of [google, email]) expect((await button.boundingBox())?.height).toBeGreaterThanOrEqual(56);
   });
 
+  test("Turnstile: o widget fica no formulário de e-mail, acima do botão, sem cobri-lo (#116)", async ({ page }) => {
+    // Script do widget trocado por um falso: este teste é sobre a tela, não depende da rede.
+    await page.route("https://challenges.cloudflare.com/turnstile/v0/api.js**", (route) =>
+      route.fulfill({
+        contentType: "text/javascript",
+        body: `window.turnstile = {
+          render(el, o) { el.dataset.sitekey = o.sitekey; el.style.height = "65px"; return "w1"; },
+          remove() {},
+        };`,
+      }),
+    );
+    await page.goto("/entrar");
+    const form = page.locator("form").filter({ has: page.getByLabel("Seu e-mail") });
+    const widget = form.locator("[data-turnstile]");
+    await expect(widget).toHaveAttribute("data-sitekey", "1x00000000000000000000AA");
+    // O botão do Google não tem widget.
+    await expect(page.locator("[data-turnstile]")).toHaveCount(1);
+    const button = page.getByRole("button", { name: "Receber link por e-mail" });
+    await expect(button).toBeVisible();
+    const [w, b] = [await widget.boundingBox(), await button.boundingBox()];
+    expect(w && b && w.y + w.height <= b.y).toBe(true);
+  });
+
+  test("Turnstile real com a chave de teste: o token entra no formulário e o envio segue neutro (#116)", async ({ page }) => {
+    test.skip(LIVE, "precisa do Auth fora do ar");
+    await page.goto("/entrar");
+    // Sem rede até a Cloudflare (máquina offline), o widget não carrega: o teste é pulado. Os
+    // casos de passa, falha, falta de token e siteverify fora do ar estão em turnstile.test.ts.
+    const loaded = await page
+      .waitForFunction(() => "turnstile" in window, undefined, { timeout: 15_000 })
+      .then(() => true)
+      .catch(() => false);
+    test.skip(!loaded, "script do Turnstile inacessível (sem rede)");
+    const token = page.locator('input[name="cf-turnstile-response"]');
+    await expect(token).not.toHaveValue("", { timeout: 20_000 });
+    await page.getByLabel("Seu e-mail").fill("pessoa.teste@exemplo.org");
+    await page.getByRole("button", { name: "Receber link por e-mail" }).click();
+    await expect(page).toHaveURL(/enviado=1/);
+    await expect(page.getByRole("main").getByRole("status")).toHaveText(/Se este e-mail puder entrar/);
+  });
+
   test("rota protegida sem sessão vai para /entrar guardando o destino", async ({ page }) => {
     await page.goto("/inicio");
     await expect(page).toHaveURL(/\/entrar\?next=%2Finicio$/);

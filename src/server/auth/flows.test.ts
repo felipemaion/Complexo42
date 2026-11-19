@@ -12,6 +12,8 @@ type AuthApi = import("./flows").AuthApi;
 const SITE = "https://app.exemplo.org";
 const EMAIL = "Pessoa.Teste@Exemplo.org";
 const user = { id: "00000000-0000-4000-8000-000000000001", email: "pessoa.teste@exemplo.org" };
+// Turnstile (#116) aprovado; os casos de recusa estão no describe próprio.
+const human = async () => ({ ok: true });
 // Valor fictício e de baixa entropia (não parece segredo para o gitleaks).
 const HASH = "h".repeat(16);
 
@@ -55,7 +57,7 @@ describe("startGoogleSignIn (#9)", () => {
 describe("requestMagicLink (#9)", () => {
   it("normaliza o e-mail, cria a conta se preciso e nunca loga o e-mail", async () => {
     const auth = fakeAuth();
-    expect(await requestMagicLink(auth, { email: `  ${EMAIL} `, siteUrl: SITE })).toEqual({ ok: true });
+    expect(await requestMagicLink(auth, { email: `  ${EMAIL} `, siteUrl: SITE, verifyHuman: human })).toEqual({ ok: true });
     expect(auth.signInWithOtp).toHaveBeenCalledWith({
       email: user.email,
       options: { emailRedirectTo: `${SITE}/auth/callback`, shouldCreateUser: true },
@@ -65,7 +67,7 @@ describe("requestMagicLink (#9)", () => {
 
   it.each([["sem-arroba"], [""], [null], ["a@b"], [`${"a".repeat(250)}@exemplo.org`]])("recusa e-mail inválido %j sem chamar o Auth", async (email) => {
     const auth = fakeAuth();
-    expect(await requestMagicLink(auth, { email, siteUrl: SITE })).toEqual({ ok: false, error: "invalid_email" });
+    expect(await requestMagicLink(auth, { email, siteUrl: SITE, verifyHuman: human })).toEqual({ ok: false, error: "invalid_email" });
     expect(auth.signInWithOtp).not.toHaveBeenCalled();
   });
 
@@ -78,13 +80,36 @@ describe("requestMagicLink (#9)", () => {
     ];
     const results = [];
     for (const error of outcomes) {
-      results.push(await requestMagicLink(fakeAuth({ signInWithOtp: vi.fn(async () => ({ error })) }), { email: EMAIL, siteUrl: SITE }));
+      results.push(await requestMagicLink(fakeAuth({ signInWithOtp: vi.fn(async () => ({ error })) }), { email: EMAIL, siteUrl: SITE, verifyHuman: human }));
     }
     expect(new Set(results.map((r) => JSON.stringify(r))).size).toBe(1);
     expect(results[0]).toEqual({ ok: true });
     expect(logged.join()).toContain("signup_disabled");
     expect(logged.join()).toContain("rate_limited");
     expect(logged.join()).not.toContain("@");
+  });
+});
+
+describe("requestMagicLink + Turnstile (#116)", () => {
+  it("Turnstile recusado: não chama o Auth e dá a mesma resposta neutra", async () => {
+    const auth = fakeAuth();
+    const verifyHuman = vi.fn(async () => ({ ok: false }));
+    expect(await requestMagicLink(auth, { email: EMAIL, siteUrl: SITE, verifyHuman })).toEqual({ ok: true });
+    expect(verifyHuman).toHaveBeenCalledOnce();
+    expect(auth.signInWithOtp).not.toHaveBeenCalled();
+  });
+
+  it("e-mail inválido é recusado antes de gastar uma verificação", async () => {
+    const verifyHuman = vi.fn(human);
+    await requestMagicLink(fakeAuth(), { email: "sem-arroba", siteUrl: SITE, verifyHuman });
+    expect(verifyHuman).not.toHaveBeenCalled();
+  });
+
+  it("só pede o link depois de o Turnstile aprovar", async () => {
+    const order: string[] = [];
+    const auth = fakeAuth({ signInWithOtp: vi.fn(async () => (order.push("auth"), { error: null })) });
+    await requestMagicLink(auth, { email: EMAIL, siteUrl: SITE, verifyHuman: async () => (order.push("turnstile"), { ok: true }) });
+    expect(order).toEqual(["turnstile", "auth"]);
   });
 });
 

@@ -57,6 +57,7 @@ export const instanceConfigSchema = z.strictObject({
     googleButton: text,
     emailLabel: text,
     emailButton: text,
+    emailNeedsScript: text,
     emailSent: text,
     signedOut: text,
     signOutButton: text,
