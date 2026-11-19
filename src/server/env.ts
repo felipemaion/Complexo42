@@ -1,6 +1,40 @@
 // Configuração do servidor só por variáveis de ambiente, validadas com Zod (#80).
 // As mensagens citam o NOME da variável, nunca o valor: elas vão para o log.
+import { createHash } from "node:crypto";
 import { z } from "zod";
+
+// Chaves de criptografia de campo (ADR 0003, #45). 32 bytes em base64 padrão, como gera
+// `openssl rand -base64 32` (deploy/gen-secrets.sh). Decodificação estrita: o Buffer aceita
+// lixo em silêncio, então exigimos que a volta para base64 dê exatamente o texto recebido.
+export function decodeKey(value: string): Uint8Array | null {
+  if (!/^[A-Za-z0-9+/]{43}=$/.test(value)) return null;
+  const bytes = Buffer.from(value, "base64");
+  return bytes.length === 32 && bytes.toString("base64") === value ? new Uint8Array(bytes) : null;
+}
+
+/**
+ * Chaves antigas, mantidas só para decifrar durante uma rotação: "v1:<base64>,v2:<base64>".
+ * Devolve null se o formato for inválido ou se uma versão se repetir.
+ */
+export function parsePreviousKeys(value: string): Map<number, Uint8Array> | null {
+  const keys = new Map<number, Uint8Array>();
+  for (const item of value.split(",")) {
+    const match = /^v([1-9]\d{0,2}):(.+)$/.exec(item.trim());
+    const key = match ? decodeKey(match[2] as string) : null;
+    const version = Number(match?.[1]);
+    if (!key || keys.has(version)) return null;
+    keys.set(version, key);
+  }
+  return keys;
+}
+
+// Chaves de TESTE publicadas no .env.example. São derivadas de um rótulo público (ver
+// scripts/gen-test-keys.sh), então qualquer um as conhece: produção as recusa.
+export function testKey(name: "FIELD_ENCRYPTION_KEY" | "BLIND_INDEX_KEY"): string {
+  return createHash("sha256").update(`complexo42-test-only:${name}`).digest("base64");
+}
+
+const key32 = z.string().refine((v) => decodeKey(v) !== null, { error: "precisa ter 32 bytes em base64 (openssl rand -base64 32)" });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"], { error: "use development, test ou production" }).default("development"),
@@ -15,6 +49,20 @@ const envSchema = z.object({
   LOG_DIR: z.string().default("data/logs"),
   GIT_SHA: z.string().regex(/^[0-9a-f]{7,40}$/, { error: "precisa ser um hash de commit" }).optional(),
   APP_VERSION: z.string().regex(/^[\w.+-]{1,64}$/, { error: "formato de tag inválido" }).optional(),
+  // Opcionais na subida: rota que não usa criptografia não depende delas. Quem cifra ou
+  // decifra sem elas recebe erro claro (src/server/crypto, código "missing_key").
+  FIELD_ENCRYPTION_KEY: key32.optional(),
+  FIELD_ENCRYPTION_KEY_VERSION: z.coerce
+    .number({ error: "precisa ser um número" })
+    .int({ error: "precisa ser inteiro" })
+    .min(1, { error: "mínimo 1" })
+    .max(999, { error: "máximo 999" })
+    .default(1),
+  FIELD_ENCRYPTION_PREVIOUS_KEYS: z
+    .string()
+    .refine((v) => parsePreviousKeys(v) !== null, { error: "formato v1:<base64>,v2:<base64> com chaves de 32 bytes" })
+    .optional(),
+  BLIND_INDEX_KEY: key32.optional(),
 });
 
 // Obrigatórias só em produção. Checadas fora do schema para aparecerem junto com os
@@ -33,8 +81,27 @@ export function parseEnv(raw: Record<string, string | undefined>): EnvResult {
   if (cleaned.NODE_ENV === "production") {
     for (const key of REQUIRED_IN_PRODUCTION) if (!(key in cleaned)) problems.push(`${key}: obrigatória em produção`);
   }
+  if (result.success) problems.push(...keyProblems(result.data));
   if (result.success && problems.length === 0) return { ok: true, env: result.data };
   return { ok: false, problems };
+}
+
+// Coerência entre as chaves. Só cita nomes de variáveis, nunca valores.
+function keyProblems(env: ServerEnv): string[] {
+  const problems: string[] = [];
+  const field = env.FIELD_ENCRYPTION_KEY;
+  const previous = env.FIELD_ENCRYPTION_PREVIOUS_KEYS ? parsePreviousKeys(env.FIELD_ENCRYPTION_PREVIOUS_KEYS) : null;
+  if (field && env.BLIND_INDEX_KEY === field) problems.push("BLIND_INDEX_KEY: precisa ser diferente de FIELD_ENCRYPTION_KEY");
+  if (previous && !field) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: exige FIELD_ENCRYPTION_KEY");
+  for (const version of previous?.keys() ?? []) {
+    if (version >= env.FIELD_ENCRYPTION_KEY_VERSION) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: versões antigas precisam ser menores que FIELD_ENCRYPTION_KEY_VERSION");
+  }
+  if (env.NODE_ENV === "production") {
+    for (const key of ["FIELD_ENCRYPTION_KEY", "BLIND_INDEX_KEY"] as const) {
+      if (env[key] === testKey(key)) problems.push(`${key}: chave de teste pública, proibida em produção`);
+    }
+  }
+  return [...new Set(problems)];
 }
 
 /** Lê o ambiente atual. A subida (instrumentation.ts) já derrubou o processo se ele for inválido. */
