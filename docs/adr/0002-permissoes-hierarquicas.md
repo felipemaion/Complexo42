@@ -67,7 +67,7 @@ implicitamente; não há linha para isso.
 2. **Separação de funções.** O admin técnico (quem cuida do sistema) **não vê dados
    pessoais**, e os desenvolvedores não têm papel em produção.
 3. **Uma única fonte de verdade.** As decisões de acesso ficam em funções SQL
-   (`app.can_view_profile(target)`, `app.can_view_contact(target)`,
+   (`app.can_view_profile(target)`, `app.can_view_contact(target, kind)` (ADR 0010),
    `app.can_manage_team(team)`, …), declaradas `security definer` e `stable`. As políticas RLS
    e o servidor usam **as mesmas funções**. É proibido reimplementar a regra no front.
 4. **Matriz de testes obrigatória.** `supabase/tests/permissions_matrix.test.sql` cobre cada

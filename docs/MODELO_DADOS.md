@@ -40,7 +40,8 @@ profiles ───────┼─< unit_members >── units
    │            ├─< profile_skills >── skills
    │            ├─< mission_run_members >── mission_runs
    │            └─< profile_badges >── badges
-   └── profile_contacts (1:1, RLS mais restrita: WhatsApp e redes)
+   ├── profile_contacts (1:1, só o titular lê pela tabela: WhatsApp e redes)
+   └── contact_visibility (quem, além da coordenação, vê cada contato; ADR 0010)
 
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
@@ -153,9 +154,36 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 ### `profile_contacts` (1:1 com `profiles`)
 `profile_id` PK, `whatsapp_enc` 🔒, `whatsapp_hmac` (único, hex de 64), `social_links_enc` 🔒 null
 (JSON da lista de URLs), `updated_at`.
-Fica **separada** para que listagens de perfis nunca tragam contato por engano. A RLS é mais
-restrita: o próprio titular e `app.can_view_contact()`. Ideia adaptada do protótipo original
-Vguedess/Complexo42 (`member_contacts`).
+Fica **separada** para que listagens de perfis nunca tragam contato por engano. Pela tabela,
+só o próprio titular lê (RLS). O contato de outra pessoa sai só por `public.view_contact` (abaixo),
+que registra cada acesso. Ideia adaptada do protótipo original Vguedess/Complexo42
+(`member_contacts`).
+
+### `contact_visibility` e "ver contato" (#119, ADR 0010)
+`profile_id`, `kind` (`whatsapp`, `social`, `email`), `scope` (`none`, `team`, `team_house`),
+`updated_at`; chave (`profile_id`, `kind`). Não guarda contato: só a escolha da pessoa. Sem
+linha vale `none` (só a coordenação). Só o titular lê (RLS) e só ele grava, por
+`public.set_contact_visibility(kind, scope)` (não se `blocked`). A escolha vale na hora.
+
+- **`app.can_view_contact(alvo, tipo)`** permite ao titular; à coordenação do escopo (monitor
+  ou manager com papel na unidade de um vínculo aberto e que conta do alvo, ou acima dela;
+  inclui o coordenador da casa para os membros da casa aceita); e ao colega, se a escolha do
+  alvo para aquele contato deixar: `team` exige vínculo aberto na **mesma equipe**;
+  `team_house`, na mesma equipe ou na **mesma casa** (aceita pelos dois). Quem chama e o alvo
+  precisam estar ativos. Porta-voz e admin técnico não entram.
+- **"Mesma equipe"** (`app.shares_open_team`) é uma unidade do eixo `team` sem unidades abaixo e
+  sem `state_code`. Dividir a unidade de entrada do estado ou a região não faz de ninguém
+  colega: elas reúnem todo mundo que ainda não tem equipe.
+- **"Mesma casa"** fica só em `app.shares_open_house`, e "o coordenador da casa conta como
+  coordenação" só em `app.is_house_coordinator_of`: com o novo modelo de casa (ADR 0011), basta
+  trocar o corpo dessas duas funções. Nenhuma das auxiliares é chamável pela API.
+- **`public.view_contact(alvo, tipo)`** é a única leitura do contato de terceiros: aplica a regra,
+  grava `contact_viewed` (quem, de quem, o tipo, quando; nunca o valor) e devolve o valor
+  guardado (WhatsApp e redes cifrados, para o servidor decifrar; o e-mail lido de `auth.users`).
+  Negado: erro 42501, sem registro. O titular lê o próprio sem registro.
+- **`public.list_contact_views()`**: os 200 acessos mais recentes ao contato de quem chama, com o
+  nome cifrado de quem viu (o servidor decifra com o id dessa pessoa, que não vai para a tela).
+  Tela "Quem vê meu contato" (`/perfil/contato`).
 
 ### `municipalities` (referência pública, só leitura)
 `code` (IBGE, 7 dígitos), `name`, `state_code`, `metro_region` (ex.: `rmsp`). Carregada por
@@ -276,8 +304,9 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `target_id`, `item_count`, `reason`, `term_version`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
-automática na importação) e em `house_accepted` (a forma de entrada: `self` ou
-`questionnaire`). `term_version` é a versão do termo do questionário: obrigatória em
+automática na importação), em `house_accepted` (a forma de entrada: `self` ou
+`questionnaire`) e em `contact_viewed` (o tipo do contato: `whatsapp`, `social` ou `email`); nesses
+eventos é obrigatório. Em `contact_viewed`, `actor_id` é quem viu e `target_id` a pessoa vista. `term_version` é a versão do termo do questionário: obrigatória em
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
 `actor_id` é a pessoa e `target_id` a unidade da casa. Nunca respostas do questionário.
 **Nunca contém dados pessoais em claro.** Só os gestores leem, e só dentro do seu escopo
@@ -291,13 +320,14 @@ forma explícita; nenhum teste ou migration atual limpa o log.
 ### "Baixar meus dados" (#20, LGPD art. 18)
 A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
-lê só as linhas de `auth.uid()` (perfil, contato, vínculos inclusive encerrados, papéis e
-eventos do `audit_log` cujo alvo é a pessoa) e devolve os valores ainda cifrados. O servidor
+lê só as linhas de `auth.uid()` (perfil, contato, vínculos inclusive encerrados, papéis,
+eventos do `audit_log` cujo alvo é a pessoa e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor
 decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.
 
 - **Fica de fora:** `whatsapp_hmac`, os HMACs de e-mail (lista e espera), ids de terceiros
   (`granted_by`, `actor_id`), colegas de unidade e o próprio id interno. Dos vínculos e papéis
-  vão só o nome e o tipo da unidade. Quem acessou o contato (ADR 0010) entra com a #119.
+  vão só o nome e o tipo da unidade. De quem acessou o contato (ADR 0010, #119) vão o nome,
+  o tipo do contato e quando, nunca o id.
 - **Auditoria e limite:** cada exportação grava `data_exported` (ator e alvo = a pessoa, sem
   dado pessoal); a 6ª na mesma hora é recusada (erro 54000). O contador é o próprio
   `audit_log`, que só aceita inserções.
