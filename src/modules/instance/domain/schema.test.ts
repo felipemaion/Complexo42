@@ -142,6 +142,7 @@ const valid = {
       promoted: "t",
       invalidLines: "t",
       invalidLinesMore: "t",
+      invalidLinesTotal: "t",
       errors: {
         no_file: "t",
         wrong_type: "t",
@@ -168,6 +169,7 @@ const valid = {
       confirmBlockButton: "t",
       cancelButton: "t",
       unknownName: "t",
+      unknownNameNote: "t",
       nextPage: "t",
       firstPage: "t",
       done: { liberado: "t", bloqueado: "t", indisponivel: "t", erro: "t" },

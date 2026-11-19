@@ -259,6 +259,8 @@ export const instanceConfigSchema = z.strictObject({
       promoted: text,
       invalidLines: text,
       invalidLinesMore: text,
+      /** Total de linhas ruins, com `{count}` (a tela lista só as primeiras). */
+      invalidLinesTotal: text,
       errors: z.strictObject({
         no_file: text,
         wrong_type: text,
@@ -287,6 +289,8 @@ export const instanceConfigSchema = z.strictObject({
       cancelButton: text,
       /** No lugar do nome que não pôde ser lido. */
       unknownName: text,
+      /** Aviso na linha de nome ilegível: "Liberar" fica desabilitado. */
+      unknownNameNote: text,
       nextPage: text,
       firstPage: text,
       /** Resultado da decisão, mostrado no topo da fila. */

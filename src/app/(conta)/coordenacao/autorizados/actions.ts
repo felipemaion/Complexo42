@@ -10,6 +10,7 @@ import {
   AllowlistImportError,
   allowlistLimits,
   importAllowlist,
+  invalidLinesReturnedMax,
   isAllowedAllowlistFileName,
   parseAllowlistSource,
   type AllowlistUploadState,
@@ -22,7 +23,9 @@ export async function importAllowlistAction(_previous: AllowlistUploadState, for
   const file = formData.get(ALLOWLIST_FILE_FIELD);
   if (!(file instanceof File) || file.size === 0) return { status: "error", error: "no_file" };
   if (!isAllowedAllowlistFileName(file.name)) return { status: "error", error: "wrong_type" };
-  // Antes de ler: o tamanho declarado do arquivo já basta para recusar.
+  // Recusa antes de decodificar e analisar o texto. Não é proteção contra DoS: quando a action
+  // roda, o corpo já chegou inteiro (o teto é o bodySizeLimit do next.config.ts e o proxy de
+  // borda, #86). Aqui é só a regra do tamanho máximo da lista.
   if (file.size > allowlistLimits.maxBytes) return { status: "error", error: "too_large" };
   const source = parseAllowlistSource(formData.get(ALLOWLIST_SOURCE_FIELD));
   if (!source) return { status: "error", error: "invalid_source" };
@@ -30,7 +33,13 @@ export async function importAllowlistAction(_previous: AllowlistUploadState, for
   try {
     const { received, promoted, invalidLines } = await importAllowlist(client, await file.text(), source);
     log.info("allowlist_import_done", { received, promoted, invalid_lines: invalidLines.length });
-    return { status: "done", received, promoted, invalidLines };
+    return {
+      status: "done",
+      received,
+      promoted,
+      invalidLines: invalidLines.slice(0, invalidLinesReturnedMax),
+      invalidLineCount: invalidLines.length,
+    };
   } catch (err) {
     if (err instanceof AllowlistImportError) return { status: "error", error: err.code };
     if (err instanceof AccessError && err.code === "forbidden") return { status: "error", error: "forbidden" };

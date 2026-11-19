@@ -32,6 +32,22 @@ describe("parâmetros da fila de espera", () => {
     expect(parseWaitlistCursor({ apos_data: [AT, AT], apos_id: ID })).toBeUndefined();
   });
 
+  it("data que não existe no calendário volta ao começo (o banco daria 22008)", () => {
+    for (const bad of [
+      "2026-13-45T12:00:00+00:00",
+      "2026-02-30T12:00:00+00:00",
+      "2026-02-29T12:00:00+00:00",
+      "2026-11-19T24:00:00+00:00",
+      "2026-11-19T12:60:00+00:00",
+    ]) {
+      expect(parseWaitlistCursor({ apos_data: bad, apos_id: ID }), bad).toBeUndefined();
+    }
+    expect(parseWaitlistCursor({ apos_data: "2028-02-29T23:59:59.999+00:00", apos_id: ID })).toEqual({
+      createdAt: "2028-02-29T23:59:59.999+00:00",
+      profileId: ID,
+    });
+  });
+
   it("confirmação só com uuid e decisão conhecida", () => {
     expect(parseConfirmation({ confirmar: ID, decisao: "liberar" })).toEqual({ profileId: ID, word: "liberar" });
     expect(parseConfirmation({ confirmar: ID, decisao: "bloquear" })).toEqual({ profileId: ID, word: "bloquear" });
@@ -68,10 +84,11 @@ describe("envio da lista", () => {
     expect(isAllowedAllowlistFileName("lista.csv.exe")).toBe(false);
   });
 
-  it("mostra até 30 linhas ruins e conta o resto", () => {
+  it("mostra até 30 linhas ruins e conta o resto, inclusive o que nem veio na lista", () => {
     const lines = Array.from({ length: 35 }, (_, i) => i + 2);
-    expect(previewLines(lines)).toEqual({ shown: lines.slice(0, 30), hidden: 5 });
-    expect(previewLines([3])).toEqual({ shown: [3], hidden: 0 });
+    expect(previewLines(lines, 35)).toEqual({ shown: lines.slice(0, 30), hidden: 5 });
+    expect(previewLines(lines, 900)).toEqual({ shown: lines.slice(0, 30), hidden: 870 });
+    expect(previewLines([3], 1)).toEqual({ shown: [3], hidden: 0 });
   });
 
   it("fillText troca todas as chaves", () => {

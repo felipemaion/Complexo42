@@ -56,7 +56,7 @@ beforeEach(() => {
 describe("importAllowlistAction", () => {
   it("envia só HMACs e devolve as contagens e os números das linhas ruins, nunca e-mails", async () => {
     const state = await importAllowlistAction(idle, form(csvFile()));
-    expect(state).toEqual({ status: "done", received: 2, promoted: 1, invalidLines: [4] });
+    expect(state).toEqual({ status: "done", received: 2, promoted: 1, invalidLines: [4], invalidLineCount: 1 });
     expect(calls).toHaveLength(1);
     expect(calls[0]?.fn).toBe("import_allowlist");
     expect(calls[0]?.args.p_source).toBe("academy");

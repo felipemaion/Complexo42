@@ -41,6 +41,7 @@ export default async function WaitlistQueuePage({ searchParams }: Props) {
     return {
       profileId: entry.profileId,
       displayName: entry.displayName ?? text.waitlist.unknownName,
+      isIdentified: entry.displayName !== null,
       place: city ? fillText(text.waitlist.place, { city, state: entry.stateCode }) : entry.stateCode,
       since: date.format(new Date(entry.createdAt)),
     };

@@ -26,6 +26,7 @@ export type AllowlistUploadText = {
   promoted: string;
   invalidLines: string;
   invalidLinesMore: string;
+  invalidLinesTotal: string;
   errors: Record<AllowlistUploadError, string>;
 };
 
@@ -38,7 +39,7 @@ const big = "rounded-xl border-2 border-current px-6 py-5 text-xl font-semibold 
 
 export function AllowlistUploadForm({ action, text }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" });
-  const lines = state.status === "done" ? previewLines(state.invalidLines) : null;
+  const lines = state.status === "done" ? previewLines(state.invalidLines, state.invalidLineCount) : null;
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {state.status === "error" && (
@@ -56,6 +57,9 @@ export function AllowlistUploadForm({ action, text }: Props) {
               {fillText(text.invalidLines, { lines: lines.shown.join(", ") })}
               {lines.hidden > 0 && ` ${fillText(text.invalidLinesMore, { count: lines.hidden })}`}
             </p>
+          )}
+          {state.invalidLineCount > 0 && (
+            <p data-testid="allowlist-invalid-total">{fillText(text.invalidLinesTotal, { count: state.invalidLineCount })}</p>
           )}
         </div>
       )}

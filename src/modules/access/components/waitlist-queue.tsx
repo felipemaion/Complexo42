@@ -23,13 +23,17 @@ export type WaitlistQueueText = {
   confirmApproveButton: string;
   confirmBlockButton: string;
   cancelButton: string;
+  unknownNameNote: string;
   nextPage: string;
   firstPage: string;
 };
 
 export type WaitlistQueueEntry = {
   profileId: string;
+  /** Nome para exibir (ou o texto de nome ilegível). */
   displayName: string;
+  /** False quando o nome não decifrou: sem saber quem é, não dá para liberar. */
+  isIdentified: boolean;
   /** Cidade e UF já montadas para exibir. */
   place: string;
   /** Data do cadastro já formatada. */
@@ -66,12 +70,19 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
     <div className="flex flex-col gap-6">
       <ul className="flex flex-col gap-6">
         {entries.map((entry) => {
-          const confirming = confirmation?.profileId === entry.profileId ? confirmation.word : null;
+          const requested = confirmation?.profileId === entry.profileId ? confirmation.word : null;
+          // Liberar exige saber quem é; um pedido de confirmação pela URL também não passa.
+          const confirming = requested === "liberar" && !entry.isIdentified ? null : requested;
           return (
             <li key={entry.profileId} className="flex flex-col gap-3 rounded-xl border-2 border-current p-4" data-testid="waitlist-entry">
               <p className="text-2xl font-bold">{entry.displayName}</p>
               <p className="text-lg">{entry.place}</p>
               <p className="text-lg">{fillText(text.since, { date: entry.since })}</p>
+              {!entry.isIdentified && (
+                <p className="rounded-lg border-2 border-current p-3 text-lg" data-testid="waitlist-unknown-name">
+                  {text.unknownNameNote}
+                </p>
+              )}
               {confirming ? (
                 <form action={action} className="flex flex-col gap-3" role="group" aria-label={entry.displayName}>
                   <p className="text-lg font-semibold" role="alert">
@@ -88,16 +99,22 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
                 </form>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  <Link
-                    href={waitlistHref(cursor, {
-                      [WAITLIST_PARAMS.confirm]: entry.profileId,
-                      [WAITLIST_PARAMS.confirmDecision]: "liberar",
-                    })}
-                    className={big}
-                    aria-label={`${text.approveButton}: ${entry.displayName}`}
-                  >
-                    {text.approveButton}
-                  </Link>
+                  {entry.isIdentified ? (
+                    <Link
+                      href={waitlistHref(cursor, {
+                        [WAITLIST_PARAMS.confirm]: entry.profileId,
+                        [WAITLIST_PARAMS.confirmDecision]: "liberar",
+                      })}
+                      className={big}
+                      aria-label={`${text.approveButton}: ${entry.displayName}`}
+                    >
+                      {text.approveButton}
+                    </Link>
+                  ) : (
+                    <button type="button" disabled className={`${big} cursor-not-allowed opacity-50`}>
+                      {text.approveButton}
+                    </button>
+                  )}
                   <Link
                     href={waitlistHref(cursor, {
                       [WAITLIST_PARAMS.confirm]: entry.profileId,

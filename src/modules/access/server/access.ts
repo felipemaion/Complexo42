@@ -1,10 +1,12 @@
 // Lista de autorizados, primeiro login e fila de espera no servidor (ADR 0008 §1, #26).
-// O e-mail só existe aqui, em memória: vira HMAC (src/server/crypto) e é descartado. Nada
-// deste arquivo loga, e os erros não citam e-mail (R11).
+// O e-mail só existe aqui, em memória: vira HMAC (src/server/crypto) e é descartado. O único
+// log daqui é a falha ao decifrar um nome da fila, só com o código do erro e o id do perfil;
+// os erros não citam e-mail (R11).
 import "server-only";
 import { z } from "zod";
 import { accessStatuses } from "@/modules/profiles";
 import { decryptField, emailBlindIndex } from "@/server/crypto";
+import { log } from "@/server/log";
 import { parseAllowlistCsv } from "../domain/allowlist-csv";
 import {
   AccessError,
@@ -35,6 +37,13 @@ const waitlistRowsSchema = z.array(
     created_at: z.string(),
   }),
 );
+
+/** Código (ou nome) do erro, curto, para o log; nunca a mensagem. */
+function errorCodeOf(err: unknown): string {
+  const code = typeof err === "object" && err !== null ? (err as { code?: unknown }).code : undefined;
+  if (typeof code === "string") return code.slice(0, 32);
+  return err instanceof Error ? err.name.slice(0, 32) : "unknown";
+}
 
 /**
  * Chama a RPC e devolve `data`; erro do banco vira `AccessError` sem o texto do banco. A
@@ -96,8 +105,9 @@ export async function importAllowlist(
 /**
  * Uma página da fila de espera do gestor (só quem está no escopo dele), dos mais antigos para
  * os mais novos, com o nome decifrado. Para a próxima página, passar `nextCursor`. Um nome que
- * não decifra (chave trocada, valor corrompido) vem como null: a linha continua na fila e a
- * coordenação ainda decide, em vez de a fila inteira falhar por causa de uma pessoa.
+ * não decifra (chave trocada, valor corrompido) vem como null, em vez de a fila inteira falhar
+ * por causa de uma pessoa; a falha vai para o log (só código e id, nunca o valor cifrado nem a
+ * mensagem) e a tela não deixa liberar quem não foi identificado.
  */
 export async function listWaitlist(
   client: AccessClient,
@@ -122,7 +132,10 @@ export async function listWaitlist(
         table: "profiles",
         column: "display_name_enc",
         rowId: row.profile_id,
-      }).catch(() => null),
+      }).catch((err: unknown) => {
+        log.warn("waitlist_name_decrypt_failed", { profile_id: row.profile_id, reason: errorCodeOf(err) });
+        return null;
+      }),
       municipalityCode: row.municipality_code,
       stateCode: row.state_code,
       createdAt: row.created_at,

@@ -26,6 +26,7 @@ export {
   allowlistUploadErrors,
   decisionOf,
   fillText,
+  invalidLinesReturnedMax,
   isAllowedAllowlistFileName,
   parseAllowlistSource,
   parseConfirmation,

@@ -21,10 +21,11 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: securityHeaders.map((header) => ({ ...header })) }];
   },
   experimental: {
-    // Envio da lista de autorizados (#26): arquivo de até 5 MB (allowlistLimits.maxBytes) mais
-    // o envelope do formulário. O padrão de 1 MB cortaria listas grandes; a action confere o
-    // limite real antes de ler o arquivo.
-    serverActions: { bodySizeLimit: "6mb" },
+    // Envio da lista de autorizados (#26): arquivo de até 1,5 MB (allowlistLimits.maxBytes)
+    // mais o envelope do formulário. Vale para TODAS as server actions, inclusive as sem
+    // login: por isso o mínimo que cabe a lista, não mais. O proxy de borda pode limitar o
+    // tamanho por rota (docs/OPERACAO.md, #86).
+    serverActions: { bodySizeLimit: "2mb" },
   },
 };
 

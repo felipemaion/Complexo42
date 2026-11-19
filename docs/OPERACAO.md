@@ -195,6 +195,11 @@ sistema de arquivos só leitura, sem `ports:`, com `mem_limit`. Use nele um
 `COMPOSE_PROJECT_NAME` diferente do Supabase e aponte `SUPABASE_NETWORK` para a
 rede `<projeto-do-supabase>_interna`.
 
+**Tamanho do corpo (#86).** As server actions aceitam até 2 MB (`next.config.ts`),
+por causa do envio da lista de autorizados (`/coordenacao/autorizados`, até 1,5 MB).
+O limite vale para todas as actions, inclusive as sem login: o proxy de borda pode
+baixá-lo por rota e deixar os 2 MB só para `/coordenacao/autorizados`.
+
 ## Cloudflare Turnstile no login por e-mail (#116)
 
 O formulário "Receber link por e-mail" de `/entrar` tem o widget do Turnstile

@@ -199,7 +199,7 @@ export const instance = parseInstanceConfig({
       privacyNote:
         "Os e-mails não ficam guardados: o sistema guarda só um código que não dá para transformar de volta em e-mail. Enviar a mesma pessoa duas vezes não tem problema.",
       fileLabel: "Arquivo com os e-mails (.csv ou .txt)",
-      fileHint: "Até 5 MB e até 50.000 e-mails por arquivo.",
+      fileHint: "Até 1,5 MB e até 35.000 e-mails por arquivo. Lista maior? Divida em partes.",
       sourceLabel: "De onde veio esta lista?",
       sources: {
         academy: "Lista de quem concluiu a formação",
@@ -213,11 +213,12 @@ export const instance = parseInstanceConfig({
       promoted: "Pessoas que estavam esperando e foram liberadas agora: {count}",
       invalidLines: "Estas linhas do arquivo não têm um e-mail válido e ficaram de fora: {lines}",
       invalidLinesMore: "e mais {count} linhas",
+      invalidLinesTotal: "Linhas sem e-mail válido: {count}",
       errors: {
         no_file: "Escolha um arquivo antes de enviar.",
         wrong_type: "O arquivo precisa terminar em .csv ou .txt.",
-        too_large: "O arquivo é grande demais. O máximo é 5 MB.",
-        too_many: "O arquivo tem mais de 50.000 e-mails. Divida em partes e envie uma de cada vez.",
+        too_large: "O arquivo é grande demais. O máximo é 1,5 MB: divida em partes e envie uma de cada vez.",
+        too_many: "O arquivo tem mais de 35.000 e-mails. Divida em partes e envie uma de cada vez.",
         empty: "Não encontramos nenhum e-mail no arquivo. Confira se é o arquivo certo.",
         invalid_source: "Escolha de onde veio a lista.",
         forbidden: "Só a coordenação geral pode enviar a lista de pessoas autorizadas.",
@@ -240,6 +241,7 @@ export const instance = parseInstanceConfig({
       confirmBlockButton: "Sim, bloquear",
       cancelButton: "Não, voltar",
       unknownName: "Nome que não pôde ser lido",
+      unknownNameNote: "Não é possível liberar sem identificar a pessoa: o nome não pôde ser lido. Bloquear continua possível.",
       nextPage: "Ver mais pessoas",
       firstPage: "Voltar ao começo da lista",
       done: {
