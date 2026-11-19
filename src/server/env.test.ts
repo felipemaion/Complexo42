@@ -89,4 +89,11 @@ describe("chaves de criptografia (#45)", () => {
       "FIELD_ENCRYPTION_PREVIOUS_KEYS: exige FIELD_ENCRYPTION_KEY",
     ]);
   });
+
+  it("recusa na subida chave antiga igual a BLIND_INDEX_KEY, sem imprimir o valor", () => {
+    const blind = b64();
+    const problems = fail({ NODE_ENV: "development", FIELD_ENCRYPTION_KEY: b64(), BLIND_INDEX_KEY: blind, FIELD_ENCRYPTION_KEY_VERSION: "3", FIELD_ENCRYPTION_PREVIOUS_KEYS: `v1:${b64()},v2:${blind}` });
+    expect(problems).toEqual(["FIELD_ENCRYPTION_PREVIOUS_KEYS: nenhuma chave antiga pode ser igual a BLIND_INDEX_KEY"]);
+    expect(problems.join("\n")).not.toContain(blind);
+  });
 });

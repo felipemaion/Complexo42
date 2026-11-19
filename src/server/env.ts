@@ -86,6 +86,10 @@ function keyProblems(env: ServerEnv): string[] {
   const previous = env.FIELD_ENCRYPTION_PREVIOUS_KEYS ? parsePreviousKeys(env.FIELD_ENCRYPTION_PREVIOUS_KEYS) : null;
   if (field && env.BLIND_INDEX_KEY === field) problems.push("BLIND_INDEX_KEY: precisa ser diferente de FIELD_ENCRYPTION_KEY");
   if (previous && !field) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: exige FIELD_ENCRYPTION_KEY");
+  const blind = env.BLIND_INDEX_KEY ? decodeKey(env.BLIND_INDEX_KEY) : null;
+  for (const key of previous?.values() ?? []) {
+    if (blind && Buffer.from(key).equals(Buffer.from(blind))) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: nenhuma chave antiga pode ser igual a BLIND_INDEX_KEY");
+  }
   for (const version of previous?.keys() ?? []) {
     if (version >= env.FIELD_ENCRYPTION_KEY_VERSION) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: versões antigas precisam ser menores que FIELD_ENCRYPTION_KEY_VERSION");
   }
