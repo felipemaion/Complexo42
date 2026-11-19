@@ -294,12 +294,25 @@ apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo 
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
 `supabase/migrations/20261119130100_access_functions.sql`.
 
-### `skills` e `profile_skills`
-`skills`: `id`, `name`, `category`, `aliases` (text[], sinônimos para a busca), `active`.
-Índices: `profile_skills(skill_id, profile_id)` e GIN em `skills.aliases`. A **busca por
-habilidade roda no banco** (texto puro, indexado); só os nomes da página exibida são
-decifrados no servidor (ADR 0003 §6).
-`profile_skills`: `profile_id`, `skill_id`, `level` [?].
+### `skills` e `profile_skills` (#8)
+`skills`: `id`, `name` (único), `category`, `aliases` (text[], sinônimos para a busca), `active`.
+Índice GIN em `aliases`. A **busca por habilidade roda no banco** (texto puro, indexado); só os
+nomes da página exibida são decifrados no servidor (ADR 0003 §6). Leitura só de perfil ativo
+(`app.is_active_member`); ninguém grava pela API (catálogo entra por seed ou migration).
+`profile_skills`: `profile_id` (cascade com o perfil), `skill_id`; chave (`profile_id`,
+`skill_id`) e índice `(skill_id, profile_id)`. Lê quem pode ver o perfil (`app.can_view_profile`).
+Sem `level`: o nível (só "tenho" ou três graus) segue em aberto com o stakeholder; sem
+limite por pessoa nem opção "outra" até a #15, que também grava e inclui as habilidades no
+arquivo de exportação dos dados da pessoa.
+
+**Catálogo PROVISÓRIO** (47 habilidades em 8 grupos, até o stakeholder aprovar): só no seed
+local, em `supabase/seeds/skills_catalog.sql` (nunca em produção). Para trocar, edite só esse
+arquivo e rode `npm run db:reset`. Aprovado, o catálogo entra em produção por migration.
+
+**Perfis fictícios (~50):** `npm run db:seed-profiles` (depois do `db:reset`) cria, só no
+Supabase local, 50 contas `perfil-ficticio-NN@example.com` com nome e WhatsApp
+(`+55119000000NN`, convenção deste projeto para teste) cifrados pelo código do app, município, distrito (capital) e 2 a 6
+habilidades. Roda de novo sem duplicar; recusa produção e qualquer endereço não local.
 
 ### Missões, entregas e pontos (ADR 0006)
 `missions`: `id`, `title`, `description`, `category`, `scope_unit_id`, `status`

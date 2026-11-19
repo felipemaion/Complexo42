@@ -81,6 +81,7 @@ caminho B.
 | `npm run test:e2e` | Testes ponta a ponta (Playwright) |
 | `npm run db:start` / `db:stop` | Sobe ou para o Supabase local |
 | `npm run db:reset` | Recria o banco local com migrations e seed |
+| `npm run db:seed-profiles` | Cria 50 perfis fictícios no banco local (rode depois do `db:reset`) |
 | `npm run db:test` | Testes de RLS e permissões (pgTAP) |
 
 Painel do banco local (Supabase Studio): http://localhost:54323. Ali só há **dados
