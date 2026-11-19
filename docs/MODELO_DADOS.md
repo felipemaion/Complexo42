@@ -314,7 +314,7 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
 - **Como:** o servidor chama `public.delete_own_account()` (`security definer`) com o JWT da
   pessoa. A função **não recebe alvo**: apaga só `auth.uid()`. Nunca `service_role` (R6): o app
   não tem essa chave. O dono da função é quem roda as migrations: `supabase_admin`
-  (superusuário) no servidor, onde o `postgres` é NOLOGIN, e `postgres` no `supabase start`
+  (superusuário) no servidor, onde o `postgres` deve ser NOLOGIN (conferir em volumes anteriores à #95: `docs/OPERACAO.md`), e `postgres` no `supabase start`
   local. Os dois apagam `auth.users` e leem `auth.sessions`.
 - **Confirmação forte:** escrever `EXCLUIR` (conferido no servidor, com Zod) **e** ter entrado
   há no máximo 10 minutos. O **banco** confere pela sessão do JWT: o `session_id` (assinado
