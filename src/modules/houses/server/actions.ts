@@ -21,7 +21,9 @@ export async function acceptHouseAction(input: unknown): Promise<HouseActionResu
   const client = await sessionHouseClient();
   if (!client) return { ok: false, error: "failed" };
   const houseIds = instance.houses.map((h) => h.id);
-  return logged("house_accept_refused", await acceptHouse(client, input, houseIds));
+  // A versão do termo vem do questionário carregado aqui, nunca do navegador.
+  const termVersion = getQuestionnaire().consentTermVersion;
+  return logged("house_accept_refused", await acceptHouse(client, input, houseIds, termVersion));
 }
 
 export async function recordConsentAction(input: unknown): Promise<HouseActionResult> {

@@ -35,8 +35,19 @@ function fakeClient(result: { data?: unknown; error?: unknown } = {}) {
 describe("acceptHouse", () => {
   it("manda ao banco só o id da casa e a forma de entrada", async () => {
     const { client, calls } = fakeClient();
-    expect(await acceptHouse(client, { houseId: "casa-b", joinMethod: "questionnaire" }, houseIds)).toEqual({ ok: true });
-    expect(calls).toEqual([{ fn: "accept_house", args: { p_house_key: "casa-b", p_join_method: "questionnaire" } }]);
+    expect(await acceptHouse(client, { houseId: "casa-b", joinMethod: "questionnaire" }, houseIds, "termo-1")).toEqual({ ok: true });
+    expect(await acceptHouse(client, { houseId: "casa-a", joinMethod: "self" }, houseIds, "termo-1")).toEqual({ ok: true });
+    expect(calls).toEqual([
+      { fn: "accept_house", args: { p_house_key: "casa-b", p_join_method: "questionnaire", p_term_version: "termo-1" } },
+      { fn: "accept_house", args: { p_house_key: "casa-a", p_join_method: "self", p_term_version: null } },
+    ]);
+  });
+
+  it("a versão do termo é a do servidor: uma versão mandada pelo navegador é recusada", async () => {
+    const { client, calls } = fakeClient();
+    const input = { houseId: "casa-a", joinMethod: "questionnaire", termVersion: "termo-forjado" };
+    expect(await acceptHouse(client, input, houseIds, "termo-1")).toEqual({ ok: false, error: "failed" });
+    expect(calls).toEqual([]);
   });
 
   it("recusa, sem chamar o banco, casa fora da config, forma inválida e qualquer campo a mais (respostas)", async () => {
@@ -49,7 +60,7 @@ describe("acceptHouse", () => {
       "casa-a",
       null,
     ]) {
-      expect(await acceptHouse(client, input, houseIds)).toEqual({ ok: false, error: "failed" });
+      expect(await acceptHouse(client, input, houseIds, "termo-1")).toEqual({ ok: false, error: "failed" });
     }
     expect(calls).toEqual([]);
   });
@@ -59,12 +70,14 @@ describe("acceptHouse", () => {
       ["42501", "not_active"],
       ["P0002", "unavailable"],
       ["23505", "already_accepted"],
+      ["C7601", "region_undefined"],
+      ["C7602", "removed_by_coordination"],
       ["22023", "failed"],
       [undefined, "failed"],
     ];
     for (const [code, error] of cases) {
       const { client } = fakeClient({ error: { code, message: "detalhe interno" } });
-      expect(await acceptHouse(client, { houseId: "casa-a", joinMethod: "self" }, houseIds)).toEqual({ ok: false, error });
+      expect(await acceptHouse(client, { houseId: "casa-a", joinMethod: "self" }, houseIds, "termo-1")).toEqual({ ok: false, error });
     }
   });
 });

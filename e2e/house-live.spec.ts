@@ -25,8 +25,11 @@ const admin = (path: string, init: RequestInit = {}) =>
     headers: { apikey: SERVICE!, Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json", ...init.headers },
   });
 
-/** Pessoa nova, liberada e ativa, com perfil em SP (entra na unidade do estado). */
-async function createMember(tag: string): Promise<{ id: string; email: string }> {
+/**
+ * Pessoa nova, liberada e ativa, com perfil em SP (entra na unidade do estado). Com
+ * `inRegion`, a coordenação já a pôs numa equipe da região piloto (a casa exige região, #76).
+ */
+async function createMember(tag: string, inRegion = true): Promise<{ id: string; email: string }> {
   const email = `casa.${tag}.${Date.now()}@exemplo.org`;
   const user = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, email_confirm: true }) })).json();
   const res = await admin("/rest/v1/profiles", {
@@ -42,6 +45,19 @@ async function createMember(tag: string): Promise<{ id: string; email: string }>
     }),
   });
   expect(res.status).toBe(201);
+  if (inRegion) {
+    const [team] = await (await admin("/rest/v1/units?path=eq.br.sp.abc.equipe_1&select=id")).json();
+    await admin(`/rest/v1/unit_members?profile_id=eq.${user.id}&left_at=is.null`, {
+      method: "PATCH",
+      body: JSON.stringify({ left_at: new Date().toISOString() }),
+    });
+    const placed = await admin("/rest/v1/unit_members", {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ unit_id: team.id, profile_id: user.id }),
+    });
+    expect(placed.status).toBe(201);
+  }
   return { id: user.id, email };
 }
 
@@ -53,9 +69,9 @@ async function signIn(page: Page, email: string): Promise<void> {
   await expect(page).toHaveURL(/\/inicio$/);
 }
 
-type HouseRow = { join_method: string; accepted_at: string | null; units: { slug: string } };
+type HouseRow = { join_method: string; accepted_at: string | null; consent_version: string | null; units: { slug: string } };
 async function houseRows(profileId: string): Promise<HouseRow[]> {
-  const res = await admin(`/rest/v1/unit_members?profile_id=eq.${profileId}&axis=eq.house&left_at=is.null&select=join_method,accepted_at,units(slug)`);
+  const res = await admin(`/rest/v1/unit_members?profile_id=eq.${profileId}&axis=eq.house&left_at=is.null&select=join_method,accepted_at,consent_version,units(slug)`);
   return res.json();
 }
 async function consents(profileId: string): Promise<{ term_version: string }[]> {
@@ -142,7 +158,12 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: só a
   expect(page.url()).toMatch(/\/casa$/);
 
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "questionnaire", accepted_at: expect.any(String), units: { slug: expected.replaceAll("-", "_") } },
+    {
+      join_method: "questionnaire",
+      accepted_at: expect.any(String),
+      consent_version: questionnaire.consentTermVersion,
+      units: { slug: expected.replaceAll("-", "_") },
+    },
   ]);
   expect(await consents(member.id)).toEqual([{ term_version: questionnaire.consentTermVersion }]);
 
@@ -170,7 +191,7 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
 
   expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-3", joinMethod: "self" }]]);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), units: { slug: "casa_exemplo_3" } },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, units: { slug: "casa_exemplo_3" } },
   ]);
   expect(await consents(member.id)).toEqual([]);
   await expectNoStorage(page);
@@ -204,5 +225,16 @@ test("quem ainda não está ativo vê o motivo e nada é gravado", async ({ page
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toHaveText("Complete o seu cadastro antes de escolher a casa.");
+  expect(await houseRows(member.id)).toEqual([]);
+});
+
+test("quem ainda está só no estado vê \"sua região ainda não foi definida\" e nada é gravado", async ({ page }) => {
+  const member = await createMember("e", false);
+  await signIn(page, member.email);
+  await page.goto("/casa");
+  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toHaveText(/Sua região ainda não foi definida/);
   expect(await houseRows(member.id)).toEqual([]);
 });

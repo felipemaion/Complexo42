@@ -70,7 +70,15 @@ const valid = {
     chooseOtherButton: "t",
     acceptedTitle: "t",
     homeLink: "t",
-    errors: { unavailable: "t", already_accepted: "t", not_active: "t", stale_consent: "t", failed: "t" },
+    errors: {
+      unavailable: "t",
+      already_accepted: "t",
+      not_active: "t",
+      stale_consent: "t",
+      region_undefined: "t",
+      removed_by_coordination: "t",
+      failed: "t",
+    },
   },
   houses: [
     { id: "a", name: "A", description: "d", activities: ["x"], firstSteps: { text: "t", videoUrls: ["https://v.example/1"] } },

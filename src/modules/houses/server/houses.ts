@@ -11,6 +11,8 @@ const errorByCode: Record<string, HouseErrorCode> = {
   "42501": "not_active", // não liberado, sem perfil ou sem sessão
   P0002: "unavailable", // casa fora da região da pessoa
   "23505": "already_accepted", // outra casa já aceita
+  C7601: "region_undefined", // a região da pessoa ainda não foi definida
+  C7602: "removed_by_coordination", // a coordenação encerrou a casa da pessoa
 };
 
 function errorCode(error: unknown): HouseErrorCode {
@@ -20,9 +22,16 @@ function errorCode(error: unknown): HouseErrorCode {
 
 /**
  * Aceita a casa. `input` vem do navegador: só `{ houseId, joinMethod }`, e o id precisa ser de
- * uma casa da config. O banco confere quem chama, a região e o termo (`accept_house`).
+ * uma casa da config. A versão do termo é a do questionário carregado no servidor (nunca do
+ * cliente) e só vai no `questionnaire`. O banco confere quem chama, a região, o aceite dessa
+ * versão do termo e se a coordenação tirou a pessoa de uma casa (`accept_house`).
  */
-export async function acceptHouse(client: HouseClient, input: unknown, houseIds: readonly string[]): Promise<HouseActionResult> {
+export async function acceptHouse(
+  client: HouseClient,
+  input: unknown,
+  houseIds: readonly string[],
+  termVersion: string,
+): Promise<HouseActionResult> {
   const parsed = z
     .strictObject({
       houseId: z.string().refine((id) => houseIds.includes(id)),
@@ -33,6 +42,7 @@ export async function acceptHouse(client: HouseClient, input: unknown, houseIds:
   const { error } = await client.rpc("accept_house", {
     p_house_key: parsed.data.houseId,
     p_join_method: parsed.data.joinMethod,
+    p_term_version: parsed.data.joinMethod === "questionnaire" ? termVersion : null,
   });
   return error ? { ok: false, error: errorCode(error) } : { ok: true };
 }

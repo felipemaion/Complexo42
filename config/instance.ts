@@ -122,6 +122,8 @@ export const instance = parseInstanceConfig({
       already_accepted: "Você já aceitou uma casa. Para trocar, fale com a coordenação.",
       not_active: "Complete o seu cadastro antes de escolher a casa.",
       stale_consent: "O termo foi atualizado. Recarregue a página para ler a versão nova.",
+      region_undefined: "Sua região ainda não foi definida. A coordenação vai incluir você numa região; depois disso, volte aqui.",
+      removed_by_coordination: "A coordenação tirou você da sua casa. Para voltar ou trocar de casa, fale com a coordenação.",
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },

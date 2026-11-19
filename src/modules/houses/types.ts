@@ -1,7 +1,14 @@
 export type { FlowContext, FlowEvent, FlowState, JoinMethod, Step } from "./domain/flow";
 
 /** Motivo de recusa mostrado na tela (texto em `houseSelection.errors` da config). */
-export type HouseErrorCode = "unavailable" | "already_accepted" | "not_active" | "stale_consent" | "failed";
+export type HouseErrorCode =
+  | "unavailable"
+  | "already_accepted"
+  | "not_active"
+  | "stale_consent"
+  | "region_undefined"
+  | "removed_by_coordination"
+  | "failed";
 
 export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCode };
 

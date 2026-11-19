@@ -172,6 +172,10 @@ export const instanceConfigSchema = z.strictObject({
       not_active: text,
       /** O termo mudou enquanto a pessoa respondia: recarregar. */
       stale_consent: text,
+      /** A pessoa ainda não está numa região (só no estado). */
+      region_undefined: text,
+      /** A coordenação encerrou a casa da pessoa: a volta é com ela. */
+      removed_by_coordination: text,
       failed: text,
     }),
   }),
