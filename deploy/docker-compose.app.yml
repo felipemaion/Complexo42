@@ -26,6 +26,10 @@ services:
       SUPABASE_PUBLIC_URL: ${SITE_URL:?obrigatorio}
       SUPABASE_ANON_KEY: ${ANON_KEY:?obrigatorio}
       SITE_URL: ${SITE_URL:?obrigatorio}
+      # Repassar o CF-Connecting-IP ao Auth (rate limit por IP). Ligar SÓ se o
+      # servidor garante que apenas a Cloudflare alcança a origem (#86); senão
+      # qualquer um forja o cabeçalho. Desligado por padrão.
+      TRUST_CF_CONNECTING_IP: ${TRUST_CF_CONNECTING_IP:-false}
     # Sistema de arquivos só leitura; gravável apenas /tmp (memória) e os logs.
     read_only: true
     tmpfs: [/tmp]
