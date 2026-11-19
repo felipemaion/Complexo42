@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 
 // "Excluir minha conta" (#18). Sem Supabase (o CI): a página exige sessão e a despedida é
@@ -7,11 +8,15 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 // porta do E2E):
 //   E2E_LIVE_SUPABASE_URL=<API_URL> E2E_LIVE_ANON_KEY=<ANON_KEY> \
 //   E2E_LIVE_SERVICE_KEY=<SERVICE_ROLE_KEY do `supabase status`> npm run test:e2e -- e2e/delete-account.spec.ts
+// O caso da renovação do token também precisa de E2E_LIVE_DB_CONTAINER=<container do banco
+// local, ex.: supabase_db_complexo42>, para envelhecer a sessão como dono do banco.
 // A chave de serviço do stack LOCAL fica só neste processo de teste (cria o link de login, libera
 // as pessoas de teste e confere o que sobrou); o app nunca a recebe (R6): ele exclui pela função
 // `delete_own_account`, com o JWT da própria pessoa.
 const API = process.env.E2E_LIVE_SUPABASE_URL;
 const SERVICE_KEY = process.env.E2E_LIVE_SERVICE_KEY;
+const ANON_KEY = process.env.E2E_LIVE_ANON_KEY;
+const DB_CONTAINER = process.env.E2E_LIVE_DB_CONTAINER;
 const LIVE = Boolean(API && SERVICE_KEY);
 
 test("sem sessão, a página da exclusão manda para o login", async ({ page, baseURL }) => {
@@ -119,5 +124,48 @@ test.describe("exclusão com o Supabase local", () => {
     await w.getByRole("button", { name: "Excluir minha conta para sempre" }).click();
     await expect(w).toHaveURL(`${baseURL}/conta-excluida`);
     await expectGone(ids.w!);
+  });
+
+  test("renovar o token não renova o login: sessão antiga continua recusada pelo banco", async () => {
+    test.skip(!DB_CONTAINER || !ANON_KEY, "precisa de E2E_LIVE_DB_CONTAINER e E2E_LIVE_ANON_KEY (ver o topo do arquivo)");
+    const email = `excluir.r.${run}@exemplo.org`;
+    const link = await (await admin("/auth/v1/admin/generate_link", { method: "POST", body: JSON.stringify({ type: "magiclink", email }) })).json();
+    const auth = (path: string, body: unknown) =>
+      fetch(`${API}/auth/v1/${path}`, { method: "POST", headers: { apikey: ANON_KEY!, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const session = await (await auth("verify", { type: link.verification_type, token_hash: link.hashed_token })).json();
+    const claims = (token: string) => JSON.parse(Buffer.from(token.split(".")[1]!, "base64url").toString("utf8"));
+    const sessionId: string = claims(session.access_token).session_id;
+    expect(sessionId).toMatch(/^[0-9a-f-]{36}$/);
+
+    // Como dono do banco: o login (criação da sessão) foi há 11 minutos.
+    const sql = (query: string) =>
+      execFileSync("docker", ["exec", "-i", DB_CONTAINER!, "psql", "-qAt", "-U", "postgres", "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c", query], { encoding: "utf8" });
+    const setLoginAge = (age: string) => sql(`update auth.sessions set created_at = now() - interval '${age}' where id = '${sessionId}'`);
+    setLoginAge("11 minutes");
+
+    // refreshSession(): token novo, mesma sessão.
+    const refreshed = await (await auth("token?grant_type=refresh_token", { refresh_token: session.refresh_token })).json();
+    expect(refreshed.access_token).toBeTruthy();
+    expect(refreshed.access_token).not.toBe(session.access_token);
+    expect(claims(refreshed.access_token).session_id).toBe(sessionId);
+    expect(sql(`select created_at < now() - interval '10 minutes' from auth.sessions where id = '${sessionId}'`).trim()).toBe("t");
+
+    const deleteWith = (token: string) =>
+      fetch(`${API}/rest/v1/rpc/delete_own_account`, {
+        method: "POST",
+        headers: { apikey: ANON_KEY!, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: "{}",
+      });
+    for (const token of [refreshed.access_token, session.access_token]) {
+      const res = await deleteWith(token);
+      expect(res.status).toBe(401);
+      expect((await res.json()).code).toBe("PT401");
+    }
+    expect((await admin(`/auth/v1/admin/users/${link.id}`)).status).toBe(200);
+
+    // Mesma sessão, login recente: o token renovado exclui.
+    setLoginAge("1 minute");
+    expect((await deleteWith(refreshed.access_token)).status).toBe(204);
+    expect((await admin(`/auth/v1/admin/users/${link.id}`)).status).toBe(404);
   });
 });

@@ -4,18 +4,35 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(38);
+select plan(49);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
 $$;
--- JWT com o login feito há `p_age` segundos (null: sem `amr`).
-create function pg_temp.login(p_id uuid, p_age integer default 30) returns void language sql as $$
-  select set_config('request.jwt.claims',
+-- JWT de uma sessão criada (= login) há `p_age` segundos: cria a linha em auth.sessions e
+-- põe o `session_id` no JWT, como o GoTrue. `p_age` null: JWT sem `session_id`. Conta que não
+-- existe mais: `session_id` de uma sessão que não existe. `security definer`: roda também com
+-- o papel `authenticated` ativo.
+create function pg_temp.login(p_id uuid, p_age integer default 30) returns uuid
+language plpgsql security definer as $$
+declare
+  sid uuid;
+begin
+  if p_age is not null then
+    sid := gen_random_uuid();
+    insert into auth.sessions (id, user_id, created_at)
+    select sid, p_id, now() - make_interval(secs => p_age)
+    where exists (select 1 from auth.users where id = p_id);
+  end if;
+  perform set_config('request.jwt.claims',
     (jsonb_build_object('sub', p_id, 'role', 'authenticated')
-     || case when p_age is null then '{}'::jsonb else jsonb_build_object('amr',
-          jsonb_build_array(jsonb_build_object('method', 'otp',
-            'timestamp', extract(epoch from now())::bigint - p_age))) end)::text, true);
+     || case when sid is null then '{}'::jsonb else jsonb_build_object('session_id', sid) end)::text, true);
+  return sid;
+end;
+$$;
+-- JWT com claims arbitrárias (para os casos de `session_id` estranho).
+create function pg_temp.claims(p_claims jsonb) returns void language sql as $$
+  select set_config('request.jwt.claims', p_claims::text, true);
 $$;
 -- Toda coluna uuid (public, app, auth) com uma linha que ainda cita `p_id`, fora as colunas
 -- do audit_log, onde o id fica de propósito (sem FK). Pega também tabelas criadas no futuro.
@@ -70,7 +87,15 @@ insert into auth.sessions (id, user_id) values
 insert into auth.audit_log_entries (id, payload) values
   (gen_random_uuid(), '{"action": "user_signedup", "actor_id": "00000000-0000-0000-0000-0000000000a1", "actor_username": "a@exemplo.org"}'),
   (gen_random_uuid(), '{"action": "user_invited", "actor_id": "", "traits": {"user_id": "00000000-0000-0000-0000-0000000000a1", "user_email": "a@exemplo.org"}}'),
-  (gen_random_uuid(), '{"action": "user_signedup", "actor_id": "00000000-0000-0000-0000-0000000000a2", "actor_username": "b@exemplo.org"}');
+  (gen_random_uuid(), '{"action": "user_signedup", "actor_id": "00000000-0000-0000-0000-0000000000a2", "actor_username": "b@exemplo.org"}'),
+  -- Ligadas a A só pelo id (sem e-mail): saem.
+  (gen_random_uuid(), '{"action": "token_refreshed", "actor_id": "00000000-0000-0000-0000-0000000000a1"}'),
+  (gen_random_uuid(), '{"action": "user_modified", "traits": {"user_id": "00000000-0000-0000-0000-0000000000a1"}}'),
+  -- Ligadas a A só pelo e-mail (sem id): saem. As de e-mail parecido, mas diferente, ficam.
+  (gen_random_uuid(), '{"action": "user_recovery_requested", "actor_username": "a@exemplo.org"}'),
+  (gen_random_uuid(), '{"action": "user_invited", "traits": {"user_email": "a@exemplo.org"}}'),
+  (gen_random_uuid(), '{"action": "user_recovery_requested", "actor_username": "xa@exemplo.org"}'),
+  (gen_random_uuid(), '{"action": "user_recovery_requested", "actor_username": "A@exemplo.org"}');
 insert into auth.flow_state (id, user_id, auth_code, code_challenge_method, code_challenge, provider_type, provider_access_token, provider_refresh_token, authentication_method)
 values (gen_random_uuid(), '00000000-0000-0000-0000-0000000000a1', 'x', 's256', 'x', 'google', '', '', 'oauth');
 
@@ -157,7 +182,25 @@ select throws_ok($$ select public.delete_own_account() $$, '42501', null,
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1', null);
 select throws_ok($$ select public.delete_own_account() $$, 'PT401', null,
-  'sem a hora do login (amr) no JWT: exige entrar de novo');
+  'JWT sem session_id: exige entrar de novo (falha fechado)');
+-- O amr não conta: login "agora" no amr, sem sessão, continua recusado.
+select pg_temp.claims(jsonb_build_object('sub', '00000000-0000-0000-0000-0000000000a1', 'role', 'authenticated',
+  'amr', jsonb_build_array(jsonb_build_object('method', 'otp', 'timestamp', extract(epoch from now())))));
+select throws_ok($$ select public.delete_own_account() $$, 'PT401', null,
+  'amr recente (com timestamp decimal) sem sessão NÃO basta');
+select pg_temp.claims(jsonb_build_object('sub', '00000000-0000-0000-0000-0000000000a1', 'role', 'authenticated',
+  'session_id', 'nao-e-uuid'));
+select throws_ok($$ select public.delete_own_account() $$, 'PT401', null,
+  'session_id malformado: PT401, sem erro de conversão');
+select pg_temp.claims(jsonb_build_object('sub', '00000000-0000-0000-0000-0000000000a1', 'role', 'authenticated',
+  'session_id', gen_random_uuid()));
+select throws_ok($$ select public.delete_own_account() $$, 'PT401', null,
+  'session_id de uma sessão que não existe: PT401');
+-- Sessão recente de B no JWT de A: não vale.
+select pg_temp.claims(jsonb_build_object('sub', '00000000-0000-0000-0000-0000000000a1', 'role', 'authenticated',
+  'session_id', (select (pg_temp.login('00000000-0000-0000-0000-0000000000a2')))));
+select throws_ok($$ select public.delete_own_account() $$, 'PT401', null,
+  'sessão recente de outra pessoa no JWT: PT401');
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1', 601);
 select throws_ok($$ select public.delete_own_account() $$, 'PT401', null,
   'login de mais de 10 minutos: exige entrar de novo');
@@ -204,8 +247,13 @@ select is((select count(*)::int from auth.users where id = '00000000-0000-0000-0
   'auth.users de A apagado');
 select is((select count(*)::int from auth.sessions where id = '00000000-0000-0000-0000-00000000005a'), 0,
   'sessão de A apagada');
-select is((select count(*)::int from auth.audit_log_entries where payload::text like '%a@exemplo.org%'), 0,
-  'o e-mail de A não fica no rastro do GoTrue');
+select is((select count(*)::int from auth.audit_log_entries
+           where payload ->> 'actor_username' = 'a@exemplo.org'
+              or payload -> 'traits' ->> 'user_email' = 'a@exemplo.org'), 0,
+  'o e-mail de A não fica no rastro do GoTrue (nem nas entradas ligadas só pelo e-mail)');
+select is((select string_agg(payload ->> 'actor_username', ',' order by payload ->> 'actor_username')
+           from auth.audit_log_entries where payload ->> 'action' = 'user_recovery_requested'),
+  'A@exemplo.org,xa@exemplo.org', 'entradas de outro e-mail (parecido) ficam: igualdade exata');
 
 -- account_deleted: sem dado pessoal (só o id solto, a data e o evento).
 select is(
@@ -258,6 +306,28 @@ set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 select throws_ok($$ select public.delete_own_account() $$, '42501', null,
   'JWT de conta já apagada NÃO exclui de novo');
+
+-- O JWT de A continua válido até expirar: nenhuma função grava com o uuid morto.
+reset role;
+create temporary table audit_before as
+  select count(*)::int as n from public.audit_log;
+set local role authenticated;
+select throws_ok($$ select public.export_own_data() $$, '42501', null,
+  'JWT de conta apagada NÃO exporta (nem grava data_exported)');
+select throws_ok($$ select public.save_own_profile(pg_temp.enc('Nova'), 3550308, null, pg_temp.enc('Zap'), repeat('c', 64), null) $$,
+  '23503', null, 'JWT de conta apagada NÃO recria o perfil');
+select throws_ok($$ select public.accept_house('casa-exemplo-1', 'self', null) $$, '42501', null,
+  'JWT de conta apagada NÃO escolhe casa');
+select throws_ok($$ select public.record_questionnaire_consent((select version from app.questionnaire_term_versions limit 1)) $$,
+  '42501', null, 'JWT de conta apagada NÃO aceita o termo do questionário');
+reset role;
+select is((select count(*)::int from public.audit_log), (select n from audit_before),
+  'nenhum evento novo no audit_log depois das tentativas');
+select throws_ok($$ insert into public.audit_log (actor_id, event, target_id)
+  values ('00000000-0000-0000-0000-0000000000a1', 'data_exported', '00000000-0000-0000-0000-0000000000a1') $$,
+  '42501', null, 'nem o dono do banco grava evento com o uuid de conta apagada como ator');
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 
 -- ---------------------------------------------------------------------------------------
 -- audit_log continua só-inserção
