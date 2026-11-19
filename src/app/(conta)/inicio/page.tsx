@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
-import { MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
+import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { hasOwnProfile } from "@/modules/profiles";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
@@ -63,6 +63,10 @@ export default async function SignedInHome({ searchParams }: Props) {
         className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
       >
         {instance.houseSelection.homeLink}
+      </Link>
+      {/* "Excluir minha conta" (#18): a página tem o aviso e a confirmação; nada é apagado aqui. */}
+      <Link href={DELETE_ACCOUNT_PATH} className="text-center text-lg underline">
+        {instance.deleteAccount.homeLink}
       </Link>
     </main>
   );

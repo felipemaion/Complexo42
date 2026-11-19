@@ -96,6 +96,30 @@ export const instance = parseInstanceConfig({
     fileDescription:
       "Cópia dos dados que a plataforma guarda sobre você (Lei Geral de Proteção de Dados, art. 18). Nome e WhatsApp ficam cifrados no banco e foram decifrados só para gerar este arquivo.",
   },
+  // "Excluir minha conta" (#18, LGPD art. 18, VI). A palavra da confirmação é CONFIRMATION_WORD
+  // (src/modules/privacy): os textos que a citam precisam usar a mesma.
+  deleteAccount: {
+    homeLink: "Excluir minha conta",
+    title: "Excluir minha conta",
+    warnings: [
+      "Vamos apagar a sua conta e tudo o que guardamos sobre você: nome, WhatsApp, redes, cidade, equipe, casa e papéis.",
+      "Não dá para desfazer. Se quiser uma cópia dos seus dados, baixe antes na página inicial.",
+      "Fica só uma contagem anônima das atividades, sem nada que identifique você. As cópias de segurança são apagadas sozinhas em até 35 dias.",
+    ],
+    reauthMessage:
+      "Para proteger a sua conta, a exclusão só vale nos 10 minutos depois de você entrar. Saia, entre de novo e volte para esta página.",
+    reauthButton: "Sair e entrar de novo",
+    confirmLabel: "Para confirmar, escreva EXCLUIR no campo abaixo",
+    confirmButton: "Excluir minha conta para sempre",
+    cancelLink: "Voltar sem excluir",
+    invalidConfirmation: "Escreva EXCLUIR no campo para confirmar.",
+    reauthRequired: "Já faz mais de 10 minutos que você entrou. Saia e entre de novo para excluir.",
+    failed: "Não foi possível excluir agora. Nada foi apagado: tente de novo em alguns minutos.",
+    goodbyeTitle: "Sua conta foi excluída",
+    goodbyeMessage:
+      "Apagamos a sua conta e os seus dados. Obrigado por ter participado. Se quiser voltar um dia, é só se cadastrar de novo.",
+    goodbyeLink: "Ir para a página inicial",
+  },
   // Escolha da casa (#76): "Você sabe o que quer fazer?" → lista de atividades ou questionário.
   houseSelection: {
     title: "Sua casa de formação",

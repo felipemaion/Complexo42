@@ -16,5 +16,17 @@ export {
   type OwnDataExport,
   type OwnDataRows,
 } from "./domain/export";
+export {
+  authAgeSeconds,
+  CONFIRMATION_WORD,
+  DELETE_ACCOUNT_PATH,
+  DELETE_ACCOUNT_STATUS_PARAM,
+  deleteAccountFormSchema,
+  isRecentLogin,
+  parseDeleteAccountStatus,
+  REAUTH_WINDOW_SECONDS,
+  type DeleteAccountStatus,
+} from "./domain/delete-account";
+export { deleteOwnAccount, type DeleteDeps } from "./server/delete-account";
 export { exportOwnData, type ExportDeps } from "./server/export";
-export type { ExportOwnDataResult, PrivacyDbClient } from "./types";
+export type { DeleteOwnAccountResult, ExportOwnDataResult, PrivacyDbClient } from "./types";
