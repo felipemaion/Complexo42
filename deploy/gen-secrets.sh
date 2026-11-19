@@ -79,7 +79,10 @@ mv "$TMP" "$DEST"
 trap - EXIT
 
 echo "ok: $DEST ($(stat -c %a "$DEST" 2>/dev/null || stat -f %Lp "$DEST") , $(grep -c "=" "$DEST") variáveis)"
-while IFS='=' read -r k v; do
-  case "$k" in ''|\#*) continue;; esac
+# IFS='=' NAO serve aqui: ele descarta o '=' final do base64, e a chave de
+# 44 caracteres aparece como 43 — parece chave malformada e nao e.
+while read -r linha; do
+  case "$linha" in ''|\#*) continue;; esac
+  k=${linha%%=*}; v=${linha#*=}
   printf "  %-24s %s caracteres\n" "$k" "${#v}"
 done < "$DEST"

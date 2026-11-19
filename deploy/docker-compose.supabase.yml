@@ -42,7 +42,9 @@ services:
       - db-dados:/var/lib/postgresql/data
       - ./initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      # pg_isready responde "aceitando conexoes" SEM validar o papel: ele deu
+      # healthy num banco onde o papel nem existia. A consulta e o teste real.
+      test: ["CMD-SHELL", "psql -U supabase_admin -d postgres -c 'select 1' > /dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -61,6 +63,9 @@ services:
       GOTRUE_API_PORT: "9999"
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      # Sem API_EXTERNAL_URL o GoTrue morre no boot: "required key
+      # API_EXTERNAL_URL missing value". A chave NAO tem o prefixo GOTRUE_.
+      API_EXTERNAL_URL: ${SITE_URL:?obrigatorio}
       GOTRUE_SITE_URL: ${SITE_URL:?obrigatorio}
       GOTRUE_URI_ALLOW_LIST: ${URI_ALLOW_LIST:?obrigatorio}
       GOTRUE_JWT_SECRET: ${JWT_SECRET:?obrigatorio}
