@@ -50,6 +50,26 @@ export const instanceConfigSchema = z.strictObject({
     title: text,
     message: text,
   }),
+  /** Textos do login (#9). Botões grandes e nada escondido (pedido do stakeholder). */
+  auth: z.strictObject({
+    title: text,
+    intro: text,
+    googleButton: text,
+    emailLabel: text,
+    emailButton: text,
+    emailSent: text,
+    signedOut: text,
+    signOutButton: text,
+    signedInTitle: text,
+    signedInMessage: text,
+    /** Mensagens por código de erro. A tela só mostra códigos conhecidos, nunca texto da URL. */
+    errors: z.strictObject({
+      invalid_email: text,
+      rate_limited: text,
+      unavailable: text,
+      failed: text,
+    }),
+  }),
   houses: z
     .array(houseSchema)
     .min(1)

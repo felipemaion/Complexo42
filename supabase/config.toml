@@ -33,7 +33,8 @@ enabled = false
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:3000"
-additional_redirect_urls = ["http://127.0.0.1:3000"]
+# Retorno do login (#9): só o /auth/callback do app local (`npm run dev`).
+additional_redirect_urls = ["http://127.0.0.1:3000/auth/callback"]
 jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
@@ -44,3 +45,38 @@ minimum_password_length = 8
 # HMAC é comparado com a lista de autorizados. No servidor, GOTRUE_MAILER_AUTOCONFIRM=false.
 enable_confirmations = true
 double_confirm_changes = true
+# Intervalo mínimo entre dois e-mails para o mesmo endereço (#9).
+max_frequency = "60s"
+
+# Limites do Auth (#9, LGPD_E_SEGURANCA §3 "cadastro em massa por robô"). No servidor, os
+# equivalentes GOTRUE_RATE_LIMIT_* ficam em deploy/docker-compose.supabase.yml.
+[auth.rate_limit]
+# E-mails enviados por hora (todo o Auth): protege a cota do relay SMTP (ADR 0009 §5).
+email_sent = 30
+# Pedidos de login/cadastro por IP a cada 5 minutos.
+sign_in_sign_ups = 30
+# Conferências de link/código por IP a cada 5 minutos.
+token_verifications = 30
+# Renovações de sessão por IP a cada 5 minutos.
+token_refresh = 150
+
+# Link mágico que funciona mesmo aberto em outro navegador (o app do e-mail no celular): o
+# link leva o token_hash ao /auth/callback, que o confere no servidor. O mesmo modelo serve ao
+# primeiro acesso (confirmação). Produção usa o mesmo arquivo (#87).
+[auth.email.template.magic_link]
+subject = "Seu link para entrar"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.email.template.confirmation]
+subject = "Seu link para entrar"
+content_path = "./supabase/templates/magic_link.html"
+
+# Login com Google (#9, ADR 0009 §5). Desligado no local: precisa de um cliente OAuth próprio.
+# Para testar, crie as variáveis no ambiente antes do `supabase start` e troque `enabled` para
+# true SÓ na sua cópia (não faça commit). Redirecionamento autorizado no Google:
+# http://127.0.0.1:54321/auth/v1/callback
+[auth.external.google]
+enabled = false
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+skip_nonce_check = false

@@ -34,6 +34,24 @@ export const instance = parseInstanceConfig({
     message:
       "Recebemos o seu cadastro, mas o seu e-mail ainda não está na lista de pessoas autorizadas. A coordenação vai analisar e liberar o seu acesso. Você não precisa fazer nada agora: quando o acesso for liberado, é só entrar de novo.",
   },
+  auth: {
+    title: "Entrar",
+    intro: "Escolha um jeito de entrar. Os dois são gratuitos e não pedem senha.",
+    googleButton: "Entrar com Google",
+    emailLabel: "Seu e-mail",
+    emailButton: "Receber link por e-mail",
+    emailSent: "Pronto! Enviamos um link para o seu e-mail. Abra a mensagem e toque no link para entrar.",
+    signedOut: "Você saiu da sua conta.",
+    signOutButton: "Sair",
+    signedInTitle: "Você entrou",
+    signedInMessage: "Seu acesso está funcionando. As próximas telas chegam em breve.",
+    errors: {
+      invalid_email: "Confira o e-mail digitado e tente de novo.",
+      rate_limited: "Muitas tentativas em pouco tempo. Espere alguns minutos ou entre com Google.",
+      unavailable: "O login está indisponível agora. Tente de novo em alguns minutos.",
+      failed: "Não foi possível entrar. Tente de novo.",
+    },
+  },
   houses: [
     {
       id: "casa-exemplo-1",

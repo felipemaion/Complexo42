@@ -1,0 +1,12 @@
+<!-- Link mágico (#9). Genérico (R17): sem nome de instância. Sem dado pessoal além do
+     necessário: não repete o e-mail da pessoa. O link leva o token_hash ao /auth/callback
+     do app, que o confere no servidor; funciona em qualquer navegador. -->
+<h2>Seu link para entrar</h2>
+<p>Toque no botão abaixo para entrar. O link vale por pouco tempo e só pode ser usado uma vez.</p>
+<p>
+  <a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&amp;type=email"
+     style="display:inline-block;padding:16px 24px;font-size:18px;font-weight:bold;text-decoration:none;border-radius:12px;background:#222222;color:#ffffff">
+    Entrar
+  </a>
+</p>
+<p>Se você não pediu este link, ignore esta mensagem.</p>

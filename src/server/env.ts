@@ -27,6 +27,11 @@ export function parsePreviousKeys(value: string): Map<number, Uint8Array> | null
   return keys;
 }
 
+// Chave pública (anon) do Supabase: JWT HS256 ou chave "publishable" das versões novas. A chave
+// service_role é recusada aqui e em keyProblems (R6: nunca a chave de acesso total no app).
+const anonKey = z.string().regex(/^(?:[\w-]+\.[\w-]+\.[\w-]+|sb_publishable_[\w-]+)$/, { error: "precisa ser a chave anon (JWT) ou sb_publishable_" });
+const httpUrl = z.url({ protocol: /^https?$/, error: "precisa ser uma URL http(s)" });
+
 const key32 = z.string().refine((v) => decodeKey(v) !== null, { error: "precisa ter 32 bytes em base64 (openssl rand -base64 32)" });
 
 const envSchema = z.object({
@@ -59,11 +64,20 @@ const envSchema = z.object({
   // Questionário real das casas (ADR 0008 §2.1, #91), instalado só no servidor. Sem ela, vale o
   // exemplo fictício de config/questionnaire.example.json. O conteúdo é validado na subida.
   QUESTIONNAIRE_PATH: z.string().optional(),
+  // Login (#9, ADR 0009 §1). O app fala com o Supabase pela rede interna (SUPABASE_URL, ex.:
+  // http://kong:8000). O navegador só vê o /auth/v1 publicado na origem pública
+  // (SUPABASE_PUBLIC_URL; sem ela, vale SUPABASE_URL, como no local). SITE_URL é a origem
+  // pública do app, usada nos endereços de retorno do login. Lidas em tempo de execução, e não
+  // como NEXT_PUBLIC_*, para a mesma imagem servir staging e produção.
+  SUPABASE_URL: httpUrl.optional(),
+  SUPABASE_PUBLIC_URL: httpUrl.optional(),
+  SUPABASE_ANON_KEY: anonKey.optional(),
+  SITE_URL: httpUrl.optional(),
 });
 
 // Obrigatórias só em produção. Checadas fora do schema para aparecerem junto com os
 // demais erros (o Zod pula refinamentos quando algum campo já falhou).
-const REQUIRED_IN_PRODUCTION = ["DB_HEALTH_URL"] as const;
+const REQUIRED_IN_PRODUCTION = ["DB_HEALTH_URL", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SITE_URL"] as const;
 
 export type ServerEnv = z.infer<typeof envSchema>;
 
@@ -77,7 +91,7 @@ export function parseEnv(raw: Record<string, string | undefined>): EnvResult {
   if (cleaned.NODE_ENV === "production") {
     for (const key of REQUIRED_IN_PRODUCTION) if (!(key in cleaned)) problems.push(`${key}: obrigatória em produção`);
   }
-  if (result.success) problems.push(...keyProblems(result.data));
+  if (result.success) problems.push(...keyProblems(result.data), ...authProblems(result.data));
   if (result.success && problems.length === 0) return { ok: true, env: result.data };
   return { ok: false, problems };
 }
@@ -97,6 +111,19 @@ function keyProblems(env: ServerEnv): string[] {
     if (version >= env.FIELD_ENCRYPTION_KEY_VERSION) problems.push("FIELD_ENCRYPTION_PREVIOUS_KEYS: versões antigas precisam ser menores que FIELD_ENCRYPTION_KEY_VERSION");
   }
   return [...new Set(problems)];
+}
+
+// R6: recusa uma chave JWT cujo papel não seja `anon` (ex.: service_role colada por engano).
+function authProblems(env: ServerEnv): string[] {
+  const key = env.SUPABASE_ANON_KEY;
+  if (!key || key.startsWith("sb_publishable_")) return [];
+  let role: unknown;
+  try {
+    role = (JSON.parse(Buffer.from(key.split(".")[1] as string, "base64url").toString("utf8")) as { role?: unknown }).role;
+  } catch {
+    role = undefined;
+  }
+  return role === "anon" ? [] : ["SUPABASE_ANON_KEY: precisa ser a chave anon (nunca service_role)"];
 }
 
 /** Lê o ambiente atual. A subida (instrumentation.ts) já derrubou o processo se ele for inválido. */
