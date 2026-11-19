@@ -45,9 +45,13 @@ select pg_temp.seed_unit('house', 'br.sp.abc', 'casa_exemplo_4', 'Casa Exemplo Q
 select pg_temp.seed_unit('team', 'br.sp.abc', 'equipe_1', 'Equipe 1');
 select pg_temp.seed_unit('team', 'br.sp.abc', 'equipe_2', 'Equipe 2');
 
--- Sem casas na Zona Leste: quem ainda está só no estado de SP fica com a casa do ABC (a única
--- região do estado que oferece cada casa; ver `app.house_unit_for`).
+select pg_temp.seed_unit('house', 'br.sp.zona_leste', 'casa_exemplo_1', 'Casa Exemplo Um');
 select pg_temp.seed_unit('team', 'br.sp.zona_leste', 'equipe_1', 'Equipe 1');
 
 select pg_temp.seed_unit('house', 'br.mg.central', 'casa_exemplo_1', 'Casa Exemplo Um');
 select pg_temp.seed_unit('team', 'br.mg.central', 'equipe_1', 'Equipe 1');
+
+-- Versão do termo do questionário de exemplo (config/questionnaire.example.json). Uma versão só
+-- é aceita se estiver aqui (ADR 0008 §2.1, #76); na instância real, a do arquivo instalado
+-- entra por migration.
+insert into app.questionnaire_term_versions (version) values ('termo-exemplo-1');

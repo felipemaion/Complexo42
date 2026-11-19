@@ -182,7 +182,6 @@ insert into public.unit_members (unit_id, profile_id, left_at) values
 -- Vínculos de casa (#76): o eixo vem do tipo da unidade (trigger); sem `accepted_at`, não conta.
 insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, left_at) values
   (pg_temp.unit('house_1'), pg_temp.person('stu_h'), 'self', now(), null),
-  (pg_temp.unit('house_1'), pg_temp.person('stu_ah'), 'questionnaire', now(), null),
   (pg_temp.unit('house_2'), pg_temp.person('stu_ah2'), 'self', now(), null),
   (pg_temp.unit('house_1'), pg_temp.person('stu_bh'), 'self', now(), null),
   (pg_temp.unit('house_1'), pg_temp.person('stu_hpend'), 'self', null, null),
@@ -190,6 +189,8 @@ insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, 
   (pg_temp.unit('house_m'), pg_temp.person('stu_mh'), 'self', now(), null),
   (pg_temp.unit('house_1'), pg_temp.person('wait_hpend'), 'self', null, null),
   (pg_temp.unit('house_1'), pg_temp.person('wait_honly'), 'self', null, null);
+insert into public.unit_members (unit_id, profile_id, join_method, accepted_at, consent_version)
+values (pg_temp.unit('house_1'), pg_temp.person('stu_ah'), 'questionnaire', now(), 'termo-exemplo-1');
 
 -- Contatos fictícios (formato válido; o banco não decifra nada).
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac)

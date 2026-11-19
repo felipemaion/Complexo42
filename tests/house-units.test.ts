@@ -4,6 +4,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { instance } from "@config/instance";
+import example from "@config/questionnaire.example.json";
 
 /** Região piloto do seed: tem uma unidade para cada casa da config. */
 const PILOT_REGION = "br.sp.abc";
@@ -37,5 +38,11 @@ describe("casas da config ↔ unidades de casa do seed", () => {
 
   it("todo id de casa vira um slug válido de unidade (a-z, 0-9, _; até 63)", () => {
     for (const slug of configSlugs) expect(slug).toMatch(/^[a-z0-9_]{1,63}$/);
+  });
+
+  it("o seed registra a versão do termo do questionário de exemplo (só versões registradas são aceitas)", () => {
+    const sql = readFileSync("supabase/seed.sql", "utf8");
+    const versions = [...sql.matchAll(/insert into app\.questionnaire_term_versions \(version\) values \('([^']+)'\)/g)].map((m) => m[1]);
+    expect(versions).toContain(example.consentTermVersion);
   });
 });
