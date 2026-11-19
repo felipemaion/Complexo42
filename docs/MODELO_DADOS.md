@@ -107,8 +107,9 @@ Vguedess/Complexo42 (`member_contacts`).
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `membership_axis` (`team` ou `house`, ADR 0008)
 (rótulos configuráveis por instância).
-`units`: `id`, `type_id`, `parent_id`, `name`, `path` (ltree, índice GiST), `state_code`
-null, `municipality_code` null (região), `motto` null (≤ 80), `colors` (2 a 3 hex: a
+`units`: `id`, `type_id`, `parent_id`, `slug` (rótulo do nó no `path`: `a-z`, `0-9`, `_`),
+`name`, `path` (ltree, índice GiST, mantido por trigger a partir de `parent_id` e `slug`),
+`state_code` null (marca a unidade que recebe quem se cadastra no estado; única por UF), `municipality_code` null (região), `motto` null (≤ 80), `colors` (2 a 3 hex: a
 "bandeira"), `logo_path` null + `logo_status` (`pending`, `approved`, `rejected`),
 `public_links` (redes **da turma**, até 5 URLs https), `starts_on`/`ends_on` null,
 `status`. Logo só PNG/JPEG/WebP ≤ 512 KB, **nunca SVG** (ADR 0006 §2).
@@ -121,6 +122,10 @@ null, `municipality_code` null (região), `motto` null (≤ 80), `colors` (2 a 3
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`), `unit_id`, `granted_by`,
 `granted_at`, `revoked_at`. O papel vale na unidade **e em todas abaixo dela**.
+Enquanto `profiles` não existe (#10), `unit_members.profile_id` e
+`role_assignments.profile_id` apontam para `auth.users(id)`, que é o mesmo id.
+As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
+`supabase/migrations/20261119130100_access_functions.sql`.
 
 ### `skills` e `profile_skills`
 `skills`: `id`, `name`, `category`, `aliases` (text[], sinônimos para a busca), `active`.
