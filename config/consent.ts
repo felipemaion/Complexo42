@@ -2,14 +2,15 @@ import { instance } from "@config/instance";
 import { parseConsentTerm } from "@/modules/privacy";
 
 /*
- * Termo de consentimento (#11). O texto e a versão moram aqui e são trocados SEM mexer no código:
- * mudar `version` faz todo mundo ver o termo de novo e aceitar outra vez.
+ * Termo de consentimento (#11). O texto mora aqui. Versão nova = mudar `version` e o texto aqui E
+ * redefinir `app.current_consent_version()` numa migration (o banco só aceita a vigente;
+ * tests/consent-version.test.ts confere que os dois batem). Todos veem o termo e aceitam de novo.
  *
  * Fonte: docs/TERMO_CONSENTIMENTO.md (rascunho `v1`, ainda sem validação do jurídico, #7).
  * Os itens marcados [jurídico] ou [decidir] no rascunho NÃO entram aqui (o parse recusa): a
  * controladora e o encarregado, a transferência internacional, a idade mínima e as listas da
  * coordenação voltam quando o jurídico decidir. Quando o texto definitivo chegar, troque o
- * conteúdo abaixo e a `version` (ex.: "v2"). Validado na carga do app, como o config/instance.ts.
+ * conteúdo abaixo, a `version` (ex.: "v2") e a migration. Validado na carga do app, como o config/instance.ts.
  */
 const platform = instance.name;
 
@@ -87,6 +88,7 @@ export const consentTerm = parseConsentTerm({
   continueButton: "Continuar",
   uncheckedHint: "Marque a caixa acima para poder continuar.",
   declineButton: "Não concordo e quero sair",
+  rightsTitle: "Seus direitos, mesmo sem concordar",
   errors: {
     unchecked: "Para continuar, marque a caixa dizendo que leu e concorda.",
     failed: "Não foi possível registrar o seu aceite agora. Tente de novo em instantes.",

@@ -47,6 +47,7 @@ profiles ───────┼─< unit_members >── units
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
+consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
 missions ─< mission_steps
 missions ─< mission_runs (uma turma assume a missão) ─< step_submissions (entregas)
@@ -129,7 +130,7 @@ com a lista importada.
 | `district` | text null | distrito, só para município com lista em `config/districts.ts` (hoje a capital paulista, 96 distritos do IBGE); nulo nos demais (2 a 60 caracteres) |
 | `status` | text | `pending`, `active`, `suspended` |
 | `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
-| `consent_version`, `consent_at` | text, timestamptz | `consent_at` gravado pelo trigger quando a versão muda. O perfil nasce com `none` (ainda sem aceite); só `public.accept_consent(versão)` (#11) muda, com o JWT da pessoa; a versão vem de `config/consent.ts`, no servidor, e cada aceite novo grava o evento `consent_accepted` no `audit_log` (com `term_version`). Quem não tem a versão atual vê só a tela do termo (`/termo`); sem perfil ainda, o aceite fica num cookie curto e é gravado quando o perfil é salvo |
+| `consent_version`, `consent_at` | text, timestamptz | Espelho do último aceite do termo (#11), para leitura rápida; a prova é `consent_acceptances`. `save_own_profile` cria o perfil já com a versão vigente (e recusa quem não aceitou); `accept_consent` avança a versão de quem já tem perfil, e o trigger grava `consent_at`. Nenhuma outra via muda |
 | `created_at`, `updated_at` | timestamptz | gravados pelo trigger |
 
 O papel **não** fica no perfil: fica em `role_assignments`.
@@ -259,6 +260,17 @@ guarda-se só a casa sugerida.
 - **`ended_by`**: quem gravou `left_at` (trigger; nulo em operação direta no banco). Se outra
   pessoa encerrou o vínculo de casa, a pessoa não volta sozinha, nem para a mesma casa nem para
   outra (erro C7602): a volta é decisão da coordenação.
+
+### `consent_acceptances` (#11)
+`user_id` (FK `auth.users`, `on delete cascade`), `version`, `accepted_at`; PK `(user_id, version)`.
+A prova do aceite do termo de consentimento, ligada à conta e não ao navegador. Gravada só por
+`public.accept_consent(versão)` (a própria pessoa, ainda sem perfil ou não), que aceita **só a
+versão vigente** (`app.current_consent_version()`, definida por migration; versão nova = migration
+nova + texto novo em `config/consent.ts`, e um teste confere que os dois batem) e registra
+`consent_accepted` no `audit_log`. RLS: a pessoa lê só os seus; nenhum INSERT, UPDATE ou DELETE
+pela API. `save_own_profile` recusa (42501) quem não aceitou a vigente; `requireUser` manda para
+`/termo`. `/termo`, `/meus-dados` e `/excluir-conta` funcionam sem aceite (direitos do titular).
+A exportação inclui os aceites; a exclusão da conta os apaga em cascata.
 
 ### `questionnaire_consents` (ADR 0008 §2.1)
 `profile_id` (FK `profiles`, `on delete cascade`), `term_version` (FK
@@ -417,7 +429,7 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   aberto não bastam.
 - **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
   `profiles`, `profile_contacts`, `unit_members`, `house_members` e `role_assignments` da pessoa,
-  `access_waitlist_hmac`, `questionnaire_consents` e `app.profile_save_attempts`. A função
+  `access_waitlist_hmac`, `questionnaire_consents`, `consent_acceptances` e `app.profile_save_attempts`. A função
   apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`, pelo id ou pelo
   e-mail exato da conta, lido antes de apagar) e o `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
 - **O que fica dos outros:** quando a pessoa aparece no dado de outra

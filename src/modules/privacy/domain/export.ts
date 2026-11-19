@@ -70,6 +70,8 @@ export const ownDataRowsSchema = z.object({
   ),
   /** Aceites do termo do questionário (versão e data; nunca as respostas). */
   questionnaire_consents: z.array(z.object({ term_version: z.string(), consented_at: timestamp })),
+  /** Aceites do termo de consentimento (#11): versão e data. */
+  consent_acceptances: z.array(z.object({ version: z.string(), accepted_at: timestamp })),
   roles: z.array(
     z.object({
       role: z.string(),
@@ -133,6 +135,7 @@ export type OwnDataExport = {
     saiuEm: string | null;
   }[];
   /** Aceites do termo do questionário das casas. */
+  termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
   papeis: {
     papel: string;
@@ -249,6 +252,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       aceitaEm: h.accepted_at,
       saiuEm: h.left_at,
     })),
+    termosDeConsentimento: rows.consent_acceptances.map((c) => ({ versao: c.version, aceitoEm: c.accepted_at })),
     termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),
     papeis: rows.roles.map((r) => ({
       papel: r.role,

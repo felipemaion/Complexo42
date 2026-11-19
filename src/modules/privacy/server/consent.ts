@@ -6,8 +6,8 @@ import { z } from "zod";
 import { log as appLog, type Logger } from "@/server/log";
 import type { AcceptConsentResult, ConsentDbClient } from "../types";
 
-const profileRow = z.object({ consent_version: z.string() }).nullable();
-const acceptOutcome = z.enum(["accepted", "no_profile"]);
+const acceptedRow = z.object({ version: z.string() }).nullable();
+const acceptOutcome = z.literal("accepted");
 
 /** Só o código do erro (Postgres/PostgREST), nunca a mensagem. */
 function errorCode(error: unknown): string {
@@ -15,11 +15,19 @@ function errorCode(error: unknown): string {
   return typeof code === "string" ? code.slice(0, 16) : "unknown";
 }
 
-/** `profiles.consent_version` de `userId`, ou null se a pessoa ainda não tem perfil. Lança se a leitura falhar. */
-export async function readConsentVersion(client: ConsentDbClient, userId: string): Promise<string | null> {
-  const { data, error } = await client.from("profiles").select("consent_version").eq("id", userId).maybeSingle();
+/**
+ * Se `userId` aceitou a `version` do termo (linha em `consent_acceptances`, que a RLS só deixa
+ * ler para a própria pessoa). Lança se a leitura falhar: quem chama nega o acesso.
+ */
+export async function hasAcceptedConsent(client: ConsentDbClient, userId: string, version: string): Promise<boolean> {
+  const { data, error } = await client
+    .from("consent_acceptances")
+    .select("version")
+    .eq("user_id", userId)
+    .eq("version", version)
+    .maybeSingle();
   if (error) throw new Error(`consent_read_failed:${errorCode(error)}`);
-  return profileRow.parse(data)?.consent_version ?? null;
+  return acceptedRow.parse(data) !== null;
 }
 
 /** Grava o aceite da `version` para quem está logado. Falha fechada: qualquer dúvida é `failed`. */

@@ -57,6 +57,8 @@ async function createRootManager(): Promise<string> {
     }),
   });
   expect(profile.status).toBe(201);
+  // Já aceitou o termo vigente (#11): sem a linha, o portão manda a pessoa para /termo.
+  await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
   const [root] = await (await admin("/rest/v1/units?parent_id=is.null&select=id")).json();
   const role = await admin("/rest/v1/role_assignments", {
     method: "POST",

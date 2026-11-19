@@ -3,9 +3,6 @@ import { z } from "zod";
 
 /** Tela do termo (fora do grupo `(conta)`, para não passar pelo portão de consentimento). */
 export const CONSENT_PATH = "/termo";
-/** Cookie do aceite de quem ainda não tem perfil: vale até o perfil ser salvo (#11). */
-export const CONSENT_PENDING_COOKIE = "consent_pending";
-export const consentPendingMaxAgeSeconds = 60 * 60;
 /** Valor de `profiles.consent_version` de quem nunca aceitou (#125). Nunca é uma versão de termo. */
 export const NO_CONSENT_VERSION = "none";
 /** Mesmo formato do CHECK de `profiles.consent_version` e de `accept_consent`. */
@@ -38,6 +35,8 @@ export const consentTermSchema = z.object({
   continueButton: publicText,
   uncheckedHint: publicText,
   declineButton: publicText,
+  /** Nome do grupo "baixar meus dados / excluir conta", mostrado na tela do termo. */
+  rightsTitle: publicText,
   errors: z.object({ unchecked: publicText, failed: publicText }),
 });
 
@@ -49,22 +48,6 @@ export function parseConsentTerm(raw: unknown): ConsentTerm {
   if (parsed.success) return parsed.data;
   const where = parsed.error.issues.map((issue) => issue.path.join(".") || "(raiz)").join(", ");
   throw new Error(`config/consent.ts inválido em: ${where}`);
-}
-
-export type ConsentGate = "ok" | "needs_term";
-
-/**
- * Quem pode seguir. Com perfil, só a versão aceita igual à do termo atual (versão nova pede
- * novo aceite). Sem perfil (`profileVersion` nulo), só com o aceite pendente da versão atual.
- * Qualquer outra coisa, inclusive 'none', volta ao termo.
- */
-export function consentGate(input: {
-  profileVersion: string | null;
-  pendingVersion: string | null;
-  currentVersion: string;
-}): ConsentGate {
-  const accepted = input.profileVersion === null ? input.pendingVersion : input.profileVersion;
-  return accepted === input.currentVersion ? "ok" : "needs_term";
 }
 
 /** O que o formulário manda: a caixa marcada chega como "on". Qualquer outra coisa = não aceitou. */

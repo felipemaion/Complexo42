@@ -1,10 +1,10 @@
--- Aceite do termo (issue #11): `public.accept_consent` é a única via que muda
--- `profiles.consent_version`; grava a versão e a data, audita e não age sobre outra pessoa.
+-- Aceite do termo (issue #11): `public.accept_consent` grava em `consent_acceptances` só a versão
+-- vigente, só de quem chama, com auditoria, e funciona sem perfil. A tabela só se lê pela API.
 -- Pessoas fictícias, só dentro desta transação.
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(15);
+select plan(20);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -14,7 +14,7 @@ create function pg_temp.login(p_id uuid) returns void language sql as $$
     json_build_object('sub', p_id, 'role', 'authenticated')::text, true);
 $$;
 
--- c1: perfil sem aceite; c2: outra pessoa sem aceite; c3: bloqueada; c4: sem perfil.
+-- c1: com perfil; c2: outra pessoa com perfil; c3: bloqueada; c4: sem perfil.
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000c1'),
   ('00000000-0000-0000-0000-0000000000c2'),
@@ -31,6 +31,7 @@ select ok(
   and has_function_privilege('authenticated', 'public.accept_consent(text)', 'execute'),
   'só quem está logado executa accept_consent'
 );
+select is(app.current_consent_version(), 'v1', 'a versão vigente do termo é v1');
 
 set local role authenticated;
 
@@ -39,28 +40,40 @@ select set_config('request.jwt.claims', json_build_object('role', 'authenticated
 select throws_ok($$ select public.accept_consent('v1') $$, '42501', null, 'sem sessão → negado');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000000c1');
+select throws_ok($$ select public.accept_consent('v2') $$, '22023', null, 'versão futura → recusada (ninguém pré-aceita)');
 select throws_ok($$ select public.accept_consent('none') $$, '22023', null, 'none não é versão de termo');
-select throws_ok($$ select public.accept_consent('v 1; drop') $$, '22023', null, 'versão fora do formato → recusada');
+select throws_ok($$ select public.accept_consent('v0') $$, '22023', null, 'versão antiga → recusada');
 select throws_ok($$ select public.accept_consent(null) $$, '22023', null, 'versão nula → recusada');
-
-select is(public.accept_consent('v1'), 'accepted', 'a pessoa aceita a versão v1');
 select is(
-  (select consent_version from public.profiles where id = '00000000-0000-0000-0000-0000000000c1'),
-  'v1',
-  'consent_version avançou para v1'
+  (select count(*)::int from public.consent_acceptances),
+  0,
+  'nada foi gravado pelas recusas'
 );
 
--- Escrita direta continua fechada: só a função muda a versão.
+select is(public.accept_consent('v1'), 'accepted', 'a pessoa aceita a versão vigente');
+select is(
+  (select array_agg(version) from public.consent_acceptances),
+  array['v1'],
+  'a pessoa lê o próprio aceite'
+);
+
+-- Escrita direta continua fechada: só a função grava.
+select throws_ok(
+  $$ insert into public.consent_acceptances (user_id, version)
+     values ('00000000-0000-0000-0000-0000000000c1', 'v1') $$,
+  '42501', null, 'INSERT direto em consent_acceptances é negado'
+);
 select throws_ok(
   $$ update public.profiles set consent_version = 'v9' where id = '00000000-0000-0000-0000-0000000000c1' $$,
   '42501', null, 'UPDATE direto em consent_version é negado'
 );
 
--- Outra pessoa continua sem aceite: a função só age sobre quem chama.
+-- Outra pessoa não vê o aceite alheio (fora do escopo → negado) e continua sem aceite.
+select pg_temp.login('00000000-0000-0000-0000-0000000000c2');
 select is(
-  (select consent_version from public.profiles where id = '00000000-0000-0000-0000-0000000000c2'),
-  null,
-  'a RLS não mostra o perfil de outra pessoa (fora do escopo → negado)'
+  (select count(*)::int from public.consent_acceptances),
+  0,
+  'a RLS não mostra o aceite de outra pessoa'
 );
 reset role;
 select is(
@@ -69,44 +82,42 @@ select is(
   'o perfil de outra pessoa segue sem aceite'
 );
 
--- Repetir a mesma versão não regrava nem audita de novo.
-select pg_sleep(0.01);
+-- O espelho do perfil avançou com a data; repetir não regrava nem audita de novo.
+select is(
+  (select consent_version from public.profiles where id = '00000000-0000-0000-0000-0000000000c1'),
+  'v1',
+  'profiles.consent_version espelha o aceite'
+);
 create temp table before_repeat as
-  select consent_at from public.profiles where id = '00000000-0000-0000-0000-0000000000c1';
+  select accepted_at from public.consent_acceptances where user_id = '00000000-0000-0000-0000-0000000000c1';
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000c1');
 select public.accept_consent('v1');
 reset role;
 select is(
-  (select p.consent_at = b.consent_at from public.profiles as p, before_repeat as b
-   where p.id = '00000000-0000-0000-0000-0000000000c1'),
+  (select c.accepted_at = b.accepted_at from public.consent_acceptances as c, before_repeat as b
+   where c.user_id = '00000000-0000-0000-0000-0000000000c1'),
   true,
-  'repetir o aceite não muda consent_at'
+  'repetir o aceite não muda a data'
 );
-
--- Nova versão: novo aceite, nova data, novo evento.
-set local role authenticated;
-select pg_temp.login('00000000-0000-0000-0000-0000000000c1');
-select public.accept_consent('v2');
-reset role;
 select is(
-  (select array_agg(event || ':' || term_version order by id) from public.audit_log
+  (select array_agg(event || ':' || term_version) from public.audit_log
    where actor_id = '00000000-0000-0000-0000-0000000000c1'),
-  array['consent_accepted:v1', 'consent_accepted:v2'],
-  'cada versão aceita gera um evento de auditoria, e repetir não gera'
+  array['consent_accepted:v1'],
+  'o aceite gera um evento de auditoria, e repetir não gera outro'
 );
 
--- Bloqueada: negado. Sem perfil: resultado esperado, sem erro e sem auditoria.
+-- Bloqueada: negado. Sem perfil: aceita, e o aceite fica à espera do perfil.
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000c3');
 select throws_ok($$ select public.accept_consent('v1') $$, '42501', null, 'conta bloqueada → negado');
 select pg_temp.login('00000000-0000-0000-0000-0000000000c4');
-select is(public.accept_consent('v1'), 'no_profile', 'sem perfil, devolve no_profile');
+select is(public.accept_consent('v1'), 'accepted', 'sem perfil, o aceite também vale');
 reset role;
 select is(
-  (select count(*)::int from public.audit_log where actor_id = '00000000-0000-0000-0000-0000000000c4'),
-  0,
-  'sem perfil, nada é auditado'
+  (select count(*)::int from public.consent_acceptances where user_id = '00000000-0000-0000-0000-0000000000c4'),
+  1,
+  'o aceite de quem não tem perfil fica gravado'
 );
 
 select * from finish();

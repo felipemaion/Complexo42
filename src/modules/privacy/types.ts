@@ -22,5 +22,5 @@ export type DeleteOwnAccountResult =
 /** O cliente do Supabase do aceite do termo (#11): o da sessão, com `from` (ler a versão) e `rpc`. */
 export type ConsentDbClient = Pick<AuthClient, "from" | "rpc">;
 
-/** Resultado do aceite: `no_profile` = ainda não há perfil, o servidor guarda o aceite pendente. */
-export type AcceptConsentResult = { status: "accepted" } | { status: "no_profile" } | { status: "failed" };
+/** Resultado do aceite do termo (#11). */
+export type AcceptConsentResult = { status: "accepted" } | { status: "failed" };

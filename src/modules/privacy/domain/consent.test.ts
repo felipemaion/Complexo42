@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { consentFormSchema, consentGate, parseConsentTerm } from "./consent";
+import { consentFormSchema, parseConsentTerm } from "./consent";
 
 const valid = {
   version: "v1",
@@ -10,36 +10,9 @@ const valid = {
   continueButton: "Continuar",
   uncheckedHint: "Marque a caixa para continuar.",
   declineButton: "Não concordo e quero sair",
+  rightsTitle: "Seus direitos",
   errors: { unchecked: "Marque a caixa.", failed: "Não deu certo. Tente de novo." },
 };
-
-describe("consentGate", () => {
-  const currentVersion = "v2";
-
-  it("perfil na versão atual → segue", () => {
-    expect(consentGate({ profileVersion: "v2", pendingVersion: null, currentVersion })).toBe("ok");
-  });
-
-  it("versão mudou → pede novo aceite", () => {
-    expect(consentGate({ profileVersion: "v1", pendingVersion: null, currentVersion })).toBe("needs_term");
-  });
-
-  it("perfil novo ('none') → vai ao termo, mesmo com cookie pendente", () => {
-    expect(consentGate({ profileVersion: "none", pendingVersion: "v2", currentVersion })).toBe("needs_term");
-  });
-
-  it("sem perfil e sem aceite pendente → vai ao termo", () => {
-    expect(consentGate({ profileVersion: null, pendingVersion: null, currentVersion })).toBe("needs_term");
-  });
-
-  it("sem perfil com aceite pendente da versão atual → segue para o cadastro", () => {
-    expect(consentGate({ profileVersion: null, pendingVersion: "v2", currentVersion })).toBe("ok");
-  });
-
-  it("sem perfil com aceite pendente de versão antiga → vai ao termo", () => {
-    expect(consentGate({ profileVersion: null, pendingVersion: "v1", currentVersion })).toBe("needs_term");
-  });
-});
 
 describe("parseConsentTerm", () => {
   it("aceita um termo completo", () => {

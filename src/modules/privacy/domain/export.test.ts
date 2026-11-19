@@ -49,6 +49,7 @@ const rows: OwnDataRows = {
     },
   ],
   questionnaire_consents: [{ term_version: "termo-1", consented_at: "2026-11-19T11:20:00+00:00" }],
+  consent_acceptances: [{ version: "v1", accepted_at: "2026-11-19T11:00:00+00:00" }],
   roles: [
     { role: "spokesperson", unit_name: "Equipe 1", unit_type: "Equipe", house_key: null, granted_at: "2026-11-19T13:00:00+00:00", revoked_at: null },
     { role: "house_coordinator", unit_name: "Região 1", unit_type: "Região", house_key: "casa-fora-da-config", granted_at: "2026-11-19T14:00:00+00:00", revoked_at: null },
@@ -121,6 +122,7 @@ describe("buildOwnDataExport", () => {
           saiuEm: null,
         },
       ],
+      termosDeConsentimento: [{ versao: "v1", aceitoEm: "2026-11-19T11:00:00+00:00" }],
       termosDoQuestionario: [{ versao: "termo-1", aceitoEm: "2026-11-19T11:20:00+00:00" }],
       papeis: [
         { papel: "spokesperson", unidade: "Equipe 1", tipo: "Equipe", casa: null, concedidoEm: "2026-11-19T13:00:00+00:00", revogadoEm: null },
@@ -213,6 +215,7 @@ describe("buildOwnDataExport", () => {
         memberships: [],
         house_memberships: [],
         questionnaire_consents: [],
+        consent_acceptances: [],
         roles: [],
         audit_events: [],
         contact_views: [],
@@ -225,6 +228,7 @@ describe("buildOwnDataExport", () => {
       contato: null,
       vinculos: [],
       casas: [],
+      termosDeConsentimento: [],
       termosDoQuestionario: [],
       papeis: [],
       registrosSobreVoce: [],

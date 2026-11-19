@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 // Termo de consentimento (#11). Sem Supabase (o CI sem banco): só a proteção da rota. Com o
 // Supabase local, o fluxo real: quem não aceitou cai no termo (também ao tentar abrir outra
-// página), a caixa vem desmarcada, o botão só habilita depois de marcar, o aceite grava
-// `consent_version` e `consent_at`, e mudar a versão do termo pede novo aceite. Para rodar (stack
+// página), a caixa vem desmarcada, o botão só habilita depois de marcar, o aceite fica gravado
+// na conta (`consent_acceptances`) e no perfil (`consent_version`, `consent_at`), e sem o aceite da versão vigente volta ao termo. Para rodar (stack
 // local de pé, `site_url` do supabase/config.toml apontando para a porta do E2E):
 //   E2E_LIVE_SUPABASE_URL=<API_URL> E2E_LIVE_ANON_KEY=<ANON_KEY> \
 //   E2E_LIVE_SERVICE_KEY=<SERVICE_ROLE_KEY do `supabase status`> npm run test:e2e -- e2e/consent.spec.ts
@@ -39,6 +39,16 @@ test.describe("termo com o Supabase local", () => {
     await page.goto("/perfil");
     await expect(page).toHaveURL(`${baseURL}/termo`);
 
+    // Os direitos do titular valem sem aceite: baixar os dados e chegar à exclusão da conta.
+    await expect(page.getByRole("button", { name: "Baixar meus dados" })).toBeVisible();
+    const download = await page.request.post("/meus-dados", { headers: { origin: baseURL! } });
+    expect(download.status()).toBe(200);
+    expect(download.headers()["content-disposition"]).toContain("attachment");
+    await page.getByRole("link", { name: "Excluir minha conta" }).click();
+    await expect(page).toHaveURL(`${baseURL}/excluir-conta`);
+    await page.goBack();
+    await expect(page).toHaveURL(`${baseURL}/termo`);
+
     // Letra grande, caixa desmarcada, botão desabilitado até marcar.
     const term = page.getByTestId("consent-term");
     await expect(term.getByRole("heading", { level: 1 })).toBeVisible();
@@ -54,8 +64,9 @@ test.describe("termo com o Supabase local", () => {
     await checkbox.check();
     await next.click();
 
-    // Sem perfil ainda: segue ao formulário e o aceite fica pendente até salvar o perfil.
+    // Sem perfil ainda: o aceite já está gravado na conta e segue ao formulário.
     await expect(page).toHaveURL(`${baseURL}/perfil`);
+    expect(await (await admin(`/rest/v1/consent_acceptances?user_id=eq.${link.id}&select=version`)).json()).toEqual([{ version: "v1" }]);
     await page.getByLabel("Seu nome").fill("Pessoa do Termo");
     await page.getByLabel("Seu WhatsApp, com DDD").fill(`11 9${String(run).slice(-8)}`);
     await page.getByLabel("Sua cidade").selectOption({ label: "Osasco" });
@@ -74,8 +85,8 @@ test.describe("termo com o Supabase local", () => {
     await page.goto("/termo");
     await expect(page).not.toHaveURL(`${baseURL}/termo`);
 
-    // Versão nova do termo (simulada no banco) pede novo aceite.
-    await admin(`/rest/v1/profiles?id=eq.${link.id}`, { method: "PATCH", body: JSON.stringify({ consent_version: "v0-antiga" }) });
+    // Sem o aceite da versão vigente (simulado: a linha some), o portão manda para o termo.
+    await admin(`/rest/v1/consent_acceptances?user_id=eq.${link.id}`, { method: "DELETE" });
     await page.goto("/inicio");
     await expect(page).toHaveURL(`${baseURL}/termo`);
     await page.context().close();

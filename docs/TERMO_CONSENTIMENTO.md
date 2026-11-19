@@ -6,8 +6,10 @@
 > pessoas mais velhas, e o stakeholder pediu clareza acima de tudo.
 >
 > A versão do texto vai para `profiles.consent_version` (hoje `v1`). Mudar o texto exige
-> nova versão e novo aceite. **Na tela (#11):** o texto mora em `config/consent.ts` e é trocado
-> sem mexer no código: edite o conteúdo e a `version` (ex.: `v2`) e todos aceitam de novo. Os
+> nova versão e novo aceite. **Na tela (#11):** o texto mora em `config/consent.ts`. Para trocar o texto e a
+> versão (ex.: `v2`), edite a config **e** acrescente uma migration que redefine
+> `app.current_consent_version()` (o banco só aceita a vigente; um teste confere que os dois
+> batem). Todos aceitam de novo. Os
 > itens **[jurídico]** e **[decidir]** não aparecem (o app recusa subir com eles); entram quando
 > o jurídico decidir. Faltam hoje: controladora e encarregado, região do servidor e
 > transferência internacional, idade mínima (e a caixa de 18 anos), as listas da coordenação, o

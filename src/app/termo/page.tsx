@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { consentTerm } from "@config/consent";
 import { instance } from "@config/instance";
-import { ConsentForm, ConsentTermView } from "@/modules/privacy";
+import { ConsentForm, ConsentTermView, DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
 import { signOut } from "@/server/auth/actions";
 import { consentRedirect } from "@/server/auth/consent";
 import { HOME_PATH } from "@/server/auth/routes";
@@ -25,6 +26,17 @@ export default async function ConsentPage() {
           {consentTerm.declineButton}
         </button>
       </form>
+      {/* Os direitos do titular não dependem do aceite (LGPD art. 18): baixar os dados e excluir a conta. */}
+      <section aria-label={consentTerm.rightsTitle} className="flex flex-col gap-3">
+        <form method="post" action={MY_DATA_PATH}>
+          <button type="submit" className="w-full rounded-xl px-6 py-4 text-center text-lg underline">
+            {instance.myData.downloadButton}
+          </button>
+        </form>
+        <Link href={DELETE_ACCOUNT_PATH} className="text-center text-lg underline">
+          {instance.deleteAccount.homeLink}
+        </Link>
+      </section>
       <p className="text-base">{instance.name}</p>
     </main>
   );

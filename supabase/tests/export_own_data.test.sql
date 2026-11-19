@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(28);
+select plan(30);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -36,6 +36,10 @@ insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac) va
 -- histórico é dado dela e entra na exportação.
 update public.unit_members set left_at = now()
 where profile_id = '00000000-0000-0000-0000-0000000000a1';
+
+-- A aceitou o termo vigente; B não.
+insert into public.consent_acceptances (user_id, version)
+values ('00000000-0000-0000-0000-0000000000a1', 'v1');
 
 -- A concedeu um papel a B: é dado de B (A só vê pela RLS para poder revogar).
 insert into public.role_assignments (profile_id, role, unit_id, granted_by)
@@ -145,6 +149,15 @@ select ok(
   (select h->>'accepted_at' is not null and h->>'joined_at' is not null
    from out_a, jsonb_array_elements(d->'house_memberships') as h),
   'com as datas de entrada e de aceite'
+);
+select is(
+  (select jsonb_agg(c->>'version') from out_a, jsonb_array_elements(d->'consent_acceptances') as c),
+  '["v1"]'::jsonb,
+  'o aceite do termo de consentimento de A vai no arquivo (versão)'
+);
+select ok(
+  (select c->>'accepted_at' is not null from out_a, jsonb_array_elements(d->'consent_acceptances') as c),
+  'com a data do aceite'
 );
 select is(
   (select jsonb_agg(q->>'term_version') from out_a, jsonb_array_elements(d->'questionnaire_consents') as q),

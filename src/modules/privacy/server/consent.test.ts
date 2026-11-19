@@ -2,7 +2,7 @@
 // banco (quem aceita, auditoria, 'none') estão em supabase/tests/consent.test.sql.
 import { describe, expect, it, vi } from "vitest";
 import type { ConsentDbClient } from "../types";
-import { acceptConsent, readConsentVersion } from "./consent";
+import { acceptConsent, hasAcceptedConsent } from "./consent";
 
 vi.mock("server-only", () => ({}));
 
@@ -14,11 +14,13 @@ function rpcClient(result: { data: unknown; error: unknown }) {
   return { client: { rpc } as unknown as ConsentDbClient, rpc };
 }
 
-function profileClient(result: { data: unknown; error: unknown }) {
+function acceptancesClient(result: { data: unknown; error: unknown }) {
   const maybeSingle = vi.fn(async () => result);
-  const eq = vi.fn(() => ({ maybeSingle }));
-  const select = vi.fn(() => ({ eq }));
-  return { client: { from: vi.fn(() => ({ select })) } as unknown as ConsentDbClient, eq };
+  const eqVersion = vi.fn(() => ({ maybeSingle }));
+  const eqUser = vi.fn(() => ({ eq: eqVersion }));
+  const select = vi.fn(() => ({ eq: eqUser }));
+  const from = vi.fn(() => ({ select }));
+  return { client: { from } as unknown as ConsentDbClient, from, eqUser, eqVersion };
 }
 
 describe("acceptConsent", () => {
@@ -26,11 +28,6 @@ describe("acceptConsent", () => {
     const { client, rpc } = rpcClient({ data: "accepted", error: null });
     expect(await acceptConsent(client, "v1", log)).toEqual({ status: "accepted" });
     expect(rpc).toHaveBeenCalledWith("accept_consent", { p_version: "v1" });
-  });
-
-  it("sem perfil → no_profile, para o servidor guardar o aceite pendente", async () => {
-    const { client } = rpcClient({ data: "no_profile", error: null });
-    expect(await acceptConsent(client, "v1", log)).toEqual({ status: "no_profile" });
   });
 
   it("erro do banco → failed, só com o código no log", async () => {
@@ -45,20 +42,22 @@ describe("acceptConsent", () => {
   });
 });
 
-describe("readConsentVersion", () => {
-  it("devolve a versão gravada no perfil", async () => {
-    const { client, eq } = profileClient({ data: { consent_version: "v1" }, error: null });
-    expect(await readConsentVersion(client, USER)).toBe("v1");
-    expect(eq).toHaveBeenCalledWith("id", USER);
+describe("hasAcceptedConsent", () => {
+  it("há linha da versão para a pessoa → aceitou", async () => {
+    const { client, from, eqUser, eqVersion } = acceptancesClient({ data: { version: "v1" }, error: null });
+    expect(await hasAcceptedConsent(client, USER, "v1")).toBe(true);
+    expect(from).toHaveBeenCalledWith("consent_acceptances");
+    expect(eqUser).toHaveBeenCalledWith("user_id", USER);
+    expect(eqVersion).toHaveBeenCalledWith("version", "v1");
   });
 
-  it("sem perfil → null", async () => {
-    const { client } = profileClient({ data: null, error: null });
-    expect(await readConsentVersion(client, USER)).toBeNull();
+  it("sem linha (nunca aceitou, ou só uma versão antiga) → não aceitou", async () => {
+    const { client } = acceptancesClient({ data: null, error: null });
+    expect(await hasAcceptedConsent(client, USER, "v2")).toBe(false);
   });
 
   it("erro de leitura propaga (quem chama nega o acesso)", async () => {
-    const { client } = profileClient({ data: null, error: { code: "PGRST301" } });
-    await expect(readConsentVersion(client, USER)).rejects.toThrow("consent_read_failed:PGRST301");
+    const { client } = acceptancesClient({ data: null, error: { code: "PGRST301" } });
+    await expect(hasAcceptedConsent(client, USER, "v1")).rejects.toThrow("consent_read_failed:PGRST301");
   });
 });

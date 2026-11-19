@@ -844,6 +844,9 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
+-- Todas as pessoas aceitaram o termo vigente (#11): `save_own_profile` exige o aceite.
+insert into public.consent_acceptances (user_id, version) select id, 'v1' from auth.users;
+
 select plan((select count(*)::int from matrix) + 156);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz

@@ -2,10 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { exportOwnData, isSameOrigin, MY_DATA_STATUS_PARAM, type MyDataStatus } from "@/modules/privacy";
 import { getAuthConfig } from "@/server/auth/config";
 import { HOME_PATH } from "@/server/auth/routes";
-import { requireUserClient } from "@/server/auth/session";
+import { requireAccessUserClient } from "@/server/auth/session";
 
 // "Baixar meus dados" (#20). POST do botão da página inicial: devolve o JSON como anexo. Nada
-// do conteúdo vai para log ou cache (R11). Sem sessão, requireUser manda para o login.
+// do conteúdo vai para log ou cache (R11). Sem sessão, manda para o login. Vale sem o aceite do termo: acesso e portabilidade não dependem dele (LGPD art. 18).
 const NO_STORE = { "Cache-Control": "private, no-store" };
 
 function backHome(request: NextRequest, status?: MyDataStatus): NextResponse {
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!config || !isSameOrigin(request.headers.get("origin"), config.siteUrl)) {
     return new NextResponse(null, { status: 403, headers: NO_STORE });
   }
-  const { user, client } = await requireUserClient();
+  const { user, client } = await requireAccessUserClient();
   // O e-mail inteiro só sai daqui, para o arquivo da própria pessoa (a sessão guarda só o
   // mascarado). Lido do GoTrue com o JWT dela.
   const { data } = await client.auth.getUser();

@@ -29,18 +29,14 @@ export {
 } from "./domain/delete-account";
 export {
   CONSENT_PATH,
-  CONSENT_PENDING_COOKIE,
   consentFormSchema,
-  consentGate,
-  consentPendingMaxAgeSeconds,
   parseConsentTerm,
   type ConsentFormState,
-  type ConsentGate,
   type ConsentTerm,
 } from "./domain/consent";
 export { ConsentForm } from "./components/consent-form";
 export { ConsentTermView } from "./components/consent-term-view";
-export { acceptConsent, readConsentVersion } from "./server/consent";
+export { acceptConsent, hasAcceptedConsent } from "./server/consent";
 export { deleteOwnAccount, type DeleteDeps } from "./server/delete-account";
 export { exportOwnData, type ExportDeps } from "./server/export";
 export type { AcceptConsentResult, ConsentDbClient, DeleteOwnAccountResult, ExportOwnDataResult, PrivacyDbClient } from "./types";
