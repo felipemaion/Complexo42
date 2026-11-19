@@ -38,8 +38,10 @@ async function dbRows() {
       updated_at: "2026-11-19T11:00:00+00:00",
     },
     memberships: [],
+    house_memberships: [],
+    questionnaire_consents: [],
     roles: [],
-    audit_events: [{ event: "data_exported", reason: null, created_at: "2026-11-19T12:00:00+00:00" }],
+    audit_events: [{ event: "data_exported", reason: null, term_version: null, house_key: null, created_at: "2026-11-19T12:00:00+00:00" }],
     contact_views: [],
   };
 }

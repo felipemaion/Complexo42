@@ -165,18 +165,17 @@ export const instance = parseInstanceConfig({
     acceptedTitle: "Sua casa",
     homeLink: "Escolher sua casa",
     errors: {
-      unavailable: "Esta casa ainda não está disponível na sua região. Fale com a coordenação.",
+      unavailable: "Esta casa não está disponível no momento. Fale com a coordenação.",
       already_accepted: "Você já aceitou uma casa. Para trocar, fale com a coordenação.",
       not_active: "Complete o seu cadastro antes de escolher a casa.",
       stale_consent: "O termo foi atualizado. Recarregue a página para ler a versão nova.",
-      region_undefined: "Sua região ainda não foi definida. A coordenação vai incluir você numa região; depois disso, volte aqui.",
       removed_by_coordination: "A coordenação tirou você da sua casa. Para voltar ou trocar de casa, fale com a coordenação.",
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
-  // Casas de formação (ADR 0008 §2). O `id` liga a casa à unidade do eixo `house`: o `slug` da
-  // unidade é o id com `_` no lugar de `-` (casa-exemplo-1 ↔ casa_exemplo_1). A região piloto do
-  // seed tem uma unidade para cada casa (tests/house-units.test.ts).
+  // Casas de formação (ADR 0008 §2), nacionais (ADR 0011). O `id` é a chave da casa no banco
+  // (`houses.key`); nome e textos ficam só aqui. O seed tem uma linha para cada casa
+  // (tests/house-units.test.ts).
   houses: [
     {
       id: "casa-exemplo-1",

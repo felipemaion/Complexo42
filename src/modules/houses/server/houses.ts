@@ -3,15 +3,13 @@
 // Toda entrada passa por Zod antes de ir ao banco, que confere de novo (R15).
 import "server-only";
 import { z } from "zod";
-import { houseIdFromUnitSlug } from "../domain/link";
 import type { HouseActionResult, HouseClient, HouseErrorCode } from "../types";
 
 /** Código do Postgres/PostgREST → motivo exibido. Qualquer outro vira `failed`. */
 const errorByCode: Record<string, HouseErrorCode> = {
   "42501": "not_active", // não liberado, sem perfil ou sem sessão
-  P0002: "unavailable", // casa fora da região da pessoa
+  P0002: "unavailable", // casa inexistente ou inativa
   "23505": "already_accepted", // outra casa já aceita
-  C7601: "region_undefined", // a região da pessoa ainda não foi definida
   C7602: "removed_by_coordination", // a coordenação encerrou a casa da pessoa
 };
 
@@ -23,7 +21,7 @@ function errorCode(error: unknown): HouseErrorCode {
 /**
  * Aceita a casa. `input` vem do navegador: só `{ houseId, joinMethod }`, e o id precisa ser de
  * uma casa da config. A versão do termo é a do questionário carregado no servidor (nunca do
- * cliente) e só vai no `questionnaire`. O banco confere quem chama, a região, o aceite dessa
+ * cliente) e só vai no `questionnaire`. O banco confere quem chama, a casa, o aceite dessa
  * versão do termo e se a coordenação tirou a pessoa de uma casa (`accept_house`).
  */
 export async function acceptHouse(
@@ -59,19 +57,21 @@ export async function recordConsent(client: HouseClient, input: unknown, current
   return error ? { ok: false, error: errorCode(error) } : { ok: true };
 }
 
-const acceptedRow = z.object({ units: z.object({ slug: z.string() }) }).nullable();
+const acceptedRow = z.object({ house_key: z.string() }).nullable();
 
-/** A casa aceita de quem está logado (id da config), ou null. Lê só o próprio vínculo. */
+/**
+ * A casa aceita de quem está logado (id da config), ou null. Lê só o próprio vínculo de casa
+ * (`house_members`, ADR 0011): a chave da casa no banco é o id da config.
+ */
 export async function readAcceptedHouse(client: HouseClient, userId: string, houseIds: readonly string[]): Promise<string | null> {
   const { data, error } = await client
-    .from("unit_members")
-    .select("units!inner(slug)")
+    .from("house_members")
+    .select("house_key")
     .eq("profile_id", userId)
-    .eq("axis", "house")
     .is("left_at", null)
     .not("accepted_at", "is", null)
     .maybeSingle();
   if (error) throw new Error(`house_read_failed:${errorCode(error)}`);
   const row = acceptedRow.parse(data);
-  return row ? houseIdFromUnitSlug(row.units.slug, houseIds) : null;
+  return row && houseIds.includes(row.house_key) ? row.house_key : null;
 }

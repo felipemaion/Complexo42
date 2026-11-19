@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(49);
+select plan(51);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -129,6 +129,11 @@ from public.units as u where u.state_code = 'MG';
 -- A encerrou o vínculo de B (`ended_by` = A, gravado pelo trigger com o JWT de A).
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 update public.unit_members set left_at = now() where profile_id = '00000000-0000-0000-0000-0000000000a2';
+-- A e B na casa (ADR 0011); A encerrou a casa de B (`ended_by` = A).
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values
+  ('00000000-0000-0000-0000-0000000000a1', 'casa-exemplo-1', 'self', now()),
+  ('00000000-0000-0000-0000-0000000000a2', 'casa-exemplo-2', 'self', now());
+update public.house_members set left_at = now() where profile_id = '00000000-0000-0000-0000-0000000000a2';
 -- Auditoria antiga sobre A e sobre B.
 insert into public.audit_log (actor_id, event, target_id, reason) values
   ('00000000-0000-0000-0000-0000000000a2', 'access_granted', '00000000-0000-0000-0000-0000000000a1', 'manual'),
@@ -284,6 +289,12 @@ select is(
 select is(
   (select (left_at is not null) from public.unit_members where profile_id = '00000000-0000-0000-0000-0000000000a2'),
   true, 'o vínculo de B continua encerrado');
+select is(
+  (select ended_by from public.house_members where profile_id = '00000000-0000-0000-0000-0000000000a2'),
+  null, 'o vínculo de casa encerrado de B fica, sem a referência a A (ADR 0011)');
+select is(
+  (select (left_at is not null) from public.house_members where profile_id = '00000000-0000-0000-0000-0000000000a2'),
+  true, 'o vínculo de casa de B continua encerrado');
 select is((select count(*)::int from auth.audit_log_entries where payload::text like '%b@exemplo.org%'), 1,
   'o rastro do GoTrue de B fica');
 

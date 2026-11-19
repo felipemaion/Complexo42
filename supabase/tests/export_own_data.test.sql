@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(23);
+select plan(28);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -69,6 +69,15 @@ set local request.jwt.claims to '{"role": "anon"}';
 select throws_ok($$ select public.export_own_data() $$, '42501', null,
   'visitante anônimo NÃO exporta');
 
+-- Casa e termo do questionário (#132): A aceita o termo e a casa pelo questionário; B escolhe
+-- outra casa direto. Os eventos de B não podem ir para o arquivo de A.
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000a2');
+select public.accept_house('casa-exemplo-2', 'self', null);
+select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
+select public.record_questionnaire_consent('termo-exemplo-1');
+select public.accept_house('casa-exemplo-1', 'questionnaire', 'termo-exemplo-1');
+
 -- ---------------------------------------------------------------------------------------
 -- A exporta
 -- ---------------------------------------------------------------------------------------
@@ -115,8 +124,36 @@ select ok(
 select is(
   (select jsonb_agg(e->>'event' || '/' || coalesce(e->>'reason', '-'))
    from out_a, jsonb_array_elements(d->'audit_events') as e),
-  '["access_granted/manual", "data_exported/-"]'::jsonb,
-  'auditoria só sobre A, incluindo a própria exportação'
+  '["access_granted/manual", "questionnaire_consented/-", "house_accepted/questionnaire", "data_exported/-"]'::jsonb,
+  'auditoria sobre A, os próprios eventos de casa e do termo (#132) e a própria exportação'
+);
+select is(
+  (select jsonb_agg(jsonb_build_object('e', e->>'event', 't', e->'term_version', 'h', e->'house_key')
+                    order by e->>'event')
+   from out_a, jsonb_array_elements(d->'audit_events') as e
+   where e->>'event' in ('house_accepted', 'questionnaire_consented')),
+  '[{"e": "house_accepted", "t": "termo-exemplo-1", "h": "casa-exemplo-1"},
+    {"e": "questionnaire_consented", "t": "termo-exemplo-1", "h": null}]'::jsonb,
+  'os eventos de casa trazem a versão do termo e a casa (#132)'
+);
+select is(
+  (select jsonb_agg(h - 'joined_at' - 'accepted_at') from out_a, jsonb_array_elements(d->'house_memberships') as h),
+  '[{"house_key": "casa-exemplo-1", "join_method": "questionnaire", "consent_version": "termo-exemplo-1", "left_at": null}]'::jsonb,
+  'o vínculo de casa de A vai no arquivo, com a forma e a versão do termo'
+);
+select ok(
+  (select h->>'accepted_at' is not null and h->>'joined_at' is not null
+   from out_a, jsonb_array_elements(d->'house_memberships') as h),
+  'com as datas de entrada e de aceite'
+);
+select is(
+  (select jsonb_agg(q->>'term_version') from out_a, jsonb_array_elements(d->'questionnaire_consents') as q),
+  '["termo-exemplo-1"]'::jsonb,
+  'o aceite do termo do questionário de A vai no arquivo'
+);
+select ok(
+  (select d::text not like '%casa-exemplo-2%' from out_a),
+  'a casa de B não aparece no arquivo de A'
 );
 select ok(
   (select d::text not like '%' || pg_temp.enc('NomeB') || '%'
@@ -151,9 +188,10 @@ select is(
 -- Quem ainda não tem perfil recebe a estrutura vazia.
 select pg_temp.login('00000000-0000-0000-0000-0000000000a3');
 select is(
-  (select jsonb_build_array(d->'profile', d->'contact', d->'memberships', d->'roles')
+  (select jsonb_build_array(d->'profile', d->'contact', d->'memberships', d->'roles',
+                            d->'house_memberships', d->'questionnaire_consents')
    from pg_temp.export() as d),
-  '[null, null, [], []]'::jsonb,
+  '[null, null, [], [], [], []]'::jsonb,
   'sem perfil: estrutura vazia, sem dados de ninguém'
 );
 

@@ -50,6 +50,7 @@ export async function exportOwnData(
     loginEmail: user.email,
     generatedAt: at,
     description: instance.myData.fileDescription,
+    houseNames: Object.fromEntries(instance.houses.map((h) => [h.id, h.name])),
     decrypt: deps.decrypt,
     onDecryptError: (column) => deps.log.warn("data_export_decrypt_failed", { column }),
   });
