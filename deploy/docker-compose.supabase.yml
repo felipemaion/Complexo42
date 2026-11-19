@@ -42,7 +42,12 @@ services:
       - -c
       - max_connections=60
     environment:
+      # UMA SENHA POR PAPEL (#95). O `db` recebe as tres porque e ele quem cria
+      # os papeis no initdb (02-roles.sh). Os outros servicos recebem SO a sua:
+      # assim, vazar o ambiente do rest ou do auth nao da superusuario.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?obrigatorio}
+      AUTHENTICATOR_PASSWORD: ${AUTHENTICATOR_PASSWORD:?obrigatorio}
+      AUTH_ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD:?obrigatorio}
       POSTGRES_DB: postgres
     volumes:
       - db-dados:/var/lib/postgresql/data
@@ -74,7 +79,7 @@ services:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: "9999"
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${AUTH_ADMIN_PASSWORD:?obrigatorio}@db:5432/postgres
       # Sem API_EXTERNAL_URL o GoTrue morre no boot: "required key
       # API_EXTERNAL_URL missing value". A chave NAO tem o prefixo GOTRUE_.
       API_EXTERNAL_URL: ${SITE_URL:?obrigatorio}
@@ -112,7 +117,7 @@ services:
     depends_on:
       db: { condition: service_healthy }
     environment:
-      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:?}@db:5432/postgres
+      PGRST_DB_URI: postgres://authenticator:${AUTHENTICATOR_PASSWORD:?obrigatorio}@db:5432/postgres
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET:?}
@@ -166,6 +171,9 @@ services:
           - ${KONG_ALIAS:?obrigatorio}
 
   # ─── perfil admin: NUNCA publicado, acesso só por túnel SSH ───
+  # studio e meta seguem com a senha do supabase_admin de proposito: a funcao
+  # deles e administrar o banco. Mitigacao: perfil `admin`, so sobem sob demanda
+  # e so por tunel SSH (ver OPERACAO.md). Nao ficam no ar como rest e auth.
   studio:
     <<: *comum
     profiles: ["admin"]

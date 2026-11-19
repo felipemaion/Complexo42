@@ -11,6 +11,11 @@ set -euo pipefail
 SUPER=${POSTGRES_USER:-supabase_admin}
 BANCO=${POSTGRES_DB:-postgres}
 
+# Uma senha por papel (#95). Falha ja aqui se faltar alguma: melhor o volume
+# nao nascer do que nascer com papel sem senha ou com a senha errada.
+: "${AUTHENTICATOR_PASSWORD:?falta AUTHENTICATOR_PASSWORD no ambiente do db}"
+: "${AUTH_ADMIN_PASSWORD:?falta AUTH_ADMIN_PASSWORD no ambiente do db}"
+
 # Papéis sem senha primeiro: se algo aqui falhar, a mensagem de erro não
 # carrega credencial para o log do container.
 psql -v ON_ERROR_STOP=1 --username "$SUPER" --dbname "$BANCO" <<'SQL'
@@ -18,6 +23,12 @@ psql -v ON_ERROR_STOP=1 --username "$SUPER" --dbname "$BANCO" <<'SQL'
 -- cria esse papel (so o supabase_admin). Sem ele, a migration
 -- 20240612123726_enable_rls_update_grants falha com
 -- 'role "postgres" does not exist' e o auth nao sobe. Medido em 2026-11-19.
+--
+-- NOLOGIN e DEFINITIVO (#95): as migrations precisam que o papel EXISTA, nao
+-- que ele se conecte. O job de migrations (#81) entra como supabase_admin, com
+-- a POSTGRES_PASSWORD. Se algum dia um job precisar conectar como `postgres`,
+-- o certo e dar a ele uma senha PROPRIA -- ver "Senhas por papel" em
+-- docs/OPERACAO.md --, nunca reaproveitar a do superusuario.
 CREATE ROLE postgres SUPERUSER CREATEDB CREATEROLE NOLOGIN;
 
 CREATE ROLE anon          NOLOGIN NOINHERIT;
@@ -36,12 +47,15 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT ON TABLES TO anon, authenticated, service_role;
 SQL
 
-# Só agora as senhas, em statements separados e mínimos.
+# Só agora as senhas, em statements separados e mínimos. Cada papel recebe a
+# SUA senha: a do superusuário (POSTGRES_PASSWORD, que a imagem já aplicou ao
+# supabase_admin) não aparece aqui de propósito.
 psql -v ON_ERROR_STOP=1 --username "$SUPER" --dbname "$BANCO" \
-     -v senha="$POSTGRES_PASSWORD" <<'SQL'
-ALTER ROLE postgres            WITH LOGIN PASSWORD :'senha';
-ALTER ROLE authenticator       WITH LOGIN PASSWORD :'senha';
-ALTER ROLE supabase_auth_admin WITH LOGIN PASSWORD :'senha';
+     -v autenticador="$AUTHENTICATOR_PASSWORD" \
+     -v admin_auth="$AUTH_ADMIN_PASSWORD" <<'SQL'
+ALTER ROLE authenticator       WITH LOGIN PASSWORD :'autenticador';
+ALTER ROLE supabase_auth_admin WITH LOGIN PASSWORD :'admin_auth';
 SQL
 
-echo "papeis criados: postgres, anon, authenticated, service_role, authenticator, supabase_auth_admin"
+echo "papeis criados: postgres (NOLOGIN), anon, authenticated, service_role, authenticator, supabase_auth_admin"
+echo "senhas: uma por papel (#95); o superusuario nao foi compartilhado"
