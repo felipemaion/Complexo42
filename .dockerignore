@@ -9,11 +9,16 @@ node_modules
 .next
 data
 coverage
+# De `supabase/` entram SO as migrations, que viajam na imagem e sao aplicadas
+# no deploy (#81). Excluimos os IRMAOS, um a um, em vez de excluir a pasta e
+# reincluir com `!supabase/migrations`: medido em 2026-11-19 que a negacao NAO
+# funciona depois de excluir o diretorio -- o Docker nao percorre o que ja
+# excluiu, e o build quebra com "/app/supabase/migrations: not found".
 supabase/.temp
-supabase
-# ...menos as migrations, que viajam NA IMAGEM e sao aplicadas no deploy (#81).
-# A ordem importa: a negacao tem de vir DEPOIS da exclusao do diretorio.
-!supabase/migrations
+supabase/config.toml
+supabase/seed.sql
+supabase/templates
+supabase/tests
 deploy
 docs
 scripts
