@@ -15,8 +15,8 @@ export type ProfileFormField = (typeof profileFormFields)[number];
 export type DistrictCatalog = (municipalityCode: number) => readonly string[] | undefined;
 
 /**
- * Versão do termo gravada na criação do perfil enquanto a tela do termo (#11) não existe:
- * deixa explícito que a pessoa ainda NÃO aceitou termo nenhum. A #11 troca pelo aceite real.
+ * Versão do termo de quem ainda não aceitou. É o que `save_own_profile` grava na criação; o
+ * formulário não envia versão nenhuma ao banco (só a função do aceite, #11, a avança).
  */
 export const consentNotYetGiven = "none";
 

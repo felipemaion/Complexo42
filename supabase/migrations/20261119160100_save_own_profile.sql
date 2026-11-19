@@ -13,8 +13,11 @@
 --    (R15), e confere o formato de cada valor antes de gravar.
 -- 3. WhatsApp repetido (`whatsapp_hmac` único) devolve o erro 23505 com mensagem fixa, sem o
 --    detalhe do Postgres (que traria o HMAC).
--- 4. `consent_version` só é gravado na criação do perfil. Mudar a versão (novo aceite) é do
---    fluxo do termo (#11), não deste formulário.
+-- 4. Termo de consentimento: a função NÃO recebe a versão. Na criação grava sempre `none`
+--    (ainda sem aceite) e na edição nunca mexe nela. Só a função do aceite (#11) avança a
+--    versão, derivada no servidor: se o cliente escolhesse, quem chamasse a RPC direto
+--    forjaria um aceite com `consent_at` carimbado (revisão do PR #125, LGPD).
+--    `status` e `access_status` também nunca são tocados aqui.
 --
 -- Risco residual (aceito e documentado no PR): a pessoa ainda pode chamar a função direto,
 -- com o próprio JWT, e gravar no PRÓPRIO perfil um valor no formato certo mas que não decifra
@@ -28,7 +31,6 @@ create or replace function public.save_own_profile(
   p_display_name_enc text,
   p_municipality_code integer,
   p_district text,
-  p_consent_version text,
   p_whatsapp_enc text,
   p_whatsapp_hmac text,
   p_social_links_enc text default null
@@ -61,15 +63,12 @@ begin
   if p_social_links_enc is not null and not app.is_encrypted_value(p_social_links_enc, 4096) then
     raise exception 'redes em formato inválido' using errcode = 'invalid_parameter_value';
   end if;
-  if p_consent_version is null or p_consent_version !~ '^[A-Za-z0-9._-]{1,32}$' then
-    raise exception 'versão do termo em formato inválido' using errcode = 'invalid_parameter_value';
-  end if;
   if p_municipality_code is null then
     raise exception 'município obrigatório' using errcode = 'invalid_parameter_value';
   end if;
 
   insert into public.profiles (id, display_name_enc, municipality_code, district, consent_version)
-  values (caller, p_display_name_enc, p_municipality_code, p_district, p_consent_version)
+  values (caller, p_display_name_enc, p_municipality_code, p_district, 'none')
   on conflict (id) do update
     set display_name_enc = excluded.display_name_enc,
         municipality_code = excluded.municipality_code,
@@ -90,12 +89,12 @@ begin
 end;
 $$;
 
-comment on function public.save_own_profile(text, integer, text, text, text, text, text) is
+comment on function public.save_own_profile(text, integer, text, text, text, text) is
   'Única escrita de perfil e contato pela API: só a própria linha, valores já cifrados pelo servidor.';
 
-revoke execute on function public.save_own_profile(text, integer, text, text, text, text, text)
+revoke execute on function public.save_own_profile(text, integer, text, text, text, text)
   from public, anon;
-grant execute on function public.save_own_profile(text, integer, text, text, text, text, text)
+grant execute on function public.save_own_profile(text, integer, text, text, text, text)
   to authenticated;
 
 -- Revogar no nível da tabela também revoga os grants de coluna (INSERT/UPDATE).

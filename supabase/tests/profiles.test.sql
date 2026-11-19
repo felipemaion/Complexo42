@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(67);
+select plan(68);
 
 -- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
 create function pg_temp.enc(p_tag text) returns text language sql as $$
@@ -166,13 +166,12 @@ select throws_ok(
 create function pg_temp.save(
   p_name text, p_whatsapp_hmac text,
   p_municipality int default 3550308, p_district text default null,
-  p_consent text default 'v1', p_whatsapp text default null, p_links text default null
+  p_whatsapp text default null, p_links text default null
 ) returns void language sql as $$
   select public.save_own_profile(
     p_display_name_enc => p_name,
     p_municipality_code => p_municipality,
     p_district => p_district,
-    p_consent_version => p_consent,
     p_whatsapp_enc => coalesce(p_whatsapp, pg_temp.enc('wa')),
     p_whatsapp_hmac => p_whatsapp_hmac,
     p_social_links_enc => p_links
@@ -219,8 +218,18 @@ select is_empty(
 );
 select results_eq(
   $$ select status, access_status, state_code::text, consent_version from public.profiles $$,
-  $$ values ('pending', 'pending', 'SP', 'v1') $$,
-  'o perfil nasce pendente, com a UF do município, e é o único que ela lê'
+  $$ values ('pending', 'pending', 'SP', 'none') $$,
+  'o perfil nasce pendente, com a UF do município, sem aceite do termo (none), e é o único que ela lê'
+);
+-- Revisão do PR #125: a versão do termo não vem do cliente. Chamar a RPC direto pedindo
+-- outra versão não acha a função; nem a criação nem a edição a mudam.
+select throws_ok(
+  $$ select public.save_own_profile(
+       p_display_name_enc => pg_temp.enc('b1'), p_municipality_code => 3550308,
+       p_district => null, p_consent_version => 'v1',
+       p_whatsapp_enc => pg_temp.enc('wa'), p_whatsapp_hmac => repeat('a', 64)) $$,
+  '42883', null,
+  'chamar a RPC direto NÃO define a versão do termo (o parâmetro não existe)'
 );
 select results_eq(
   $$ select profile_id, whatsapp_hmac, social_links_enc from public.profile_contacts $$,
@@ -234,7 +243,7 @@ select is_empty(
 
 -- Edição pela função: troca nome, município, distrito e WhatsApp; o termo não muda aqui.
 select lives_ok(
-  $$ select pg_temp.save(pg_temp.enc('b1novo'), repeat('9', 64), 3106200, null, 'v2',
+  $$ select pg_temp.save(pg_temp.enc('b1novo'), repeat('9', 64), 3106200, null,
                          pg_temp.enc('w1novo'), pg_temp.enc('links')) $$,
   'a pessoa edita o próprio perfil e contato pela função'
 );
@@ -242,7 +251,7 @@ select results_eq(
   $$ select p.display_name_enc, p.state_code::text, p.district, p.consent_version,
             c.whatsapp_enc, c.whatsapp_hmac, c.social_links_enc
      from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id $$,
-  $$ values (pg_temp.enc('b1novo'), 'MG', null::text, 'v1',
+  $$ values (pg_temp.enc('b1novo'), 'MG', null::text, 'none',
              pg_temp.enc('w1novo'), repeat('9', 64), pg_temp.enc('links')) $$,
   'a edição foi gravada, a UF foi recalculada e a versão do termo NÃO mudou (é do fluxo do termo)'
 );
@@ -284,8 +293,6 @@ select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), null) $$,
 select throws_ok(
   $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), p_links => '["https://exemplo.org"]') $$,
   '22023', 'redes em formato inválido', 'função recusa redes em texto puro');
-select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), p_consent => 'versão 1') $$,
-  '22023', 'versão do termo em formato inválido', 'função recusa versão do termo fora do formato');
 select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), null) $$,
   '22023', 'município obrigatório', 'função recusa município nulo');
 select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 1234567) $$,
@@ -370,6 +377,11 @@ select is_empty(
 );
 select lives_ok($$ select pg_temp.save(pg_temp.enc('b4'), repeat('d', 64)) $$,
   'quem está na espera completa o próprio cadastro');
+select results_eq(
+  $$ select access_status, status, consent_version from public.profiles $$,
+  $$ values ('waitlisted', 'pending', 'v1') $$,
+  'quem está na espera, ao salvar pela RPC, NÃO muda o próprio access_status, status nem termo'
+);
 
 -- Conta suspensa: lê o próprio perfil, mas não edita nem cadastra contato.
 select pg_temp.login('00000000-0000-0000-0000-0000000000b5');
@@ -431,9 +443,9 @@ select is_empty(
 );
 select ok(
   has_function_privilege('authenticated',
-    'public.save_own_profile(text, integer, text, text, text, text, text)', 'execute')
+    'public.save_own_profile(text, integer, text, text, text, text)', 'execute')
   and not has_function_privilege('anon',
-    'public.save_own_profile(text, integer, text, text, text, text, text)', 'execute'),
+    'public.save_own_profile(text, integer, text, text, text, text)', 'execute'),
   'a função de gravar perfil é de quem está logado; visitante anônimo não executa'
 );
 

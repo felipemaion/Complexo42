@@ -75,10 +75,11 @@ describe("saveOwnProfile", () => {
     expect(args).toMatchObject({
       p_municipality_code: SP,
       p_district: "Sé",
-      p_consent_version: "none",
       p_social_links_enc: null,
       p_whatsapp_hmac: await whatsappBlindIndexWith(await keyring, PHONE),
     });
+    // A versão do termo não sai do servidor: o banco grava `none` (revisão do PR #125).
+    expect(args).not.toHaveProperty("p_consent_version");
     // Decifra só com o contexto certo (tabela.coluna.id da pessoa).
     const name = args.p_display_name_enc as string;
     const phone = args.p_whatsapp_enc as string;

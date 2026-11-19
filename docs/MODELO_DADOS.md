@@ -121,7 +121,7 @@ com a lista importada.
 | `district` | text null | distrito, só para município com lista em `config/districts.ts` (hoje a capital paulista, 96 distritos do IBGE); nulo nos demais (2 a 60 caracteres) |
 | `status` | text | `pending`, `active`, `suspended` |
 | `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
-| `consent_version`, `consent_at` | text, timestamptz | `consent_at` gravado pelo trigger quando a versão muda. Até a tela do termo (#11), o formulário grava `none` (ainda sem aceite) |
+| `consent_version`, `consent_at` | text, timestamptz | `consent_at` gravado pelo trigger quando a versão muda. O perfil nasce com `none` (ainda sem aceite); só a função do aceite (#11) muda |
 | `created_at`, `updated_at` | timestamptz | gravados pelo trigger |
 
 O papel **não** fica no perfil: fica em `role_assignments`.
@@ -129,8 +129,9 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 - **O titular** cria e edita só o próprio perfil e o próprio contato, e **só pela função
   `public.save_own_profile`** (#12), que o servidor chama com os valores já cifrados e o HMAC
   calculado no servidor. `profiles` e `profile_contacts` não têm grant de INSERT/UPDATE para a
-  API. A função grava `display_name_enc`, `municipality_code`, `district` e o contato; o
-  `consent_version` só na criação. Perfil `blocked` ou com conta `suspended` não edita (mas lê o
+  API. A função grava `display_name_enc`, `municipality_code`, `district` e o contato. Ela não
+  recebe a versão do termo: cria o perfil com `consent_version = 'none'` e nunca a altera (só a
+  função do aceite, #11, avança a versão, derivada no servidor). Perfil `blocked` ou com conta `suspended` não edita (mas lê o
   próprio). WhatsApp repetido volta como erro 23505 com mensagem fixa, sem dizer de quem é.
 - **Terceiros** (escopo, via `app.can_view_profile`) só enxergam perfis com `access_status` e
   `status` = `active` (`app.is_active_profile`).

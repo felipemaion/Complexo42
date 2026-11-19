@@ -55,7 +55,7 @@ export async function saveOwnProfile(
       p_display_name_enc: await deps.encrypt(profile.displayName, { table: "profiles", column: "display_name_enc", rowId }),
       p_municipality_code: profile.municipalityCode,
       p_district: profile.district,
-      p_consent_version: profile.consentVersion,
+      // Sem versão do termo: o banco grava `none` e só o aceite (#11) a avança (revisão do #125).
       p_whatsapp_enc: await deps.encrypt(contact.whatsapp, { table: "profile_contacts", column: "whatsapp_enc", rowId }),
       p_whatsapp_hmac: await deps.blindIndex(contact.whatsapp),
       // Redes sociais entram com a #17; até lá, sem links.

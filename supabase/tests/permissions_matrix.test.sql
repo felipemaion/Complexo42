@@ -890,7 +890,7 @@ select throws_ok(
 select lives_ok(
   $$ select public.save_own_profile(
        p_display_name_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
-       p_municipality_code => 3304557, p_district => 'Centro', p_consent_version => 'v1',
+       p_municipality_code => 3304557, p_district => 'Centro',
        p_whatsapp_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
        p_whatsapp_hmac => repeat('d', 64)) $$,
   'coordenador grava pela função: só alcança o próprio perfil'
