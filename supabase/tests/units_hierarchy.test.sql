@@ -8,8 +8,22 @@ select plan(33);
 
 truncate public.role_assignments, public.unit_members, public.units;
 
-create function pg_temp.unit(p_path text) returns uuid language sql as $$
-  select id from public.units where path = p_path::extensions.ltree
+-- Este arquivo não troca de papel (roda todo como dono do banco), então a busca pode ser
+-- feita na hora: os caminhos mudam quando a árvore é movida. Caminho desconhecido falha
+-- (P0002) em vez de devolver nulo; `null` continua valendo "sem pai" (#113).
+create function pg_temp.unit(p_path text) returns uuid language plpgsql as $$
+declare
+  found_id uuid;
+begin
+  if p_path is null then
+    return null;
+  end if;
+  select id into found_id from public.units where path = p_path::extensions.ltree;
+  if found_id is null then
+    raise exception 'unidade de teste desconhecida: %', p_path using errcode = 'no_data_found';
+  end if;
+  return found_id;
+end;
 $$;
 create function pg_temp.add_unit(p_type text, p_parent text, p_slug text, p_state char(2) default null)
 returns uuid language sql as $$

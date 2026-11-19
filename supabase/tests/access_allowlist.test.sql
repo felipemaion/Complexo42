@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(125);
+select plan(127);
 
 -- HMAC fictício (64 hex): o banco não calcula o HMAC de verdade, só guarda e compara.
 create function pg_temp.h(p_tag text) returns text language sql as $$
@@ -20,7 +20,9 @@ $$;
 select set_config('test.br', (select id::text from public.units where path = 'br'), true),
        set_config('test.sp', (select id::text from public.units where path = 'br.sp'), true),
        set_config('test.mg', (select id::text from public.units where path = 'br.mg'), true);
-select isnt(current_setting('test.sp', true), null, 'unidade de SP do seed encontrada');
+select isnt(nullif(current_setting('test.br', true), ''), null, 'unidade raiz do seed encontrada');
+select isnt(nullif(current_setting('test.sp', true), ''), null, 'unidade de SP do seed encontrada');
+select isnt(nullif(current_setting('test.mg', true), ''), null, 'unidade de MG do seed encontrada');
 
 create temp table people (name text primary key, id uuid not null unique);
 insert into people values
@@ -39,8 +41,18 @@ insert into people values
   ('noprof',   '00000000-0000-0000-0000-0000000000cd');  -- logado, ainda sem perfil
 insert into auth.users (id) select id from people;
 
-create function pg_temp.person(p_name text) returns uuid language sql as $$
-  select id from people where name = p_name
+-- Nome desconhecido falha (P0002) em vez de devolver nulo: um id nulo faria o teste negar o
+-- acesso pelo motivo errado (#113).
+create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
+declare
+  found_id uuid;
+begin
+  select id into found_id from people where name = p_name;
+  if found_id is null then
+    raise exception 'pessoa de teste desconhecida: %', p_name using errcode = 'no_data_found';
+  end if;
+  return found_id;
+end;
 $$;
 create function pg_temp.login(p_name text) returns void language sql as $$
   select set_config('request.jwt.claims',
