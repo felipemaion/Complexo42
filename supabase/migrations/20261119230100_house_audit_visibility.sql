@@ -10,7 +10,10 @@
 --      território, enquanto a pessoa estiver nessa casa (`app.is_house_coordinator_of` e a casa
 --      aberta igual à do registro).
 --    - Novo: a pessoa lê os próprios `house_accepted` e `questionnaire_consented` (ela é o ator).
---    `questionnaire_consented` não tem alvo: a coordenação não lê o aceite do termo.
+--    `questionnaire_consented` não tem alvo: a coordenação não lê esse evento. Mas quem lê um
+--    `house_accepted` vê a linha inteira, inclusive a forma de entrada (`reason`) e, pelo
+--    questionário, a versão do termo (`term_version`), como já acontecia pelo caminho
+--    territorial: a coordenação sabe que a pessoa aceitou o termo daquela versão.
 --    Quem não está ativo não lê nada (nem os próprios; a guarda é a mesma de antes).
 -- 2. `export_own_data()` (#20) passa a trazer:
 --    - em `audit_events`, também os eventos em que a pessoa é o ator de `house_accepted` e

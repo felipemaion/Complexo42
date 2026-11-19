@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(77);
+select plan(89);
 
 truncate public.role_assignments, public.unit_members, public.house_members, public.units;
 
@@ -74,7 +74,9 @@ insert into people values
   ('p_q',       '00000000-0000-0000-0000-0000000000b9'),  -- equipe A, vai pelo questionário
   ('p_removed', '00000000-0000-0000-0000-0000000000bb'),  -- equipe A; a coordenação tira da casa
   ('p_self',    '00000000-0000-0000-0000-0000000000bc'),  -- equipe A; casa encerrada por ela mesma
-  ('coord',     '00000000-0000-0000-0000-0000000000bd');  -- coordenador da casa X no ABC
+  ('coord',     '00000000-0000-0000-0000-0000000000bd'),  -- coordenador da casa X no ABC (equipe A)
+  ('coord2',    '00000000-0000-0000-0000-0000000000be'),  -- outro coordenador da casa X; exclui a conta
+  ('p_removed2','00000000-0000-0000-0000-0000000000bf');  -- equipe A; tirada da casa por coord2
 grant select on people to authenticated;
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
 declare
@@ -113,9 +115,11 @@ from (values ('br.sp.abc.team_a', 'p_team'), ('br.sp.zl.team_z', 'p_zl'),
              ('br.mg.central.team_m', 'p_mg'), ('br.sp.abc.team_a', 'p_open'),
              ('br.sp.abc.team_a', 'p_q'), ('br.sp.abc.team_a', 'p_removed'),
              ('br.sp.abc.team_a', 'p_self'), ('br.sp.abc.team_a', 'p_wait'),
-             ('br.sp.abc.team_a', 'p_pend')) as u(path, name);
-insert into public.role_assignments (profile_id, role, unit_id, house_key)
-values (pg_temp.person('coord'), 'house_coordinator', pg_temp.unit('br.sp.abc'), 'casa-x');
+             ('br.sp.abc.team_a', 'p_pend'), ('br.sp.abc.team_a', 'coord'),
+             ('br.sp.abc.team_a', 'p_removed2')) as u(path, name);
+insert into public.role_assignments (profile_id, role, unit_id, house_key) values
+  (pg_temp.person('coord'), 'house_coordinator', pg_temp.unit('br.sp.abc'), 'casa-x'),
+  (pg_temp.person('coord2'), 'house_coordinator', pg_temp.unit('br.sp.abc'), 'casa-x');
 -- Casa aberta e ainda sem aceite (vinda de outro fluxo).
 insert into public.house_members (profile_id, house_key, join_method)
 values (pg_temp.person('p_open'), 'casa-y', 'self');
@@ -161,6 +165,12 @@ select throws_ok(
   '23502', null,
   'a forma de entrada é obrigatória'
 );
+select has_index('public', 'house_members', 'house_members_profile_id_idx', array['profile_id'],
+  'índice completo em house_members(profile_id) (histórico, exportação, exclusão)');
+select has_index('public', 'house_members', 'house_members_ended_by_idx', array['ended_by'],
+  'índice em house_members(ended_by) (cascata on delete set null)');
+select has_index('public', 'role_assignments', 'role_assignments_house_key_idx', array['house_key'],
+  'índice em role_assignments(house_key) (FK para houses)');
 select hasnt_function('app', 'region_anchor', array['uuid'],
   'a regra de região da casa (#76) não existe mais (ADR 0011)');
 select hasnt_function('app', 'house_unit_for', array['uuid', 'text'],
@@ -190,14 +200,27 @@ select set_eq(
   array['casa-y'],
   'a pessoa tem uma só casa, e lê o próprio vínculo'
 );
+-- Casa desativada depois do aceite: o clique repetido continua devolvendo o mesmo vínculo (L2).
+reset role;
+update public.houses set active = false where key = 'casa-y';
+set local role authenticated;
+select pg_temp.login('p_team');
+select is(public.accept_house('casa-y', 'self', null),
+  (select id from public.house_members where left_at is null),
+  'casa desativada depois do aceite: repetir o aceite devolve o mesmo vínculo (idempotente)');
+select throws_ok($$ select public.accept_house('casa-z', 'self', null) $$, '23505', null,
+  'com a casa já aceita, outra casa (mesmo inexistente) é recusada como troca');
+reset role;
+update public.houses set active = true where key = 'casa-y';
+set local role authenticated;
+
+select pg_temp.login('p_mg');
 select throws_ok($$ select public.accept_house('casa-z', 'self', null) $$, 'P0002', null,
   'casa inexistente é recusada');
 select throws_ok($$ select public.accept_house('Casa X', 'self', null) $$, 'P0002', null,
   'id em formato inválido é recusado');
 select throws_ok($$ select public.accept_house(null, 'self', null) $$, 'P0002', null,
   'id nulo é recusado');
-
-select pg_temp.login('p_mg');
 select throws_ok($$ select public.accept_house('casa-off', 'self', null) $$, 'P0002', null,
   'casa inativa é recusada');
 select throws_ok($$ select public.accept_house('casa-x', 'manual', null) $$, '22023', null,
@@ -250,6 +273,38 @@ select lives_ok(
      where profile_id = pg_temp.person('p_zl') $$,
   'o coordenador da casa X no ABC tenta encerrar o vínculo de quem é da Zona Leste: nada é alcançado'
 );
+select pg_temp.login('coord');
+select isnt(public.accept_house('casa-x', 'self', null), null,
+  'o coordenador da casa X também é membro da casa X');
+select lives_ok(
+  $$ update public.house_members set left_at = now() where profile_id = (select auth.uid()) $$,
+  'o coordenador tenta encerrar o próprio vínculo de casa: não alcança linha nenhuma (L5)'
+);
+select is(
+  (select count(*)::int from public.house_members where profile_id = (select auth.uid()) and left_at is null),
+  1,
+  'o coordenador continua lendo o próprio vínculo aberto'
+);
+select pg_temp.login('p_removed2');
+select isnt(public.accept_house('casa-x', 'self', null), null, 'p_removed2 aceita a casa X');
+select pg_temp.login('coord2');
+select lives_ok(
+  $$ update public.house_members set left_at = now() where profile_id = pg_temp.person('p_removed2') $$,
+  'coord2 encerra o vínculo de p_removed2'
+);
+-- coord2 exclui a conta: ended_by vira nulo (on delete set null), e a volta continua bloqueada.
+reset role;
+delete from auth.users where id = pg_temp.person('coord2');
+select is(
+  (select ended_by from public.house_members where profile_id = pg_temp.person('p_removed2')),
+  null,
+  'quem removeu excluiu a conta: ended_by fica nulo'
+);
+set local role authenticated;
+select pg_temp.login('p_removed2');
+select throws_ok($$ select public.accept_house('casa-x', 'self', null) $$, 'C7602', null,
+  'mesmo com ended_by nulo (quem removeu excluiu a conta), a pessoa NÃO volta sozinha');
+
 select pg_temp.login('p_removed');
 select throws_ok($$ select public.accept_house('casa-x', 'self', null) $$, 'C7602', null,
   'tirada pela coordenação, a pessoa NÃO volta sozinha para a mesma casa');
@@ -345,7 +400,8 @@ select results_eq(
      join people p on p.id = h.profile_id
      where h.left_at is null and h.accepted_at is not null
      order by p.name $$,
-  $$ values ('p_mg'::text, 'casa-x'::text, 'self'::text, null::text),
+  $$ values ('coord'::text, 'casa-x'::text, 'self'::text, null::text),
+            ('p_mg', 'casa-x', 'self', null),
             ('p_open', 'casa-x', 'self', null),
             ('p_q', 'casa-x', 'questionnaire', 'termo-1'),
             ('p_self', 'casa-x', 'self', null),
@@ -388,10 +444,12 @@ select results_eq(
   $$ select p.name, a.target_id = a.actor_id, a.house_key, a.reason, a.term_version
      from public.audit_log a join people p on p.id = a.actor_id
      where a.event = 'house_accepted' order by p.name, a.id $$,
-  $$ values ('p_mg'::text, true, 'casa-x'::text, 'self'::text, null::text),
+  $$ values ('coord'::text, true, 'casa-x'::text, 'self'::text, null::text),
+            ('p_mg', true, 'casa-x', 'self', null),
             ('p_open', true, 'casa-x', 'self', null),
             ('p_q', true, 'casa-x', 'questionnaire', 'termo-1'),
             ('p_removed', true, 'casa-x', 'self', null),
+            ('p_removed2', true, 'casa-x', 'self', null),
             ('p_self', true, 'casa-x', 'self', null),
             ('p_state', true, 'casa-x', 'self', null),
             ('p_team', true, 'casa-y', 'self', null),

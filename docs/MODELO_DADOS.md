@@ -246,7 +246,8 @@ guarda-se só a casa sugerida.
 - **Quem lê e encerra** (RLS): a pessoa lê os próprios vínculos; a coordenação territorial
   (monitor ou manager acima do vínculo de território da pessoa) e o coordenador da casa aberta
   da pessoa, dentro do seu território, leem os vínculos aceitos de perfis ativos e podem
-  encerrar o aberto (`left_at`, a única coluna com grant de escrita).
+  encerrar o aberto (`left_at`, a única coluna com grant de escrita). Nunca o próprio vínculo:
+  quem coordena não encerra a própria casa.
 - **`ended_by`**: quem gravou `left_at` (trigger; nulo em operação direta no banco). Se outra
   pessoa encerrou o vínculo de casa, a pessoa não volta sozinha, nem para a mesma casa nem para
   outra (erro C7602): a volta é decisão da coordenação.
@@ -278,7 +279,8 @@ por pessoa, papel, unidade e casa.
   estrutura do território (unidades abaixo e o caminho até a raiz). Vários por casa e por
   território. Concedido por um `manager` estritamente acima do território (como os outros
   papéis); na raiz (coordenador nacional de casa), pelo `manager` ativo da própria raiz, só
-  este papel (PR #141). Nunca a si mesmo, e só para casa ativa.
+  este papel (PR #141), que também o revoga mesmo sem ter concedido (por exemplo, quando quem
+  concedeu excluiu a conta). Nunca a si mesmo, e só para casa ativa.
 `unit_members.profile_id`, `role_assignments.profile_id` e `role_assignments.granted_by`
 apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo ou papel sem perfil.
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
@@ -346,7 +348,8 @@ respostas do questionário.
 casa)`): `allowlist_imported`, o gestor da raiz; eventos sobre uma pessoa, o gestor com escopo
 sobre ela; `house_accepted`, também o coordenador da casa do registro, dentro do seu território,
 enquanto a pessoa está nessa casa (#132); e a própria pessoa lê os seus `house_accepted` e
-`questionnaire_consented`. O aceite do termo não é lido pela coordenação. Ninguém grava, altera nem apaga pela API: só as funções do banco.
+`questionnaire_consented`. A coordenação não lê `questionnaire_consented`, mas o `house_accepted`
+que ela lê vai inteiro, com a forma de entrada e, pelo questionário, a versão do termo. Ninguém grava, altera nem apaga pela API: só as funções do banco.
 Um trigger recusa `UPDATE`, `DELETE` e `TRUNCATE` até para o dono do banco: o log só aceita
 inserções. `account_deleted` (#18): ator e alvo = o id da conta apagada, que fica como uuid solto
 em todos os eventos (veja "Excluir minha conta"). Limpeza (retenção, LGPD) precisa de migration própria que desligue o trigger de

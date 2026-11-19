@@ -16,7 +16,8 @@
 --    (obrigatória neste papel, nula nos outros). Vê as pessoas ATIVAS da casa, com vínculo de
 --    casa aberto e aceito, cujo vínculo de território (`unit_members`) está em `unit_id` ou
 --    abaixo. Vários por casa e por território. Concedido por um `manager` estritamente acima do
---    território (as regras do ADR 0002 para os outros papéis); ninguém concede a si mesmo.
+--    território (as regras do ADR 0002 para os outros papéis); na raiz (coordenador nacional),
+--    pelo manager ativo da própria raiz, que também o revoga. Ninguém concede a si mesmo.
 --    NÃO entra em `app.my_scopes`: não tem escopo territorial (não gerencia unidade, não vê quem
 --    é de outra casa, não decide acesso, não concede papel).
 -- 4. Funções de acesso: `can_view_profile`, `can_view_contact` (pelas funções isoladas da #119),
@@ -100,6 +101,10 @@ create unique index house_members_one_open_per_profile
   on public.house_members (profile_id) where left_at is null;
 create index house_members_house_open_idx
   on public.house_members (house_key) where left_at is null;
+-- Índices completos (revisão do #141): o histórico da pessoa (export, exclusão de conta, RLS) e
+-- a cascata `on delete set null` de `ended_by` quando quem encerrou exclui a conta.
+create index house_members_profile_id_idx on public.house_members (profile_id);
+create index house_members_ended_by_idx on public.house_members (ended_by);
 
 alter table public.house_members enable row level security;
 
@@ -154,6 +159,10 @@ create unique index role_assignments_one_active
   where revoked_at is null;
 
 grant insert (house_key) on public.role_assignments to authenticated;
+
+-- A FK `house_key` → houses (on delete restrict) e a busca dos coordenadores de uma casa.
+create index role_assignments_house_key_idx
+  on public.role_assignments (house_key) where house_key is not null;
 
 -- ---------------------------------------------------------------------------------------
 -- 4. Dados do modelo antigo (só se existirem)
@@ -382,7 +391,9 @@ $$;
 -- Quem chama coordena o vínculo de casa `house` de `target`? A coordenação territorial
 -- (monitor ou manager acima do vínculo de território de `target`, de qualquer casa; ADR 0011
 -- §4) ou o coordenador da casa ABERTA de `target` no território, e só para essa casa (o
--- histórico de outra casa não aparece). Serve às políticas de `house_members`.
+-- histórico de outra casa não aparece). Nunca sobre si mesmo (como `manages_member`): a pessoa
+-- lê o próprio vínculo pela política, mas não encerra a própria casa como coordenação. Serve às
+-- políticas de `house_members`.
 create or replace function app.can_manage_house_member(target uuid, house text)
 returns boolean
 language sql
@@ -391,6 +402,8 @@ security definer
 set search_path = ''
 as $$
   select app.is_active_member()
+    and target is not null
+    and target <> (select auth.uid())
     and app.is_active_profile(target)
     and (
       exists (
@@ -588,6 +601,38 @@ as $$
   select exists (select 1 from public.houses as h where h.key = house and h.active);
 $$;
 
+-- Revogar (revisão do #141, M1): as regras de `can_revoke_role(unit, granter)` (quem concedeu;
+-- manager estritamente acima) e, só para `house_coordinator` na raiz, o manager ativo da raiz.
+-- Sem isso, o coordenador nacional de casa ficaria sem quem o revogasse pela API quando quem o
+-- concedeu sai ou exclui a conta (`granted_by` nulo): não há ninguém acima da raiz.
+create or replace function app.can_revoke_role(target_unit uuid, granter uuid, role text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select app.can_revoke_role(target_unit, granter)
+    or (
+      can_revoke_role.role = 'house_coordinator'
+      and exists (
+        select 1 from public.units as u
+        where u.id = target_unit and u.parent_id is null
+      )
+      and app.manages_root()
+    );
+$$;
+
+comment on function app.can_revoke_role(uuid, uuid, text) is
+  'Pode revogar o papel `role` na unidade, concedido por `granter`? Regra geral e, na raiz, o coordenador de casa pelo manager ativo da raiz (#141).';
+
+revoke execute on function app.can_revoke_role(uuid, uuid, text) from public, anon;
+grant execute on function app.can_revoke_role(uuid, uuid, text) to authenticated;
+
+alter policy role_assignments_revoke on public.role_assignments
+  using (revoked_at is null and app.can_revoke_role(unit_id, granted_by, role))
+  with check (revoked_at is not null and app.can_revoke_role(unit_id, granted_by, role));
+
 alter policy role_assignments_insert on public.role_assignments
   with check (
     granted_by = (select auth.uid())
@@ -773,8 +818,9 @@ alter table public.audit_log
 -- - só quem chama, liberado e ativo, conferido depois de travar o perfil;
 -- - `questionnaire` exige o aceite de exatamente `term_version` (gravada no vínculo); em
 --   `self`, a versão é ignorada;
--- - a casa precisa existir e estar ativa (P0002);
--- - com uma casa já aceita: a mesma casa devolve o mesmo vínculo; outra é recusada (23505);
+-- - com uma casa já aceita: a mesma casa devolve o mesmo vínculo (mesmo se a casa foi
+--   desativada depois); outra é recusada (23505);
+-- - senão, a casa precisa existir e estar ativa (P0002);
 -- - vínculo de casa encerrado por outra pessoa (coordenação ou operação) impede voltar
 --   sozinho, na mesma casa ou em outra (C7602);
 -- - um vínculo aberto ainda sem aceite é encerrado (pela própria pessoa) e dá lugar ao novo.
@@ -818,19 +864,21 @@ begin
     consent_ver := p_term_version;
   end if;
 
-  if p_house_key is null or not app.is_open_house(p_house_key) then
-    raise exception 'casa indisponível' using errcode = 'no_data_found';
-  end if;
-
+  -- A casa já aceita vem antes da conferência da casa: o clique repetido continua devolvendo o
+  -- mesmo vínculo mesmo depois que a casa é desativada (revisão do #141).
   select h.id, h.house_key, h.accepted_at into open_id, open_house, open_accepted
   from public.house_members as h
   where h.profile_id = caller and h.left_at is null;
 
   if open_accepted is not null then
-    if open_house = p_house_key then
+    if open_house is not distinct from p_house_key then
       return open_id;
     end if;
     raise exception 'a casa já foi aceita' using errcode = 'unique_violation';
+  end if;
+
+  if p_house_key is null or not app.is_open_house(p_house_key) then
+    raise exception 'casa indisponível' using errcode = 'no_data_found';
   end if;
 
   if exists (

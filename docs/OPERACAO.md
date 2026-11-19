@@ -64,6 +64,30 @@ Depois do `ALTER ROLE`, reinicie quem usa aquela senha (`restart rest` ou
 `restart auth`): a conexão antiga continua válida até o processo reconectar, e
 sem o restart o erro só aparece horas depois.
 
+## Casas (ADR 0011)
+
+O `supabase/seed.sql` **não roda em produção**, e a tabela `houses` precisa ter uma linha para
+cada casa de `config/instance.ts` (`houses[].id`): sem a linha, `accept_house` recusa a casa
+("casa indisponível"). O bloco `insert into public.houses ...` do seed é a fonte, e
+`tests/house-units.test.ts` garante que ele tem exatamente as casas da config. O comando é
+idempotente (rodar de novo não duplica; reativa uma casa desativada). Na primeira subida e
+sempre que a config ganhar casa:
+
+```bash
+sed -n '/^insert into public.houses (key) values/,/;$/p' supabase/seed.sql \
+  | docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+      exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
+```
+
+Casa que **saiu** da config não é apagada (tem vínculos e histórico): desative-a, e ela deixa de
+aceitar entradas e coordenadores novos (quem já está nela continua):
+
+```bash
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  -c "update public.houses set active = false where key = '<id-da-casa>'"
+```
+
 ## Subir, parar, ver
 
 ```bash

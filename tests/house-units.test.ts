@@ -43,6 +43,10 @@ describe("casas da config ↔ casas do seed", () => {
     expect(seed).not.toMatch(/membership_axis/);
   });
 
+  it("o insert das casas é idempotente (o mesmo comando semeia a produção, docs/OPERACAO.md)", () => {
+    expect(seed).toMatch(/insert into public\.houses \(key\) values[^;]+on conflict \(key\) do update set active = true;/);
+  });
+
   it("o seed não guarda o nome da casa (os textos ficam na config, R17)", () => {
     for (const house of instance.houses) expect(seed).not.toContain(house.name);
   });

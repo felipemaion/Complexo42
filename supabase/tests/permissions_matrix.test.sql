@@ -110,7 +110,9 @@ insert into people values
   ('stu_ch',      '00000000-0000-0000-0000-000000000030'),  -- equipe C (outra região de SP) + casa 1
   ('stu_hsusp',   '00000000-0000-0000-0000-000000000031'),  -- equipe A + casa 1, conta suspensa
   ('stu_hwait',   '00000000-0000-0000-0000-000000000032'),  -- equipe A + casa 1, na espera
-  ('stu_hmoved',  '00000000-0000-0000-0000-000000000033');  -- saiu da equipe A, foi para MG; casa 1
+  ('stu_hmoved',  '00000000-0000-0000-0000-000000000033'),  -- saiu da equipe A, foi para MG; casa 1
+  ('root_mgr2',   '00000000-0000-0000-0000-000000000034'),  -- vira manager da raiz no fim (revogação, M1)
+  ('gone_granter','00000000-0000-0000-0000-000000000035');  -- concede um coordenador nacional e exclui a conta
 
 insert into auth.users (id) select id from people;
 
@@ -453,6 +455,19 @@ insert into matrix (actor, action, target, expected) values
   ('house_wait', 'profile', 'stu_ah', false),
   ('house_wait', 'contact', 'stu_ah', false),
   ('house_wait', 'unit', 'br', false),
+  -- Revogar o coordenador NACIONAL de casa (revisão do #141, M1): o manager ativo da raiz revoga,
+  -- mesmo sem ter concedido; só esse papel, só na raiz
+  ('nat_mgr', 'revoke_hc', 'br', true),
+  ('nat_mgr', 'revoke_role_mgr', 'br', false),
+  ('nat_mgr', 'revoke_role_mon', 'br', false),
+  ('sp_mgr', 'revoke_hc', 'br', false),
+  ('sp_mgr', 'revoke_hc', 'abc', true),
+  ('sp_mgr', 'revoke_hc', 'sp', false),
+  ('nat_mon', 'revoke_hc', 'br', false),
+  ('house_nat', 'revoke_hc', 'br', false),
+  ('mon_wait', 'revoke_hc', 'br', false),
+  ('revoked_mgr', 'revoke_hc', 'br', false),
+  ('tech', 'revoke_hc', 'br', false),
   -- Conceder o papel de coordenador de casa (ADR 0011 §5): manager estritamente acima do
   -- território, nunca a si mesmo; monitor, porta-voz e admin técnico não
   ('nat_mgr', 'grant_house_coordinator', 'sp', true),
@@ -809,6 +824,13 @@ begin
       app.can_grant_role(substr(p_action, 11), pg_temp.unit(p_target), pg_temp.person(p_actor))
     when p_action = 'revoke' then
       app.can_revoke_role(pg_temp.unit(p_target), pg_temp.person('outsider'))
+    -- Revogar com o papel (revisão do #141, M1): concedido por outra pessoa (outsider)
+    when p_action = 'revoke_hc' then
+      app.can_revoke_role(pg_temp.unit(p_target), pg_temp.person('outsider'), 'house_coordinator')
+    when p_action = 'revoke_role_mgr' then
+      app.can_revoke_role(pg_temp.unit(p_target), pg_temp.person('outsider'), 'manager')
+    when p_action = 'revoke_role_mon' then
+      app.can_revoke_role(pg_temp.unit(p_target), pg_temp.person('outsider'), 'monitor')
     when p_action = 'revoke_own' then
       app.can_revoke_role(pg_temp.unit(p_target), pg_temp.person(p_actor))
   end;
@@ -822,7 +844,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 152);
+select plan((select count(*)::int from matrix) + 156);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 10 unidades da árvore foram capturadas.
@@ -836,7 +858,8 @@ select is_empty(
        and target not in (select name from people)
      union all
      select target from matrix
-     where (action in ('manage', 'unit', 'import', 'audit_import', 'revoke', 'revoke_own')
+     where (action in ('manage', 'unit', 'import', 'audit_import', 'revoke', 'revoke_own',
+                       'revoke_hc', 'revoke_role_mgr', 'revoke_role_mon')
             or action like 'grant\_%' or action like 'selfgrant\_%')
        and target not in (select slug from unit_ids) $$,
   'toda pessoa e toda unidade citada na matriz tem id (nenhum id nulo)'
@@ -1613,6 +1636,47 @@ select results_eq(
   $$ values (pg_temp.person('stu_b'), true), (pg_temp.person('house_nat'), false),
             (pg_temp.person('house_mg'), false) $$,
   'o gestor de SP revogou só o coordenador de casa abaixo dele'
+);
+
+-- Revogar o coordenador NACIONAL de casa (revisão do #141, M1). Quem concedeu exclui a conta
+-- (granted_by vira nulo) e não há ninguém acima da raiz: o manager ativo da raiz revoga.
+reset role;
+insert into public.role_assignments (profile_id, role, unit_id, house_key, granted_by)
+values (pg_temp.person('stu_a'), 'house_coordinator', pg_temp.unit('br'), 'casa-t1',
+        pg_temp.person('gone_granter'));
+delete from auth.users where id = pg_temp.person('gone_granter');
+select is(
+  (select granted_by from public.role_assignments
+   where profile_id = pg_temp.person('stu_a') and role = 'house_coordinator'),
+  null,
+  'quem concedeu o coordenador nacional excluiu a conta: granted_by ficou nulo'
+);
+-- Neste ponto a raiz não tem manager ativo (revogados acima); root_mgr2 passa a ser.
+insert into public.role_assignments (profile_id, role, unit_id)
+values (pg_temp.person('root_mgr2'), 'manager', pg_temp.unit('br'));
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now()
+     where role = 'house_coordinator' and unit_id = pg_temp.unit('br') $$,
+  'gestor de SP tenta revogar coordenadores nacionais de casa: não alcança linha nenhuma'
+);
+select pg_temp.login('root_mgr2');
+select lives_ok(
+  $$ update public.role_assignments set revoked_at = now()
+     where role = 'house_coordinator' and unit_id = pg_temp.unit('br')
+       and profile_id in (pg_temp.person('stu_a'), pg_temp.person('house_nat')) $$,
+  'o manager da raiz revoga coordenadores nacionais de casa que não concedeu (inclusive com granted_by nulo)'
+);
+reset role;
+select results_eq(
+  $$ select profile_id, revoked_at is not null from public.role_assignments
+     where role = 'house_coordinator' and unit_id = pg_temp.unit('br')
+       and profile_id in (pg_temp.person('stu_a'), pg_temp.person('house_nat'), pg_temp.person('house_wait'))
+     order by 1 $$,
+  $$ values (pg_temp.person('stu_a'), true), (pg_temp.person('house_nat'), true),
+            (pg_temp.person('house_wait'), false) $$,
+  'só os dois coordenadores nacionais escolhidos foram revogados, pelo manager da raiz (não pelo de SP)'
 );
 
 -- Lista de autorizados e HMACs da espera (#26): nenhum papel lê pela API

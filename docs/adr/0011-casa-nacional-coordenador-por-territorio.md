@@ -37,6 +37,11 @@ obrigava a pessoa a ter região antes de escolher a casa.
    unidade e abaixo, de qualquer casa.
 5. **Quem concede:** o papel de coordenador de casa é concedido pelas mesmas regras do ADR
    0002, ou seja, por um `manager` acima do território. Ninguém concede papel a si mesmo.
+   - **Exceção da raiz (aprovada pelo gestor no PR #141):** o coordenador de casa **nacional**
+     (na unidade raiz) é concedido pelo `manager` ativo da própria raiz, que não tem ninguém
+     acima. O mesmo manager ativo da raiz também o **revoga**, mesmo sem ter sido quem
+     concedeu (por exemplo, quando quem concedeu saiu ou excluiu a conta). A exceção vale só
+     para este papel e só na raiz; os outros papéis seguem "estritamente acima".
 
 ## Consequências
 
