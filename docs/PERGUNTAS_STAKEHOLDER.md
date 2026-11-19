@@ -108,6 +108,10 @@
     - **Desistência:** vira o botão "escolher outra casa".
 79. **Licença:** quem detém os direitos das perguntas e da adaptação? Até a resposta, o texto
     fica fora do repositório público (pergunta 73).
+80. **Colegas veem o perfil uns dos outros** (nome e habilidades)? Hoje não: só a própria pessoa
+    e a coordenação do escopo veem o perfil (ADR 0002). *Recomendação:* manter assim no piloto,
+    porque o contato já tem a regra própria (ADR 0010); abrir a visão entre colegas de equipe só
+    se a coordenação sentir falta.
 
 ## Novas perguntas (após as definições)
 

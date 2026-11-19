@@ -62,6 +62,7 @@ Como a equipe trabalha: [`docs/GESTAO_EQUIPE.md`](docs/GESTAO_EQUIPE.md).
 | [`docs/PLANEJAMENTO.md`](docs/PLANEJAMENTO.md) | Visão, escopo, requisitos, arquitetura, riscos |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Milestones e tarefas |
 | [`docs/MODELO_DADOS.md`](docs/MODELO_DADOS.md) | Entidades e lista fechada de campos permitidos |
+| [`docs/DIAGRAMAS.md`](docs/DIAGRAMAS.md) | Unidades, papéis, quem vê o quê e fluxo do pedido (Mermaid) |
 | [`docs/LGPD_E_SEGURANCA.md`](docs/LGPD_E_SEGURANCA.md) | Minimização de dados, ameaças e controles |
 | [`docs/PERGUNTAS_STAKEHOLDER.md`](docs/PERGUNTAS_STAKEHOLDER.md) | Perguntas em aberto para a reunião |
 | [`docs/adr/`](docs/adr/) | Decisões: 0001 stack · **0002 permissões por escopo** · **0003 criptografia dos dados** · ~~0004~~ · **0005 framework e hierarquia genérica** · **0006 missões, pontos e identidade das turmas** · **0007 equipes rotativas, medalhas e avaliação reservada** · **0008 lista de autorizados, casas e avaliação dupla** · **0009 hospedagem em servidor próprio** · **0010 quem vê o contato** · **0011 casa nacional e coordenador por território** |

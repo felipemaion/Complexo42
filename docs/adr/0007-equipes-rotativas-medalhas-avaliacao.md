@@ -32,7 +32,7 @@ Na reunião de kickoff, o stakeholder explicou o uso esperado depois da Academia
 | Papel | Escopo | Pode |
 |---|---|---|
 | **Coordenador** (`monitor` na unidade) | a(s) equipe(s) que coordena | O mesmo que o monitor: ver membros, criar missões, validar, conceder medalhas, **avaliar** |
-| **Porta-voz** (`spokesperson`, novo) | a equipe que o apoia no ciclo atual | Ver nome, habilidades, portfólio e medalhas dos membros; conceder a **sua** medalha; **avaliar** quem trabalhou com ele. Não vê WhatsApp [?] |
+| **Porta-voz** (`spokesperson`, novo) | a equipe que o apoia no ciclo atual | Ver nome, habilidades, portfólio e medalhas dos membros; conceder a **sua** medalha; **avaliar** quem trabalhou com ele. Não vê contato (ADR 0010) |
 | **Gestor** (`manager`) | sua unidade e as de baixo | Montar e mudar equipes; ver avaliações **só por pedido auditado** (§4) |
 
 ### 2. Equipes rotativas e histórico

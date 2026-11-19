@@ -50,16 +50,21 @@ implicitamente; não há linha para isso.
 
 | Papel | Escopo | Vê perfis (nome, habilidades, região) | Vê contato (WhatsApp, redes) | Cria missões | Valida feitos | Concede badges | Atribui papéis |
 |---|---|---|---|---|---|---|---|
-| Aluno | si mesmo | colegas da turma (nome, habilidades) | **não** (o monitor cria o grupo de WhatsApp da turma) | — | — | — | — |
+| Aluno | si mesmo | só o próprio (colega não vê colega, até decisão: pergunta 80) | o próprio; colegas só se ele autorizar (ADR 0010) | — | — | — | — |
 | Monitor | turmas e equipes atribuídas | alunos do escopo | do escopo, **auditado** | no escopo | no escopo | cria e concede, no escopo | — |
-| Gestor estadual | sua UF | todos da UF | da UF, **auditado** | na UF | na UF | na UF | monitores da UF |
-| Gestor nacional | tudo | tudo | tudo, **auditado** | tudo | tudo | cria e concede, tudo | gestores estaduais e monitores |
+| Porta-voz (ADR 0007) | unidade do papel e abaixo | alunos do escopo | **não** | — | — | a sua medalha | — |
+| Coordenador de casa (ADR 0011) | casa + território | membros da casa no território | idem, **auditado** | — | — | — | — |
+| Gestor estadual | sua UF | todos da UF | da UF, **auditado** | na UF | na UF | na UF | monitor, gestor, porta-voz e coordenador de casa, abaixo |
+| Gestor nacional | tudo | tudo | tudo, **auditado** | tudo | tudo | cria e concede, tudo | os mesmos, em qualquer unidade abaixo da raiz, e o coordenador nacional de casa |
 | Admin técnico | sistema | **nenhum** | **nenhum** | — | — | — | só cria o 1º gestor nacional |
 
 ### Regras
 
-1. **Só se delega para baixo.** Ninguém concede papel igual ou superior ao seu; o gestor
-   estadual só concede dentro da sua UF.
+1. **Só se delega para baixo.** Só um `manager` ativo concede (`app.can_grant_role`), e só em
+   unidade **estritamente abaixo** da sua: `monitor`, `manager`, `spokesperson` e
+   `house_coordinator`. Monitor e porta-voz nunca concedem; o porta-voz só é concedido por um
+   `manager` acima da unidade. O coordenador nacional de casa (na raiz) é concedido e revogado
+   pelo `manager` ativo da raiz (ADR 0011 §5).
    **Ninguém concede papel a si mesmo** (nem o gestor, nem o admin técnico). Revoga um papel
    quem o concedeu ou um gestor acima da unidade dele. O gestor da raiz não tem ninguém acima:
    se quem o concedeu não o revogar, removê-lo é tarefa do **operador**, com acesso direto ao
@@ -68,7 +73,7 @@ implicitamente; não há linha para isso.
    pessoais**, e os desenvolvedores não têm papel em produção.
 3. **Uma única fonte de verdade.** As decisões de acesso ficam em funções SQL
    (`app.can_view_profile(target)`, `app.can_view_contact(target, kind)` (ADR 0010),
-   `app.can_manage_team(team)`, …), declaradas `security definer` e `stable`. As políticas RLS
+   `app.can_manage_unit(unit)`, `app.can_grant_role(role, unit, grantee)`, …), declaradas `security definer` e `stable`. As políticas RLS
    e o servidor usam **as mesmas funções**. É proibido reimplementar a regra no front.
 4. **Matriz de testes obrigatória.** `supabase/tests/permissions_matrix.test.sql` cobre cada
    papel × alvo dentro e fora do escopo × operação. Todo PR que toca permissão atualiza a
