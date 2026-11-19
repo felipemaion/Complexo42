@@ -86,6 +86,13 @@ caminho B.
 Painel do banco local (Supabase Studio): http://localhost:54323. Ali só há **dados
 fictícios**.
 
+**Login no local (#9):** com o Supabase de pé, copie a `ANON_KEY` de `npx supabase status`
+para `SUPABASE_ANON_KEY` no `.env.local`, rode `npm run dev` e abra
+http://127.0.0.1:3000/entrar (use `127.0.0.1`, não `localhost`: é o endereço liberado no
+`supabase/config.toml`). O link mágico não sai para a internet: cai no Mailpit local
+(endereço em `npx supabase status`). O login com Google fica desligado no local; para
+testá-lo, veja o comentário `[auth.external.google]` no `supabase/config.toml`.
+
 ## Passo 4 — Configure sua IA (10 min)
 
 - Claude Code lê o `CLAUDE.md`, que aponta para o `AGENTS.md`. Cursor, Copilot e outros:

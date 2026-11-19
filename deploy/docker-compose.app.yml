@@ -19,6 +19,13 @@ services:
       # Prontidão do banco: admin do PostgREST na rede interna (nunca publicado).
       DB_HEALTH_URL: http://rest:3001/ready
       HEALTH_TIMEOUT_MS: "2000"
+      # Login (#9, ADR 0009 §1): o app fala com o Auth pela rede interna (kong);
+      # o navegador só alcança o /auth/v1 publicado na origem do site. A chave é
+      # a ANON_KEY do mesmo ambiente; NUNCA a SERVICE_ROLE_KEY (R6; o app recusa).
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: ${SITE_URL:?obrigatorio}
+      SUPABASE_ANON_KEY: ${ANON_KEY:?obrigatorio}
+      SITE_URL: ${SITE_URL:?obrigatorio}
     # Sistema de arquivos só leitura; gravável apenas /tmp (memória) e os logs.
     read_only: true
     tmpfs: [/tmp]

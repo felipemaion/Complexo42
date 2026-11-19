@@ -101,6 +101,17 @@ services:
       GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-}
       GOTRUE_LOG_LEVEL: info
+      # Limites do login (#9; iguais ao supabase/config.toml). Ajustar o de
+      # e-mail à cota do relay em #87.
+      # O IP do cliente vem do cabeçalho que a Cloudflare grava na borda (o app
+      # o repassa nos pedidos que faz pelo servidor). Sem isso, todo pedido
+      # pareceria vir do proxy ou do app, e o limite por IP seria global.
+      GOTRUE_RATE_LIMIT_HEADER: CF-Connecting-IP
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: "30"   # e-mails por hora, no Auth todo
+      GOTRUE_RATE_LIMIT_OTP: "30"          # pedidos de login por IP / 5 min
+      GOTRUE_RATE_LIMIT_VERIFY: "30"       # conferências de link por IP / 5 min
+      GOTRUE_RATE_LIMIT_TOKEN_REFRESH: "150"
+      GOTRUE_SMTP_MAX_FREQUENCY: 60s       # intervalo mínimo por endereço
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
       interval: 15s
