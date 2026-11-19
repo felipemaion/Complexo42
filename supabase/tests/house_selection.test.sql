@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(48);
+select plan(51);
 
 truncate public.role_assignments, public.unit_members, public.units;
 
@@ -16,9 +16,12 @@ truncate public.role_assignments, public.unit_members, public.units;
 --       │           │       ├─ casa_x
 --       │           │       ├─ casa_y
 --       │           │       ├─ casa_w
+--       │           │       ├─ casa_v
 --       │           │       └─ casa_old (arquivada)
+--       │           ├─ casa_v (direto no estado)
 --       │           └─ zl ──┬─ team_z
 --       │                   └─ casa_y
+--       ├─ casa_n (direto na raiz, acima dos estados)
 --       └─ mg (MG) ──── central ─┬─ team_m
 --                                └─ casa_x
 -- ---------------------------------------------------------------------------------------
@@ -40,6 +43,9 @@ select pg_temp.add_unit('team', 'br.sp.abc', 'team_a');
 select pg_temp.add_unit('house', 'br.sp.abc', 'casa_x');
 select pg_temp.add_unit('house', 'br.sp.abc', 'casa_y');
 select pg_temp.add_unit('house', 'br.sp.abc', 'casa_w');
+select pg_temp.add_unit('house', 'br.sp.abc', 'casa_v');
+select pg_temp.add_unit('house', 'br.sp', 'casa_v');
+select pg_temp.add_unit('house', 'br', 'casa_n');
 select pg_temp.add_unit('house', 'br.sp.abc', 'casa_old');
 select pg_temp.add_unit('team', 'br.sp.zl', 'team_z');
 select pg_temp.add_unit('house', 'br.sp.zl', 'casa_y');
@@ -76,7 +82,8 @@ insert into people values
   ('p_wait',  '00000000-0000-0000-0000-0000000000b6'),  -- na espera
   ('p_pend',  '00000000-0000-0000-0000-0000000000b7'),  -- pendente
   ('p_open',  '00000000-0000-0000-0000-0000000000b8'),  -- ativa, com casa aberta SEM aceite
-  ('p_q',     '00000000-0000-0000-0000-0000000000b9');  -- ativa, vai pelo questionário
+  ('p_q',     '00000000-0000-0000-0000-0000000000b9'),  -- ativa, vai pelo questionário
+  ('p_zl2',   '00000000-0000-0000-0000-0000000000ba');  -- ativa, na Zona Leste, casa do ABC sem aceite
 grant select on people to authenticated;
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
 declare
@@ -108,13 +115,15 @@ update public.profiles set access_status = 'waitlisted' where id = pg_temp.perso
 
 -- A coordenação já pôs duas pessoas numa equipe (encerra o vínculo do estado).
 update public.unit_members set left_at = now()
-where profile_id in (pg_temp.person('p_team'), pg_temp.person('p_zl'));
+where profile_id in (pg_temp.person('p_team'), pg_temp.person('p_zl'), pg_temp.person('p_zl2'));
 insert into public.unit_members (unit_id, profile_id) values
   (pg_temp.unit('br.sp.abc.team_a'), pg_temp.person('p_team')),
-  (pg_temp.unit('br.sp.zl.team_z'), pg_temp.person('p_zl'));
+  (pg_temp.unit('br.sp.zl.team_z'), pg_temp.person('p_zl')),
+  (pg_temp.unit('br.sp.zl.team_z'), pg_temp.person('p_zl2'));
 -- Casa aberta e ainda sem aceite (vinda de outro fluxo).
 insert into public.unit_members (unit_id, profile_id, join_method)
-values (pg_temp.unit('br.sp.abc.casa_y'), pg_temp.person('p_open'), 'self');
+values (pg_temp.unit('br.sp.abc.casa_y'), pg_temp.person('p_open'), 'self'),
+       (pg_temp.unit('br.sp.abc.casa_y'), pg_temp.person('p_zl2'), 'self');
 
 -- ---------------------------------------------------------------------------------------
 -- Qual unidade é a casa (app.house_unit_for, como dono)
@@ -137,6 +146,12 @@ select is(app.house_unit_for(pg_temp.person('p_team'), 'team-a'), null,
   'uma equipe não é casa, mesmo com o slug certo');
 select is(app.house_unit_for(pg_temp.person('p_team'), 'casa_x'), null,
   'id fora do formato da config (com _) é recusado');
+select is(app.house_unit_for(pg_temp.person('p_team'), 'casa-v'), pg_temp.unit('br.sp.abc.casa_v'),
+  'a mesma casa na região e no estado: vale a mais próxima (a da região)');
+select is(app.house_unit_for(pg_temp.person('p_team'), 'casa-n'), null,
+  'casa acima do estado da pessoa não é oferecida');
+select is(app.house_unit_for(pg_temp.person('p_zl2'), 'casa-x'), null,
+  'a região vem do vínculo de equipe, não de uma casa aberta noutra região');
 
 -- ---------------------------------------------------------------------------------------
 -- accept_house
@@ -255,7 +270,7 @@ select results_eq(
      from public.unit_members m
      join people p on p.id = m.profile_id
      join public.units u on u.id = m.unit_id
-     where m.axis = 'house' and m.left_at is null
+     where m.axis = 'house' and m.left_at is null and p.name <> 'p_zl2'
      order by p.name $$,
   $$ values ('p_open'::text, 'br.sp.abc.casa_x'::text, 'self'::text, true, 'house'::text),
             ('p_q', 'br.sp.abc.casa_x', 'questionnaire', true, 'house'),

@@ -550,7 +550,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 117);
+select plan((select count(*)::int from matrix) + 118);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 13 unidades da árvore foram capturadas.
@@ -1116,10 +1116,10 @@ select set_eq(
   array['br', 'sp', 'abc', 'house_1'],
   'coordenador da casa 1 vê a casa e o caminho até a raiz, não as equipes nem a outra casa'
 );
+-- Sem WHERE, só a política de UPDATE filtra (a de SELECT não entra).
 select lives_ok(
-  $$ update public.unit_members set member_role = 'lead'
-     where profile_id in (pg_temp.person('stu_hpend'), pg_temp.person('stu_ah2')) $$,
-  'coordenador da casa 1 tenta alterar vínculo sem aceite e da casa 2: não alcança linha nenhuma'
+  $$ update public.unit_members set member_role = 'lead' $$,
+  'coordenador da casa 1 altera vínculos em massa: só os aceitos e abertos da casa 1 são alcançados'
 );
 select throws_ok(
   $$ update public.unit_members set accepted_at = now()
@@ -1154,6 +1154,11 @@ select set_eq(
 );
 
 reset role;
+select set_eq(
+  $$ select profile_id from public.unit_members where axis = 'house' and member_role = 'lead' $$,
+  $$ select id from people where name in ('stu_h', 'stu_ah', 'stu_bh') $$,
+  'o coordenador da casa 1 alterou só os vínculos aceitos e abertos da casa 1'
+);
 select is(
   (select member_role from public.unit_members
    where profile_id = pg_temp.person('stu_hpend') and axis = 'house'),
