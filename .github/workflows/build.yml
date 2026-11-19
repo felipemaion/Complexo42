@@ -1,9 +1,11 @@
 # Constrói e publica a imagem no GHCR (issue #81, ADR 0009 §3), e chama o
 # deploy. Runner ARM64 NATIVO: sem QEMU, que o servidor é aarch64.
 #
+# Nota de custo: o runner ARM é gratuito porque o repositório é PÚBLICO. Se um
+# dia ele for fechado, este job passa a consumir minutos pagos.
+#
 # Sem actions de terceiros para Docker: `docker buildx` e `docker login` já
-# existem no runner. Cada action a mais é um SHA a fixar, acompanhar e
-# confiar -- e aqui o shell resolve.
+# existem no runner, e cada action a mais é um SHA para fixar e confiar.
 name: Imagem
 
 on:
@@ -12,7 +14,6 @@ on:
   release:
     types: [published]
 
-# Mínimo no topo; o job de publicação pede `packages: write` para si.
 permissions:
   contents: read
 
@@ -24,73 +25,102 @@ jobs:
   publicar:
     name: Publica no GHCR (ARM64 nativo)
     runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
     outputs:
       tag: ${{ steps.tags.outputs.tag }}
       ambiente: ${{ steps.tags.outputs.ambiente }}
+      digest: ${{ steps.publicar.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: { persist-credentials: false }
+        with:
+          persist-credentials: false
+          # Histórico inteiro só na release: é o que permite provar que o
+          # commit da tag está na `main`.
+          fetch-depth: ${{ github.event_name == 'release' && 0 || 1 }}
 
       - name: Decidir tags e ambiente
         id: tags
-        run: |
-          set -euo pipefail
-          curto=$(printf %s "$GITHUB_SHA" | cut -c1-7)
-          principal="sha-$curto"
-          extra=main
-          ambiente=staging
-          if [ "$GITHUB_EVENT_NAME" = release ]; then
-            # A tag de release vira tag de imagem E entra no deploy.sh, que
-            # só aceita este formato. Validar aqui evita descobrir lá.
-            case "$REF_NAME" in
-              v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9]|v[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].[0-9]*) : ;;
-              *) echo "ERRO: release '$REF_NAME' fora do padrao vAAAA.MM.DD[.n]"; exit 1 ;;
-            esac
-            principal=$REF_NAME
-            extra=
-            ambiente=production
-          fi
-          {
-            echo "tag=$principal"
-            echo "extra=$extra"
-            echo "ambiente=$ambiente"
-          } >> "$GITHUB_OUTPUT"
         env:
           REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          curto=${GITHUB_SHA:0:7}
+          principal="sha-$curto"
+          mover_main=sim
+          ambiente=staging
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            [[ $REF_NAME =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] \
+              || { echo "ERRO: release '$REF_NAME' fora do padrao vAAAA.MM.DD[.n]"; exit 1; }
+            principal=$REF_NAME
+            mover_main=nao
+            ambiente=production
+          fi
+          { echo "tag=$principal"; echo "mover_main=$mover_main"; echo "ambiente=$ambiente"; } >> "$GITHUB_OUTPUT"
+
+      # Uma release aponta para o `target_commitish` que quem publicou
+      # escolheu -- pode ser um commit que nunca passou pela `main` nem pelos
+      # checks. Sem esta prova, bastaria publicar uma release para pôr
+      # qualquer código em produção.
+      - name: O commit da release está na main
+        if: github.event_name == 'release'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "ERRO: $GITHUB_SHA nao e ancestral de origin/main"; exit 1; }
+          echo "ok: o commit da release esta na main"
 
       - name: Entrar no GHCR
-        run: printf %s "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf %s "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 
-      - name: Construir e publicar
+      # Publica SO a tag imutavel (sha-* ou v*). A `main` so se move depois da
+      # conferencia: senao, uma imagem que reprova na checagem ja estaria
+      # respondendo por `main` para quem puxasse nesse intervalo.
+      - name: Construir e publicar a tag imutável
+        id: publicar
+        env:
+          TAG: ${{ steps.tags.outputs.tag }}
         run: |
           set -euo pipefail
           repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
-          args="-t $repo:$TAG"
-          [ -n "$EXTRA" ] && args="$args -t $repo:$EXTRA"
-          # shellcheck disable=SC2086
           docker buildx build --push --provenance=false \
+            --metadata-file /tmp/meta.json \
             --build-arg GIT_SHA="$GITHUB_SHA" \
             --build-arg APP_VERSION="$TAG" \
-            $args .
+            -t "$repo:$TAG" .
+          digest=$(jq -r '."containerimage.digest"' /tmp/meta.json)
+          [ -n "$digest" ] && [ "$digest" != null ]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "publicado $repo:$TAG ($digest)"
+
+      # Contagem nao basta: um arquivo renomeado ou alterado passaria. O que
+      # vale e a impressao digital da LISTA ORDENADA de nomes e conteudos.
+      - name: As migrations na imagem são exatamente as do repositório
         env:
           TAG: ${{ steps.tags.outputs.tag }}
-          EXTRA: ${{ steps.tags.outputs.extra }}
-
-      - name: As migrations foram junto
         run: |
           set -euo pipefail
           repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
-          na_imagem=$(docker run --rm --entrypoint ls "$repo:$TAG" /app/supabase/migrations | grep -c '\.sql$')
-          no_repo=$(ls -1 supabase/migrations/*.sql | wc -l | tr -d ' ')
-          echo "na imagem: $na_imagem | no repositorio: $no_repo"
-          [ "$na_imagem" = "$no_repo" ]
+          receita='cd "$1" && ls -1 *.sql | LC_ALL=C sort | while read -r f; do printf "%s  %s\n" "$(sha256sum "$f" | cut -d" " -f1)" "$f"; done | sha256sum | cut -d" " -f1'
+          no_repo=$(sh -c "$receita" _ supabase/migrations)
+          na_imagem=$(docker run --rm --entrypoint sh "$repo:$TAG" -c "$receita" _ /app/supabase/migrations)
+          echo "repositorio=$no_repo"
+          echo "imagem______=$na_imagem"
+          [ "$no_repo" = "$na_imagem" ] || { echo "ERRO: as migrations da imagem diferem das do repositorio"; exit 1; }
+
+      - name: Mover a tag `main` para a imagem conferida
+        if: steps.tags.outputs.mover_main == 'sim'
         env:
           TAG: ${{ steps.tags.outputs.tag }}
+        run: |
+          set -euo pipefail
+          repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
+          docker buildx imagetools create -t "$repo:main" "$repo:$TAG"
 
   implantar:
     name: Implanta
@@ -99,4 +129,3 @@ jobs:
     with:
       tag: ${{ needs.publicar.outputs.tag }}
       ambiente: ${{ needs.publicar.outputs.ambiente }}
-    secrets: inherit

@@ -1,13 +1,19 @@
 # Implanta uma tag já publicada (issue #81, ADR 0009 §3).
 #
 # Chamado pelo build.yml com a tag e o ambiente EXPLÍCITOS. Preferi
-# `workflow_call` a `workflow_run`: ali os valores chegam como entradas
-# declaradas, em vez de serem garimpados do payload do evento -- menos chance
-# de o ambiente errado ser escolhido por uma leitura equivocada.
+# `workflow_call` a `workflow_run`: os valores chegam como entradas
+# declaradas, em vez de garimpados do payload -- menos chance de o ambiente
+# errado ser escolhido por uma leitura equivocada.
 #
-# O environment `production` é quem exige a aprovação do mantenedor; o
-# `staging` não exige. Os secrets são POR AMBIENTE, então a mesma chave nunca
-# serve para os dois.
+# ATENÇÃO ao `workflow_dispatch`: ele roda o arquivo DO BRANCH ESCOLHIDO. Sem
+# trava, alguém com permissão de push cria um branch com este arquivo editado
+# e o staging entrega o DEPLOY_SSH_KEY; em produção, o revisor aprovaria um
+# código que não leu. Duas defesas, e as duas precisam existir:
+#   1. no GitHub: "Deployment branches and tags" nos dois environments,
+#      limitado a `main` e ao padrão `v*` (ver docs/OPERACAO.md);
+#   2. aqui embaixo: o job recusa se a referência não for `main` nem `v*`.
+# A (1) é a que vale, porque impede os secrets de chegarem. A (2) é o aviso
+# claro de quem tentou.
 name: Deploy
 
 on:
@@ -33,24 +39,37 @@ jobs:
   implantar:
     name: Implanta em ${{ inputs.ambiente }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment: ${{ inputs.ambiente }}
     # No job, e não no topo: em `workflow_call` o contexto `inputs` nem sempre
-    # é avaliável no nível do workflow, e um deploy a mais por engano é pior
-    # que uma linha a mais de YAML.
+    # é avaliável no nível do workflow.
     concurrency:
       group: deploy-${{ inputs.ambiente }}
       cancel-in-progress: false
     steps:
-      - name: A tag tem de ser do formato esperado
+      - name: A referência tem de ser a main ou uma tag de release
+        env:
+          REFERENCIA: ${{ github.ref }}
         run: |
           set -euo pipefail
-          case "$TAG" in
-            sha-*) printf %s "$TAG" | grep -Eq '^sha-[0-9a-f]{7,40}$' ;;
-            v*) printf %s "$TAG" | grep -Eq '^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$' ;;
-            *) false ;;
-          esac || { echo "ERRO: tag '$TAG' fora do padrao"; exit 1; }
+          case "$REFERENCIA" in
+            refs/heads/main) : ;;
+            refs/tags/v*) : ;;
+            *) echo "ERRO: deploy so a partir da main ou de uma tag v* (veio de '$REFERENCIA')"; exit 1 ;;
+          esac
+
+      - name: A tag tem de ser do formato esperado
         env:
           TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          # `[[ =~ ]]`, nao `grep`: grep casa por LINHA, entao uma tag com
+          # quebra de linha passaria olhando so a primeira.
+          if [[ $TAG =~ ^sha-[0-9a-f]{7,40}$ ]] || [[ $TAG =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]]; then
+            echo "tag aceita: $TAG"
+          else
+            echo "ERRO: tag '$TAG' fora do padrao"; exit 1
+          fi
 
       - name: Implantar por SSH
         env:
@@ -66,13 +85,15 @@ jobs:
           done
           umask 077
           mkdir -p ~/.ssh
+          # A chave sai do disco no fim, dê certo ou não.
+          trap 'rm -f ~/.ssh/deploy' EXIT
           printf '%s\n' "$CHAVE" > ~/.ssh/deploy
           # A host key vem do SECRET, fixa. NUNCA `ssh-keyscan`: o fail2ban do
-          # servidor bane o runner, e aí o deploy passa a falhar por um motivo
-          # que não tem nada a ver com o deploy.
+          # servidor bane o runner, e o deploy passa a falhar por um motivo que
+          # não tem nada a ver com deploy.
           printf '%s\n' "$CONHECIDOS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/deploy ~/.ssh/known_hosts
-          # O ÚNICO dado enviado é a tag. A chave está presa a um comando só
+          # O ÚNICO dado enviado é a tag; a chave está presa a um comando só
           # (forced-command) no authorized_keys do servidor.
           ssh -i ~/.ssh/deploy \
               -o IdentitiesOnly=yes \
@@ -80,4 +101,6 @@ jobs:
               -o StrictHostKeyChecking=yes \
               -o BatchMode=yes \
               -o ConnectTimeout=15 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=4 \
               "$USUARIO@$MAQUINA" "$TAG"
