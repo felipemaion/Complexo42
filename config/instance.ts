@@ -96,6 +96,35 @@ export const instance = parseInstanceConfig({
     fileDescription:
       "Cópia dos dados que a plataforma guarda sobre você (Lei Geral de Proteção de Dados, art. 18). Nome e WhatsApp ficam cifrados no banco e foram decifrados só para gerar este arquivo.",
   },
+  // Escolha da casa (#76): "Você sabe o que quer fazer?" → lista de atividades ou questionário.
+  houseSelection: {
+    title: "Sua casa de formação",
+    knowsQuestion: "Você sabe o que quer fazer?",
+    knowsYes: "Sim, já sei",
+    knowsNo: "Ainda não",
+    activitiesTitle: "O que você quer fazer?",
+    consentTitle: "Antes do questionário",
+    consentAccept: "Aceito e quero responder",
+    consentDecline: "Não aceito, prefiro escolher a casa",
+    progress: "{current} de {total}",
+    bothButton: "as duas",
+    backButton: "Voltar",
+    suggestedTitle: "Sugerimos esta casa para você",
+    chosenTitle: "Conheça a casa",
+    firstStepsTitle: "Primeiros passos",
+    videosTitle: "Vídeos",
+    acceptButton: "Aceitar",
+    chooseOtherButton: "Escolher outra casa",
+    acceptedTitle: "Sua casa",
+    homeLink: "Escolher sua casa",
+    errors: {
+      unavailable: "Esta casa ainda não está disponível na sua região. Fale com a coordenação.",
+      already_accepted: "Você já aceitou uma casa. Para trocar, fale com a coordenação.",
+      not_active: "Complete o seu cadastro antes de escolher a casa.",
+      stale_consent: "O termo foi atualizado. Recarregue a página para ler a versão nova.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
+  },
   // Casas de formação (ADR 0008 §2). O `id` liga a casa à unidade do eixo `house`: o `slug` da
   // unidade é o id com `_` no lugar de `-` (casa-exemplo-1 ↔ casa_exemplo_1). A região piloto do
   // seed tem uma unidade para cada casa (tests/house-units.test.ts).
@@ -104,6 +133,7 @@ export const instance = parseInstanceConfig({
       id: "casa-exemplo-1",
       name: "Casa Exemplo Um",
       description: "[PREENCHER] Descrição curta da casa.",
+      activities: ["[PREENCHER] Atividade exemplo 1A", "[PREENCHER] Atividade exemplo 1B"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
         videoUrls: [],
@@ -113,6 +143,7 @@ export const instance = parseInstanceConfig({
       id: "casa-exemplo-2",
       name: "Casa Exemplo Dois",
       description: "[PREENCHER] Descrição curta da casa.",
+      activities: ["[PREENCHER] Atividade exemplo 2A", "[PREENCHER] Atividade exemplo 2B"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
         videoUrls: [],
@@ -122,6 +153,7 @@ export const instance = parseInstanceConfig({
       id: "casa-exemplo-3",
       name: "Casa Exemplo Três",
       description: "[PREENCHER] Descrição curta da casa.",
+      activities: ["[PREENCHER] Atividade exemplo 3A"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
         videoUrls: [],
@@ -131,6 +163,7 @@ export const instance = parseInstanceConfig({
       id: "casa-exemplo-4",
       name: "Casa Exemplo Quatro",
       description: "[PREENCHER] Descrição curta da casa.",
+      activities: ["[PREENCHER] Atividade exemplo 4A"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
         videoUrls: [],

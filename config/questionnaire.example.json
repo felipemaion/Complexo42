@@ -1,6 +1,7 @@
 {
   "version": "exemplo-1",
   "consentTermVersion": "termo-exemplo-1",
+  "consentTerm": "[EXEMPLO] Termo fictício, só para desenvolvimento. Este questionário ajuda a sugerir uma casa. As respostas ficam só no seu aparelho: não são enviadas nem guardadas. A plataforma guarda só a casa que você aceitar e a versão e a data deste termo. Você pode recusar e escolher a casa diretamente.",
   "tieBreak": { "EI": "I", "SN": "N", "TF": "F", "JP": "P" },
   "houseByTemperament": {
     "NF": "casa-exemplo-1",

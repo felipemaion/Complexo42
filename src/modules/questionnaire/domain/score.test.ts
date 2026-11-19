@@ -7,6 +7,7 @@ import { QuestionnaireAnswerError, scoreQuestionnaire, type Answer, type Answers
 const raw = {
   version: "teste",
   consentTermVersion: "termo-teste",
+  consentTerm: "termo de teste",
   houseByTemperament: { NF: "casa-nf", SJ: "casa-sj", NT: "casa-nt", SP: "casa-sp" },
   items: [
     { id: "ei1", text: "x", axis: "EI", a: { text: "x", pole: "E" }, b: { text: "x", pole: "I" } },

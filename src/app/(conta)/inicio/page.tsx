@@ -57,6 +57,13 @@ export default async function SignedInHome({ searchParams }: Props) {
           {instance.myData.downloadHint}
         </p>
       </form>
+      {/* Escolha da casa de formação (#76). */}
+      <Link
+        href="/casa"
+        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+      >
+        {instance.houseSelection.homeLink}
+      </Link>
     </main>
   );
 }
