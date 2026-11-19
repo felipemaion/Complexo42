@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KEY_NAMES, fillTestKeys, generateKey } from "../scripts/gen-test-keys.mjs";
-import { ensureEnvFile } from "../scripts/setup.mjs";
+import { ensureEnvFile, fillAnonKey } from "../scripts/setup.mjs";
 
 const readJson = <T>(file: string): T => JSON.parse(readFileSync(file, "utf8")) as T;
 const envExample = readFileSync(".env.example", "utf8");
@@ -90,6 +90,25 @@ describe("fillTestKeys", () => {
     const a = generateKey();
     expect(Buffer.from(a, "base64")).toHaveLength(32);
     expect(generateKey()).not.toBe(a);
+  });
+});
+
+describe("fillAnonKey", () => {
+  it("preenche a chave anon vazia do .env.example", () => {
+    const { content, filled } = fillAnonKey(envExample, "anon-de-teste");
+    expect(filled).toBe(true);
+    expect(parseDotenv(content).get("SUPABASE_ANON_KEY")).toBe("anon-de-teste");
+  });
+
+  it("acrescenta a chave ausente sem perder o resto", () => {
+    const { content } = fillAnonKey("OUTRA=1", "anon-de-teste");
+    expect(parseDotenv(content).get("OUTRA")).toBe("1");
+    expect(parseDotenv(content).get("SUPABASE_ANON_KEY")).toBe("anon-de-teste");
+  });
+
+  it("nunca troca uma chave que já existe", () => {
+    const result = fillAnonKey("SUPABASE_ANON_KEY=minha\n", "anon-de-teste");
+    expect(result).toEqual({ content: "SUPABASE_ANON_KEY=minha\n", filled: false });
   });
 });
 

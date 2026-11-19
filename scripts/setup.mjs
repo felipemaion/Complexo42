@@ -6,8 +6,10 @@
 //   3. npm ci
 //   4. Supabase local (Docker): na primeira subida aplica migrations + seed; se já estava
 //      de pé, aplica só as migrations pendentes
+//   5. SUPABASE_ANON_KEY do .env.local, lida de `supabase status` (chave anon pública do
+//      Supabase local, não é segredo), para o login funcionar no `npm run dev`
 import { spawnSync } from "node:child_process";
-import { copyFileSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fillTestKeysInFile } from "./gen-test-keys.mjs";
@@ -18,6 +20,32 @@ export function ensureEnvFile(root) {
   if (existsSync(path)) return { created: false, path };
   copyFileSync(join(root, ".env.example"), path);
   return { created: true, path };
+}
+
+/** Preenche SUPABASE_ANON_KEY só se estiver vazia ou ausente; nunca troca uma que já existe. */
+export function fillAnonKey(content, anonKey) {
+  const line = /^SUPABASE_ANON_KEY=(.*)$/m;
+  const match = content.match(line);
+  if (match && match[1].trim() !== "") return { content, filled: false };
+  const entry = `SUPABASE_ANON_KEY=${anonKey}`;
+  if (match) return { content: content.replace(line, () => entry), filled: true };
+  const separator = content === "" || content.endsWith("\n") ? "" : "\n";
+  return { content: `${content}${separator}${entry}\n`, filled: true };
+}
+
+/** Lê a chave anon do Supabase local de pé (JSON do `supabase status`); null se não achar. */
+function readLocalAnonKey() {
+  const r = spawnSync("npx", ["supabase", "status", "-o", "json"], {
+    encoding: "utf8",
+    shell: process.platform === "win32",
+  });
+  if (r.status !== 0) return null;
+  try {
+    const key = JSON.parse(r.stdout).ANON_KEY;
+    return typeof key === "string" && key !== "" ? key : null;
+  } catch {
+    return null;
+  }
 }
 
 function run(cmd, args) {
@@ -52,6 +80,17 @@ function main() {
   // Já de pé, o `supabase start` não reaplica nada: `migration up` cobre as migrations novas.
   run("npx", ["supabase", "start"]);
   run("npx", ["supabase", "migration", "up"]);
+
+  const anonKey = readLocalAnonKey();
+  if (anonKey === null) {
+    console.warn("setup: não consegui ler a chave anon; copie de `npx supabase status` para SUPABASE_ANON_KEY no .env.local.");
+  } else {
+    const result = fillAnonKey(readFileSync(env.path, "utf8"), anonKey);
+    if (result.filled) {
+      writeFileSync(env.path, result.content);
+      console.log("setup: SUPABASE_ANON_KEY preenchida com a chave anon do Supabase local.");
+    }
+  }
 
   console.log("\nsetup: pronto. Próximos passos: `npm run dev` e `npm run check`.");
   console.log("Para recriar o banco do zero (migrations + seed): `npm run db:reset`.");

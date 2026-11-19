@@ -73,7 +73,7 @@ caminho B.
 
 | Comando | O que faz |
 |---|---|
-| `npm run setup` | Prepara tudo do zero (pode rodar de novo): `.env.local`, chaves de teste, `npm ci`, Supabase e migrations |
+| `npm run setup` | Prepara tudo do zero (pode rodar de novo): `.env.local`, chaves de teste e chave anon local, `npm ci`, Supabase e migrations |
 | `npm run gen-test-keys` | Preenche só as chaves de criptografia de teste vazias no `.env.local` |
 | `npm run dev` | App em modo desenvolvimento |
 | `npm run check` | Tudo o que o CI roda. **Obrigatório antes do PR** |
