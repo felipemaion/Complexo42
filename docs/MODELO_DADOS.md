@@ -37,6 +37,7 @@ unit_types ─< units (árvore: nacional > estado > [região] > turma, via ltree
                 │
 profiles ───────┼─< unit_members >── units
    │            ├─< role_assignments >── units   (papel vale na unidade e abaixo dela)
+   │            ├─< house_members >── houses     (casa nacional, fora da árvore; ADR 0011)
    │            ├─< profile_skills >── skills
    │            ├─< mission_run_members >── mission_runs
    │            └─< profile_badges >── badges
@@ -69,15 +70,20 @@ tabelas têm **RLS habilitada**.
 **Turma = equipe.** Cada aluno está em **uma** turma (constraint), e mudar de turma gera um
 evento `member_moved` no audit_log.
 
-**Depois da Academia (ADR 0008 §2):** a região ("incubadora") tem, abaixo dela, unidades de
-**casa** (`membership_axis = house`) e de **equipe** (`membership_axis = team`). Cada pessoa
-tem um vínculo aberto **por eixo**: uma casa e uma equipe.
+**Depois da Academia (ADR 0008 §2 e ADR 0011):** a região ("incubadora") tem equipes abaixo
+dela. A **casa é nacional**, fora da árvore (`houses`): cada pessoa tem um vínculo de território
+aberto (`unit_members`) e um vínculo de casa aberto (`house_members`), independentes.
 
 | `units.path` | tipo | Quem enxerga |
 |---|---|---|
-| `br.sp.abc` | Região (incubadora) | coordenação regional (+ SP + nacional) |
-| `br.sp.abc.casa_1` | Casa | coordenador da casa: membros da casa, em qualquer equipe |
+| `br.sp.abc` | Região (incubadora) | coordenação regional (+ SP + nacional), de qualquer casa |
 | `br.sp.abc.equipe_7` | Equipe | coordenador da equipe e porta-voz do ciclo |
+
+| Papel `house_coordinator` | Quem enxerga |
+|---|---|
+| casa 1 em `br` | membros ativos da casa 1, com casa aceita, de todo o país |
+| casa 1 em `br.sp` | membros ativos da casa 1 cujo território está em SP |
+| casa 1 em `br.sp.abc` | membros ativos da casa 1 cujo território está no ABC |
 
 ### `access_allowlist` (ADR 0008 §1)
 `id`, `email_hmac` (único), `source` (`form`, `academy`, `manual`), `added_by`, `added_at`.
@@ -166,22 +172,21 @@ linha vale `none` (só a coordenação). Só o titular lê (RLS) e só ele grava
 `public.set_contact_visibility(kind, scope)` (não se `blocked`). A escolha vale na hora.
 
 - **`app.can_view_contact(alvo, tipo)`** permite ao titular; à coordenação do escopo (monitor
-  ou manager com papel na unidade de um vínculo aberto e que conta do alvo, ou acima dela;
-  inclui o coordenador da casa para os membros da casa aceita); e ao colega, se a escolha do
+  ou manager com papel na unidade do vínculo de território aberto do alvo, ou acima dela; e o
+  coordenador da casa do alvo, dentro do seu território, ADR 0011); e ao colega, se a escolha do
   alvo para aquele contato deixar: `team` exige vínculo aberto na **mesma equipe**;
-  `team_house`, na mesma equipe ou na **mesma casa na mesma região** (abaixo). Quem chama e o
+  `team_house`, na mesma equipe ou na **mesma casa no mesmo território** (abaixo). Quem chama e o
   alvo precisam estar ativos. Porta-voz e admin técnico não entram.
 - **"Mesma equipe"** (`app.shares_open_team`): unidade **ativa** de um tipo marcado com
-  `unit_types.is_team` (configuração da instância; só no eixo `team`; o seed marca o tipo
-  `team`). Dividir a unidade de entrada do estado, a região ou uma equipe arquivada não faz de
+  `unit_types.is_team` (configuração da instância; o seed marca o tipo `team`). Dividir a unidade de entrada do estado, a região ou uma equipe arquivada não faz de
   ninguém colega.
-- **"Mesma casa"** (`app.shares_open_house`): a mesma casa, com os dois vínculos de casa abertos,
+- **"Mesma casa"** (`app.shares_open_house`): a mesma casa nacional, com os dois vínculos de casa abertos,
   aceitos **há pelo menos 7 dias**, e o **mesmo território mais próximo**
   (`app.home_territory`: a região do vínculo de equipe, ou o estado se não houver região). Sem
   vínculo de território, a casa sozinha não dá acesso.
 - **"Mesma casa"** fica só em `app.shares_open_house`, e "o coordenador da casa conta como
-  coordenação" só em `app.is_house_coordinator_of`: com o novo modelo de casa (ADR 0011), basta
-  trocar o corpo dessas duas funções. Nenhuma das auxiliares é chamável pela API.
+  coordenação" só em `app.is_house_coordinator_of` (sobre `house_members` e
+  `role_assignments.house_key`, ADR 0011). Nenhuma das auxiliares é chamável pela API.
 - **`public.view_contact(alvo, tipo)`** é a única leitura do contato de terceiros, um tipo por
   chamada: aplica a regra e devolve o valor guardado (WhatsApp e redes cifrados, para o servidor
   decifrar; o e-mail lido de `auth.users`). Grava `contact_viewed` (quem, de quem, o tipo,
@@ -202,7 +207,7 @@ migration (referência de produção), conferida com a API de localidades do IBG
 municípios da Região Metropolitana de São Paulo.
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
-`unit_types`: `id`, `key`, `label`, `level`, `membership_axis` (`team` ou `house`, ADR 0008), `is_team` (os membros são colegas de equipe, ADR 0010)
+`unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)
 (rótulos configuráveis por instância).
 `units`: `id`, `type_id`, `parent_id`, `slug` (rótulo do nó no `path`: `a-z`, `0-9`, `_`),
 `name`, `path` (ltree, índice GiST, mantido por trigger a partir de `parent_id` e `slug`),
@@ -211,36 +216,40 @@ municípios da Região Metropolitana de São Paulo.
 `public_links` (redes **da turma**, até 5 URLs https), `starts_on`/`ends_on` null,
 `status`. Logo só PNG/JPEG/WebP ≤ 512 KB, **nunca SVG** (ADR 0006 §2).
 `unit_members`: `unit_id`, `profile_id`, `member_role` (`lead`, `member`), `joined_at`,
-`left_at` null, `left_reason` null, `join_method` null (`self`, `questionnaire`; só casa),
-`accepted_at` null (só casa), `consent_version` null (só casa pelo questionário), `ended_by` null.
-Mover alguém encerra o vínculo (não apaga): é o
-**histórico** da pessoa (ADR 0007 §2). Índice único parcial: um vínculo aberto por pessoa
-**e por eixo** (ADR 0008 §2). Do questionário de casa, guarda-se só a casa sugerida.
+`left_at` null, `left_reason` null, `ended_by` null. É o vínculo de **território** (estado,
+região, equipe). Mover alguém encerra o vínculo (não apaga): é o **histórico** da pessoa (ADR
+0007 §2). Índice único parcial: um vínculo aberto por pessoa. A casa não é unidade (ADR 0011).
 
-- **Eixo (#76):** `unit_members.axis` (`team`, `house`) é copiado de
-  `unit_types.membership_axis` por trigger (o valor enviado é ignorado) e alimenta o índice
-  único `(profile_id, axis) where left_at is null`. O eixo de um tipo, ou o tipo de uma unidade,
-  não muda depois que há vínculos. `team` é o eixo territorial: a unidade do estado de quem
-  ainda não tem equipe também é `team`.
-- **O vínculo de casa só conta com `accepted_at`** (`app.membership_counts`): sem aceite, não dá
-  visão a quem coordena a casa, não mostra a unidade à própria pessoa e não entra no escopo da
-  fila de espera. A pessoa continua lendo o próprio vínculo.
-- **Casa da config ↔ unidade:** o `id` da casa em `config/instance.ts` (`casa-exemplo-1`) é o
-  `slug` da unidade com `_` no lugar de `-` (`casa_exemplo_1`). A unidade escolhida é a da
-  região da pessoa (`app.house_unit_for`): a filha do ancestral mais próximo do seu vínculo de
-  equipe, dentro do estado. **A região precisa estar definida** (`app.region_anchor`: vínculo de
-  equipe abaixo do estado). Quem ainda está só no estado é recusado ("sua região ainda não foi
-  definida") até a coordenação definir a região.
+- **`ended_by`**: quem encerrou o vínculo (quem gravou `left_at`, por trigger; nulo quando foi
+  operação direta no banco).
+
+### `houses` e `house_members` (ADR 0008 §2, ADR 0011)
+`houses`: `key` (PK; o `id` da casa em `config/instance.ts`: minúsculas, números e hífens, até
+63), `active`, `created_at`. **Sem nome**: o nome e os textos ficam só na config (R17), e
+`tests/house-units.test.ts` confere o seed contra a config. Quem está ativo lê as chaves;
+ninguém grava pela API (seed ou migration). `active = false` só impede novas entradas e novos
+coordenadores; quem já está na casa continua.
+
+`house_members`: `id`, `profile_id`, `house_key`, `join_method` (`self`, `questionnaire`),
+`consent_version` null (só pelo questionário), `joined_at`, `accepted_at` null, `left_at` null,
+`ended_by` null. Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
+guarda-se só a casa sugerida.
+
+- **O vínculo de casa só conta com `accepted_at`:** sem aceite, não dá visão a quem coordena a
+  casa nem entra em "mesma casa". A pessoa continua lendo o próprio vínculo.
 - **Escolha e aceite** só pela função `accept_house(house_key, join_method, term_version)`
   (`security definer`): a própria pessoa, liberada e ativa (conferido depois de travar o
-  perfil); `questionnaire` exige o aceite de **exatamente** essa versão do termo, gravada em
-  `consent_version` (nula em `self`); uma casa já aceita não é trocada pela pessoa (é com a
-  coordenação); repetir a mesma casa devolve o mesmo vínculo. Gera `house_accepted` no
-  `audit_log`. A API não tem grant de escrita em `join_method`, `accepted_at`,
-  `consent_version` nem `ended_by`.
-- **`ended_by`**: quem encerrou o vínculo (quem gravou `left_at`, por trigger; nulo quando foi
-  operação direta no banco). Se a coordenação encerrou um vínculo de casa, a pessoa não volta
-  sozinha, nem para a mesma casa nem para outra: a volta é decisão da coordenação.
+  perfil); a casa precisa existir e estar ativa; `questionnaire` exige o aceite de
+  **exatamente** essa versão do termo, gravada em `consent_version` (nula em `self`); uma casa
+  já aceita não é trocada pela pessoa (é com a coordenação); repetir a mesma casa devolve o
+  mesmo vínculo. Gera `house_accepted` no `audit_log`.
+- **Quem lê e encerra** (RLS): a pessoa lê os próprios vínculos; a coordenação territorial
+  (monitor ou manager acima do vínculo de território da pessoa) e o coordenador da casa aberta
+  da pessoa, dentro do seu território, leem os vínculos aceitos de perfis ativos e podem
+  encerrar o aberto (`left_at`, a única coluna com grant de escrita).
+- **`ended_by`**: quem gravou `left_at` (trigger; nulo em operação direta no banco). Se outra
+  pessoa encerrou o vínculo de casa, a pessoa não volta sozinha, nem para a mesma casa nem para
+  outra (erro C7602): a volta é decisão da coordenação.
 
 ### `questionnaire_consents` (ADR 0008 §2.1)
 `profile_id` (FK `profiles`, `on delete cascade`), `term_version` (FK
@@ -257,8 +266,18 @@ titular lê; sem grant de escrita. **As respostas do questionário nunca chegam 
 pontuação roda no aparelho e só a casa vai ao servidor.
 
 ### `role_assignments` (ADR 0002 + 0005)
-`id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`), `unit_id`, `granted_by`,
-`granted_at`, `revoked_at`. O papel vale na unidade **e em todas abaixo dela**.
+`id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`,
+`house_coordinator`), `unit_id`, `house_key` (só em `house_coordinator`, obrigatória), `granted_by`,
+`granted_at`, `revoked_at`. O papel vale na unidade **e em todas abaixo dela**. Um papel ativo
+por pessoa, papel, unidade e casa.
+
+- **`house_coordinator` (ADR 0011):** vê as pessoas **ativas** da casa `house_key`, com vínculo
+  de casa aberto e aceito, cujo vínculo de território está em `unit_id` ou abaixo; conta como
+  coordenação do escopo para o contato só desses membros. Não tem escopo territorial (não entra
+  em `app.my_scopes`): não gerencia unidade, não decide acesso, não concede nem revoga. Vê a
+  estrutura do território (unidades abaixo e o caminho até a raiz). Vários por casa e por
+  território. Concedido por um `manager` estritamente acima do território (como os outros
+  papéis), nunca a si mesmo, e só para casa ativa.
 `unit_members.profile_id`, `role_assignments.profile_id` e `role_assignments.granted_by`
 apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo ou papel sem perfil.
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
@@ -312,17 +331,21 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
 `access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`),
-`target_id`, `item_count`, `reason`, `term_version`, `created_at`.
+`target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
 automática na importação), em `house_accepted` (a forma de entrada: `self` ou
 `questionnaire`) e em `contact_viewed` (o tipo do contato: `whatsapp`, `social` ou `email`); nesses
 eventos é obrigatório. Em `contact_viewed`, `actor_id` é quem viu e `target_id` a pessoa vista. `term_version` é a versão do termo do questionário: obrigatória em
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
-`actor_id` é a pessoa e `target_id` a unidade da casa. Nunca respostas do questionário.
-**Nunca contém dados pessoais em claro.** Só os gestores leem, e só dentro do seu escopo
-(`app.can_read_audit`): `allowlist_imported`, o gestor da raiz; eventos sobre uma pessoa, o
-gestor com escopo sobre ela. Ninguém grava, altera nem apaga pela API: só as funções do banco.
+`actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória; só neste evento).
+Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca
+respostas do questionário.
+**Nunca contém dados pessoais em claro.** Quem lê (`app.can_read_audit(evento, alvo, ator,
+casa)`): `allowlist_imported`, o gestor da raiz; eventos sobre uma pessoa, o gestor com escopo
+sobre ela; `house_accepted`, também o coordenador da casa do registro, dentro do seu território,
+enquanto a pessoa está nessa casa (#132); e a própria pessoa lê os seus `house_accepted` e
+`questionnaire_consented`. O aceite do termo não é lido pela coordenação. Ninguém grava, altera nem apaga pela API: só as funções do banco.
 Um trigger recusa `UPDATE`, `DELETE` e `TRUNCATE` até para o dono do banco: o log só aceita
 inserções. `account_deleted` (#18): ator e alvo = o id da conta apagada, que fica como uuid solto
 em todos os eventos (veja "Excluir minha conta"). Limpeza (retenção, LGPD) precisa de migration própria que desligue o trigger de
@@ -331,13 +354,15 @@ forma explícita; nenhum teste ou migration atual limpa o log.
 ### "Baixar meus dados" (#20, LGPD art. 18)
 A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
-lê só as linhas de `auth.uid()` (perfil, contato, vínculos inclusive encerrados, papéis,
-eventos do `audit_log` cujo alvo é a pessoa e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor
+lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
+encerrados, aceites do termo do questionário, papéis (com a casa do coordenador de casa),
+eventos do `audit_log` cujo alvo é a pessoa, os `house_accepted` e `questionnaire_consented` que
+ela fez (#132) e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor
 decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.
 
 - **Fica de fora:** `whatsapp_hmac`, os HMACs de e-mail (lista e espera), ids de terceiros
   (`granted_by`, `actor_id`), colegas de unidade e o próprio id interno. Dos vínculos e papéis
-  vão só o nome e o tipo da unidade. De quem acessou o contato (ADR 0010, #119) vão o nome,
+  vão só o nome e o tipo da unidade; da casa, o nome da config (ou a chave, se saiu da config). De quem acessou o contato (ADR 0010, #119) vão o nome,
   o tipo do contato e quando, nunca o id.
 - **Auditoria e limite:** cada exportação grava `data_exported` (ator e alvo = a pessoa, sem
   dado pessoal); a 6ª na mesma hora é recusada (erro 54000). O contador é o próprio
@@ -366,12 +391,12 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   novo"; se o banco recusar, ela passa a pedir o login. Cookie roubado ou aparelho esquecido
   aberto não bastam.
 - **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
-  `profiles`, `profile_contacts`, `unit_members` e `role_assignments` da pessoa,
+  `profiles`, `profile_contacts`, `unit_members`, `house_members` e `role_assignments` da pessoa,
   `access_waitlist_hmac`, `questionnaire_consents` e `app.profile_save_attempts`. A função
   apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`, pelo id ou pelo
   e-mail exato da conta, lido antes de apagar) e o `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
 - **O que fica dos outros:** quando a pessoa aparece no dado de outra
-  (`role_assignments.granted_by`, `unit_members.ended_by`), a linha fica e a referência vira
+  (`role_assignments.granted_by`, `unit_members.ended_by`, `house_members.ended_by`), a linha fica e a referência vira
   nula. O trigger de `ended_by` aceita esse nulo só quando o perfil citado não existe mais.
 - **`audit_log`:** continua só-inserção (o trigger não muda; ninguém pseudonimiza linhas). Os
   eventos antigos guardam o id da conta apagada como uuid solto, sem FK: sem `auth.users` e

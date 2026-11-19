@@ -23,8 +23,9 @@
 
 - **"Coordenação do escopo"** é quem passa no `app.can_view_contact` (ADR 0002):
   - o monitor ou gestor com papel na unidade da pessoa ou acima dela;
-  - o coordenador da casa (monitor ou manager na unidade da casa) é coordenação do escopo
-    para os membros da casa (vínculo de casa aceito, #76);
+  - o coordenador da casa (papel `house_coordinator`, com casa e território, ADR 0011) é
+    coordenação do escopo para os membros da sua casa (vínculo de casa aceito) dentro do seu
+    território;
   - **não** inclui o porta-voz nem o administrador técnico.
 - **Autorização da pessoa:** ela escolhe, **para cada contato**, entre `ninguém` (padrão),
   `minha equipe` ou `minha equipe e minha casa`.
