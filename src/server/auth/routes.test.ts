@@ -11,7 +11,7 @@ describe("decideRoute (#9)", () => {
   });
 
   it("rotas públicas seguem sem sessão", () => {
-    for (const path of ["/", "/entrar", "/entrar/", "/auth/callback", "/auth/confirmar", "/auth/sair"]) expect(decideRoute(path, "", false)).toEqual({ action: "next" });
+    for (const path of ["/", "/entrar", "/entrar/", "/auth/callback", "/auth/confirmar", "/auth/sair", "/espera"]) expect(decideRoute(path, "", false)).toEqual({ action: "next" });
   });
 
   it("com sessão, /entrar vai para a página inicial e as demais seguem", () => {

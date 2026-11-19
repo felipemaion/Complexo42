@@ -72,20 +72,32 @@ async function readAccessStatus(client: AuthClient, userId: string): Promise<Acc
 export const requireUser = cache(async (): Promise<CurrentUser> => {
   const session = await getSession();
   if (!session) redirect(LOGIN_PATH);
+  const blocked = await accessRedirect(session.client, session.user.id);
+  if (blocked) redirect(blocked);
+  return session.user;
+});
+
+/**
+ * Portão de acesso logo depois do login (callback e confirmação do link) e em requireUser.
+ * Devolve para onde mandar a pessoa quando ela não pode seguir, ou null se pode.
+ */
+export async function accessRedirect(client: AuthClient, userId: string): Promise<string | null> {
   let decision;
   try {
     decision = await checkAccess({
-      readStatus: () => readAccessStatus(session.client, session.user.id),
-      resolve: () => onFirstLogin(session.client),
+      readStatus: () => readAccessStatus(client, userId),
+      resolve: () => onFirstLogin(client),
     });
   } catch (err) {
-    log.error("auth_access_check_failed", { error: err instanceof Error ? err.message.split(":")[0] : "unknown" });
-    redirect(`${SIGNOUT_PATH}?motivo=failed`);
+    // Só o código: a mensagem do erro nunca leva e-mail (R11), mas não arriscamos.
+    const code = err instanceof Error ? ((err as { code?: unknown }).code ?? err.message.split(":")[0]) : "unknown";
+    log.error("auth_access_check_failed", { reason: String(code).slice(0, 64) });
+    return `${SIGNOUT_PATH}?motivo=failed`;
   }
-  if (decision === "waitlist") redirect(WAITLIST_PATH);
-  if (decision === "blocked") redirect(`${SIGNOUT_PATH}?motivo=blocked`);
-  return session.user;
-});
+  if (decision === "waitlist") return WAITLIST_PATH;
+  if (decision === "blocked") return `${SIGNOUT_PATH}?motivo=blocked`;
+  return null;
+}
 
 /** Apaga os cookies de sessão mesmo se o GoTrue não responder ao logout. */
 export async function clearAuthCookies(): Promise<void> {

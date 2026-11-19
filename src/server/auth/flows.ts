@@ -74,7 +74,7 @@ export async function requestMagicLink(auth: AuthApi, opts: { email: unknown; si
 }
 
 /** Retorno do Google (e do link padrão do GoTrue): troca o `code` do PKCE pela sessão. */
-export async function exchangeCode(auth: AuthApi, params: URLSearchParams): Promise<FlowResult<{ next: string }>> {
+export async function exchangeCode(auth: AuthApi, params: URLSearchParams): Promise<FlowResult<{ next: string; userId: string }>> {
   const code = params.get("code");
   if (params.has("error") || !code) {
     log.warn("auth_callback_rejected", { code: params.get("error_code") ?? params.get("error") ?? "missing_code" });
@@ -86,7 +86,7 @@ export async function exchangeCode(auth: AuthApi, params: URLSearchParams): Prom
     return { ok: false, error: error ? classifyAuthError(error) : "failed" };
   }
   log.info("auth_signed_in", { method: "code" });
-  return { ok: true, next: safeNextPath(params.get("next")) };
+  return { ok: true, next: safeNextPath(params.get("next")), userId: data.user.id };
 }
 
 /**
@@ -94,7 +94,7 @@ export async function exchangeCode(auth: AuthApi, params: URLSearchParams): Prom
  * "Entrar" da página intermediária: um GET (pré-visualização do e-mail, antivírus) não gasta o
  * token, e ninguém é logado na conta de outra pessoa só por abrir um link (M1/M5).
  */
-export async function confirmMagicLink(auth: AuthApi, raw: { token_hash: unknown; type: unknown }): Promise<FlowResult<{ next: string }>> {
+export async function confirmMagicLink(auth: AuthApi, raw: { token_hash: unknown; type: unknown }): Promise<FlowResult<{ next: string; userId: string }>> {
   const params = magicLinkParamsSchema.safeParse(raw);
   if (!params.success) return { ok: false, error: "failed" };
   const { data, error } = await auth.verifyOtp(params.data);
@@ -103,5 +103,5 @@ export async function confirmMagicLink(auth: AuthApi, raw: { token_hash: unknown
     return { ok: false, error: error ? classifyAuthError(error) : "failed" };
   }
   log.info("auth_signed_in", { method: "token_hash" });
-  return { ok: true, next: safeNextPath(null) };
+  return { ok: true, next: safeNextPath(null), userId: data.user.id };
 }

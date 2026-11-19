@@ -10,9 +10,10 @@ export const SIGNOUT_PATH = "/auth/sair";
 /** Tela de quem está na lista de espera (ADR 0008 §1, página da #26). */
 export const WAITLIST_PATH = "/espera";
 
-// Tudo o que não está aqui exige sessão (negado por padrão). `/api/healthz` nem passa pelo
+// Tudo o que não está aqui exige sessão (negado por padrão). /espera é só texto fixo, sem dado
+// de ninguém (#26), e precisa abrir mesmo sem sessão válida. `/api/healthz` nem passa pelo
 // proxy (veja o matcher em src/proxy.ts).
-const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", LOGIN_PATH, CALLBACK_PATH, CONFIRM_PATH, SIGNOUT_PATH]);
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", LOGIN_PATH, CALLBACK_PATH, CONFIRM_PATH, SIGNOUT_PATH, WAITLIST_PATH]);
 
 export function isPublicPath(path: string): boolean {
   return PUBLIC_PATHS.has(path.length > 1 ? path.replace(/\/+$/, "") : path);

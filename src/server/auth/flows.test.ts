@@ -93,12 +93,12 @@ describe("exchangeCode (#9): retorno do Google", () => {
 
   it("troca o code e segue para o destino", async () => {
     const auth = fakeAuth();
-    expect(await exchangeCode(auth, params("code=abc&next=%2Finicio%3Fa%3D1"))).toEqual({ ok: true, next: "/inicio?a=1" });
+    expect(await exchangeCode(auth, params("code=abc&next=%2Finicio%3Fa%3D1"))).toEqual({ ok: true, next: "/inicio?a=1", userId: user.id });
     expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("abc");
   });
 
   it("destino que escapa do site vira a página inicial (H1)", async () => {
-    expect(await exchangeCode(fakeAuth(), params("code=abc&next=%2F.%2F%2Fmal.example"))).toEqual({ ok: true, next: "/inicio" });
+    expect(await exchangeCode(fakeAuth(), params("code=abc&next=%2F.%2F%2Fmal.example"))).toEqual({ ok: true, next: "/inicio", userId: user.id });
   });
 
   it.each([[""], ["error=access_denied&error_code=bad_oauth_state"], ["token_hash=h&type=email"]])("recusa %j sem criar sessão", async (query) => {
@@ -117,7 +117,7 @@ describe("exchangeCode (#9): retorno do Google", () => {
 describe("confirmMagicLink (#9): POST do botão Entrar", () => {
   it.each([["email"], ["magiclink"], ["signup"]])("confere o token_hash do tipo %s", async (type) => {
     const auth = fakeAuth();
-    expect(await confirmMagicLink(auth, { token_hash: HASH, type })).toEqual({ ok: true, next: "/inicio" });
+    expect(await confirmMagicLink(auth, { token_hash: HASH, type })).toEqual({ ok: true, next: "/inicio", userId: user.id });
     expect(auth.verifyOtp).toHaveBeenCalledWith({ token_hash: HASH, type });
   });
 

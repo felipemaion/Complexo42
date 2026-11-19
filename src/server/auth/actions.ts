@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getAuthConfig } from "./config";
 import { confirmMagicLink, requestMagicLink, startGoogleSignIn } from "./flows";
 import { LOGIN_PATH } from "./routes";
-import { clearAuthCookies, requestAuthClient } from "./session";
+import { accessRedirect, clearAuthCookies, requestAuthClient } from "./session";
 
 const loginWith = (query: string) => `${LOGIN_PATH}?${query}`;
 
@@ -32,9 +32,11 @@ export async function sendMagicLink(formData: FormData): Promise<never> {
 export async function confirmMagicLinkAction(formData: FormData): Promise<never> {
   const config = getAuthConfig();
   if (!config) redirect(loginWith("erro=unavailable"));
-  const auth = (await requestAuthClient(config)).auth;
-  const result = await confirmMagicLink(auth, { token_hash: formData.get("token_hash"), type: formData.get("type") });
-  redirect(result.ok ? result.next : loginWith(`erro=${result.error}`));
+  const client = await requestAuthClient(config);
+  const result = await confirmMagicLink(client.auth, { token_hash: formData.get("token_hash"), type: formData.get("type") });
+  if (!result.ok) redirect(loginWith(`erro=${result.error}`));
+  // Portão de acesso (lista de autorizados, #26) antes de seguir.
+  redirect((await accessRedirect(client, result.userId)) ?? result.next);
 }
 
 export async function signOut(): Promise<never> {
