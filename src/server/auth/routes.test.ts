@@ -11,7 +11,7 @@ describe("decideRoute (#9)", () => {
   });
 
   it("rotas públicas seguem sem sessão", () => {
-    for (const path of ["/", "/entrar", "/entrar/", "/auth/callback", "/auth/confirmar", "/auth/sair", "/espera"]) expect(decideRoute(path, "", false)).toEqual({ action: "next" });
+    for (const path of ["/", "/entrar", "/entrar/", "/auth/callback", "/auth/confirmar", "/auth/sair", "/espera", "/conta-excluida"]) expect(decideRoute(path, "", false)).toEqual({ action: "next" });
   });
 
   it("com sessão, /entrar vai para a página inicial e as demais seguem", () => {
@@ -22,6 +22,8 @@ describe("decideRoute (#9)", () => {
   it("não confunde prefixo com rota pública", () => {
     expect(isPublicPath("/entrarx")).toBe(false);
     expect(isPublicPath("/auth/callback/extra")).toBe(false);
+    // A página da exclusão (#18) exige sessão; só a despedida é pública.
+    expect(isPublicPath("/excluir-conta")).toBe(false);
   });
 });
 

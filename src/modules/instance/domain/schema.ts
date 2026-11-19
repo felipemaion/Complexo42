@@ -131,6 +131,25 @@ export const instanceConfigSchema = z.strictObject({
     /** Campo `sobre.descricao` do arquivo baixado. */
     fileDescription: text,
   }),
+  /** "Excluir minha conta" (#18, LGPD art. 18, VI). */
+  deleteAccount: z.strictObject({
+    homeLink: text,
+    title: text,
+    /** Avisos antes da confirmação, um por parágrafo. */
+    warnings: z.array(text).min(1),
+    /** O último login tem mais de 10 minutos: pede para entrar de novo. */
+    reauthMessage: text,
+    reauthButton: text,
+    confirmLabel: text,
+    confirmButton: text,
+    cancelLink: text,
+    invalidConfirmation: text,
+    reauthRequired: text,
+    failed: text,
+    goodbyeTitle: text,
+    goodbyeMessage: text,
+    goodbyeLink: text,
+  }),
   /**
    * Textos da escolha da casa (#76, ADR 0008 §2 e §2.1). O texto do termo do questionário vem
    * do arquivo do questionário, não daqui.

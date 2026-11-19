@@ -11,3 +11,10 @@ export type ExportOwnDataResult =
   | { status: "ok"; body: string; filename: string }
   | { status: "rate_limited" }
   | { status: "failed" };
+
+/** Resultado da exclusão da conta (#18). */
+export type DeleteOwnAccountResult =
+  | { status: "deleted" }
+  | { status: "invalid_confirmation" }
+  | { status: "reauth_required" }
+  | { status: "failed" };

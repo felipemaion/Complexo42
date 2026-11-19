@@ -110,6 +110,29 @@ export async function accessRedirect(client: AuthClient, userId: string): Promis
   return null;
 }
 
+/**
+ * Para a exclusão da conta (#18): a sessão conferida no GoTrue, SEM o portão de acesso. Quem
+ * está na espera, ou ainda não tem perfil, também tem o direito de excluir (LGPD art. 18, VI).
+ * Devolve o access token da sessão só para a tela saber a hora do login; quem decide é o banco,
+ * com o mesmo JWT. Nunca `service_role`.
+ */
+export async function requireSessionClient(): Promise<{ client: AuthClient; accessToken: string | null }> {
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  const { data } = await session.client.auth.getSession();
+  return { client: session.client, accessToken: data.session?.access_token ?? null };
+}
+
+/** Encerra a sessão neste aparelho (cookies apagados mesmo se o GoTrue não responder). */
+export async function endSession(): Promise<void> {
+  const config = getAuthConfig();
+  try {
+    if (config) await (await requestAuthClient(config)).auth.signOut({ scope: "local" });
+  } finally {
+    await clearAuthCookies();
+  }
+}
+
 /** Apaga os cookies de sessão mesmo se o GoTrue não responder ao logout. */
 export async function clearAuthCookies(): Promise<void> {
   const store = await cookies();

@@ -551,7 +551,7 @@ create function pg_temp.login(p_name text) returns void language sql as $$
 $$;
 grant select on people to authenticated;
 
-select plan((select count(*)::int from matrix) + 118);
+select plan((select count(*)::int from matrix) + 121);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 13 unidades da árvore foram capturadas.
@@ -1217,6 +1217,20 @@ select is(
   'monitor da equipe NÃO recebe os vínculos dos alunos da equipe na exportação'
 );
 
+-- "Excluir minha conta" (#18): a função só apaga a conta de quem chama (não recebe alvo) e
+-- exige login recente. Nem o gestor nacional apaga a conta ou o perfil de alguém do escopo.
+select pg_temp.login('nat_mgr');
+select throws_ok(
+  $$ delete from public.profiles where id = (select pg_temp.person('stu_a')) $$,
+  '42501', null,
+  'gestor nacional NÃO apaga o perfil de um aluno do escopo'
+);
+select throws_ok(
+  $$ select public.delete_own_account() $$,
+  'PT401', null,
+  'gestor nacional sem login recente NÃO exclui nem a própria conta'
+);
+
 -- Visitante anônimo
 set local role anon;
 set local request.jwt.claims to '{"role": "anon"}';
@@ -1240,6 +1254,11 @@ select throws_ok(
   $$ select public.export_own_data() $$,
   '42501', null,
   'visitante anônimo NÃO exporta dados'
+);
+select throws_ok(
+  $$ select public.delete_own_account() $$,
+  '42501', null,
+  'visitante anônimo NÃO exclui conta'
 );
 
 reset role;
