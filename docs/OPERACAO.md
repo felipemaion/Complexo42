@@ -241,13 +241,6 @@ digest que o traga; o script usa o container em vez do binário local.
 duro** para o diário de domingo — não gera segundo dump nem ocupa espaço a mais.
 Diretórios com modo 700, arquivos 600.
 
-### Agendar
-
-Timer do systemd ou cron do **host** — nunca dentro do container do app, que o
-deploy recria. Sugerido: diário às 03:00 em São Paulo (06:00 UTC), fora do pico.
-Falha gera alerta pela #85; para isso o script sai com código ≠ 0 em qualquer
-erro, inclusive quando o `pg_dump` falha no meio do pipe (`PIPESTATUS`).
-
 ### Restaurar — e testar a restauração
 
 > Backup que nunca foi restaurado não conta.
@@ -266,7 +259,139 @@ a copia nem a imprime. No servidor, apague a cópia temporária ao terminar.
 
 Rodar **antes do primeiro dado real** e **todo mês**, anotando o tempo na #84.
 
-### Cópia fora da VPS
+### Cópia fora da VPS (Google Drive via rclone)
 
-Pendente de decisão (R19 — custo zero). O arquivo só sai do servidor **já
-cifrado**, então o destino é tratado como não confiável por desenho.
+Backup que mora no mesmo disco do banco não é backup: se a instância sumir, ele
+some junto. O `deploy/enviar-backup.sh` copia os `.age` para o Google Drive.
+
+**Por que Drive e não um S3 compatível:** a conta Google gratuita não tem meio
+de pagamento, então não existe caminho para cobrança — mesmo princípio da cota
+do Oracle (R19). R2 e B2 cobram por uso acima do limite grátis.
+
+O arquivo sai do servidor **já cifrado** e o destino é tratado como não
+confiável por desenho: quem obtiver os arquivos no Drive não obtém os dados.
+
+#### 1. Instalar o rclone no servidor
+
+```bash
+sudo apt install rclone age    # os dois de uma vez; ver nota abaixo
+```
+
+O `rclone` tem de estar no host, não em container: a autorização OAuth é
+interativa e o token fica no arquivo de configuração do host. Como o `rclone`
+já exige instalação no host, o `age` vai pelo mesmo caminho — e aí o
+`AGE_IMAGEM` do `backup.sh` deixa de ser necessário.
+
+#### 2. Autorizar — num servidor sem navegador
+
+O servidor não abre navegador, então a autorização é em duas máquinas.
+
+**No servidor:**
+
+```bash
+rclone config
+```
+
+Responda: `n` (New remote) · nome do remoto · storage `drive` · `client_id` e
+`client_secret` vazios · **scope: a opção descrita como "Access to files
+created by rclone only"** (`drive.file`, normalmente a `3`) ·
+`service_account_file` vazio · advanced config `n` · **"Use web browser to
+automatically authenticate?" → `n`**.
+
+O rclone então imprime uma linha para rodar **na sua máquina**:
+
+```
+rclone authorize "drive" "eyJzY29wZSI6ImRyaXZl..."
+```
+
+**Na sua máquina** (`brew install rclone` antes), rode exatamente essa linha. O
+navegador abre, você escolhe a conta e aprova; o rclone imprime um token entre
+chaves. Cole esse token de volta no prompt `config_token>` do servidor.
+Depois: Shared Drive `n`, manter o remoto `y`, `q` para sair.
+
+> **Qual conta Google.** Use uma conta **dedicada**, não a sua pessoal. O
+> escopo `drive.file` já limita o rclone aos arquivos que ele mesmo criou, mas
+> uma conta separada torna o token inútil para qualquer outra coisa — e 15 GB
+> grátis sobram para esses dumps.
+
+Confira sem transferir nada:
+
+```bash
+rclone lsd <nome-do-remoto>:
+```
+
+#### 3. O token no servidor
+
+Fica em `~/.config/rclone/rclone.conf` do usuário que roda o backup. É um
+**refresh token**: vale como segredo, modo `600`, e nunca entra neste
+repositório nem em imagem Docker.
+
+O que um servidor comprometido consegue: **apagar** o que o rclone criou no
+Drive. Não consegue **ler** o conteúdo (está cifrado) nem alcançar o resto da
+conta (escopo `drive.file`). Por isso a série local de 7+4 continua existindo —
+o Drive é a segunda cópia, não a única.
+
+#### 4. Rodar
+
+```bash
+BACKUP_DIR=<onde o backup.sh gravou> RCLONE_REMOTO=<remoto>:<pasta> \
+  ./deploy/enviar-backup.sh
+```
+
+Envia, **confere** (`rclone check`, de um lado só) e só então poda o destino
+para os mesmos 7 diários e 4 semanais. A ordem é a proteção: podar antes de
+conferir apagaria a única cópia boa quando o envio falha. A poda ordena pelo
+**nome** (que carrega o carimbo UTC), não pela data no destino, que quem
+hospeda pode reescrever.
+
+Uma diferença esperada: no servidor o semanal é link duro e não ocupa espaço a
+mais; no Drive não existe link duro, então o domingo conta como dois arquivos.
+
+#### 5. Agendar os dois passos
+
+Timer do systemd no **host** — nunca dentro do container, que o deploy recria.
+Diário às 03:00 em São Paulo (06:00 UTC), fora do pico.
+
+```ini
+# /etc/systemd/system/complexo42-backup.service
+[Service]
+Type=oneshot
+User=<usuário do deploy>
+EnvironmentFile=<arquivo com COMPOSE_FILE, ENV_FILE, PROJECT_DIR, BACKUP_DIR,
+                 AGE_RECIPIENT e RCLONE_REMOTO>
+ExecStart=<dir>/deploy/backup.sh
+ExecStart=<dir>/deploy/enviar-backup.sh
+```
+
+```ini
+# /etc/systemd/system/complexo42-backup.timer
+[Timer]
+OnCalendar=*-*-* 06:00:00 UTC
+Persistent=true
+[Install]
+WantedBy=timers.target
+```
+
+Dois `ExecStart` no mesmo `oneshot` rodam **em sequência, e o segundo só se o
+primeiro passar** — é o que queremos: não enviar um backup que falhou.
+`Persistent=true` roda o que ficou para trás se a máquina estava desligada.
+
+```bash
+sudo systemctl enable --now complexo42-backup.timer
+systemctl list-timers complexo42-backup.timer   # confere o próximo disparo
+journalctl -u complexo42-backup.service -n 50   # confere a última execução
+```
+
+Falha gera alerta pela #85; para isso cada script sai com código ≠ 0 em
+qualquer erro.
+
+#### 6. Testar a restauração a partir do Drive
+
+```bash
+./deploy/restore-test.sh --do-remoto <chave-privada>
+```
+
+**É este o teste que vale.** Restaurar um arquivo local prova que o dump está
+bom; só o `--do-remoto` prova que a cópia fora da VPS existe, chegou inteira e
+pode ser recuperada — ele baixa o `.age` mais novo do Drive, restaura num
+Postgres descartável e apaga o que baixou no fim.

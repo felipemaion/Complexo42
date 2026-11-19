@@ -7,12 +7,28 @@
 # A chave PRIVADA entra só aqui, só durante o teste, e o script não a copia,
 # não a imprime e não a apaga -- quem manda nela é o operador (ADR 0003 §7).
 #
-# Uso: ./restore-test.sh <arquivo.age> <arquivo-de-identidade-age>
+# Uso: ./restore-test.sh <arquivo.age> <identidade-age>
+#      ./restore-test.sh --do-remoto <identidade-age>
+#
+# O modo --do-remoto BAIXA o backup mais novo do destino fora da VPS e restaura
+# esse arquivo. É o teste que vale: um arquivo local restaurável não prova que
+# a cópia remota existe, chegou inteira e pode ser recuperada.
 set -euo pipefail
 umask 077
 
-ARQ=${1:?uso: restore-test.sh <arquivo.age> <identidade-age>}
-IDENT=${2:?falta o arquivo de identidade (chave privada age)}
+AQUI=$(cd "$(dirname "$0")" && pwd)
+BAIXADO=
+if [ "${1:-}" = "--do-remoto" ]; then
+  IDENT=${2:?uso: restore-test.sh --do-remoto <identidade-age>}
+  BAIXADO=$(mktemp -d)
+  echo "== baixando do destino fora da VPS"
+  # O caminho do arquivo vem pelo stdout do enviar-backup.sh; o log dele sai
+  # pelo stderr justamente para esta linha funcionar.
+  ARQ=$("$AQUI/enviar-backup.sh" --baixar-ultimo "$BAIXADO")
+else
+  ARQ=${1:?uso: restore-test.sh <arquivo.age|--do-remoto> <identidade-age>}
+  IDENT=${2:?falta o arquivo de identidade (chave privada age)}
+fi
 # Mesma imagem do ambiente, por fidelidade: restaurar num Postgres diferente
 # testa outra coisa. Fixada por digest, como no compose.
 IMAGEM=${IMAGEM:-supabase/postgres:17.12.0.001@sha256:2543d8fb3889ff2ee514af39496f67c30edd1f1e0da923a560e7930d2f59ca16}
@@ -39,6 +55,9 @@ decifrador() {
 
 limpar() {
   docker rm -f "$NOME" > /dev/null 2>&1 || true
+  # o que foi baixado para o teste nao fica no disco depois dele
+  [ -n "$BAIXADO" ] && rm -rf -- "$BAIXADO"
+  return 0
 }
 trap limpar EXIT
 
