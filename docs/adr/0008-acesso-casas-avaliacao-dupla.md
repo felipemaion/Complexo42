@@ -38,7 +38,7 @@ profiles.access_status: 'pending' | 'active' | 'waitlisted' | 'blocked'
 ```
 
 - **A lista guarda só o HMAC do e-mail normalizado** (minúsculas e sem espaços, com a mesma
-  chave HMAC do ADR 0003). Não guarda o nome nem o e-mail em claro: a planilha de origem fica
+  chave HMAC e o domínio `em` do ADR 0003). Não guarda o nome nem o e-mail em claro: a planilha de origem fica
   com a coordenação, fora da plataforma.
 - **No primeiro login, o servidor compara o HMAC do e-mail de login com a lista.**
   - Se o e-mail está na lista, o perfil fica `active`.
