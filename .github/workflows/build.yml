@@ -34,12 +34,13 @@ jobs:
       ambiente: ${{ steps.tags.outputs.ambiente }}
       digest: ${{ steps.publicar.outputs.digest }}
     steps:
+      # `with` em uma linha só, e `persist-credentials` logo depois do `uses`:
+      # o tests/ci-hardening.test.ts (critério da #60) confere a linha
+      # IMEDIATAMENTE seguinte, e com `with:` em bloco ele reprova.
+      # `fetch-depth` 0 só na release: é o que permite provar, mais abaixo,
+      # que o commit da tag está na `main`.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          # Histórico inteiro só na release: é o que permite provar que o
-          # commit da tag está na `main`.
-          fetch-depth: ${{ github.event_name == 'release' && 0 || 1 }}
+        with: { persist-credentials: false, fetch-depth: "${{ github.event_name == 'release' && 0 || 1 }}" }
 
       - name: Decidir tags e ambiente
         id: tags
