@@ -156,3 +156,73 @@ telefone e e-mail (R11). O compose de referência é `deploy/docker-compose.app.
 sistema de arquivos só leitura, sem `ports:`, com `mem_limit`. Use nele um
 `COMPOSE_PROJECT_NAME` diferente do Supabase e aponte `SUPABASE_NETWORK` para a
 rede `<projeto-do-supabase>_interna`.
+
+## Backup cifrado e restauração (#84)
+
+**O par de chaves nasce fora do servidor.** Quem mantém gera na própria máquina:
+
+```bash
+age-keygen -o chave-privada.txt      # guarde OFFLINE, nunca no servidor
+grep 'public key' chave-privada.txt  # a linha age1... é o que vai no servidor
+```
+
+Só a **pública** (`age1...`) entra no arquivo de segredos do ambiente, como
+`AGE_RECIPIENT`. A **privada** vai para o cofre offline, com dois mantenedores
+(ADR 0003 §7). O servidor cifra e **não consegue decifrar** — é essa assimetria
+que faz um backup vazado não virar vazamento de dados.
+
+> Perder a privada é perder todos os backups. Guardar a privada no servidor é
+> anular o backup cifrado. Os dois erros são definitivos; o segundo é silencioso.
+
+### Rodar
+
+```bash
+COMPOSE_FILE=<compose do ambiente> ENV_FILE=<segredos> \
+PROJECT_DIR=<diretório de deploy> BACKUP_DIR=<onde guardar> \
+AGE_RECIPIENT=age1... ./deploy/backup.sh
+```
+
+O `pg_dump` sai do container por **pipe** e entra direto no `age`: o dump em
+claro nunca toca o disco, nem em `/tmp`. O script recusa rodar se faltar
+variável, se a chave pública não tiver o formato `age1...`, se o arquivo sair
+menor que o mínimo ou se o cabeçalho não for de arquivo `age` — cada uma dessas
+checagens existe porque o desastre correspondente é silencioso.
+
+Se o `age` não estiver no host, defina `AGE_IMAGEM` com uma imagem fixada por
+digest que o traga; o script usa o container em vez do binário local.
+
+### Retenção
+
+`backups/diario/` guarda 7; `backups/semanal/` guarda 4. O semanal é **link
+duro** para o diário de domingo — não gera segundo dump nem ocupa espaço a mais.
+Diretórios com modo 700, arquivos 600.
+
+### Agendar
+
+Timer do systemd ou cron do **host** — nunca dentro do container do app, que o
+deploy recria. Sugerido: diário às 03:00 em São Paulo (06:00 UTC), fora do pico.
+Falha gera alerta pela #85; para isso o script sai com código ≠ 0 em qualquer
+erro, inclusive quando o `pg_dump` falha no meio do pipe (`PIPESTATUS`).
+
+### Restaurar — e testar a restauração
+
+> Backup que nunca foi restaurado não conta.
+
+```bash
+./deploy/restore-test.sh <arquivo.age> <chave-privada>
+```
+
+Sobe um Postgres descartável com a **mesma imagem** do ambiente, decifra,
+restaura, imprime as contagens de controle (perfis, unidades, vínculos, papéis,
+municípios) e o **tempo em segundos**, e apaga o container no fim. Não toca o
+banco do ambiente.
+
+A chave privada entra só durante o teste e sai com quem a trouxe: o script não
+a copia nem a imprime. No servidor, apague a cópia temporária ao terminar.
+
+Rodar **antes do primeiro dado real** e **todo mês**, anotando o tempo na #84.
+
+### Cópia fora da VPS
+
+Pendente de decisão (R19 — custo zero). O arquivo só sai do servidor **já
+cifrado**, então o destino é tratado como não confiável por desenho.
