@@ -22,6 +22,8 @@ export type ProfileFormValues = {
   /** Código IBGE em texto, ou "" se ainda não escolheu. */
   municipalityCode: string;
   district: string;
+  /** As caixas de link de rede (#17), como digitadas, ou os links salvos. */
+  socialLinks: string[];
 };
 
 /**
@@ -31,7 +33,7 @@ export type ProfileFormValues = {
  */
 export type ProfileFormState =
   | { status: "idle" }
-  | { status: "invalid"; fields: ProfileFormField[]; values: ProfileFormValues }
+  | { status: "invalid"; fields: ProfileFormField[]; badLinks?: number[]; values: ProfileFormValues }
   | { status: "duplicate_whatsapp"; values: ProfileFormValues }
   | { status: "too_many_attempts"; values: ProfileFormValues }
   | { status: "failed"; values: ProfileFormValues };
@@ -39,7 +41,7 @@ export type ProfileFormState =
 /** Resultado de gravar o perfil no servidor. */
 export type SaveProfileResult =
   | { status: "saved" }
-  | { status: "invalid"; fields: ProfileFormField[] }
+  | { status: "invalid"; fields: ProfileFormField[]; badLinks?: number[] }
   | { status: "duplicate_whatsapp" }
   | { status: "too_many_attempts" }
   | { status: "forbidden" }
@@ -55,6 +57,13 @@ export type OwnProfile = {
   whatsapp: string;
   municipalityCode: number;
   district: string | null;
+  /** Links de rede (#17), já normalizados (só os que abriram e passam na regra). */
+  socialLinks: string[];
+  /**
+   * O valor guardado existe mas não abriu inteiro. O formulário não envia os links (o servidor
+   * mantém o valor cifrado) até a pessoa pedir para substituí-los.
+   */
+  socialLinksUnreadable: boolean;
 };
 
 /**

@@ -6,7 +6,12 @@ import { instance } from "@config/instance";
 import type { SaveProfileResult } from "@/modules/profiles";
 
 const saveOwnProfile = vi.fn<(...args: unknown[]) => Promise<SaveProfileResult>>();
-vi.mock("@/modules/profiles", () => ({ saveOwnProfile: (...args: unknown[]) => saveOwnProfile(...args) }));
+vi.mock("@/modules/profiles", () => ({
+  saveOwnProfile: (...args: unknown[]) => saveOwnProfile(...args),
+  socialLinkFormEntriesMax: 20,
+  socialLinkInputMaxLength: 2048,
+  socialLinksSentField: "socialLinksSent",
+}));
 vi.mock("@/server/auth/session", () => ({
   requireUserClient: async () => ({ user: { id: "0b6f2d4e-3c1a-4f8e-9d2b-7a5c6e1f0a93" }, client: {} }),
 }));
@@ -18,10 +23,11 @@ vi.mock("next/navigation", () => ({
 
 const { saveProfileAction } = await import("./actions");
 
-const values = { displayName: "Maria Aparecida", whatsapp: "(11) 98765-4321", municipalityCode: "3550308", district: "" };
+const fields = { displayName: "Maria Aparecida", whatsapp: "(11) 98765-4321", municipalityCode: "3550308", district: "" };
+const values = { ...fields, socialLinks: [] };
 function formData() {
   const data = new FormData();
-  for (const [key, value] of Object.entries(values)) data.set(key, value);
+  for (const [key, value] of Object.entries(fields)) data.set(key, value);
   return data;
 }
 
@@ -43,6 +49,37 @@ describe("saveProfileAction", () => {
     expect(await saveProfileAction({ status: "idle" }, formData())).toEqual({ status: "duplicate_whatsapp", values });
     saveOwnProfile.mockResolvedValue({ status: "failed" });
     expect(await saveProfileAction({ status: "idle" }, formData())).toEqual({ status: "failed", values });
+  });
+
+  it("links (#17): passa as caixas na ordem ao serviço e devolve as posições erradas com o que foi digitado", async () => {
+    const data = formData();
+    data.set("socialLinksSent", "1");
+    data.append("socialLinks", "instagram.com/maria");
+    data.append("socialLinks", "javascript:alert(1)");
+    saveOwnProfile.mockResolvedValue({ status: "invalid", fields: ["socialLinks"], badLinks: [1] });
+    expect(await saveProfileAction({ status: "idle" }, data)).toEqual({
+      status: "invalid",
+      fields: ["socialLinks"],
+      badLinks: [1],
+      values: { ...values, socialLinks: ["instagram.com/maria", "javascript:alert(1)"] },
+    });
+    expect(saveOwnProfile.mock.calls[0]![2]).toMatchObject({ socialLinks: ["instagram.com/maria", "javascript:alert(1)"] });
+  });
+
+  it("links (#17): sem o campo escondido, o serviço recebe `undefined` (mantém os guardados)", async () => {
+    saveOwnProfile.mockResolvedValue({ status: "failed" });
+    await saveProfileAction({ status: "idle" }, formData());
+    expect(saveOwnProfile.mock.calls[0]![2]).toMatchObject({ socialLinks: undefined });
+  });
+
+  it("links (#17): texto longo demais passa só até 1 caractere acima do limite, para ser recusado", async () => {
+    const data = formData();
+    data.set("socialLinksSent", "1");
+    data.append("socialLinks", `https://rede.example/${"a".repeat(5000)}`);
+    saveOwnProfile.mockResolvedValue({ status: "failed" });
+    await saveProfileAction({ status: "idle" }, data);
+    const sent = (saveOwnProfile.mock.calls[0]![2] as { socialLinks: string[] }).socialLinks;
+    expect(sent[0]).toHaveLength(2049);
   });
 
   it("salvo: segue para a página inicial", async () => {

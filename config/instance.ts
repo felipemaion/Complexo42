@@ -62,7 +62,7 @@ export const instance = parseInstanceConfig({
   },
   profile: {
     title: "Seus dados",
-    intro: "Preencha os campos abaixo e toque em salvar. Seu nome e seu WhatsApp ficam guardados de forma protegida.",
+    intro: "Preencha os campos abaixo e toque em salvar. Seu nome, seu WhatsApp e suas redes ficam guardados de forma protegida.",
     nameLabel: "Seu nome",
     nameHint: "Como você quer ser chamado. De 2 a 80 letras.",
     whatsappLabel: "Seu WhatsApp, com DDD",
@@ -72,6 +72,15 @@ export const instance = parseInstanceConfig({
     districtLabel: "Seu distrito",
     districtHint: "Distrito da cidade de São Paulo. Se não souber, pode deixar em branco.",
     districtNone: "Não sei ou prefiro não dizer",
+    socialLinksLabel: "Suas redes sociais (se quiser)",
+    socialLinksHint: "Até 5 links, como instagram.com/seunome. Pode deixar em branco.",
+    socialLinkLabel: "Link",
+    addSocialLink: "Pôr mais um link",
+    removeSocialLink: "Tirar o link",
+    socialLinksUnreadable:
+      "Não conseguimos abrir os seus links agora. Eles continuam guardados: salvar os outros dados não apaga os links.",
+    replaceSocialLinks: "Trocar os links guardados",
+    socialLinksTitle: "Suas redes sociais",
     saveButton: "Salvar meus dados",
     saving: "Salvando...",
     saved: "Pronto! Seus dados foram salvos.",
@@ -82,6 +91,8 @@ export const instance = parseInstanceConfig({
       whatsapp: "Confira o WhatsApp: DDD e celular com 9 dígitos, como (11) 91234-5678.",
       municipalityCode: "Escolha a sua cidade na lista.",
       district: "Escolha o distrito na lista ou deixe em branco.",
+      socialLinks:
+        "Confira os links: cada um precisa ser um endereço que começa com https://, como https://instagram.com/seunome, sem repetir.",
     },
     duplicateWhatsapp:
       "Este WhatsApp já está em outro cadastro. Confira o número. Se ele é mesmo seu, fale com a coordenação.",

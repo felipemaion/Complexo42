@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
-import { CONTACT_VISIBILITY_PATH, hasOwnProfile } from "@/modules/profiles";
+import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -16,7 +16,8 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 export default async function SignedInHome({ searchParams }: Props) {
   // A página também confere (o layout e a página renderizam em paralelo); `cache` evita repetir.
   const { user, client } = await requireUserClient();
-  if (!(await hasOwnProfile(client, user.id))) redirect(PROFILE_PATH);
+  const own = await loadOwnProfile(client, user.id);
+  if (!own) redirect(PROFILE_PATH);
   const params = await searchParams;
   const saved = params.salvo === "1";
   const myDataStatus = parseMyDataStatus(params[MY_DATA_STATUS_PARAM]);
@@ -33,6 +34,15 @@ export default async function SignedInHome({ searchParams }: Props) {
       <p className="text-lg">
         {text.connectedAs} <strong>{user.maskedEmail}</strong>
       </p>
+      {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}
+      {own.socialLinks.length > 0 && (
+        <section aria-labelledby="minhas-redes" className="flex flex-col gap-3">
+          <h2 id="minhas-redes" className="text-xl font-semibold">
+            {instance.profile.socialLinksTitle}
+          </h2>
+          <SocialLinkList links={own.socialLinks} label={instance.profile.socialLinksTitle} />
+        </section>
+      )}
       <Link
         href={PROFILE_PATH}
         className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"

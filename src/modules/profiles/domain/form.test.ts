@@ -17,6 +17,7 @@ describe("parseProfileForm", () => {
       ok: true,
       profile: { displayName: "Ana Souza", municipalityCode: SP, district: "Sé", consentVersion: consentNotYetGiven },
       contact: { whatsapp: "+5511912345678", socialLinks: [] },
+      keepSocialLinks: true,
     });
   });
 
@@ -52,9 +53,67 @@ describe("parseProfileForm", () => {
   });
 
   it("entrada que não é texto, ou longa demais, é recusada", () => {
-    expect(fieldsOf(null)).toEqual(["displayName", "whatsapp", "municipalityCode", "district"]);
-    expect(fieldsOf({ ...valid, displayName: 42 })).toEqual(["displayName", "whatsapp", "municipalityCode", "district"]);
-    expect(fieldsOf({ ...valid, displayName: "a".repeat(201) })).toEqual(["displayName", "whatsapp", "municipalityCode", "district"]);
+    const all = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"];
+    expect(fieldsOf(null)).toEqual(all);
+    expect(fieldsOf({ ...valid, displayName: 42 })).toEqual(all);
+    expect(fieldsOf({ ...valid, displayName: "a".repeat(201) })).toEqual(all);
+    // Caixas de link demais num envio não vêm do formulário: tudo recusado.
+    expect(fieldsOf({ ...valid, socialLinks: Array.from({ length: 21 }, () => "") })).toEqual(all);
     expect(fieldsOf({ ...valid, whatsapp: `${"1".repeat(40)}` })).toEqual(["whatsapp"]);
+  });
+});
+
+describe("parseProfileForm: redes sociais (#17)", () => {
+  const parse = (socialLinks: unknown) => parseProfileForm({ ...valid, socialLinks }, districtsFor);
+
+  it("normaliza os links (https:// por padrão), ignora caixas vazias e marca que vieram no envio", () => {
+    const result = parse(["instagram.com/ana", "", "  https://WWW.TikTok.com/@ana  "]);
+    expect(result.ok && result.contact.socialLinks).toEqual(["https://instagram.com/ana", "https://www.tiktok.com/@ana"]);
+    expect(result.ok && result.keepSocialLinks).toBe(false);
+  });
+
+  it("sem o campo no envio: manter os guardados; com o campo vazio: a pessoa tirou todos", () => {
+    const absent = parseProfileForm(valid, districtsFor);
+    expect(absent.ok && absent.keepSocialLinks).toBe(true);
+    const cleared = parse([""]);
+    expect(cleared.ok && cleared.keepSocialLinks).toBe(false);
+    expect(cleared.ok && cleared.contact.socialLinks).toEqual([]);
+  });
+
+  it("javascript:, data:, http:, usuário/senha e texto com <script>: recusados, com a posição de cada caixa", () => {
+    const result = parse([
+      "https://instagram.com/ana",
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "http://instagram.com/ana",
+      "https://instagram.com@golpe.example/ana",
+      "<script>alert(1)</script>",
+    ]);
+    expect(result).toEqual({ ok: false, fields: ["socialLinks"], badLinks: [1, 2, 3, 4, 5] });
+    // Nunca devolve o valor (R11).
+    expect(JSON.stringify(result)).not.toContain("alert");
+  });
+
+  it("repetido depois de normalizar é recusado na segunda caixa", () => {
+    expect(parse(["instagram.com/ana", "https://instagram.com/ana"])).toEqual({
+      ok: false,
+      fields: ["socialLinks"],
+      badLinks: [1],
+    });
+  });
+
+  it("até 5 links; o 6º é recusado", () => {
+    const five = Array.from({ length: 5 }, (_, i) => `https://rede.example/p${i}`);
+    expect(parse(five).ok).toBe(true);
+    expect(parse([...five, "https://rede.example/p5"])).toEqual({ ok: false, fields: ["socialLinks"] });
+  });
+
+  it("link longo demais é recusado, nunca cortado", () => {
+    expect(parse([`https://rede.example/${"a".repeat(300)}`])).toEqual({ ok: false, fields: ["socialLinks"], badLinks: [0] });
+    expect(fieldsOf({ ...valid, socialLinks: ["a".repeat(5000)] })).toContain("socialLinks");
+  });
+
+  it("um link errado não esconde os outros erros", () => {
+    expect(fieldsOf({ ...valid, displayName: "A", socialLinks: ["javascript:alert(1)"] })).toEqual(["displayName", "socialLinks"]);
   });
 });
