@@ -36,10 +36,17 @@ const waitlistRowsSchema = z.array(
   }),
 );
 
-/** Chama a RPC e devolve `data`; erro do banco vira `AccessError` sem o texto do banco. */
+/**
+ * Chama a RPC e devolve `data`; erro do banco vira `AccessError` sem o texto do banco. A
+ * recusa de permissão (42501, `insufficient_privilege`) vira `forbidden`, para a tela
+ * explicar em vez de mostrar uma falha genérica.
+ */
 async function callRpc(client: AccessClient, fn: string, args: Record<string, unknown>): Promise<unknown> {
   const { data, error } = await client.rpc(fn, args);
-  if (error) throw new AccessError("db_error");
+  if (error) {
+    const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+    throw new AccessError(code === "42501" ? "forbidden" : "db_error");
+  }
   return data;
 }
 
@@ -88,7 +95,9 @@ export async function importAllowlist(
 
 /**
  * Uma página da fila de espera do gestor (só quem está no escopo dele), dos mais antigos para
- * os mais novos, com o nome decifrado. Para a próxima página, passar `nextCursor`.
+ * os mais novos, com o nome decifrado. Para a próxima página, passar `nextCursor`. Um nome que
+ * não decifra (chave trocada, valor corrompido) vem como null: a linha continua na fila e a
+ * coordenação ainda decide, em vez de a fila inteira falhar por causa de uma pessoa.
  */
 export async function listWaitlist(
   client: AccessClient,
@@ -113,7 +122,7 @@ export async function listWaitlist(
         table: "profiles",
         column: "display_name_enc",
         rowId: row.profile_id,
-      }),
+      }).catch(() => null),
       municipalityCode: row.municipality_code,
       stateCode: row.state_code,
       createdAt: row.created_at,

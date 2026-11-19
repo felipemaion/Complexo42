@@ -114,9 +114,13 @@ describe("importAllowlist", () => {
     await expect(importAllowlist(fakeClient(2).client, "a@x.org", "manual", blindIndex)).rejects.toThrow();
   });
 
-  it("propaga a recusa do banco (quem não é gestor)", async () => {
-    const { client } = fakeClient(null, { dbError: { code: "42501" } });
-    await expect(importAllowlist(client, "a@x.org", "manual", blindIndex)).rejects.toMatchObject({ code: "db_error" });
+  it("propaga a recusa do banco (quem não é gestor) como forbidden; outro erro como db_error", async () => {
+    const { client } = fakeClient(null, { dbError: { code: "42501", message: "detalhe a@x.org" } });
+    const error = (await importAllowlist(client, "a@x.org", "manual", blindIndex).catch((e: unknown) => e)) as AccessError;
+    expect(error).toMatchObject({ code: "forbidden" });
+    expect(error.message).not.toMatch(/a@x\.org|detalhe/);
+    const other = fakeClient(null, { dbError: { code: "22023" } }).client;
+    await expect(importAllowlist(other, "a@x.org", "manual", blindIndex)).rejects.toMatchObject({ code: "db_error" });
   });
 });
 
@@ -146,6 +150,16 @@ describe("fila de espera", () => {
       column: "display_name_enc",
       rowId: row(1).profile_id,
     });
+  });
+
+  it("nome que não decifra vem como null e não derruba a página", async () => {
+    let n = 0;
+    const decrypt = vi.fn(async () => {
+      if (n++ === 0) throw new Error("decrypt_failed");
+      return "Maria";
+    });
+    const page = await listWaitlist(fakeClient([row(1), row(2)]).client, {}, decrypt);
+    expect(page.entries.map((entry) => entry.displayName)).toEqual([null, "Maria"]);
   });
 
   it("página cheia devolve o cursor do último item, que vai na chamada seguinte", async () => {
