@@ -34,13 +34,17 @@ function deps(): { deps: ProfileDeps; lines: string[] } {
 
 type Call = { fn: string; args: Record<string, unknown> };
 /** Falso do cliente do Supabase: só o formato usado aqui (a tipagem real é do @supabase/ssr). */
-function fakeClient(opts: { rpcError?: unknown; row?: unknown; rows?: unknown; readError?: unknown } = {}) {
+function fakeClient(
+  opts: { rpcData?: unknown; rpcError?: unknown; row?: unknown; rows?: unknown; readError?: unknown } = {},
+) {
   const calls: Call[] = [];
   const reads: { table: string; columns: string; eq?: [string, string] }[] = [];
   const client = {
     rpc: async (fn: string, args: Record<string, unknown>) => {
       calls.push({ fn, args });
-      return { data: null, error: opts.rpcError ?? null };
+      // Sem erro, a função devolve `saved` ou `duplicate_whatsapp` (#127).
+      if (opts.rpcError) return { data: null, error: opts.rpcError };
+      return { data: "rpcData" in opts ? opts.rpcData : "saved", error: null };
     },
     from: (table: string) => ({
       select: (columns: string) => ({
@@ -111,14 +115,32 @@ describe("saveOwnProfile", () => {
     expect(lines).toEqual([]);
   });
 
-  it("WhatsApp de outro cadastro (23505): erro amigável, sem dizer de quem é", async () => {
-    const detail = `Key (whatsapp_hmac)=(${"b".repeat(64)}) already exists.`;
-    const { client } = fakeClient({ rpcError: { code: "23505", message: "WhatsApp já cadastrado", details: detail } });
+  it("WhatsApp de outro cadastro (a função devolve duplicate_whatsapp): aviso, sem dizer de quem é", async () => {
+    const { client } = fakeClient({ rpcData: "duplicate_whatsapp" });
     const { deps: d, lines } = deps();
-    const result = await saveOwnProfile(client, USER, form, districtsFor, d);
-    expect(result).toEqual({ status: "duplicate_whatsapp" });
-    expect(JSON.stringify(result)).not.toContain("b".repeat(64));
+    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "duplicate_whatsapp" });
     expect(lines).toEqual([]);
+  });
+
+  it("limite de tentativas (PT429, #127): too_many_attempts, logado só o código", async () => {
+    const { client } = fakeClient({ rpcError: { code: "PT429", message: "too_many_attempts", details: PHONE } });
+    const { deps: d, lines } = deps();
+    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "too_many_attempts" });
+    expect(lines).toHaveLength(1);
+    // Exatamente estes campos: nem a mensagem nem o DETAIL do banco entram no log.
+    const { ts, ...entry } = JSON.parse(lines[0]!) as Record<string, unknown>;
+    expect(typeof ts).toBe("string");
+    expect(entry).toEqual({ level: "warn", event: "profile_save_rate_limited", reason: "PT429" });
+    expect(leaks(lines.join("\n"))).toEqual([]);
+  });
+
+  it("retorno inesperado da função (nem saved nem duplicate_whatsapp): failed, nunca saved", async () => {
+    for (const rpcData of [null, "", "ok", { status: "saved" }]) {
+      const { client } = fakeClient({ rpcData });
+      const { deps: d, lines } = deps();
+      expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "failed" });
+      expect(JSON.parse(lines[0]!)).toMatchObject({ event: "profile_save_failed", reason: "unexpected_result" });
+    }
   });
 
   it("município que o banco não conhece (23503) volta como campo inválido", async () => {

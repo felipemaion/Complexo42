@@ -25,6 +25,8 @@ export type ProfileFormText = {
   errorSummary: string;
   fieldErrors: Record<ProfileFormField, string>;
   duplicateWhatsapp: string;
+  /** Limite de tentativas com WhatsApp repetido (#127): neutro, não diz nada do número. */
+  tooManyAttempts: string;
   failed: string;
 };
 
@@ -96,8 +98,8 @@ export function ProfileForm({ action, initial, municipalities, districts, text }
 
       {state.status !== "idle" && (
         <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg focus:outline-none focus-visible:ring-4">
-          {state.status === "failed" ? (
-            <p>{text.failed}</p>
+          {state.status === "failed" || state.status === "too_many_attempts" ? (
+            <p>{state.status === "failed" ? text.failed : text.tooManyAttempts}</p>
           ) : (
             <>
               <p className="font-semibold">{text.errorSummary}</p>
