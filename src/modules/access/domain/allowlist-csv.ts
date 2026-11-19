@@ -9,8 +9,12 @@
  * telefone) são ignoradas e nunca saem desta função.
  */
 
-/** Teto de itens por importação; o banco aplica o mesmo limite (`import_allowlist`). */
-export const allowlistLimits = { maxEmails: 50_000, maxBytes: 5 * 1024 * 1024 } as const;
+/**
+ * Teto por importação. 1,5 MB cabe em uma server action de 2 MB (next.config.ts) e comporta
+ * cerca de 35 mil e-mails, o que basta para a lista de uma vez; listas maiores vão em partes.
+ * O banco aceita até 50 mil HMACs por chamada (`import_allowlist`): o limite daqui é menor.
+ */
+export const allowlistLimits = { maxEmails: 35_000, maxBytes: 1.5 * 1024 * 1024 } as const;
 
 export type AllowlistImportErrorCode = "empty" | "too_large" | "too_many";
 

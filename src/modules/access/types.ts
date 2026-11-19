@@ -1,4 +1,5 @@
 import type { AccessStatus } from "@/modules/profiles";
+import type { AuthClient } from "@/server/auth/client";
 
 /** Origem de uma entrada da lista de autorizados (`access_allowlist.source`). */
 export type AllowlistSource = "form" | "academy" | "manual";
@@ -20,7 +21,7 @@ export type AccessClient = {
   rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
 };
 
-export type AccessErrorCode = "no_session" | "email_not_confirmed" | "db_error";
+export type AccessErrorCode = "no_session" | "email_not_confirmed" | "forbidden" | "db_error";
 
 /** Erro do serviço de acesso. Mensagem fixa: nunca traz e-mail nem o texto do banco (R11). */
 export class AccessError extends Error {
@@ -29,6 +30,7 @@ export class AccessError extends Error {
       {
         no_session: "Sessão ausente ou expirada.",
         email_not_confirmed: "Confirme o e-mail antes de entrar.",
+        forbidden: "O banco negou a operação para quem está logado.",
         db_error: "O banco recusou a operação.",
       }[code],
     );
@@ -51,7 +53,8 @@ export type AllowlistImportResult = {
 /** Item da fila de espera, com o nome já decifrado no servidor. */
 export type WaitlistEntry = {
   profileId: string;
-  displayName: string;
+  /** Null quando o nome não decifra (a pessoa continua na fila). */
+  displayName: string | null;
   municipalityCode: number;
   stateCode: string;
   createdAt: string;
@@ -61,3 +64,12 @@ export type WaitlistEntry = {
 export type WaitlistCursor = { createdAt: string; profileId: string };
 
 export type WaitlistPage = { entries: WaitlistEntry[]; nextCursor: WaitlistCursor | null };
+
+/**
+ * O cliente do Supabase das leituras de apoio da coordenação: o mesmo cliente com o JWT de
+ * quem está logado (R14), como em `ProfileDbClient`.
+ */
+export type CoordinationClient = Pick<AuthClient, "from">;
+
+/** Atalhos da coordenação a mostrar (só conforto: quem decide é o banco, R15). */
+export type CoordinationMenu = { waitlist: boolean; allowlist: boolean };

@@ -232,6 +232,71 @@ export const instanceConfigSchema = z.strictObject({
       failed: text,
     }),
   }),
+  /**
+   * Telas da coordenação (#26, ADR 0008 §1): envio da lista de autorizados e fila de espera.
+   * `{count}`, `{lines}`, `{date}`, `{city}`, `{state}` e `{name}` são trocados na tela.
+   */
+  coordination: z.strictObject({
+    homeLink: text,
+    title: text,
+    intro: text,
+    backLink: text,
+    homeBackLink: text,
+    allowlist: z.strictObject({
+      menuLink: text,
+      title: text,
+      intro: text,
+      privacyNote: text,
+      fileLabel: text,
+      fileHint: text,
+      sourceLabel: text,
+      /** Rótulo de cada origem da lista (`access_allowlist.source`). */
+      sources: z.strictObject({ academy: text, form: text, manual: text }),
+      submitButton: text,
+      sending: text,
+      doneTitle: text,
+      received: text,
+      promoted: text,
+      invalidLines: text,
+      invalidLinesMore: text,
+      /** Total de linhas ruins, com `{count}` (a tela lista só as primeiras). */
+      invalidLinesTotal: text,
+      errors: z.strictObject({
+        no_file: text,
+        wrong_type: text,
+        too_large: text,
+        too_many: text,
+        empty: text,
+        invalid_source: text,
+        /** O banco recusou: só o gestor da raiz importa. */
+        forbidden: text,
+        failed: text,
+      }),
+    }),
+    waitlist: z.strictObject({
+      menuLink: text,
+      title: text,
+      intro: text,
+      empty: text,
+      since: text,
+      place: text,
+      approveButton: text,
+      blockButton: text,
+      confirmApprove: text,
+      confirmBlock: text,
+      confirmApproveButton: text,
+      confirmBlockButton: text,
+      cancelButton: text,
+      /** No lugar do nome que não pôde ser lido. */
+      unknownName: text,
+      /** Aviso na linha de nome ilegível: "Liberar" fica desabilitado. */
+      unknownNameNote: text,
+      nextPage: text,
+      firstPage: text,
+      /** Resultado da decisão, mostrado no topo da fila. */
+      done: z.strictObject({ liberado: text, bloqueado: text, indisponivel: text, erro: text }),
+    }),
+  }),
   houses: z
     .array(houseSchema)
     .min(1)
