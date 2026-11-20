@@ -249,6 +249,7 @@ as $$
   join public.unit_types ut on ut.id = u.type_id
   where app.is_active_member()
     and ut.is_team = true
+    and u.status = 'active'
     and app.can_manage_unit(u.id)
   order by team_points desc, u.name asc;
 $$;

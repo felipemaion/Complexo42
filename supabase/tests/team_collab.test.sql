@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(15);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -73,6 +73,12 @@ select is((select count(*)::int from public.member_evaluations), 0, 'nem a coord
 -- Painel
 select is((select member_count from public.team_dashboard() where team_id = current_setting('t.team_x')::uuid), 3,
   'o painel mostra as pessoas da equipe para a coordenação');
+reset role;
+update public.units set status = 'archived' where slug = 'team_y';
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000c1');
+select is((select count(*)::int from public.team_dashboard() where team_name = 'team_y'), 0,
+  'equipe arquivada não aparece no painel');
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 select is_empty($$ select * from public.team_dashboard() $$, 'membro sem papel não vê o painel');
 
