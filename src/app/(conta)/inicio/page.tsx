@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { readMyBadges, sessionBadgesClient } from "@/modules/badges";
-import { MY_TEAM_PATH, readDashboard, readMyTeam, readTeamMates, sessionCollabClient } from "@/modules/collab";
+import { MY_TEAM_PATH, readDashboard, readMyTeam, readTeamIdentity, readTeamMates, sessionCollabClient, TeamFlag } from "@/modules/collab";
 import {
   listMissions,
   MISSION_PUBLISH_PATH,
@@ -69,7 +69,7 @@ export default async function SignedInHome({ searchParams }: Props) {
     collabClient ? orFallback(readMyTeam(collabClient), null, "team") : Promise.resolve(null),
   ]);
   const isCoordinator = publishable.length > 0;
-  const [mates, pending, dashboard] = await Promise.all([
+  const [mates, pending, dashboard, identity] = await Promise.all([
     collabClient && team
       ? orFallback(
           readTeamMates(collabClient, team.teamId, (value, profileId) =>
@@ -81,6 +81,7 @@ export default async function SignedInHome({ searchParams }: Props) {
       : Promise.resolve([]),
     isCoordinator && missionClient ? orFallback(readPendingReviews(missionClient), [], "pending") : Promise.resolve([]),
     isCoordinator && collabClient ? orFallback(readDashboard(collabClient), [], "dashboard") : Promise.resolve([]),
+    collabClient && team ? orFallback(readTeamIdentity(collabClient, team.teamId), null, "identity") : Promise.resolve(null),
   ]);
 
   const site = instance.site;
@@ -211,7 +212,13 @@ export default async function SignedInHome({ searchParams }: Props) {
                 <h2 className="text-2xl font-bold">{instance.myTeam.title}</h2>
                 {team ? (
                   <>
-                    <p className="text-xl font-bold text-ink">{team.teamName}</p>
+                    <div className="flex items-center gap-3">
+                      {identity && <TeamFlag identity={identity} label={`${instance.teamIdentity.flagLabel}: ${team.teamName}`} size="small" />}
+                      <div className="flex flex-col">
+                        <p className="text-xl font-bold text-ink">{team.teamName}</p>
+                        {identity?.motto && <p className="text-base text-primary">{identity.motto}</p>}
+                      </div>
+                    </div>
                     {lead && (
                       <p className="text-lg text-ink-muted">
                         {site.leadLabel}: {lead.displayName}

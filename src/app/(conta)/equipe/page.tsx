@@ -14,18 +14,25 @@ import { requireUser } from "@/server/auth/session";
 import { instance } from "@config/instance";
 import { teamChatEnabled } from "@/modules/collab";
 import { decryptField } from "@/server/crypto";
-import { pickInDraftAction, postMessageAction } from "./actions";
+import { IdentityForm, readTeamIdentity, TeamFlag } from "@/modules/collab";
+import { log } from "@/server/log";
+import { pickInDraftAction, postMessageAction, saveIdentityAction } from "./actions";
 
 export const metadata = {
   title: instance.myTeam.title,
 };
 
 type PageProps = {
-  readonly searchParams: Promise<{ readonly erro?: string; readonly ok?: string }>;
+  readonly searchParams: Promise<{
+    readonly erro?: string;
+    readonly ok?: string;
+    readonly identidade?: string;
+    readonly erro_identidade?: string;
+  }>;
 };
 
 export default async function EquipePage(props: PageProps) {
-  await requireUser();
+  const user = await requireUser();
   const searchParams = await props.searchParams;
 
   const client = await sessionCollabClient();
@@ -80,12 +87,42 @@ export default async function EquipePage(props: PageProps) {
       )
     : [];
 
-  const errorCode = searchParams.erro as keyof typeof instance.teamChat.errors | undefined;
-  const errorMessage = errorCode ? instance.teamChat.errors[errorCode] : undefined;
+  // Só códigos conhecidos viram mensagem; texto da URL nunca é exibido.
+  const chatErrors = instance.teamChat.errors;
+  const errorCode = Object.keys(chatErrors).find((key) => key === searchParams.erro) as keyof typeof chatErrors | undefined;
+  const errorMessage = errorCode ? chatErrors[errorCode] : undefined;
+
+  // Identidade da equipe (#56): todos da equipe veem; quem coordena a equipe edita (o banco decide).
+  const idText = instance.teamIdentity;
+  const identity = await readTeamIdentity(client, team.teamId).catch((error: unknown) => {
+    log.warn("identity_read_failed", { error: error instanceof Error ? error.message : "unknown" });
+    return null;
+  });
+  const canEditIdentity = mates.some((mate) => mate.isLead && mate.profileId === user.id);
+  const identityError = (["not_allowed", "invalid", "failed"] as const).find((key) => key === searchParams.erro_identidade);
 
   return (
     <PageShell title={team.teamName} intro={instance.myTeam.title} width="wide">
       {errorMessage ? <Notice tone="error">{errorMessage}</Notice> : null}
+      {searchParams.identidade === "salva" && <Notice tone="success">{idText.saved}</Notice>}
+      {identityError && <Notice tone="error">{idText.errors[identityError]}</Notice>}
+
+      {identity && (
+        <Card title={idText.title}>
+          <div className="flex flex-wrap items-center gap-5">
+            <TeamFlag identity={identity} label={`${idText.flagLabel}: ${team.teamName}`} />
+            <p className="text-2xl font-bold text-primary">{identity.motto ?? idText.noIdentity}</p>
+          </div>
+          {canEditIdentity && (
+            <details className="rounded-xl border border-line p-4">
+              <summary className="cursor-pointer text-lg font-bold text-primary">{idText.editTitle}</summary>
+              <div className="pt-4">
+                <IdentityForm teamId={team.teamId} identity={identity} text={idText} saveAction={saveIdentityAction} />
+              </div>
+            </details>
+          )}
+        </Card>
+      )}
 
       {/* No computador: quem está na equipe (e o draft) à esquerda, a conversa à direita. */}
       <div className="grid gap-8 lg:grid-cols-12">

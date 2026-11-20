@@ -270,6 +270,14 @@ export const instanceConfigSchema = z.strictObject({
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
   myTeam: z.strictObject({ homeLink: text, title: text, noTeam: text, membersTitle: text, leadTag: text }),
+  // Identidade da equipe (#56): lema, cores e emblema.
+  teamIdentity: z.strictObject({
+    title: text, flagLabel: text, noIdentity: text, editTitle: text, mottoLabel: text, colorsLegend: text,
+    color1Label: text, color2Label: text, color3Label: text, useColor3Label: text, emblemLegend: text,
+    saveButton: text, saved: text,
+    emblems: z.strictObject({ estrela: text, escudo: text, tocha: text, livro: text, megafone: text, balanca: text, ponte: text, folha: text }),
+    errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
+  }),
   badges: z.strictObject({
     homeLink: text,
     title: text,

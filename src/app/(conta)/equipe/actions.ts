@@ -5,6 +5,7 @@ import {
   MY_TEAM_PATH,
   pickInDraft,
   postMessage,
+  saveTeamIdentity,
   sessionCollabClient,
 } from "@/modules/collab";
 import { requireUser } from "@/server/auth/session";
@@ -53,4 +54,24 @@ export async function pickInDraftAction(formData: FormData): Promise<void> {
   const result = await pickInDraft(client, { sessionId: formData.get("sessionId"), profileId: formData.get("profileId") });
   if (!result.ok) log.warn("draft_action_refused", { reason: result.error });
   redirect(`${MY_TEAM_PATH}?${result.ok ? "ok_draft=picked" : `erro_draft=${result.error === "too_many" ? "failed" : result.error}`}`);
+}
+
+// Identidade da equipe (#56): lema, cores e emblema. Quem pode o banco decide.
+export async function saveIdentityAction(formData: FormData): Promise<void> {
+  await requireUser();
+  const client = await sessionCollabClient();
+  if (!client) redirect(`${MY_TEAM_PATH}?erro_identidade=failed`);
+
+  const result = await saveTeamIdentity(client, {
+    teamId: formData.get("teamId"),
+    motto: formData.get("motto") ?? "",
+    color1: formData.get("color1"),
+    color2: formData.get("color2"),
+    color3: formData.get("color3") ?? undefined,
+    useColor3: formData.get("useColor3") ?? undefined,
+    emblem: formData.get("emblem"),
+  });
+
+  if (!result.ok) log.warn("identity_action_refused", { reason: result.error });
+  redirect(`${MY_TEAM_PATH}?${result.ok ? "identidade=salva" : `erro_identidade=${result.error}`}`);
 }

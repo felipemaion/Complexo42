@@ -316,6 +316,31 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
+  // Identidade da turma (#56): a própria turma escolhe lema, cores e emblema.
+  teamIdentity: {
+    title: "Identidade da turma",
+    flagLabel: "Bandeira da turma",
+    noIdentity: "A turma ainda não escolheu lema, cores e emblema.",
+    editTitle: "Mudar a identidade",
+    mottoLabel: "Lema (até 80 letras)",
+    colorsLegend: "Cores da bandeira",
+    color1Label: "Primeira cor",
+    color2Label: "Segunda cor",
+    color3Label: "Terceira cor",
+    useColor3Label: "Usar a terceira cor",
+    emblemLegend: "Emblema",
+    saveButton: "Salvar identidade",
+    saved: "Pronto! A identidade da turma foi salva.",
+    emblems: {
+      estrela: "Estrela", escudo: "Escudo", tocha: "Tocha", livro: "Livro",
+      megafone: "Megafone", balanca: "Balança", ponte: "Ponte", folha: "Folha",
+    },
+    errors: {
+      not_allowed: "Só quem coordena a turma ou a coordenação da região muda a identidade.",
+      invalid: "Confira o lema (até 80 letras), as cores e o emblema.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
+  },
   // Menu do site (moldura das páginas de quem entrou).
   nav: {
     label: "Menu principal",
