@@ -8,6 +8,7 @@ import type {
   MissionActionResult,
   MissionClient,
   MissionErrorCode,
+  MissionListItem,
   MissionRun,
   MissionStep,
   MissionSummary,
@@ -63,15 +64,20 @@ const toStep = (row: z.infer<typeof stepRow>): MissionStep => ({
   requiresPrevious: row.requires_previous,
 });
 
-/** Missões publicadas que quem está logado enxerga (a RLS filtra pelo escopo). */
-export async function listMissions(client: MissionClient): Promise<readonly MissionSummary[]> {
+const listRow = missionRow.extend({ mission_steps: z.array(z.object({ points: z.number().int() })) });
+
+/** Missões publicadas que quem está logado enxerga (a RLS filtra pelo escopo), com o total de pontos. */
+export async function listMissions(client: MissionClient): Promise<readonly MissionListItem[]> {
   const { data, error } = await client
     .from("missions")
-    .select("id, title, description, category, origin, mode")
+    .select("id, title, description, category, origin, mode, mission_steps(points)")
     .eq("status", "published")
     .order("created_at", { ascending: false });
   if (error) throw new Error(`missions_read_failed:${errorCode(error)}`);
-  return z.array(missionRow).parse(data).map(toSummary);
+  return z
+    .array(listRow)
+    .parse(data)
+    .map(({ mission_steps: steps, ...row }) => ({ ...toSummary(row), totalPoints: sumLedger(steps) }));
 }
 
 /** A missão publicada e as etapas em ordem, ou null se não existe ou não está no escopo. */

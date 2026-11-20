@@ -1,3 +1,5 @@
+import type { InstanceConfig } from "@/modules/instance";
+
 // Contratos do módulo de missões (ADR 0006). Os valores das uniões são as chaves do banco
 // (supabase/migrations/20261121000000_missions.sql); o texto exibido vem de config/ (R17).
 
@@ -16,6 +18,8 @@ export type MissionSummary = {
   readonly origin: MissionOrigin;
   readonly mode: MissionMode;
 };
+
+export type MissionListItem = MissionSummary & { readonly totalPoints: number };
 
 export type MissionStep = {
   readonly id: string;
@@ -54,6 +58,9 @@ export type PendingReview = {
 };
 
 export type PublishableUnit = { readonly id: string; readonly name: string; readonly depth: number };
+
+/** Textos das telas de missões (config/instance.ts, R17). */
+export type MissionsText = InstanceConfig["missions"];
 
 /** Motivo de recusa mostrado na tela (texto em `missions.errors` da config). */
 export type MissionErrorCode = "not_allowed" | "invalid_evidence" | "locked" | "already_done" | "unavailable" | "failed";

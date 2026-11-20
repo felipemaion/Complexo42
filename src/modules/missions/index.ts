@@ -4,11 +4,13 @@ export type {
   MissionActionResult,
   MissionClient,
   MissionErrorCode,
+  MissionListItem,
   MissionMode,
   MissionOrigin,
   MissionRun,
   MissionStep,
   MissionSummary,
+  MissionsText,
   PendingReview,
   PublishableUnit,
   StepState,
@@ -30,3 +32,8 @@ export {
   submitStep,
 } from "./server/missions";
 export { sessionMissionClient } from "./server/session";
+export { MISSION_PUBLISH_PATH, MISSION_REVIEW_PATH, MISSIONS_PATH, missionPath } from "./paths";
+export { MissionCard } from "./components/mission-card";
+export { PublishForm } from "./components/publish-form";
+export { ReviewItem } from "./components/review-item";
+export { StepItem } from "./components/step-item";
