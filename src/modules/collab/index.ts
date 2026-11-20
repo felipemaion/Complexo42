@@ -13,3 +13,4 @@ export * from "./identity";
 export * from "./server/identity";
 export * from "./components/team-flag";
 export * from "./components/identity-form";
+export * from "./server/scoreboard";

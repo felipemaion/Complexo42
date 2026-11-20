@@ -2,7 +2,7 @@ import Link from "next/link";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { BADGES_PATH } from "@/modules/badges";
-import { MY_TEAM_PATH } from "@/modules/collab";
+import { MY_TEAM_PATH, SCOREBOARD_PATH } from "@/modules/collab";
 import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPendingReviews, readPublishableUnits, sessionMissionClient } from "@/modules/missions";
 import { PORTFOLIO_PATH } from "@/modules/portfolio";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
@@ -48,6 +48,7 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
     { href: "/inicio", label: nav.home },
     { href: MISSIONS_PATH, label: nav.missions },
     { href: MY_TEAM_PATH, label: nav.myTeam },
+    { href: SCOREBOARD_PATH, label: nav.scoreboard },
     ...(isCoordinator ? coordinationLinks : []),
   ];
   const isDemo = process.env.DEMO_MODE === "1";

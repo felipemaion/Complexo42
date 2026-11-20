@@ -339,7 +339,12 @@ export const instanceConfigSchema = z.strictObject({
     done: z.strictObject({ created: text, assigned: text, removed: text, lead: text }),
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
-  nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, review: text, teams: text, search: text, badges: text }),
+  nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, scoreboard: text, review: text, teams: text, search: text, badges: text }),
+  // Placar de equipes por período (#58): só equipes, nunca pessoas.
+  scoreboard: z.strictObject({
+    title: text, intro: text, periodLabel: text, mine: text, empty: text,
+    periods: z.strictObject({ "7": text, "30": text, "90": text, all: text }),
+  }),
   demo: z.strictObject({
     title: text, intro: text, asMember: text, asCoordinator: text, memberHint: text, coordinatorHint: text,
     banner: text, viewingAs: text, member: text, coordinator: text, switchTo: text,

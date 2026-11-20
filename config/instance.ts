@@ -403,6 +403,16 @@ export const instance = parseInstanceConfig({
     teams: "Equipes",
     search: "Busca",
     badges: "Medalhas",
+    scoreboard: "Placar",
+  },
+  // Placar de equipes (#58): competição entre equipes, sem ranking de pessoas (ADR 0006 §6).
+  scoreboard: {
+    title: "Placar das equipes",
+    intro: "Os pontos de cada equipe da sua região no período escolhido. Não existe placar de pessoas.",
+    periodLabel: "Período",
+    mine: "Sua equipe",
+    empty: "Ainda não há equipes com pontos nesta região.",
+    periods: { "7": "Últimos 7 dias", "30": "Últimos 30 dias", "90": "Últimos 90 dias", all: "Desde o início" },
   },
   // Só aparece com DEMO_MODE=1 no servidor (demonstração com pessoas fictícias).
   demo: {
