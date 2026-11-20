@@ -19,6 +19,9 @@ enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entre
 | Identidade da equipe: lema, 2–3 cores e emblema, com "bandeira" (sem upload no POC) | #56 | `…000900`, `src/modules/collab/identity.ts`, `/equipe` |
 | Portfólio por links (até 3, link cifrado, prévia só do YouTube sem cookies, CSP `frame-src` fechada) | #70 | `…001000`, `src/modules/portfolio`, `/perfil/portfolio` |
 | "Baixar meus dados" também com medalhas, portfólio, pontos, entregas e mensagens | #20 (LGPD) | `…001100`, `src/modules/privacy/domain/activity.ts` |
+| Propostas de missão pela equipe; a coordenação ajusta pontos e publica ou recusa com justificativa | #57 | `…001200`, `/equipe`, `/coordenacao/missoes` |
+| Placar de equipes por região e período (7, 30, 90 dias ou tudo), sem ranking de pessoas | #58 | `…001300`, `/placar` |
+| Delegar papéis pela tela (só para baixo, nunca a si mesmo), com `role_granted`/`role_revoked` no audit_log | #22 | `…001400`, `/coordenacao/papeis` |
 
 ## Ligado e desligado (config/instance.ts)
 
@@ -46,9 +49,9 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 
 ## Provas
 
-- `supabase test db` (banco limpo): 25 arquivos, 1448 testes passando (os seus e os novos), com 17 linhas novas na
+- `supabase test db` (banco limpo): 28 arquivos, 1478 testes passando (os seus e os novos), com 17 linhas novas na
   matriz de permissões (R16: publicar missão e ver pontos da unidade, com casos negados).
-- `vitest`: 724 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
+- `vitest`: 733 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
 - Guarda `tests/visual-tokens.test.ts`: reprova cor fora do tema, texto sem o fundo certo (branco sem
   primário, letra clara no amarelo) e letra abaixo da base (`text-xs`, `text-sm`).
 - Fotos em 1440 px e 390 px de todas as telas, nas duas visões: nada passa da largura da tela e a menor
