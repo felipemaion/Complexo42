@@ -283,6 +283,26 @@ create temp table matrix (
   actor text, action text, target text, expected boolean
 );
 insert into matrix (actor, action, target, expected) values
+  -- Missões (ADR 0006 §5): manager/monitor publicam no escopo; membro, porta-voz e fora do
+  -- escopo não; suspenso ou na espera não.
+  ('nat_mgr', 'publish_mission', 'team_m', true),
+  ('abc_mgr', 'publish_mission', 'abc', true),
+  ('abc_mgr', 'publish_mission', 'team_a', true),
+  ('abc_mgr', 'publish_mission', 'zl', false),
+  ('team_a_mon', 'publish_mission', 'team_a', true),
+  ('team_a_mon', 'publish_mission', 'team_b', false),
+  ('spokes_a', 'publish_mission', 'team_a', false),
+  ('stu_a', 'publish_mission', 'team_a', false),
+  ('outsider', 'publish_mission', 'br', false),
+  ('mon_susp', 'publish_mission', 'team_b', false),
+  ('mon_wait', 'publish_mission', 'sp', false),
+  ('anon', 'publish_mission', 'team_a', false),
+  -- Pontos da unidade (ADR 0006 §6): a própria equipe e quem tem escopo; outra equipe não.
+  ('stu_a', 'unit_points', 'team_a', true),
+  ('stu_a', 'unit_points', 'team_b', false),
+  ('abc_mgr', 'unit_points', 'team_b', true),
+  ('mg_mgr', 'unit_points', 'team_a', false),
+  ('outsider', 'unit_points', 'team_a', false),
   -- Gestor nacional: tudo, mas não concede no próprio nível nem tech_admin
   ('nat_mgr', 'profile', 'stu_a', true),
   ('nat_mgr', 'profile', 'stu_m', true),
@@ -840,6 +860,9 @@ begin
     when p_action = 'contact_email' then app.can_view_contact(pg_temp.person(p_target), 'email')
     when p_action = 'manage' then app.can_manage_unit(pg_temp.unit(p_target))
     when p_action = 'unit' then app.can_view_unit(pg_temp.unit(p_target))
+    -- Missões e pontos (ADR 0006, migration 20261121000000): publicar e ver pontos da unidade.
+    when p_action = 'publish_mission' then app.can_publish_mission(pg_temp.unit(p_target))
+    when p_action = 'unit_points' then app.can_view_unit_points(pg_temp.unit(p_target))
     when p_action = 'edit' then app.can_edit_profile(pg_temp.person(p_target))
     when p_action = 'import' then app.can_import_allowlist()
     when p_action = 'decide' then app.can_decide_access(pg_temp.person(p_target))
@@ -903,7 +926,7 @@ select is_empty(
        and target not in (select name from people)
      union all
      select target from matrix
-     where (action in ('manage', 'unit', 'import', 'audit_import', 'revoke', 'revoke_own',
+     where (action in ('manage', 'unit', 'publish_mission', 'unit_points', 'import', 'audit_import', 'revoke', 'revoke_own',
                        'revoke_hc', 'revoke_role_mgr', 'revoke_role_mon')
             or action like 'grant\_%' or action like 'selfgrant\_%')
        and target not in (select slug from unit_ids) $$,

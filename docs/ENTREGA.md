@@ -35,7 +35,8 @@ enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entre
 
 ## Provas
 
-- `supabase test db`: 21 arquivos, 1388 testes passando (os seus e os novos).
+- `supabase test db`: 21 arquivos, 1405 testes passando (os seus e os novos), com 17 linhas novas na
+  matriz de permissões (R16: publicar missão e ver pontos da unidade, com casos negados).
 - `vitest`: 79 arquivos, 697 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
 - Novo guarda `tests/visual-tokens.test.ts`: reprova cor fora do tema e texto branco sem fundo.
 - Fluxo completo no navegador (produção local, pessoas fictícias do seed): criar equipe → distribuir →
@@ -45,5 +46,3 @@ enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entre
 ## Pendências conhecidas
 
 - `tests/eslint-xss.test.ts` às vezes estoura os 5 s em máquina lenta (já acontecia antes).
-- Matriz `permissions_matrix.test.sql` (R16) ainda sem linhas das tabelas novas; os testes de cada
-  módulo cobrem os casos negados.
