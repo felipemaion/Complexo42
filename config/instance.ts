@@ -318,6 +318,35 @@ export const instance = parseInstanceConfig({
   },
   // Identidade da turma (#56): a própria turma escolhe lema, cores e emblema.
   // Portfólio por links (#70): a pessoa mostra até 3 coisas que já fez. Nada de arquivo aqui.
+  // Propostas de missão pela equipe (#57): a equipe sugere, a coordenação decide.
+  proposals: {
+    proposeTitle: "Propor uma missão para a região",
+    proposeIntro: "A equipe sugere a missão e os pontos. A coordenação ajusta e publica, ou explica por que não.",
+    proposeButton: "Enviar proposta",
+    myTitle: "Propostas da equipe",
+    myEmpty: "A equipe ainda não propôs nenhuma missão.",
+    pendingTitle: "Propostas das equipes",
+    pendingEmpty: "Nenhuma proposta esperando decisão.",
+    scopeLabel: "Vale para",
+    scopeTeam: "Só a equipe que propôs",
+    pointsLabel: "Pontos",
+    noteLabel: "Justificativa (obrigatória para recusar)",
+    approveButton: "Aprovar e publicar",
+    rejectButton: "Recusar",
+    proposedBy: "Proposta da",
+    status: { proposed: "Esperando decisão", published: "Publicada", archived: "Recusada" },
+    done: {
+      proposed: "Proposta enviada. A coordenação vai decidir.",
+      approved: "Proposta publicada como missão.",
+      rejected: "Proposta recusada. A equipe vai ver a justificativa.",
+    },
+    errors: {
+      invalid: "Confira o nome (3 letras ou mais), as etapas e os pontos. Para recusar, escreva a justificativa.",
+      not_allowed: "Só quem está numa equipe propõe, e só a coordenação da região decide.",
+      too_many: "A equipe já tem 5 propostas esperando decisão.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
+  },
   portfolio: {
     homeLink: "Meu portfólio",
     title: "Meu portfólio",

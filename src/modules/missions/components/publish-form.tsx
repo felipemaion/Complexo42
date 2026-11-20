@@ -5,6 +5,9 @@ type PublishFormProps = {
   readonly units: readonly PublishableUnit[];
   readonly text: MissionsText;
   readonly publishAction: (formData: FormData) => Promise<void>;
+  /** "propose" (#57): a equipe sugere; sem escopo nem modo (vale para a própria equipe, em equipe). */
+  readonly variant?: "publish" | "propose";
+  readonly submitLabel?: string;
 };
 
 const stepNumbers = [1, 2, 3] as const;
@@ -12,8 +15,9 @@ const evidenceTypes: readonly EvidenceType[] = ["none", "link", "protocol_number
 
 // Formulário de publicação (ADR 0006 §3 e §5). Tudo numa tela só, sem passo escondido; a 1ª
 // etapa é obrigatória e as outras duas são opcionais. O banco grava tudo de uma vez.
-export function PublishForm({ units, text, publishAction }: PublishFormProps) {
+export function PublishForm({ units, text, publishAction, variant = "publish", submitLabel }: PublishFormProps) {
   const t = text.publish;
+  const isPublish = variant === "publish";
   return (
     <form action={publishAction} className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -40,6 +44,8 @@ export function PublishForm({ units, text, publishAction }: PublishFormProps) {
           ))}
         </select>
       </div>
+      {isPublish && (
+      <>
       <div className="flex flex-col gap-2">
         <label htmlFor="escopo" className={labelClass}>
           {t.scopeLabel}
@@ -61,6 +67,8 @@ export function PublishForm({ units, text, publishAction }: PublishFormProps) {
           </label>
         ))}
       </fieldset>
+      </>
+      )}
       <fieldset className="flex flex-col gap-4">
         <legend className={`${labelClass} mb-2`}>{t.stepsLegend}</legend>
         {stepNumbers.map((n) => (
@@ -104,7 +112,7 @@ export function PublishForm({ units, text, publishAction }: PublishFormProps) {
         ))}
       </fieldset>
       <button type="submit" className={buttonClass("primary")}>
-        {t.publishButton}
+        {submitLabel ?? t.publishButton}
       </button>
     </form>
   );

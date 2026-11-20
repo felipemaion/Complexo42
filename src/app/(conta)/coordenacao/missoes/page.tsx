@@ -4,6 +4,8 @@ import { instance } from "@config/instance";
 import {
   MISSION_PUBLISH_PATH,
   type MissionErrorCode,
+  ProposalReview,
+  readPendingProposals,
   readPendingReviews,
   readPublishableUnits,
   ReviewItem,
@@ -11,7 +13,7 @@ import {
 } from "@/modules/missions";
 import { buttonClass, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
-import { reviewSubmissionAction } from "./actions";
+import { decideProposalAction, reviewSubmissionAction } from "./actions";
 
 export const metadata: Metadata = { title: instance.missions.review.title };
 
@@ -29,6 +31,11 @@ export default async function MissionReviewPage({ searchParams }: Props) {
   const [reviews, units] = client ? await Promise.all([readPendingReviews(client), readPublishableUnits(client)]) : [[], []];
   const error = errorCodes.find((code) => code === params.erro);
   const done = params.ok === "approved" || params.ok === "rejected" ? text.review.done[params.ok] : null;
+  // Propostas das equipes (#57).
+  const propText = instance.proposals;
+  const proposals = client ? await readPendingProposals(client).catch(() => []) : [];
+  const proposalDone = params.proposta === "approved" || params.proposta === "rejected" ? propText.done[params.proposta] : null;
+  const proposalError = (["invalid", "not_allowed", "too_many", "failed"] as const).find((key) => key === params.erro_proposta);
   return (
     <PageShell title={text.review.title} intro={text.review.intro} width="wide">
       {error && <Notice tone="error">{text.errors[error]}</Notice>}
@@ -47,6 +54,22 @@ export default async function MissionReviewPage({ searchParams }: Props) {
           ))}
         </ul>
       )}
+      <section aria-labelledby="propostas" className="flex flex-col gap-4">
+        <h2 id="propostas" className="text-2xl font-bold">
+          {propText.pendingTitle}
+        </h2>
+        {proposalDone && <Notice tone="success">{proposalDone}</Notice>}
+        {proposalError && <Notice tone="error">{propText.errors[proposalError]}</Notice>}
+        {proposals.length === 0 ? (
+          <p className="text-lg text-ink-muted">{propText.pendingEmpty}</p>
+        ) : (
+          <ul className="grid gap-4 lg:grid-cols-2">
+            {proposals.map((proposal) => (
+              <ProposalReview key={proposal.id} proposal={proposal} units={units} text={propText} decideAction={decideProposalAction} />
+            ))}
+          </ul>
+        )}
+      </section>
       <Link href="/inicio" className="text-center text-lg">
         {instance.coordination.homeBackLink}
       </Link>

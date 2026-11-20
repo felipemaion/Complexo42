@@ -15,8 +15,9 @@ import { instance } from "@config/instance";
 import { teamChatEnabled } from "@/modules/collab";
 import { decryptField } from "@/server/crypto";
 import { IdentityForm, readTeamIdentity, TeamFlag } from "@/modules/collab";
+import { PublishForm, readMyProposals, sessionMissionClient } from "@/modules/missions";
 import { log } from "@/server/log";
-import { pickInDraftAction, postMessageAction, saveIdentityAction } from "./actions";
+import { pickInDraftAction, postMessageAction, proposeMissionAction, saveIdentityAction } from "./actions";
 
 export const metadata = {
   title: instance.myTeam.title,
@@ -28,6 +29,8 @@ type PageProps = {
     readonly ok?: string;
     readonly identidade?: string;
     readonly erro_identidade?: string;
+    readonly proposta?: string;
+    readonly erro_proposta?: string;
   }>;
 };
 
@@ -101,6 +104,18 @@ export default async function EquipePage(props: PageProps) {
   const canEditIdentity = mates.some((mate) => mate.isLead && mate.profileId === user.id);
   const identityError = (["not_allowed", "invalid", "failed"] as const).find((key) => key === searchParams.erro_identidade);
 
+  // Propostas de missão da equipe (#57).
+  const propText = instance.proposals;
+  const missionClient = await sessionMissionClient();
+  const proposals = missionClient
+    ? await readMyProposals(missionClient).catch((error: unknown) => {
+        log.warn("proposals_read_failed", { error: error instanceof Error ? error.message : "unknown" });
+        return [];
+      })
+    : [];
+  const proposalError = (["invalid", "not_allowed", "too_many", "failed"] as const).find((key) => key === searchParams.erro_proposta);
+  const statusTone = { proposed: "warning", published: "success", archived: "danger" } as const;
+
   return (
     <PageShell title={team.teamName} intro={instance.myTeam.title} width="wide">
       {errorMessage ? <Notice tone="error">{errorMessage}</Notice> : null}
@@ -157,6 +172,37 @@ export default async function EquipePage(props: PageProps) {
           />
         </section>
       ) : null}
+      </div>
+
+      {/* Propostas de missão (#57): a equipe sugere, a coordenação decide. */}
+      {searchParams.proposta === "enviada" && <Notice tone="success">{propText.done.proposed}</Notice>}
+      {proposalError && <Notice tone="error">{propText.errors[proposalError]}</Notice>}
+      <div className="grid gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <Card title={propText.myTitle}>
+            {proposals.length === 0 ? (
+              <p className="text-lg text-ink-muted">{propText.myEmpty}</p>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {proposals.map((proposal) => (
+                  <li key={proposal.id} className="flex flex-col gap-2 border-b border-line pb-3 last:border-b-0">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-lg font-bold">{proposal.title}</span>
+                      <Tag tone={statusTone[proposal.status]}>{propText.status[proposal.status]}</Tag>
+                    </span>
+                    {proposal.decisionNote && <span className="text-base text-ink-muted">{proposal.decisionNote}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </div>
+        <div className="lg:col-span-7">
+          <Card title={propText.proposeTitle}>
+            <p className="text-lg text-ink-muted">{propText.proposeIntro}</p>
+            <PublishForm units={[]} text={instance.missions} publishAction={proposeMissionAction} variant="propose" submitLabel={propText.proposeButton} />
+          </Card>
+        </div>
       </div>
 
       <Link href="/inicio" className="text-lg">

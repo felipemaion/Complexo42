@@ -272,6 +272,15 @@ export const instanceConfigSchema = z.strictObject({
   myTeam: z.strictObject({ homeLink: text, title: text, noTeam: text, membersTitle: text, leadTag: text }),
   // Identidade da equipe (#56): lema, cores e emblema.
   // Portfólio por links (#70): até 3 itens, sem arquivo.
+  // Propostas de missão pela equipe (#57).
+  proposals: z.strictObject({
+    proposeTitle: text, proposeIntro: text, proposeButton: text, myTitle: text, myEmpty: text, pendingTitle: text,
+    pendingEmpty: text, scopeLabel: text, scopeTeam: text, pointsLabel: text, noteLabel: text, approveButton: text,
+    rejectButton: text, proposedBy: text,
+    status: z.strictObject({ proposed: text, published: text, archived: text }),
+    done: z.strictObject({ proposed: text, approved: text, rejected: text }),
+    errors: z.strictObject({ invalid: text, not_allowed: text, too_many: text, failed: text }),
+  }),
   portfolio: z.strictObject({
     homeLink: text, title: text, intro: text, empty: text, addTitle: text, urlLabel: text, titleLabel: text,
     kindLabel: text, addButton: text, removeButton: text, full: text, openLink: text,

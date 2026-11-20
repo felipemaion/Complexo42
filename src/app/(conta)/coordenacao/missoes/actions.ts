@@ -4,6 +4,7 @@
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import {
+  decideProposal,
   MISSION_PUBLISH_PATH,
   MISSION_REVIEW_PATH,
   missionPath,
@@ -63,4 +64,21 @@ export async function publishMissionAction(formData: FormData): Promise<void> {
     redirect(`${MISSION_PUBLISH_PATH}?erro=${code}`);
   }
   redirect(`${missionPath(result.value)}?ok=published`);
+}
+
+// Propostas das equipes (#57): aprovar (com escopo e pontos ajustados) ou recusar com justificativa.
+export async function decideProposalAction(formData: FormData): Promise<void> {
+  await requireUser();
+  const client = await sessionMissionClient();
+  if (!client) redirect(`${MISSION_REVIEW_PATH}?erro_proposta=failed`);
+  const result = await decideProposal(client, {
+    missionId: formData.get("missionId"),
+    decision: formData.get("decision"),
+    scopeUnitId: formData.get("scopeUnitId") ?? "",
+    points: formData.getAll("points"),
+    note: formData.get("note") ?? "",
+  });
+  if (!result.ok) log.warn("proposal_decision_refused", { reason: result.error });
+  const done = formData.get("decision") === "approve" ? "approved" : "rejected";
+  redirect(`${MISSION_REVIEW_PATH}?${result.ok ? `proposta=${done}` : `erro_proposta=${result.error}`}`);
 }

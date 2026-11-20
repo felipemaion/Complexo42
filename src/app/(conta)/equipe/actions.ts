@@ -8,6 +8,8 @@ import {
   saveTeamIdentity,
   sessionCollabClient,
 } from "@/modules/collab";
+import { instance } from "@config/instance";
+import { proposeMission, sessionMissionClient } from "@/modules/missions";
 import { requireUser } from "@/server/auth/session";
 import { teamChatEnabled } from "@/modules/collab";
 import { encryptField } from "@/server/crypto";
@@ -74,4 +76,21 @@ export async function saveIdentityAction(formData: FormData): Promise<void> {
 
   if (!result.ok) log.warn("identity_action_refused", { reason: result.error });
   redirect(`${MY_TEAM_PATH}?${result.ok ? "identidade=salva" : `erro_identidade=${result.error}`}`);
+}
+
+// Propostas de missão pela equipe (#57): a equipe sugere, a coordenação decide.
+export async function proposeMissionAction(formData: FormData): Promise<void> {
+  await requireUser();
+  const client = await sessionMissionClient();
+  if (!client) redirect(`${MY_TEAM_PATH}?erro_proposta=failed`);
+  const steps = [1, 2, 3]
+    .map((n) => ({ title: formData.get(`step${n}Title`), points: formData.get(`step${n}Points`), evidenceType: formData.get(`step${n}Evidence`) }))
+    .filter((step) => typeof step.title === "string" && step.title.trim() !== "");
+  const result = await proposeMission(
+    client,
+    { title: formData.get("title"), description: formData.get("description") ?? "", category: formData.get("category"), steps },
+    Object.keys(instance.missions.publish.categories),
+  );
+  if (!result.ok) log.warn("proposal_refused", { reason: result.error });
+  redirect(`${MY_TEAM_PATH}?${result.ok ? "proposta=enviada" : `erro_proposta=${result.error}`}`);
 }
