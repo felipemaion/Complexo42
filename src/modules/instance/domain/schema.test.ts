@@ -120,6 +120,7 @@ const valid = {
       failed: "t",
     },
   },
+  missions: instance.missions,
   coordination: {
     homeLink: "t",
     title: "t",
