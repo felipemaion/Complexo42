@@ -35,8 +35,17 @@ export default async function RolesPage({ searchParams }: Props) {
     }),
     readMyTeams(client),
   ]);
-  const members = (await Promise.all(teams.map((team) => readTeamMembers(client, team.id, decryptName)))).flat();
-  const people = [...new Map(members.map((member) => [member.profileId, member.displayName])).entries()];
+  // Pessoa e equipe escolhidas juntas: o papel só vale na equipe em que a pessoa está.
+  const people = (
+    await Promise.all(
+      teams.map(async (team) =>
+        (await readTeamMembers(client, team.id, decryptName)).map((member) => ({
+          value: `${member.profileId}:${team.id}`,
+          label: `${member.displayName} — ${team.name}`,
+        })),
+      ),
+    )
+  ).flat();
   const done = params.ok === "granted" || params.ok === "revoked" ? text.done[params.ok] : null;
   const error = (["invalid", "not_allowed", "already", "failed"] as const).find((key) => key === params.erro);
   const roleLabel = (role: string) => instance.roleLabels[role as keyof typeof instance.roleLabels] ?? role;
@@ -81,13 +90,13 @@ export default async function RolesPage({ searchParams }: Props) {
                 <label htmlFor="profileId" className={labelClass}>
                   {text.personLabel}
                 </label>
-                <select id="profileId" name="profileId" required defaultValue="" className={inputClass}>
+                <select id="profileId" name="personInTeam" required defaultValue="" className={inputClass}>
                   <option value="" disabled>
                     —
                   </option>
-                  {people.map(([profileId, name]) => (
-                    <option key={profileId} value={profileId}>
-                      {name}
+                  {people.map((person) => (
+                    <option key={person.value} value={person.value}>
+                      {person.label}
                     </option>
                   ))}
                 </select>
@@ -100,18 +109,6 @@ export default async function RolesPage({ searchParams }: Props) {
                   {DELEGABLE_ROLES.map((role) => (
                     <option key={role} value={role}>
                       {roleLabel(role)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="unitId" className={labelClass}>
-                  {text.unitLabel}
-                </label>
-                <select id="unitId" name="unitId" required className={inputClass}>
-                  {teams.map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
                     </option>
                   ))}
                 </select>

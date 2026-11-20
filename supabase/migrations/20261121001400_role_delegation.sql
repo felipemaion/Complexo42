@@ -82,7 +82,9 @@ as $$
   from public.role_assignments as r
   join public.units as u on u.id = r.unit_id
   join public.profiles as p on p.id = r.profile_id
-  where r.revoked_at is null and r.role <> 'tech_admin' and app.is_active_member() and app.can_manage_unit(r.unit_id)
+  -- Os próprios papéis ficam de fora: ninguém revoga o próprio papel (ADR 0002).
+  where r.revoked_at is null and r.role <> 'tech_admin' and r.profile_id <> (select auth.uid())
+    and app.is_active_member() and app.can_manage_unit(r.unit_id)
   order by u.path, r.granted_at
 $$;
 

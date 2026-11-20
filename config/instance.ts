@@ -237,7 +237,7 @@ export const instance = parseInstanceConfig({
   evaluationAccess: {
     title: "Ver avaliações de alguém",
     intro: "Só gestores, com motivo. O pedido fica registrado na auditoria.",
-    personLabel: "Pessoa",
+    personLabel: "Pessoa (e a equipe dela)",
     reasonLabel: "Motivo (obrigatório)",
     button: "Pedir acesso",
     none: "Essa pessoa ainda não tem avaliações.",
@@ -411,7 +411,7 @@ export const instance = parseInstanceConfig({
     title: "Papéis da coordenação",
     intro: "Dê ou tire papéis só nas equipes que você coordena. Ninguém dá papel a si mesmo, e tudo fica registrado.",
     grantTitle: "Dar um papel",
-    personLabel: "Pessoa",
+    personLabel: "Pessoa (e a equipe dela)",
     roleLabel: "Papel",
     unitLabel: "Em qual equipe",
     grantButton: "Dar o papel",

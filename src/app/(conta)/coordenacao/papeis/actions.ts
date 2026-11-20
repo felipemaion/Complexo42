@@ -9,7 +9,9 @@ export async function grantRoleAction(formData: FormData): Promise<void> {
   await requireUser();
   const client = await sessionTeamsClient();
   if (!client) redirect(`${ROLES_PATH}?erro=failed`);
-  const result = await grantRole(client, { profileId: formData.get("profileId"), role: formData.get("role"), unitId: formData.get("unitId") });
+  // "pessoa:equipe" vem de um campo só (a equipe é a da própria pessoa); a validação fica no grantRole.
+  const [profileId, unitId] = String(formData.get("personInTeam") ?? "").split(":");
+  const result = await grantRole(client, { profileId, role: formData.get("role"), unitId });
   if (!result.ok) log.warn("role_grant_refused", { reason: result.error });
   redirect(`${ROLES_PATH}?${result.ok ? "ok=granted" : `erro=${result.error}`}`);
 }
