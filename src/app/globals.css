@@ -50,6 +50,14 @@
     @apply text-primary underline underline-offset-4;
   }
 
+  /* O vão entre o elemento e o anel de foco (ring-offset) é branco por padrão; no tema escuro,
+     usa a cor do fundo para não aparecer um halo claro. */
+  *,
+  ::before,
+  ::after {
+    --tw-ring-offset-color: var(--color-canvas);
+  }
+
   :focus-visible {
     outline: 3px solid var(--color-focus);
     outline-offset: 3px;

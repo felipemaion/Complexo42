@@ -22,6 +22,7 @@ import { buttonClass, Notice, Tag } from "@/modules/ui";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
+import { log } from "@/server/log";
 
 export const metadata: Metadata = { title: instance.auth.signedInTitle };
 
@@ -29,6 +30,17 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 
 const cardClass = "flex flex-col gap-4 rounded-2xl border border-line bg-surface p-6";
 const statClass = "flex h-full flex-col gap-2 rounded-2xl border border-line bg-surface p-5 no-underline hover:border-primary";
+
+// Cartão secundário (equipe, painel, pendências) que falha não derruba a página inteira: o erro
+// vai para o log (só o nome do cartão, sem dado pessoal) e o cartão aparece vazio.
+async function orFallback<T>(read: Promise<T>, fallback: T, card: string): Promise<T> {
+  try {
+    return await read;
+  } catch (error: unknown) {
+    log.warn("home_card_failed", { card, error: error instanceof Error ? error.message : "unknown" });
+    return fallback;
+  }
+}
 
 function initials(name: string): string {
   return name.trim().split(/\s+/).slice(0, 2).map((word) => word.charAt(0)).join("").toUpperCase();
@@ -54,17 +66,21 @@ export default async function SignedInHome({ searchParams }: Props) {
     missionClient ? readPoints(missionClient, user.id) : Promise.resolve({ mine: 0, team: 0 }),
     missionClient ? readPublishableUnits(missionClient) : Promise.resolve([]),
     badgesClient ? readMyBadges(badgesClient, user.id) : Promise.resolve([]),
-    collabClient ? readMyTeam(collabClient) : Promise.resolve(null),
+    collabClient ? orFallback(readMyTeam(collabClient), null, "team") : Promise.resolve(null),
   ]);
   const isCoordinator = publishable.length > 0;
   const [mates, pending, dashboard] = await Promise.all([
     collabClient && team
-      ? readTeamMates(collabClient, team.teamId, (value, profileId) =>
-          decryptField(value, { table: "profiles", column: "display_name_enc", rowId: profileId }),
+      ? orFallback(
+          readTeamMates(collabClient, team.teamId, (value, profileId) =>
+            decryptField(value, { table: "profiles", column: "display_name_enc", rowId: profileId }),
+          ),
+          [],
+          "mates",
         )
       : Promise.resolve([]),
-    isCoordinator && missionClient ? readPendingReviews(missionClient) : Promise.resolve([]),
-    isCoordinator && collabClient ? readDashboard(collabClient) : Promise.resolve([]),
+    isCoordinator && missionClient ? orFallback(readPendingReviews(missionClient), [], "pending") : Promise.resolve([]),
+    isCoordinator && collabClient ? orFallback(readDashboard(collabClient), [], "dashboard") : Promise.resolve([]),
   ]);
 
   const site = instance.site;
@@ -84,7 +100,7 @@ export default async function SignedInHome({ searchParams }: Props) {
     { label: text.runStatus.active, value: activeCount, href: MISSIONS_PATH },
     isCoordinator
       ? { label: site.pendingLabel, value: pending.length, href: MISSION_REVIEW_PATH }
-      : { label: site.availableLabel, value: missions.length, href: MISSIONS_PATH },
+      : { label: site.availableLabel, value: missions.filter((mission) => !runs.has(mission.id)).length, href: MISSIONS_PATH },
     { label: instance.badges.myTitle, value: badges.length, href: MISSIONS_PATH },
   ];
   const actions = isCoordinator
@@ -99,6 +115,17 @@ export default async function SignedInHome({ searchParams }: Props) {
 
   return (
     <main className="flex w-full flex-col">
+      {/* Avisos no topo: quem clicou em "Baixar meus dados" no rodapé vê o resultado logo de cara. */}
+      {(saved || myDataStatus) && (
+        <div className="mx-auto flex w-full max-w-site flex-col gap-3 px-5 pt-6">
+          {saved && <Notice tone="success">{instance.profile.saved}</Notice>}
+          {myDataStatus && (
+            <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg">
+              {myDataStatus === "limite" ? instance.myData.rateLimited : instance.myData.failed}
+            </p>
+          )}
+        </div>
+      )}
       {/* Faixa de destaque na largura toda. */}
       <section className="border-b border-line bg-linear-to-br from-surface to-canvas">
         <div className="mx-auto grid w-full max-w-site gap-8 px-5 py-12 lg:grid-cols-[1fr_380px] lg:items-center">
@@ -125,13 +152,6 @@ export default async function SignedInHome({ searchParams }: Props) {
       </section>
 
       <div className="mx-auto flex w-full max-w-site flex-col gap-10 px-5 py-10">
-        {saved && <Notice tone="success">{instance.profile.saved}</Notice>}
-        {myDataStatus && (
-          <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg">
-            {myDataStatus === "limite" ? instance.myData.rateLimited : instance.myData.failed}
-          </p>
-        )}
-
         {/* Quatro números que levam à página certa. */}
         <ul className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {stats.map((stat) => (
@@ -154,8 +174,9 @@ export default async function SignedInHome({ searchParams }: Props) {
                 {site.seeAll}
               </Link>
             </div>
+            {/* Texto comum (não role=status): o único aviso da página é o de "salvo". */}
             {missions.length === 0 ? (
-              <Notice tone="info">{text.empty}</Notice>
+              <p className="text-lg text-ink-muted">{text.empty}</p>
             ) : (
               <ul className="flex flex-col gap-4">
                 {missions.slice(0, 4).map((mission) => {

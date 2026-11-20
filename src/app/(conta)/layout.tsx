@@ -12,6 +12,7 @@ import { BrandMark, buttonClass } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
+import { log } from "@/server/log";
 import { NavLinks } from "./nav-links";
 
 // Moldura de site das páginas autenticadas (#9): faixa da demonstração, cabeçalho em duas linhas
@@ -22,12 +23,19 @@ import { NavLinks } from "./nav-links";
 export default async function AccountLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user, client } = await requireUserClient();
   const missionClient = await sessionMissionClient();
-  const [publishable, pending, coordination] = await Promise.all([
+  const [publishable, coordination] = await Promise.all([
     missionClient ? readPublishableUnits(missionClient) : Promise.resolve([]),
-    missionClient ? readPendingReviews(missionClient).catch(() => []) : Promise.resolve([]),
     readCoordinationMenu(client, user.id),
   ]);
   const isCoordinator = publishable.length > 0;
+  // Contador do menu: só para a coordenação. Se falhar, o menu aparece sem o número (e fica no log).
+  const pending =
+    isCoordinator && missionClient
+      ? await readPendingReviews(missionClient).catch((error: unknown) => {
+          log.warn("nav_pending_failed", { error: error instanceof Error ? error.message : "unknown" });
+          return [];
+        })
+      : [];
   const nav = instance.nav;
   const coordinationLinks = [
     { href: TEAMS_PATH, label: nav.teams },
@@ -95,7 +103,10 @@ type FooterProps = {
   readonly hasWaitlist: boolean;
 };
 
-const footerLink = "text-lg text-ink-muted no-underline hover:text-primary hover:underline";
+// Área de toque de 48 px também no rodapé (ata 17/11 §10: público mais velho).
+const footerLink = "inline-flex min-h-12 items-center text-lg text-ink-muted no-underline hover:text-primary hover:underline";
+// Títulos das colunas do rodapé não entram no sumário da página (a <nav> já tem nome).
+const footerTitle = "text-lg font-bold text-primary";
 
 // Rodapé de site: "Minha conta" (dados, contato, baixar dados, casa, excluir) fica aqui, em vez de
 // botões empilhados na página inicial. "Baixar meus dados" (#20) segue como POST ao servidor.
@@ -112,7 +123,7 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
           <p className="text-lg text-ink-muted">{site.footerAbout}</p>
         </div>
         <nav aria-label={site.accountTitle} className="flex flex-col gap-3">
-          <h2 className="text-lg font-bold text-primary">{site.accountTitle}</h2>
+          <p className={footerTitle}>{site.accountTitle}</p>
           <Link href={PROFILE_PATH} className={footerLink}>{instance.profile.editLink}</Link>
           {/* Quem vê meu contato (#119, ADR 0010). */}
           <Link href={CONTACT_VISIBILITY_PATH} className={footerLink}>{instance.contactVisibility.homeLink}</Link>
@@ -129,7 +140,7 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
         </nav>
         {(coordinationLinks.length > 0 || hasWaitlist) && (
           <nav aria-label={site.coordinationTitle} className="flex flex-col gap-3">
-            <h2 className="text-lg font-bold text-primary">{site.coordinationTitle}</h2>
+            <p className={footerTitle}>{site.coordinationTitle}</p>
             {coordinationLinks.map((link) => (
               <Link key={link.href} href={link.href} className={footerLink}>{link.label}</Link>
             ))}
