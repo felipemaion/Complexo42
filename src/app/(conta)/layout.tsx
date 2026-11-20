@@ -8,7 +8,7 @@ import { PORTFOLIO_PATH } from "@/modules/portfolio";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
 import { SEARCH_PATH } from "@/modules/search";
-import { TEAMS_PATH } from "@/modules/teams";
+import { ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
 import { BrandMark, buttonClass } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
 import { PROFILE_PATH } from "@/server/auth/routes";
@@ -43,6 +43,7 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
     { href: MISSION_REVIEW_PATH, label: nav.review, count: pending.length },
     { href: SEARCH_PATH, label: nav.search },
     { href: BADGES_PATH, label: nav.badges },
+    { href: ROLES_PATH, label: nav.roles },
   ];
   const items = [
     { href: "/inicio", label: nav.home },

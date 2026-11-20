@@ -339,7 +339,14 @@ export const instanceConfigSchema = z.strictObject({
     done: z.strictObject({ created: text, assigned: text, removed: text, lead: text }),
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
-  nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, scoreboard: text, review: text, teams: text, search: text, badges: text }),
+  nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, scoreboard: text, review: text, teams: text, search: text, badges: text, roles: text }),
+  // Delegar papéis pela tela (#22).
+  roles: z.strictObject({
+    title: text, intro: text, grantTitle: text, personLabel: text, roleLabel: text, unitLabel: text, grantButton: text,
+    listTitle: text, empty: text, revokeButton: text,
+    done: z.strictObject({ granted: text, revoked: text }),
+    errors: z.strictObject({ invalid: text, not_allowed: text, already: text, failed: text }),
+  }),
   // Placar de equipes por período (#58): só equipes, nunca pessoas.
   scoreboard: z.strictObject({
     title: text, intro: text, periodLabel: text, mine: text, empty: text,

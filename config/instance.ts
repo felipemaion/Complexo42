@@ -404,6 +404,27 @@ export const instance = parseInstanceConfig({
     search: "Busca",
     badges: "Medalhas",
     scoreboard: "Placar",
+    roles: "Papéis",
+  },
+  // Delegar papéis pela tela (#22): só para baixo, dentro do escopo; tudo vai para o registro.
+  roles: {
+    title: "Papéis da coordenação",
+    intro: "Dê ou tire papéis só nas equipes que você coordena. Ninguém dá papel a si mesmo, e tudo fica registrado.",
+    grantTitle: "Dar um papel",
+    personLabel: "Pessoa",
+    roleLabel: "Papel",
+    unitLabel: "Em qual equipe",
+    grantButton: "Dar o papel",
+    listTitle: "Papéis ativos",
+    empty: "Ainda não há papéis nas equipes que você coordena.",
+    revokeButton: "Tirar o papel",
+    done: { granted: "Papel dado e registrado.", revoked: "Papel retirado e registrado." },
+    errors: {
+      invalid: "Escolha a pessoa, o papel e a equipe.",
+      not_allowed: "Esse papel só pode ser dado abaixo do seu escopo, a quem está na equipe.",
+      already: "Essa pessoa já tem esse papel nessa equipe.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
   },
   // Placar de equipes (#58): competição entre equipes, sem ranking de pessoas (ADR 0006 §6).
   scoreboard: {

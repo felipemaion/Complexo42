@@ -129,6 +129,7 @@ const valid = {
   portfolio: instance.portfolio,
   proposals: instance.proposals,
   scoreboard: instance.scoreboard,
+  roles: instance.roles,
   teams: instance.teams,
   badges: instance.badges,
   dashboard: instance.dashboard,
