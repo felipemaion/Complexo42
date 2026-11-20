@@ -18,7 +18,8 @@ export const ACCOUNT_DELETED_PATH = "/conta-excluida";
 // de ninguém (#26), e precisa abrir mesmo sem sessão válida. /conta-excluida também é só texto
 // fixo (#18). `/api/healthz` nem passa pelo
 // proxy (veja o matcher em src/proxy.ts).
-const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", LOGIN_PATH, CALLBACK_PATH, CONFIRM_PATH, SIGNOUT_PATH, WAITLIST_PATH, ACCOUNT_DELETED_PATH]);
+// "/demo" só responde com DEMO_MODE=1 (src/app/demo/route.ts); fora disso devolve 404.
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", "/demo", LOGIN_PATH, CALLBACK_PATH, CONFIRM_PATH, SIGNOUT_PATH, WAITLIST_PATH, ACCOUNT_DELETED_PATH]);
 
 export function isPublicPath(path: string): boolean {
   return PUBLIC_PATHS.has(path.length > 1 ? path.replace(/\/+$/, "") : path);

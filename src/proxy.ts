@@ -46,5 +46,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 export const config = {
   // Fora do proxy: arquivos estáticos e o healthz (monitorado de fora, sem sessão). Ancorado em
   // `/` ou no fim, para `/api/healthz-x` ou `/favicon.ico.x` não escaparem (L1).
-  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|api/healthz)(?:/|$)).*)"],
+  // /demo fica de fora: troca de conta fictícia; com o filtro, a sessão antiga seria regravada por cima.
+  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|api/healthz|demo)(?:/|$)).*)"],
 };

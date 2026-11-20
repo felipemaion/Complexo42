@@ -310,6 +310,31 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
+  // Menu do site (moldura das páginas de quem entrou).
+  nav: {
+    label: "Menu principal",
+    home: "Início",
+    missions: "Missões",
+    myTeam: "Minha equipe",
+    review: "Validar entregas",
+    teams: "Equipes",
+    search: "Busca",
+    badges: "Medalhas",
+  },
+  // Só aparece com DEMO_MODE=1 no servidor (demonstração com pessoas fictícias).
+  demo: {
+    title: "Demonstração da plataforma",
+    intro: "Todas as pessoas e dados aqui são fictícios. Escolha como quer ver a plataforma; dá para trocar a qualquer hora.",
+    asMember: "Ver como membro de equipe",
+    asCoordinator: "Ver como coordenação da região",
+    memberHint: "O que um membro vê: missões, a própria equipe, pontos e medalhas.",
+    coordinatorHint: "O que a coordenação vê: montar equipes, buscar pessoas, publicar e validar missões, dar medalhas.",
+    banner: "Demonstração",
+    viewingAs: "Você está vendo como",
+    member: "membro",
+    coordinator: "coordenação",
+    switchTo: "Trocar para",
+  },
   // Busca de pessoas por habilidade (#23): prioridade da coordenação.
   search: {
     homeLink: "Buscar pessoas por habilidade",

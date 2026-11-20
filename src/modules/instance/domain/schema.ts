@@ -312,6 +312,11 @@ export const instanceConfigSchema = z.strictObject({
     done: z.strictObject({ created: text, assigned: text, removed: text, lead: text }),
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
+  nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, review: text, teams: text, search: text, badges: text }),
+  demo: z.strictObject({
+    title: text, intro: text, asMember: text, asCoordinator: text, memberHint: text, coordinatorHint: text,
+    banner: text, viewingAs: text, member: text, coordinator: text, switchTo: text,
+  }),
   search: z.strictObject({
     homeLink: text,
     title: text,

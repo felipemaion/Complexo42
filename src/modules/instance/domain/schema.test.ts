@@ -122,6 +122,8 @@ const valid = {
   },
   missions: instance.missions,
   search: instance.search,
+  nav: instance.nav,
+  demo: instance.demo,
   teams: instance.teams,
   badges: instance.badges,
   dashboard: instance.dashboard,

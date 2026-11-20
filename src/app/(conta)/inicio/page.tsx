@@ -4,11 +4,9 @@ import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
-import { BADGES_PATH } from "@/modules/badges";
+import { readMyBadges, sessionBadgesClient } from "@/modules/badges";
 import { MY_TEAM_PATH } from "@/modules/collab";
-import { SEARCH_PATH } from "@/modules/search";
-import { TEAMS_PATH } from "@/modules/teams";
-import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPublishableUnits, sessionMissionClient } from "@/modules/missions";
+import { listMissions, missionPath, MISSIONS_PATH, readMyRuns, readPoints, sessionMissionClient } from "@/modules/missions";
 import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
 import { buttonClass } from "@/modules/ui";
 import { PROFILE_PATH } from "@/server/auth/routes";
@@ -26,55 +24,68 @@ export default async function SignedInHome({ searchParams }: Props) {
   const own = await loadOwnProfile(client, user.id);
   if (!own) redirect(PROFILE_PATH);
   const missionClient = await sessionMissionClient();
-  const [params, coordination, missionUnits] = await Promise.all([
+  const badgesClient = await sessionBadgesClient();
+  const [params, coordination, missions, runs, points, badges] = await Promise.all([
     searchParams,
     readCoordinationMenu(client, user.id),
-    missionClient ? readPublishableUnits(missionClient) : Promise.resolve([]),
+    missionClient ? listMissions(missionClient) : Promise.resolve([]),
+    missionClient ? readMyRuns(missionClient, user.id) : Promise.resolve(new Map()),
+    missionClient ? readPoints(missionClient, user.id) : Promise.resolve({ mine: 0, team: 0 }),
+    badgesClient ? readMyBadges(badgesClient, user.id) : Promise.resolve([]),
   ]);
-  // Atalho de validação só para quem tem papel de validar em alguma unidade (conforto, R15).
-  const canReviewMissions = missionUnits.length > 0;
+  const activeMissions = [...runs.values()].filter((run) => run.status === "active").length;
   const saved = params.salvo === "1";
   const myDataStatus = parseMyDataStatus(params[MY_DATA_STATUS_PARAM]);
   const text = instance.auth;
+  const stats = [
+    { label: instance.missions.myPointsLabel, value: points.mine, href: MISSIONS_PATH },
+    { label: instance.missions.teamPointsLabel, value: points.team, href: MY_TEAM_PATH },
+    { label: instance.missions.runStatus.active, value: activeMissions, href: MISSIONS_PATH },
+    { label: instance.badges.myTitle, value: badges.length, href: MISSIONS_PATH },
+  ];
   return (
-    <main className="mx-auto flex max-w-md flex-col justify-center gap-6 p-6 pt-16">
+    <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-5 py-8">
       <h1 className="text-3xl font-bold">{text.signedInTitle}</h1>
       {saved && (
         <p role="status" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {instance.profile.saved}
         </p>
       )}
-      <p className="text-lg">{text.signedInMessage}</p>
-      <p className="text-lg">
-        {text.connectedAs} <strong>{user.maskedEmail}</strong>
-      </p>
-      {/* Missões (ADR 0006, #31): a ação principal de quem participa, primeiro botão da tela. */}
-      <Link href={MISSIONS_PATH} className={`${buttonClass("primary")} no-underline`}>
-        {instance.missions.homeLink}
-      </Link>
-      <Link href={MY_TEAM_PATH} className={`${buttonClass("secondary")} no-underline`}>
-        {instance.myTeam.homeLink}
-      </Link>
-      {canReviewMissions && (
-        <Link href={MISSION_REVIEW_PATH} className={`${buttonClass("secondary")} no-underline`}>
-          {instance.missions.review.menuLink}
+      {/* Painel pessoal: números grandes que levam à página certa (sem ranking, ADR 0006 §6). */}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {stats.map((stat) => (
+          <li key={stat.label}>
+            <Link href={stat.href} className="flex h-full flex-col gap-1 rounded-2xl border border-line bg-surface p-4 no-underline">
+              <span className="text-base text-ink-muted">{stat.label}</span>
+              <span className="text-3xl font-bold text-primary">{stat.value}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <section aria-labelledby="novas-missoes" className="flex flex-col gap-3">
+        <h2 id="novas-missoes" className="text-2xl font-bold">
+          {instance.missions.title}
+        </h2>
+        {missions.length === 0 ? (
+          <p className="text-lg text-ink-muted">{instance.missions.empty}</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {missions.slice(0, 3).map((mission) => (
+              <li key={mission.id}>
+                <Link href={missionPath(mission.id)} className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 no-underline">
+                  <span className="text-lg font-semibold text-ink">{mission.title}</span>
+                  <span className="shrink-0 text-lg font-bold text-primary">
+                    {mission.totalPoints} {instance.missions.pointsSuffix}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        <Link href={MISSIONS_PATH} className={`${buttonClass("primary")} no-underline`}>
+          {instance.missions.homeLink}
         </Link>
-      )}
-      {canReviewMissions && (
-        <Link href={SEARCH_PATH} className={`${buttonClass("secondary")} no-underline`}>
-          {instance.search.homeLink}
-        </Link>
-      )}
-      {canReviewMissions && (
-        <Link href={TEAMS_PATH} className={`${buttonClass("secondary")} no-underline`}>
-          {instance.teams.homeLink}
-        </Link>
-      )}
-      {canReviewMissions && (
-        <Link href={BADGES_PATH} className={`${buttonClass("secondary")} no-underline`}>
-          {instance.badges.homeLink}
-        </Link>
-      )}
+      </section>
       {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}
       {own.socialLinks.length > 0 && (
         <section aria-labelledby="minhas-redes" className="flex flex-col gap-3">
