@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
+import { SEARCH_PATH } from "@/modules/search";
 import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPublishableUnits, sessionMissionClient } from "@/modules/missions";
 import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
 import { buttonClass } from "@/modules/ui";
@@ -51,6 +52,11 @@ export default async function SignedInHome({ searchParams }: Props) {
       {canReviewMissions && (
         <Link href={MISSION_REVIEW_PATH} className={`${buttonClass("secondary")} no-underline`}>
           {instance.missions.review.menuLink}
+        </Link>
+      )}
+      {canReviewMissions && (
+        <Link href={SEARCH_PATH} className={`${buttonClass("secondary")} no-underline`}>
+          {instance.search.homeLink}
         </Link>
       )}
       {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}

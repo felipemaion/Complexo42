@@ -121,6 +121,7 @@ const valid = {
     },
   },
   missions: instance.missions,
+  search: instance.search,
   coordination: {
     homeLink: "t",
     title: "t",

@@ -236,6 +236,15 @@ export const instanceConfigSchema = z.strictObject({
    * Telas da coordenação (#26, ADR 0008 §1): envio da lista de autorizados e fila de espera.
    * `{count}`, `{lines}`, `{date}`, `{city}`, `{state}` e `{name}` são trocados na tela.
    */
+  search: z.strictObject({
+    homeLink: text,
+    title: text,
+    intro: text,
+    searchButton: text,
+    empty: text,
+    resultsTitle: text,
+    errors: z.strictObject({ invalid: text, failed: text }),
+  }),
   // Missões (ADR 0006): os tipos e estados são chaves fixas do banco; o texto vem daqui (R17).
   missions: z.strictObject({
     homeLink: text,

@@ -184,6 +184,19 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
+  // Busca de pessoas por habilidade (#23): prioridade da coordenação.
+  search: {
+    homeLink: "Buscar pessoas por habilidade",
+    title: "Buscar pessoas por habilidade",
+    intro: "Marque o que você precisa. Aparecem só as pessoas do seu escopo que têm todas as habilidades marcadas. O contato não aparece aqui.",
+    searchButton: "Buscar",
+    empty: "Ninguém do seu escopo tem todas essas habilidades. Tente marcar menos.",
+    resultsTitle: "Pessoas encontradas",
+    errors: {
+      invalid: "Marque de 1 a 10 habilidades.",
+      failed: "Não foi possível buscar agora. Tente de novo.",
+    },
+  },
   // Missões, entregas e validação (ADR 0006, #31–#33).
   missions: {
     homeLink: "Missões",
