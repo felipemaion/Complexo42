@@ -123,6 +123,7 @@ const valid = {
   missions: instance.missions,
   search: instance.search,
   teams: instance.teams,
+  badges: instance.badges,
   coordination: {
     homeLink: "t",
     title: "t",

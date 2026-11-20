@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { instance } from "@config/instance";
+import { BadgeCollection, readMyBadges, sessionBadgesClient } from "@/modules/badges";
 import { listMissions, MissionCard, missionPath, readMyRuns, readPoints, sessionMissionClient } from "@/modules/missions";
 import { Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
@@ -20,7 +21,13 @@ export default async function MissionsPage() {
       </PageShell>
     );
   }
-  const [missions, runs, points] = await Promise.all([listMissions(client), readMyRuns(client, user.id), readPoints(client, user.id)]);
+  const badgesClient = await sessionBadgesClient();
+  const [missions, runs, points, badges] = await Promise.all([
+    listMissions(client),
+    readMyRuns(client, user.id),
+    readPoints(client, user.id),
+    badgesClient ? readMyBadges(badgesClient, user.id) : Promise.resolve([]),
+  ]);
   return (
     <PageShell title={text.title} intro={text.intro}>
       <section aria-labelledby="pontos" className="grid grid-cols-2 gap-3">
@@ -35,6 +42,13 @@ export default async function MissionsPage() {
           <p className="text-base text-ink-muted">{text.teamPointsLabel}</p>
           <p className="text-3xl font-bold text-primary">{points.team}</p>
         </div>
+      </section>
+      {/* Medalhas como coleção, sem ranking (ADR 0007 §3). */}
+      <section aria-labelledby="medalhas" className="flex flex-col gap-3">
+        <h2 id="medalhas" className="text-2xl font-bold">
+          {instance.badges.myTitle}
+        </h2>
+        <BadgeCollection awards={badges} text={instance.badges} />
       </section>
       {missions.length === 0 ? (
         <Notice tone="info">{text.empty}</Notice>
