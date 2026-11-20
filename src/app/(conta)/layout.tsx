@@ -4,6 +4,7 @@ import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { BADGES_PATH } from "@/modules/badges";
 import { MY_TEAM_PATH } from "@/modules/collab";
 import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPendingReviews, readPublishableUnits, sessionMissionClient } from "@/modules/missions";
+import { PORTFOLIO_PATH } from "@/modules/portfolio";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
 import { SEARCH_PATH } from "@/modules/search";
@@ -125,6 +126,8 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
         <nav aria-label={site.accountTitle} className="flex flex-col gap-3">
           <p className={footerTitle}>{site.accountTitle}</p>
           <Link href={PROFILE_PATH} className={footerLink}>{instance.profile.editLink}</Link>
+          {/* Portfólio por links (#70). */}
+          <Link href={PORTFOLIO_PATH} className={footerLink}>{instance.portfolio.homeLink}</Link>
           {/* Quem vê meu contato (#119, ADR 0010). */}
           <Link href={CONTACT_VISIBILITY_PATH} className={footerLink}>{instance.contactVisibility.homeLink}</Link>
           <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-1">

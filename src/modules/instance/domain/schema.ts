@@ -271,6 +271,14 @@ export const instanceConfigSchema = z.strictObject({
   }),
   myTeam: z.strictObject({ homeLink: text, title: text, noTeam: text, membersTitle: text, leadTag: text }),
   // Identidade da equipe (#56): lema, cores e emblema.
+  // Portfólio por links (#70): até 3 itens, sem arquivo.
+  portfolio: z.strictObject({
+    homeLink: text, title: text, intro: text, empty: text, addTitle: text, urlLabel: text, titleLabel: text,
+    kindLabel: text, addButton: text, removeButton: text, full: text, openLink: text,
+    kinds: z.strictObject({ video: text, image: text, text: text, other: text }),
+    done: z.strictObject({ added: text, removed: text }),
+    errors: z.strictObject({ invalid: text, full: text, not_allowed: text, failed: text }),
+  }),
   teamIdentity: z.strictObject({
     title: text, flagLabel: text, noIdentity: text, editTitle: text, mottoLabel: text, colorsLegend: text,
     color1Label: text, color2Label: text, color3Label: text, useColor3Label: text, emblemLegend: text,

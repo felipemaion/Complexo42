@@ -317,6 +317,29 @@ export const instance = parseInstanceConfig({
     },
   },
   // Identidade da turma (#56): a própria turma escolhe lema, cores e emblema.
+  // Portfólio por links (#70): a pessoa mostra até 3 coisas que já fez. Nada de arquivo aqui.
+  portfolio: {
+    homeLink: "Meu portfólio",
+    title: "Meu portfólio",
+    intro: "Mostre até 3 coisas que você já fez: um vídeo, uma arte, um texto. A plataforma não guarda arquivo: publique onde quiser e cole o link aqui.",
+    empty: "Você ainda não pôs nada no portfólio.",
+    addTitle: "Adicionar um item",
+    urlLabel: "Link (começa com https://)",
+    titleLabel: "Título (até 80 letras)",
+    kindLabel: "Tipo",
+    addButton: "Adicionar ao portfólio",
+    removeButton: "Tirar do portfólio",
+    full: "Seu portfólio já tem 3 itens. Tire um para pôr outro.",
+    openLink: "Abrir o link",
+    kinds: { video: "Vídeo", image: "Imagem ou arte", text: "Texto", other: "Outro" },
+    done: { added: "Pronto! O item entrou no portfólio.", removed: "O item saiu do portfólio." },
+    errors: {
+      invalid: "Confira o link (precisa começar com https://) e o título.",
+      full: "Seu portfólio já tem 3 itens. Tire um para pôr outro.",
+      not_allowed: "Só você mexe no seu portfólio.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
+  },
   teamIdentity: {
     title: "Identidade da turma",
     flagLabel: "Bandeira da turma",

@@ -32,6 +32,20 @@ describe("cabeçalhos de segurança", () => {
     expect(maxAgeSeconds).toBeGreaterThanOrEqual(15_552_000);
   });
 
+  it("só embutem o Turnstile do login e a prévia do YouTube sem cookies (portfólio, #70)", async () => {
+    // Arrange
+    const csp = (await headersOfAllRoutes())["Content-Security-Policy"] ?? "";
+
+    // Act
+    const frameSrc = /frame-src ([^;]+)/.exec(csp)?.[1]?.trim().split(/\s+/) ?? [];
+
+    // Assert
+    expect(frameSrc.sort()).toEqual(["'self'", "https://challenges.cloudflare.com", "https://www.youtube-nocookie.com"]);
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("base-uri 'self'");
+  });
+
   it("não anunciam o framework", () => {
     expect(nextConfig.poweredByHeader).toBe(false);
   });

@@ -10,6 +10,13 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   // 180 dias, sem includeSubDomains nem preload: reversível se um subdomínio ficar sem HTTPS.
   { key: "Strict-Transport-Security", value: "max-age=15552000" },
+  // CSP parcial (#70): só o que pode ser embutido. Lista fechada: o Turnstile do login e a prévia
+  // do portfólio pelo YouTube sem cookies (ADR 0007 §5). Scripts, estilos e conexões seguem sem
+  // regra aqui: a CSP completa com nonce é a #152.
+  {
+    key: "Content-Security-Policy",
+    value: "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'",
+  },
 ] as const;
 
 const nextConfig: NextConfig = {
