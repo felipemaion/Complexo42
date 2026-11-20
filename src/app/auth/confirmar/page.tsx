@@ -23,8 +23,7 @@ export default async function ConfirmPage({ searchParams }: Props) {
           <input type="hidden" name="type" value={params.data.type} />
           <button
             type="submit"
-            className="block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold text-on-primary focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
-           
+            className="block w-full rounded-xl bg-primary px-6 py-5 text-center text-xl font-bold text-on-primary focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
           >
             {text.confirmButton}
           </button>

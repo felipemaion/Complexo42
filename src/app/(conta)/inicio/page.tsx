@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
+import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPublishableUnits, sessionMissionClient } from "@/modules/missions";
 import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
+import { buttonClass } from "@/modules/ui";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -19,7 +21,14 @@ export default async function SignedInHome({ searchParams }: Props) {
   const { user, client } = await requireUserClient();
   const own = await loadOwnProfile(client, user.id);
   if (!own) redirect(PROFILE_PATH);
-  const [params, coordination] = await Promise.all([searchParams, readCoordinationMenu(client, user.id)]);
+  const missionClient = await sessionMissionClient();
+  const [params, coordination, missionUnits] = await Promise.all([
+    searchParams,
+    readCoordinationMenu(client, user.id),
+    missionClient ? readPublishableUnits(missionClient) : Promise.resolve([]),
+  ]);
+  // Atalho de validação só para quem tem papel de validar em alguma unidade (conforto, R15).
+  const canReviewMissions = missionUnits.length > 0;
   const saved = params.salvo === "1";
   const myDataStatus = parseMyDataStatus(params[MY_DATA_STATUS_PARAM]);
   const text = instance.auth;
@@ -35,6 +44,15 @@ export default async function SignedInHome({ searchParams }: Props) {
       <p className="text-lg">
         {text.connectedAs} <strong>{user.maskedEmail}</strong>
       </p>
+      {/* Missões (ADR 0006, #31): a ação principal de quem participa, primeiro botão da tela. */}
+      <Link href={MISSIONS_PATH} className={`${buttonClass("primary")} no-underline`}>
+        {instance.missions.homeLink}
+      </Link>
+      {canReviewMissions && (
+        <Link href={MISSION_REVIEW_PATH} className={`${buttonClass("secondary")} no-underline`}>
+          {instance.missions.review.menuLink}
+        </Link>
+      )}
       {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}
       {own.socialLinks.length > 0 && (
         <section aria-labelledby="minhas-redes" className="flex flex-col gap-3">
