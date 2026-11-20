@@ -409,6 +409,19 @@ export const instance = parseInstanceConfig({
     scoreboard: "Placar",
     roles: "Papéis",
   },
+  // Histórico de equipes da pessoa (#69): só para a coordenação.
+  history: {
+    title: "Histórico de equipes",
+    intro: "As equipes por onde a pessoa passou e quem era porta-voz em cada período.",
+    current: "Equipe atual",
+    since: "Desde",
+    until: "até",
+    spokespeople: "Porta-voz no período",
+    noSpokesperson: "Sem porta-voz registrado",
+    empty: "Nada para mostrar: a pessoa ainda não passou por equipes no seu escopo.",
+    link: "Histórico",
+    back: "Voltar para as equipes",
+  },
   // Delegar papéis pela tela (#22): só para baixo, dentro do escopo; tudo vai para o registro.
   roles: {
     title: "Papéis da coordenação",

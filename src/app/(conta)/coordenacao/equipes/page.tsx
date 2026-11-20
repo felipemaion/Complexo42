@@ -177,6 +177,7 @@ export default async function EquipesPage({ searchParams }: Props) {
               removeAction={removeAction}
               otherTeams={detailedTeams.filter((other) => other.team.id !== team.id).map((other) => ({ id: other.team.id, name: other.team.name }))}
               moveAction={moveAction}
+              historyLabel={instance.history.link}
               leadAction={leadAction}
             />
           ))}

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { buttonClass, inputClass, labelClass, Notice, Tag } from "@/modules/ui";
 import type { PersonOption, TeamMember, TeamsText, TeamSummary } from "../types";
 
@@ -12,6 +13,8 @@ type Props = {
   /** Mover para outra equipe (#47): as outras equipes que a coordenação monta. */
   readonly otherTeams?: readonly { readonly id: string; readonly name: string }[];
   readonly moveAction?: (formData: FormData) => Promise<void>;
+  /** Texto do link para o histórico da pessoa (#69); sem ele, o link não aparece. */
+  readonly historyLabel?: string;
 };
 
 export function TeamCard({
@@ -24,6 +27,7 @@ export function TeamCard({
   leadAction,
   otherTeams = [],
   moveAction,
+  historyLabel,
 }: Props) {
   return (
     <section className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5">
@@ -48,6 +52,12 @@ export function TeamCard({
               <div className="flex items-center gap-2">
                 <span className="text-lg font-semibold">{member.displayName}</span>
                 {member.isLead && <Tag tone="success">{text.leadTag}</Tag>}
+                {/* Histórico de equipes da pessoa (#69); o id vem do banco (uuid). */}
+                {historyLabel && (
+                  <Link href={`/coordenacao/historico/${member.profileId}`} className="text-base font-semibold">
+                    {historyLabel}
+                  </Link>
+                )}
               </div>
 
               <div className="flex flex-wrap gap-2">

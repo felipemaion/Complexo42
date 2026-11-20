@@ -342,6 +342,8 @@ export const instanceConfigSchema = z.strictObject({
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
   nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, scoreboard: text, review: text, teams: text, search: text, badges: text, roles: text }),
+  // Histórico de equipes da pessoa (#69).
+  history: z.strictObject({ title: text, intro: text, current: text, since: text, until: text, spokespeople: text, noSpokesperson: text, empty: text, link: text, back: text }),
   // Delegar papéis pela tela (#22).
   roles: z.strictObject({
     title: text, intro: text, grantTitle: text, personLabel: text, roleLabel: text, unitLabel: text, grantButton: text,
