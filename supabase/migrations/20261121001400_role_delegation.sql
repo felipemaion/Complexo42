@@ -10,6 +10,10 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- Registra o que uma pessoa fez pela API ou pela tela; carga de operação (seed, sem sessão) não.
+  if (select auth.uid()) is null then
+    return null;
+  end if;
   if tg_op = 'INSERT' then
     insert into public.audit_log (actor_id, event, target_id) values ((select auth.uid()), 'role_granted', new.profile_id);
   elsif new.revoked_at is not null and old.revoked_at is null then
