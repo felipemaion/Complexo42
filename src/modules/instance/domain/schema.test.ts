@@ -124,6 +124,10 @@ const valid = {
   search: instance.search,
   teams: instance.teams,
   badges: instance.badges,
+  dashboard: instance.dashboard,
+  evaluations: instance.evaluations,
+  teamChat: instance.teamChat,
+  myTeam: instance.myTeam,
   coordination: {
     homeLink: "t",
     title: "t",

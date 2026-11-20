@@ -184,6 +184,48 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
+  // Painel da coordenação (#49): números por equipe, sem ranking de pessoas.
+  dashboard: {
+    title: "Painel das equipes",
+    teamLabel: "Equipe",
+    membersLabel: "Pessoas",
+    activeLabel: "Missões em andamento",
+    completedLabel: "Missões concluídas",
+    pointsLabel: "Pontos da equipe",
+    empty: "Os números aparecem quando houver equipes na sua região.",
+  },
+  // Avaliação reservada (ADR 0007 §4, ADR 0008 §3). DESLIGADA: o próprio ADR exige parecer do
+  // jurídico (LGPD art. 18, II) antes de ligar. Para ligar: enabled: true.
+  evaluations: {
+    enabled: false,
+    title: "Avaliar",
+    gradeLabel: "Como foi o trabalho no ciclo",
+    grades: { bronze: "Bronze", prata: "Prata", ouro: "Ouro" },
+    noteLabel: "Comentário reservado (opcional, só você vê)",
+    submitButton: "Registrar avaliação",
+    done: "Avaliação registrada. Ela fica reservada: só você vê.",
+    errors: { not_allowed: "Você não pode avaliar essa pessoa.", invalid: "Escolha bronze, prata ou ouro.", failed: "Não foi possível salvar agora." },
+  },
+  // Conversa da equipe dentro da plataforma (ata de 17/11 §8). DESLIGADA até o time decidir a
+  // issue #120 (moderação e guarda das mensagens; o ADR 0006 tinha deixado fora do POC).
+  teamChat: {
+    enabled: false,
+    title: "Conversa da equipe",
+    empty: "Ainda não há mensagens. Escreva a primeira.",
+    messageLabel: "Sua mensagem",
+    sendButton: "Enviar",
+    you: "Você",
+    privacyNote: "As mensagens ficam guardadas cifradas e só a equipe e a coordenação leem. Não escreva telefone nem endereço.",
+    errors: { not_allowed: "Só quem está na equipe pode escrever aqui.", invalid: "A mensagem precisa ter de 1 a 1000 letras.", too_many: "Muitas mensagens em pouco tempo. Espere alguns minutos.", failed: "Não foi possível enviar agora." },
+  },
+  // Tela "Minha equipe" de quem participa (ata de 17/11 §8: perfil, grupo, missões).
+  myTeam: {
+    homeLink: "Minha equipe",
+    title: "Minha equipe",
+    noTeam: "Você ainda não está numa equipe. A coordenação da sua região vai te colocar em uma.",
+    membersTitle: "Quem está na equipe",
+    leadTag: "Coordena a equipe",
+  },
   // Medalhas (ADR 0006 §8, ADR 0007 §3; #35, #37): coleção no perfil, sem ranking individual.
   badges: {
     homeLink: "Dar medalhas",
