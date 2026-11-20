@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { instance } from "@config/instance";
+import { evaluationsEnabled } from "@/modules/collab";
 import {
   CreateTeamForm,
   readMyTeams,
@@ -177,7 +178,7 @@ export default async function EquipesPage({ searchParams }: Props) {
       )}
 
       {/* Avaliação reservada (ADR 0007 §4): só aparece se a instância ligar, depois do jurídico. */}
-      {instance.evaluations.enabled && detailedTeams.length > 0 && (
+      {evaluationsEnabled() && detailedTeams.length > 0 && (
         <Card title={instance.evaluations.title}>
           <ul className="flex flex-col gap-3">
             {detailedTeams.flatMap(({ members }) => members).map((member) => (
@@ -191,7 +192,7 @@ export default async function EquipesPage({ searchParams }: Props) {
       )}
 
       {/* Leitura por pedido auditado (ADR 0007 §4): mesma chave da avaliação. */}
-      {instance.evaluations.enabled && detailedTeams.length > 0 && (
+      {evaluationsEnabled() && detailedTeams.length > 0 && (
         <Card title={instance.evaluationAccess.title}>
           <EvaluationAccess
             people={detailedTeams.flatMap(({ members }) => members)}

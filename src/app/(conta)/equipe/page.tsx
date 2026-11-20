@@ -12,6 +12,7 @@ import {
 import { Card, Notice, PageShell, Tag } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { instance } from "@config/instance";
+import { teamChatEnabled } from "@/modules/collab";
 import { decryptField } from "@/server/crypto";
 import { pickInDraftAction, postMessageAction } from "./actions";
 
@@ -60,7 +61,7 @@ export default async function EquipePage(props: PageProps) {
         decryptField(v, { table: "profiles", column: "display_name_enc", rowId: profileId }),
       )
     : [];
-  const messages = instance.teamChat.enabled
+  const messages = teamChatEnabled()
     ? await readChat(
         client,
         team.teamId,
@@ -104,7 +105,7 @@ export default async function EquipePage(props: PageProps) {
           <DraftPickPanel state={draft} options={draftOptions} text={instance.draft} pickAction={pickInDraftAction} />
         </Card>
       )}
-      {instance.teamChat.enabled ? (
+      {teamChatEnabled() ? (
         <section className="flex flex-col gap-4 mt-6">
           <h2 className="text-2xl font-bold">{instance.teamChat.title}</h2>
           <ChatPanel

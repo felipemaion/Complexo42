@@ -3,14 +3,14 @@
 import { redirect } from "next/navigation";
 import { sessionCollabClient, submitEvaluation } from "@/modules/collab";
 import { requireUser } from "@/server/auth/session";
-import { instance } from "@config/instance";
+import { evaluationsEnabled } from "@/modules/collab";
 import { encryptField } from "@/server/crypto";
 import { log } from "@/server/log";
 
 export async function evaluateAction(formData: FormData): Promise<void> {
   await requireUser();
 
-  if (!instance.evaluations.enabled) {
+  if (!evaluationsEnabled()) {
     redirect("/coordenacao/equipes?erro=not_allowed");
   }
 

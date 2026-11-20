@@ -1,7 +1,7 @@
 "use server";
 // Draft do 2º ciclo (ata de 17/11 §6) e pedido auditado de acesso à avaliação (ADR 0007 §4).
 import { redirect } from "next/navigation";
-import { instance } from "@config/instance";
+import { evaluationsEnabled } from "@/modules/collab";
 import { closeDraft, type EvaluationAccessState, openDraft, requestEvaluationAccess, sessionCollabClient } from "@/modules/collab";
 import { TEAMS_PATH } from "@/modules/teams";
 import { requireUser } from "@/server/auth/session";
@@ -33,7 +33,7 @@ export async function closeDraftAction(formData: FormData): Promise<void> {
 export async function evaluationAccessAction(_state: EvaluationAccessState, formData: FormData): Promise<EvaluationAccessState> {
   await requireUser();
   // Segue a mesma chave da avaliação: desligada até o parecer do jurídico (ADR 0007 §4).
-  if (!instance.evaluations.enabled) return { status: "error", error: "not_allowed" };
+  if (!evaluationsEnabled()) return { status: "error", error: "not_allowed" };
   const client = await sessionCollabClient();
   if (!client) return { status: "error", error: "failed" };
   const result = await requestEvaluationAccess(

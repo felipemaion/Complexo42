@@ -8,14 +8,14 @@ import {
   sessionCollabClient,
 } from "@/modules/collab";
 import { requireUser } from "@/server/auth/session";
-import { instance } from "@config/instance";
+import { teamChatEnabled } from "@/modules/collab";
 import { encryptField } from "@/server/crypto";
 import { log } from "@/server/log";
 
 export async function postMessageAction(formData: FormData): Promise<void> {
   await requireUser();
 
-  if (!instance.teamChat.enabled) {
+  if (!teamChatEnabled()) {
     redirect(`${MY_TEAM_PATH}?erro=not_allowed`);
   }
 
