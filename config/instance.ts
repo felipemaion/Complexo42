@@ -408,6 +408,18 @@ export const instance = parseInstanceConfig({
     badges: "Medalhas",
     scoreboard: "Placar",
     roles: "Papéis",
+    map: "Mapa",
+  },
+  // Mapa de onde estão as pessoas (#24): só contagens, nunca localização precisa.
+  areaMap: {
+    title: "Onde estão as pessoas",
+    intro: "Quantas pessoas do seu escopo há em cada cidade da região metropolitana e em cada distrito da capital.",
+    mapLabel: "Mapa da Região Metropolitana de São Paulo com a quantidade de pessoas por cidade",
+    few: "< 5",
+    citiesTitle: "Por cidade",
+    districtsTitle: "Distritos da capital",
+    empty: "Ainda não há pessoas no seu escopo.",
+    privacyNote: "Áreas com menos de 5 pessoas aparecem como \"< 5\", para ninguém ser identificado.",
   },
   // Histórico de equipes da pessoa (#69): só para a coordenação.
   history: {

@@ -131,6 +131,7 @@ const valid = {
   scoreboard: instance.scoreboard,
   roles: instance.roles,
   history: instance.history,
+  areaMap: instance.areaMap,
   teams: instance.teams,
   badges: instance.badges,
   dashboard: instance.dashboard,
