@@ -10,6 +10,7 @@ import {
   sessionTeamsClient,
   TeamCard,
 } from "@/modules/teams";
+import { DashboardList, EvaluationForm, readDashboard, sessionCollabClient } from "@/modules/collab";
 import { Card, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
@@ -19,6 +20,7 @@ import {
   leadAction,
   removeAction,
 } from "./actions";
+import { evaluateAction } from "./evaluation-action";
 
 export const metadata: Metadata = { title: instance.teams.title };
 
@@ -96,8 +98,13 @@ export default async function EquipesPage({ searchParams }: Props) {
     }),
   );
 
+  const collabClient = await sessionCollabClient();
+  const dashboard = collabClient ? await readDashboard(collabClient) : [];
+  const evaluated = ok === "evaluated" ? instance.evaluations.done : null;
+
   return (
     <PageShell title={text.title} intro={text.intro} width="wide">
+      {evaluated && <Notice tone="success">{evaluated}</Notice>}
       {doneNoticeMessage && <Notice tone="success">{doneNoticeMessage}</Notice>}
       {errorNoticeMessage && <Notice tone="error">{errorNoticeMessage}</Notice>}
 
@@ -108,6 +115,14 @@ export default async function EquipesPage({ searchParams }: Props) {
           createAction={createTeamAction}
         />
       </Card>
+
+      {/* Painel da coordenação (#49): números por equipe, sem ranking de pessoas. */}
+      <section aria-labelledby="painel" className="flex flex-col gap-3">
+        <h2 id="painel" className="text-2xl font-bold">
+          {instance.dashboard.title}
+        </h2>
+        <DashboardList rows={dashboard} text={instance.dashboard} />
+      </section>
 
       <h2 className="text-2xl font-bold">{text.listTitle}</h2>
 
@@ -130,7 +145,21 @@ export default async function EquipesPage({ searchParams }: Props) {
         </div>
       )}
 
-      <Link href="/inicio" className="text-ink-muted hover:underline">
+      {/* Avaliação reservada (ADR 0007 §4): só aparece se a instância ligar, depois do jurídico. */}
+      {instance.evaluations.enabled && detailedTeams.length > 0 && (
+        <Card title={instance.evaluations.title}>
+          <ul className="flex flex-col gap-3">
+            {detailedTeams.flatMap(({ members }) => members).map((member) => (
+              <li key={member.profileId} className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-lg">{member.displayName}</span>
+                <EvaluationForm profileId={member.profileId} text={instance.evaluations} evaluateAction={evaluateAction} />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      <Link href="/inicio" className="text-center text-lg">
         {instance.coordination.homeBackLink}
       </Link>
     </PageShell>

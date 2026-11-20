@@ -5,6 +5,7 @@ import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { BADGES_PATH } from "@/modules/badges";
+import { MY_TEAM_PATH } from "@/modules/collab";
 import { SEARCH_PATH } from "@/modules/search";
 import { TEAMS_PATH } from "@/modules/teams";
 import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPublishableUnits, sessionMissionClient } from "@/modules/missions";
@@ -50,6 +51,9 @@ export default async function SignedInHome({ searchParams }: Props) {
       {/* Missões (ADR 0006, #31): a ação principal de quem participa, primeiro botão da tela. */}
       <Link href={MISSIONS_PATH} className={`${buttonClass("primary")} no-underline`}>
         {instance.missions.homeLink}
+      </Link>
+      <Link href={MY_TEAM_PATH} className={`${buttonClass("secondary")} no-underline`}>
+        {instance.myTeam.homeLink}
       </Link>
       {canReviewMissions && (
         <Link href={MISSION_REVIEW_PATH} className={`${buttonClass("secondary")} no-underline`}>
