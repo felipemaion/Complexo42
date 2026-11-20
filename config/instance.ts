@@ -218,6 +218,31 @@ export const instance = parseInstanceConfig({
     privacyNote: "As mensagens ficam guardadas cifradas e só a equipe e a coordenação leem. Não escreva telefone nem endereço.",
     errors: { not_allowed: "Só quem está na equipe pode escrever aqui.", invalid: "A mensagem precisa ter de 1 a 1000 letras.", too_many: "Muitas mensagens em pouco tempo. Espere alguns minutos.", failed: "Não foi possível enviar agora." },
   },
+  // Draft do 2º ciclo (ata de 17/11 §6): a equipe da vez escolhe num trecho da lista.
+  draft: {
+    title: "Draft do novo ciclo",
+    intro: "As equipes escolhem pessoas na ordem abaixo, uma de cada vez, sempre num trecho curto da lista. Quem sobrar, a coordenação distribui.",
+    sliceLabel: "Quantas pessoas cada equipe vê por vez",
+    openButton: "Abrir o draft nesta ordem",
+    needTwoTeams: "O draft precisa de pelo menos 2 equipes na região.",
+    onTurn: "Vez da equipe",
+    closeButton: "Encerrar o draft",
+    yourTurn: "É a vez da sua equipe: escolha uma pessoa",
+    waiting: "Aguarde a vez da sua equipe.",
+    pickButton: "Escolher",
+    done: { opened: "Draft aberto.", picked: "Pessoa escolhida. A vez passou.", closed: "Draft encerrado." },
+    errors: { not_allowed: "Não é a vez da sua equipe ou você não pode fazer isso.", invalid: "Essa pessoa não está no trecho desta vez.", failed: "Não foi possível salvar agora." },
+  },
+  // Leitura de avaliação por pedido auditado (ADR 0007 §4). Segue a chave de evaluations.
+  evaluationAccess: {
+    title: "Ver avaliações de alguém",
+    intro: "Só gestores, com motivo. O pedido fica registrado na auditoria.",
+    personLabel: "Pessoa",
+    reasonLabel: "Motivo (obrigatório)",
+    button: "Pedir acesso",
+    none: "Essa pessoa ainda não tem avaliações.",
+    errors: { not_allowed: "Só o gestor com escopo sobre a pessoa pode pedir.", invalid: "Escreva um motivo de 10 a 300 letras.", failed: "Não foi possível ler agora." },
+  },
   // Tela "Minha equipe" de quem participa (ata de 17/11 §8: perfil, grupo, missões).
   myTeam: {
     homeLink: "Minha equipe",

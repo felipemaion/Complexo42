@@ -259,6 +259,16 @@ export const instanceConfigSchema = z.strictObject({
     privacyNote: text,
     errors: z.strictObject({ not_allowed: text, invalid: text, too_many: text, failed: text }),
   }),
+  draft: z.strictObject({
+    title: text, intro: text, sliceLabel: text, openButton: text, needTwoTeams: text, onTurn: text, closeButton: text,
+    yourTurn: text, waiting: text, pickButton: text,
+    done: z.strictObject({ opened: text, picked: text, closed: text }),
+    errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
+  }),
+  evaluationAccess: z.strictObject({
+    title: text, intro: text, personLabel: text, reasonLabel: text, button: text, none: text,
+    errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
+  }),
   myTeam: z.strictObject({ homeLink: text, title: text, noTeam: text, membersTitle: text, leadTag: text }),
   badges: z.strictObject({
     homeLink: text,

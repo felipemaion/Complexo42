@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import {
   MY_TEAM_PATH,
+  pickInDraft,
   postMessage,
   sessionCollabClient,
 } from "@/modules/collab";
@@ -42,4 +43,14 @@ export async function postMessageAction(formData: FormData): Promise<void> {
   }
 
   redirect(`${MY_TEAM_PATH}?${result.ok ? "ok=sent" : `erro=${result.error}`}`);
+}
+
+// Draft do 2º ciclo (ata de 17/11 §6): o coordenador da equipe escolhe na sua vez.
+export async function pickInDraftAction(formData: FormData): Promise<void> {
+  await requireUser();
+  const client = await sessionCollabClient();
+  if (!client) redirect(`${MY_TEAM_PATH}?erro_draft=failed`);
+  const result = await pickInDraft(client, { sessionId: formData.get("sessionId"), profileId: formData.get("profileId") });
+  if (!result.ok) log.warn("draft_action_refused", { reason: result.error });
+  redirect(`${MY_TEAM_PATH}?${result.ok ? "ok_draft=picked" : `erro_draft=${result.error === "too_many" ? "failed" : result.error}`}`);
 }

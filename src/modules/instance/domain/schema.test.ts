@@ -128,6 +128,8 @@ const valid = {
   evaluations: instance.evaluations,
   teamChat: instance.teamChat,
   myTeam: instance.myTeam,
+  draft: instance.draft,
+  evaluationAccess: instance.evaluationAccess,
   coordination: {
     homeLink: "t",
     title: "t",

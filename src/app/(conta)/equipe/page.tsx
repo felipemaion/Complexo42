@@ -4,13 +4,16 @@ import {
   readChat,
   readMyTeam,
   readTeamMates,
+  readDraftState,
+  readDraftOptions,
+  DraftPickPanel,
   sessionCollabClient,
 } from "@/modules/collab";
 import { Card, Notice, PageShell, Tag } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { instance } from "@config/instance";
 import { decryptField } from "@/server/crypto";
-import { postMessageAction } from "./actions";
+import { pickInDraftAction, postMessageAction } from "./actions";
 
 export const metadata = {
   title: instance.myTeam.title,
@@ -50,6 +53,13 @@ export default async function EquipePage(props: PageProps) {
     }),
   );
 
+  // Draft do 2º ciclo: só aparece com rodada aberta que envolve a equipe (ata de 17/11 §6).
+  const draft = await readDraftState(client);
+  const draftOptions = draft?.isMyTurn
+    ? await readDraftOptions(client, draft.sessionId, (v, profileId) =>
+        decryptField(v, { table: "profiles", column: "display_name_enc", rowId: profileId }),
+      )
+    : [];
   const messages = instance.teamChat.enabled
     ? await readChat(
         client,
@@ -89,6 +99,11 @@ export default async function EquipePage(props: PageProps) {
         </ul>
       </Card>
 
+      {draft && (
+        <Card title={instance.draft.title}>
+          <DraftPickPanel state={draft} options={draftOptions} text={instance.draft} pickAction={pickInDraftAction} />
+        </Card>
+      )}
       {instance.teamChat.enabled ? (
         <section className="flex flex-col gap-4 mt-6">
           <h2 className="text-2xl font-bold">{instance.teamChat.title}</h2>

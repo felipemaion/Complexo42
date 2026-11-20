@@ -10,7 +10,15 @@ import {
   sessionTeamsClient,
   TeamCard,
 } from "@/modules/teams";
-import { DashboardList, EvaluationForm, readDashboard, sessionCollabClient } from "@/modules/collab";
+import {
+  DashboardList,
+  DraftCoordinatorPanel,
+  EvaluationAccess,
+  EvaluationForm,
+  readDashboard,
+  readDraftState,
+  sessionCollabClient,
+} from "@/modules/collab";
 import { Card, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
@@ -20,6 +28,7 @@ import {
   leadAction,
   removeAction,
 } from "./actions";
+import { closeDraftAction, evaluationAccessAction, openDraftAction } from "./draft-actions";
 import { evaluateAction } from "./evaluation-action";
 
 export const metadata: Metadata = { title: instance.teams.title };
@@ -27,7 +36,12 @@ export const metadata: Metadata = { title: instance.teams.title };
 type SearchParams = Promise<{
   readonly ok?: string;
   readonly erro?: string;
+  readonly ok_draft?: string;
+  readonly erro_draft?: string;
 }>;
+
+const draftDoneKeys = ["opened", "closed"] as const;
+const draftErrorKeys = ["not_allowed", "invalid", "failed"] as const;
 
 type Props = {
   readonly searchParams: SearchParams;
@@ -50,7 +64,7 @@ function isErrorKey(value: string | undefined): value is ValidErrorKey {
 export default async function EquipesPage({ searchParams }: Props) {
   await requireUser();
   const client = await sessionTeamsClient();
-  const { ok, erro } = await searchParams;
+  const { ok, erro, ok_draft: okDraft, erro_draft: erroDraft } = await searchParams;
   const text = instance.teams;
   if (!client) {
     // Sem Auth configurado: aviso na tela (redirecionar para cá mesmo daria laço infinito).
@@ -99,7 +113,10 @@ export default async function EquipesPage({ searchParams }: Props) {
   );
 
   const collabClient = await sessionCollabClient();
-  const dashboard = collabClient ? await readDashboard(collabClient) : [];
+  const [dashboard, draft] = collabClient ? await Promise.all([readDashboard(collabClient), readDraftState(collabClient)]) : [[], null];
+  // Só chaves conhecidas viram mensagem; texto da URL nunca é exibido.
+  const draftDone = draftDoneKeys.find((key) => key === okDraft);
+  const draftError = draftErrorKeys.find((key) => key === erroDraft);
   const evaluated = ok === "evaluated" ? instance.evaluations.done : null;
 
   return (
@@ -123,6 +140,20 @@ export default async function EquipesPage({ searchParams }: Props) {
         </h2>
         <DashboardList rows={dashboard} text={instance.dashboard} />
       </section>
+
+      {/* Draft do 2º ciclo (ata de 17/11 §6). A ordem é a da lista de equipes abaixo. */}
+      <Card title={instance.draft.title}>
+        {draftDone && <Notice tone="success">{instance.draft.done[draftDone]}</Notice>}
+        {draftError && <Notice tone="error">{instance.draft.errors[draftError]}</Notice>}
+        <DraftCoordinatorPanel
+          state={draft}
+          parentId={teams[0]?.parentId ?? null}
+          teams={teams.filter((team) => team.parentId === teams[0]?.parentId).map((team) => ({ id: team.id, name: team.name }))}
+          text={instance.draft}
+          openAction={openDraftAction}
+          closeAction={closeDraftAction}
+        />
+      </Card>
 
       <h2 className="text-2xl font-bold">{text.listTitle}</h2>
 
@@ -156,6 +187,18 @@ export default async function EquipesPage({ searchParams }: Props) {
               </li>
             ))}
           </ul>
+        </Card>
+      )}
+
+      {/* Leitura por pedido auditado (ADR 0007 §4): mesma chave da avaliação. */}
+      {instance.evaluations.enabled && detailedTeams.length > 0 && (
+        <Card title={instance.evaluationAccess.title}>
+          <EvaluationAccess
+            people={detailedTeams.flatMap(({ members }) => members)}
+            text={instance.evaluationAccess}
+            grades={instance.evaluations.grades}
+            accessAction={evaluationAccessAction}
+          />
         </Card>
       )}
 
