@@ -8,7 +8,7 @@ enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entre
 
 | Assunto | Issues | Onde |
 |---|---|---|
-| Visual para pessoas mais velhas (tokens, fonte Atkinson Hyperlegible, 18 px, botões de 56 px) aplicado em todas as telas | ata 17/11 §10 | `src/app/globals.css`, `src/modules/ui` |
+| Visual de site (preto e dourado, largura de 1240 px com colunas no computador, cabeçalho com menu em abas, faixa de destaque e rodapé com "Minha conta"), pensado para pessoas mais velhas (fonte Atkinson Hyperlegible, 18 px, nada abaixo disso, botões de 56 px, contraste alto) | ata 17/11 §10 | `src/app/globals.css`, `src/modules/ui`, `src/app/(conta)/layout.tsx`, `/inicio` |
 | Missões, etapas, execuções, entregas, validação e livro-razão de pontos | #30 #31 #32 #33 | migrations `…000000/000100`, `src/modules/missions`, `/missoes`, `/coordenacao/missoes` |
 | Busca de pessoas por habilidade (todas as marcadas, só no escopo, sem contato) | #23 | `…000200`, `src/modules/search`, `/coordenacao/busca` |
 | Montagem das equipes do 1º ciclo (criar, distribuir, coordenador da equipe) | #28 #29 | `…000300`, `src/modules/teams`, `/coordenacao/equipes` |
@@ -37,8 +37,11 @@ enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entre
 
 - `supabase test db`: 21 arquivos, 1405 testes passando (os seus e os novos), com 17 linhas novas na
   matriz de permissões (R16: publicar missão e ver pontos da unidade, com casos negados).
-- `vitest`: 79 arquivos, 697 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
-- Novo guarda `tests/visual-tokens.test.ts`: reprova cor fora do tema e texto branco sem fundo.
+- `vitest`: 79 arquivos, 699 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
+- Guarda `tests/visual-tokens.test.ts`: reprova cor fora do tema, texto sem o fundo certo (branco sem
+  primário, letra clara no amarelo) e letra abaixo da base (`text-xs`, `text-sm`).
+- Fotos em 1440 px e 390 px de todas as telas, nas duas visões: nada passa da largura da tela e a menor
+  letra tem 18 px.
 - Fluxo completo no navegador (produção local, pessoas fictícias do seed): criar equipe → distribuir →
   buscar → dar medalha → publicar missão → entregar → validar → pontos e medalha no perfil; e o draft
   (abrir → vez da equipe → escolher → a vez passa).

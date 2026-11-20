@@ -29,39 +29,46 @@ export default async function MissionsPage() {
     badgesClient ? readMyBadges(badgesClient, user.id) : Promise.resolve([]),
   ]);
   return (
-    <PageShell title={text.title} intro={text.intro}>
-      <section aria-labelledby="pontos" className="grid grid-cols-2 gap-3">
-        <h2 id="pontos" className="sr-only">
-          {text.pointsTitle}
-        </h2>
-        <div className="rounded-2xl border border-line bg-surface p-4">
-          <p className="text-base text-ink-muted">{text.myPointsLabel}</p>
-          <p className="text-3xl font-bold text-primary">{points.mine}</p>
+    <PageShell title={text.title} intro={text.intro} width="wide">
+      {/* No computador: missões à esquerda, pontos e medalhas ao lado; no celular, uma coluna. */}
+      <div className="grid gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          {missions.length === 0 ? (
+            <Notice tone="info">{text.empty}</Notice>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {missions.map((mission) => (
+                <li key={mission.id}>
+                  <MissionCard mission={mission} run={runs.get(mission.id)} href={missionPath(mission.id)} text={text} />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-        <div className="rounded-2xl border border-line bg-surface p-4">
-          <p className="text-base text-ink-muted">{text.teamPointsLabel}</p>
-          <p className="text-3xl font-bold text-primary">{points.team}</p>
-        </div>
-      </section>
-      {/* Medalhas como coleção, sem ranking (ADR 0007 §3). */}
-      <section aria-labelledby="medalhas" className="flex flex-col gap-3">
-        <h2 id="medalhas" className="text-2xl font-bold">
-          {instance.badges.myTitle}
-        </h2>
-        <BadgeCollection awards={badges} text={instance.badges} />
-      </section>
-      {missions.length === 0 ? (
-        <Notice tone="info">{text.empty}</Notice>
-      ) : (
-        <ul className="flex flex-col gap-4">
-          {missions.map((mission) => (
-            <li key={mission.id}>
-              <MissionCard mission={mission} run={runs.get(mission.id)} href={missionPath(mission.id)} text={text} />
-            </li>
-          ))}
-        </ul>
-      )}
-      <Link href="/inicio" className="text-center text-lg">
+        <aside className="flex flex-col gap-6 lg:col-span-4">
+          <section aria-labelledby="pontos" className="grid grid-cols-2 gap-3">
+            <h2 id="pontos" className="sr-only">
+              {text.pointsTitle}
+            </h2>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-base text-ink-muted">{text.myPointsLabel}</p>
+              <p className="text-3xl font-bold text-primary">{points.mine}</p>
+            </div>
+            <div className="rounded-2xl border border-line bg-surface p-4">
+              <p className="text-base text-ink-muted">{text.teamPointsLabel}</p>
+              <p className="text-3xl font-bold text-primary">{points.team}</p>
+            </div>
+          </section>
+          {/* Medalhas como coleção, sem ranking (ADR 0007 §3). */}
+          <section aria-labelledby="medalhas" className="flex flex-col gap-3">
+            <h2 id="medalhas" className="text-2xl font-bold">
+              {instance.badges.myTitle}
+            </h2>
+            <BadgeCollection awards={badges} text={instance.badges} />
+          </section>
+        </aside>
+      </div>
+      <Link href="/inicio" className="text-lg">
         {instance.coordination.homeBackLink}
       </Link>
     </PageShell>

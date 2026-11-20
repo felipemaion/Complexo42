@@ -126,21 +126,24 @@ export default async function EquipesPage({ searchParams }: Props) {
       {doneNoticeMessage && <Notice tone="success">{doneNoticeMessage}</Notice>}
       {errorNoticeMessage && <Notice tone="error">{errorNoticeMessage}</Notice>}
 
-      <Card title={text.createTitle}>
-        <CreateTeamForm
-          parents={parents}
-          text={text}
-          createAction={createTeamAction}
-        />
-      </Card>
+      {/* No computador: criar equipe e o painel lado a lado. */}
+      <div className="grid gap-8 lg:grid-cols-2">
+        <Card title={text.createTitle}>
+          <CreateTeamForm
+            parents={parents}
+            text={text}
+            createAction={createTeamAction}
+          />
+        </Card>
 
-      {/* Painel da coordenação (#49): números por equipe, sem ranking de pessoas. */}
-      <section aria-labelledby="painel" className="flex flex-col gap-3">
-        <h2 id="painel" className="text-2xl font-bold">
-          {instance.dashboard.title}
-        </h2>
-        <DashboardList rows={dashboard} text={instance.dashboard} />
-      </section>
+        {/* Painel da coordenação (#49): números por equipe, sem ranking de pessoas. */}
+        <section aria-labelledby="painel" className="flex flex-col gap-3">
+          <h2 id="painel" className="text-2xl font-bold">
+            {instance.dashboard.title}
+          </h2>
+          <DashboardList rows={dashboard} text={instance.dashboard} />
+        </section>
+      </div>
 
       {/* Draft do 2º ciclo (ata de 17/11 §6). A ordem é a da lista de equipes abaixo. */}
       <Card title={instance.draft.title}>
@@ -161,7 +164,7 @@ export default async function EquipesPage({ searchParams }: Props) {
       {detailedTeams.length === 0 ? (
         <Notice tone="info">{text.noTeams}</Notice>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           {detailedTeams.map(({ team, members, unassigned }) => (
             <TeamCard
               key={team.id}
@@ -203,7 +206,7 @@ export default async function EquipesPage({ searchParams }: Props) {
         </Card>
       )}
 
-      <Link href="/inicio" className="text-center text-lg">
+      <Link href="/inicio" className="text-lg">
         {instance.coordination.homeBackLink}
       </Link>
     </PageShell>

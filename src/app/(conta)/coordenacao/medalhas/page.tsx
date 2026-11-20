@@ -88,13 +88,16 @@ export default async function BadgesCoordinationPage({ searchParams }: PageProps
     <PageShell title={text.title} intro={text.intro} width="wide">
       {okKey && <Notice tone="success">{text.done[okKey]}</Notice>}
       {errorKey && <Notice tone="error">{text.errors[errorKey]}</Notice>}
-      <Card title={text.grantTitle}>
-        <GrantForm badges={badges} people={people} text={text} grantAction={grantBadgeAction} />
-      </Card>
-      <Card title={text.createTitle}>
-        <CreateBadgeForm scopes={scopes} text={text} createAction={createBadgeAction} />
-      </Card>
-      <Link href="/inicio" className="text-center text-lg">
+      {/* No computador: dar medalha e criar medalha lado a lado. */}
+      <div className="grid gap-8 lg:grid-cols-2">
+        <Card title={text.grantTitle}>
+          <GrantForm badges={badges} people={people} text={text} grantAction={grantBadgeAction} />
+        </Card>
+        <Card title={text.createTitle}>
+          <CreateBadgeForm scopes={scopes} text={text} createAction={createBadgeAction} />
+        </Card>
+      </div>
+      <Link href="/inicio" className="text-lg">
         {instance.coordination.homeBackLink}
       </Link>
     </PageShell>

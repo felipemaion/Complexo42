@@ -125,7 +125,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       const option = (value: Answer, label: string, detail?: string) => (
         <button
           type="button"
-          className={`${bigBase} ${chosen === value ? "bg-secondary text-ink" : "bg-surface text-primary"}`}
+          className={`${bigBase} ${chosen === value ? "bg-secondary text-on-secondary" : "bg-surface text-primary"}`}
           aria-pressed={chosen === value}
           onClick={() => dispatch({ type: "answer", value })}
         >

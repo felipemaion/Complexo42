@@ -84,9 +84,12 @@ export default async function EquipePage(props: PageProps) {
   const errorMessage = errorCode ? instance.teamChat.errors[errorCode] : undefined;
 
   return (
-    <PageShell title={team.teamName} intro={instance.myTeam.title}>
+    <PageShell title={team.teamName} intro={instance.myTeam.title} width="wide">
       {errorMessage ? <Notice tone="error">{errorMessage}</Notice> : null}
 
+      {/* No computador: quem está na equipe (e o draft) à esquerda, a conversa à direita. */}
+      <div className="grid gap-8 lg:grid-cols-12">
+      <div className="flex flex-col gap-6 lg:col-span-5">
       <Card title={instance.myTeam.membersTitle}>
         <ul className="flex flex-col gap-2">
           {mates.map((mate) => (
@@ -105,8 +108,9 @@ export default async function EquipePage(props: PageProps) {
           <DraftPickPanel state={draft} options={draftOptions} text={instance.draft} pickAction={pickInDraftAction} />
         </Card>
       )}
+      </div>
       {teamChatEnabled() ? (
-        <section className="flex flex-col gap-4 mt-6">
+        <section className="flex flex-col gap-4 lg:col-span-7">
           <h2 className="text-2xl font-bold">{instance.teamChat.title}</h2>
           <ChatPanel
             teamId={team.teamId}
@@ -116,8 +120,9 @@ export default async function EquipePage(props: PageProps) {
           />
         </section>
       ) : null}
+      </div>
 
-      <Link href="/inicio" className="text-center text-lg mt-6">
+      <Link href="/inicio" className="text-lg">
         {instance.coordination.homeBackLink}
       </Link>
     </PageShell>

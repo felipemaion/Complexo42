@@ -1,40 +1,44 @@
 @import "tailwindcss";
 
 /*
- * Visual da instância (direção A, "institucional claro"), pensado para pessoas mais velhas:
- * letra grande, contraste alto e nada escondido (ata de 17/11, §10).
+ * Visual da instância (preto e dourado, escolhido em 20/11), pensado também para pessoas mais
+ * velhas: letra grande, contraste alto (todo texto acima de 4,5:1) e nada escondido (ata 17/11 §10).
  * primary e secondary vêm de config/instance.ts (R17): o layout grava os valores no <html>,
  * por cima destes padrões. Os demais tons são neutros e valem para qualquer instância.
  */
 @theme {
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 
-  --color-primary: #1f4e79;
-  --color-secondary: #f2a900;
-  --color-on-primary: #ffffff;
+  /* Largura do site no computador (no celular, a tela inteira). */
+  --container-site: 1240px;
 
-  --color-canvas: #f4f6f9;
-  --color-surface: #ffffff;
-  --color-soft: #e8eef6;
-  --color-ink: #14181f;
-  --color-ink-muted: #4a5565;
-  --color-line: #d3dae3;
-  --color-field: #7a8494;
-  --color-focus: #14181f;
+  --color-primary: #d4a537;
+  --color-secondary: #f2c14e;
+  --color-on-primary: #0b0d12;
+  --color-on-secondary: #0b0d12;
 
-  --color-danger: #b42318;
-  --color-danger-soft: #fdecea;
-  --color-success: #1e6b3a;
-  --color-success-soft: #e7f4ec;
-  --color-warning: #8a5a00;
-  --color-warning-soft: #fff4d6;
+  --color-canvas: #0b0d12;
+  --color-surface: #12151c;
+  --color-soft: #1d222d;
+  --color-ink: #f2efe6;
+  --color-ink-muted: #b3ad9e;
+  --color-line: #2a2f3a;
+  --color-field: #7d8494;
+  --color-focus: #f2c14e;
+
+  --color-danger: #ff8a80;
+  --color-danger-soft: #2a1416;
+  --color-success: #5fd494;
+  --color-success-soft: #11291b;
+  --color-warning: #f2c14e;
+  --color-warning-soft: #2a2412;
 }
 
 @layer base {
   html {
     /* 112,5% = 18 px de base, respeitando o tamanho que a pessoa escolheu no navegador. */
     font-size: 112.5%;
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   body {

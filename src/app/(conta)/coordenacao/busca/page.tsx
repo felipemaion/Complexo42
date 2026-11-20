@@ -50,20 +50,27 @@ export default async function SearchBySkillPage({ searchParams }: Props) {
 
   return (
     <PageShell title={text.title} intro={text.intro} width="wide">
-      <SearchForm skills={skills} selected={skillIds} text={text} />
-
-      {result && !result.ok && (
-        <Notice tone="error">{text.errors[result.error]}</Notice>
-      )}
-
-      {result && result.ok && (
-        <div className="flex flex-col gap-4">
-          <h2 className="text-xl font-bold">{text.resultsTitle}</h2>
-          <PersonList people={result.value} text={text} />
+      {/* No computador: habilidades à esquerda, pessoas encontradas à direita. */}
+      <div className="grid gap-8 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          <SearchForm skills={skills} selected={skillIds} text={text} />
         </div>
-      )}
 
-      <Link href="/inicio" className="text-center text-lg">
+        <div className="flex flex-col gap-4 lg:col-span-7">
+          {result && !result.ok && (
+            <Notice tone="error">{text.errors[result.error]}</Notice>
+          )}
+
+          {result && result.ok && (
+            <>
+              <h2 className="text-xl font-bold">{text.resultsTitle}</h2>
+              <PersonList people={result.value} text={text} />
+            </>
+          )}
+        </div>
+      </div>
+
+      <Link href="/inicio" className="text-lg">
         {instance.coordination.homeBackLink}
       </Link>
     </PageShell>

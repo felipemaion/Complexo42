@@ -34,14 +34,14 @@ export default async function MissionReviewPage({ searchParams }: Props) {
       {error && <Notice tone="error">{text.errors[error]}</Notice>}
       {done && <Notice tone="success">{done}</Notice>}
       {units.length > 0 && (
-        <Link href={MISSION_PUBLISH_PATH} className={`${buttonClass("secondary")} no-underline`}>
+        <Link href={MISSION_PUBLISH_PATH} className={`${buttonClass("secondary", { isFullWidth: false })} self-start no-underline`}>
           {text.publish.menuLink}
         </Link>
       )}
       {reviews.length === 0 ? (
         <Notice tone="info">{text.review.empty}</Notice>
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="grid gap-4 lg:grid-cols-2">
           {reviews.map((review) => (
             <ReviewItem key={review.submissionId} review={review} text={text} reviewAction={reviewSubmissionAction} />
           ))}

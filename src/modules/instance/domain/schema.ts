@@ -317,6 +317,13 @@ export const instanceConfigSchema = z.strictObject({
     title: text, intro: text, asMember: text, asCoordinator: text, memberHint: text, coordinatorHint: text,
     banner: text, viewingAs: text, member: text, coordinator: text, switchTo: text,
   }),
+  // Moldura de site (cabeçalho, painel inicial e rodapé) das páginas de quem entrou.
+  site: z.strictObject({
+    tagline: text, kicker: text, greeting: text, coordinatorIntro: text, memberIntro: text,
+    pendingLabel: text, availableLabel: text, openMissionsTitle: text, seeAll: text, available: text,
+    leadLabel: text, openTeam: text, peopleSuffix: text, teamPointsTitle: text, pendingTitle: text,
+    pendingEmpty: text, footerAbout: text, accountTitle: text, coordinationTitle: text, privacyNote: text,
+  }),
   search: z.strictObject({
     homeLink: text,
     title: text,

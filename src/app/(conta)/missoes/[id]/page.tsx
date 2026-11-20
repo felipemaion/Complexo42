@@ -53,7 +53,10 @@ export default async function MissionPage({ params, searchParams }: Props) {
   const successByKey: Record<string, string | null> = { started: null, submitted: text.submitted, published: text.publish.done };
   const successText = message ? (successByKey[message.key] ?? null) : null;
   return (
-    <PageShell title={mission.title} intro={mission.description || undefined}>
+    <PageShell title={mission.title} intro={mission.description || undefined} width="wide">
+      <div className="grid gap-8 lg:grid-cols-12">
+      {/* Coluna da direita no computador: resumo, avisos e o botão de começar. */}
+      <aside className="flex flex-col gap-4 lg:order-2 lg:col-span-4">
       <div className="flex flex-wrap gap-2">
         <Tag>{text.origin[mission.origin]}</Tag>
         <Tag>{text.mode[mission.mode]}</Tag>
@@ -73,7 +76,8 @@ export default async function MissionPage({ params, searchParams }: Props) {
           {mission.mode === "team" && <p className="text-base text-ink-muted">{text.startHint}</p>}
         </form>
       )}
-      <section aria-labelledby="etapas" className="flex flex-col gap-3">
+      </aside>
+      <section aria-labelledby="etapas" className="flex flex-col gap-3 lg:order-1 lg:col-span-8">
         <h2 id="etapas" className="text-2xl font-bold">
           {text.stepsTitle}
         </h2>
@@ -90,7 +94,8 @@ export default async function MissionPage({ params, searchParams }: Props) {
           ))}
         </ol>
       </section>
-      <Link href={MISSIONS_PATH} className="text-center text-lg">
+      </div>
+      <Link href={MISSIONS_PATH} className="text-lg">
         {text.backLink}
       </Link>
     </PageShell>

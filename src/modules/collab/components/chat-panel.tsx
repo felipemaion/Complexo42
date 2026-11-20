@@ -38,7 +38,7 @@ export function ChatPanel({
                 key={message.messageId}
                 className={`${containerClass} rounded-2xl p-3 flex flex-col gap-1`}
               >
-                <div className="flex justify-between items-center text-sm">
+                <div className="flex justify-between items-center text-base">
                   <span className="font-bold">
                     {message.isMine ? text.you : message.authorName}
                   </span>

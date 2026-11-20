@@ -12,7 +12,7 @@ export function BadgeCollection({ awards, text }: BadgeCollectionProps) {
   }
 
   return (
-    <ul className="grid gap-3 sm:grid-cols-2">
+    <ul className="flex flex-col gap-3">
       {awards.map((award) => (
         <li
           key={award.awardId}
@@ -24,7 +24,7 @@ export function BadgeCollection({ awards, text }: BadgeCollectionProps) {
           <div className="flex flex-col gap-1">
             <span className="text-lg font-bold">{award.name}</span>
             <span className="text-ink-muted">{award.reason}</span>
-            <span className="text-xs text-ink-muted">
+            <span className="text-base text-ink-muted">
               {new Date(award.awardedAt).toLocaleDateString("pt-BR")}
             </span>
           </div>

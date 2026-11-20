@@ -22,7 +22,7 @@ export default async function PublishMissionPage({ searchParams }: Props) {
   const units = client ? await readPublishableUnits(client) : [];
   const error = publishErrors.find((code) => code === params.erro);
   return (
-    <PageShell title={text.publish.title} intro={text.publish.intro} width="wide">
+    <PageShell title={text.publish.title} intro={text.publish.intro}>
       {error && <Notice tone="error">{text.publish.errors[error]}</Notice>}
       {units.length === 0 ? (
         <Notice tone="warning">{text.publish.errors.not_allowed}</Notice>

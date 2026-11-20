@@ -15,8 +15,8 @@ export const instance = parseInstanceConfig({
   name: "Organização Exemplo",
   shortName: "OrgExemplo",
   colors: {
-    primary: "#1f4e79",
-    secondary: "#f2a900",
+    primary: "#d4a537",
+    secondary: "#f2c14e",
   },
   roleLabels: {
     member: "Participante",
@@ -334,6 +334,29 @@ export const instance = parseInstanceConfig({
     member: "membro",
     coordinator: "coordenação",
     switchTo: "Trocar para",
+  },
+  // Moldura de site: cabeçalho, painel inicial e rodapé de quem entrou.
+  site: {
+    tagline: "Plataforma de membros",
+    kicker: "Seu painel",
+    greeting: "Olá",
+    coordinatorIntro: "Acompanhe as equipes, valide as entregas e publique missões.",
+    memberIntro: "Veja as missões abertas, a sua equipe e os seus pontos.",
+    pendingLabel: "Entregas para validar",
+    availableLabel: "Missões disponíveis",
+    openMissionsTitle: "Missões abertas",
+    seeAll: "Ver todas",
+    available: "Disponível",
+    leadLabel: "Coordena a equipe",
+    openTeam: "Abrir a página da equipe",
+    peopleSuffix: "pessoas",
+    teamPointsTitle: "Pontos por equipe",
+    pendingTitle: "Entregas esperando validação",
+    pendingEmpty: "Nada esperando validação agora.",
+    footerAbout: "Missões, equipes e formação de quem participa, num lugar só.",
+    accountTitle: "Minha conta",
+    coordinationTitle: "Coordenação",
+    privacyNote: "Nome, contato e avaliações ficam guardados cifrados.",
   },
   // Busca de pessoas por habilidade (#23): prioridade da coordenação.
   search: {
