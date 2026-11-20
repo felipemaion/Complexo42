@@ -1,9 +1,53 @@
 @import "tailwindcss";
 
-:root {
-  color-scheme: light dark;
+/*
+ * Visual da instância (direção A, "institucional claro"), pensado para pessoas mais velhas:
+ * letra grande, contraste alto e nada escondido (ata de 17/11, §10).
+ * primary e secondary vêm de config/instance.ts (R17): o layout grava os valores no <html>,
+ * por cima destes padrões. Os demais tons são neutros e valem para qualquer instância.
+ */
+@theme {
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+
+  --color-primary: #1f4e79;
+  --color-secondary: #f2a900;
+  --color-on-primary: #ffffff;
+
+  --color-canvas: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-soft: #e8eef6;
+  --color-ink: #14181f;
+  --color-ink-muted: #4a5565;
+  --color-line: #d3dae3;
+  --color-field: #7a8494;
+  --color-focus: #14181f;
+
+  --color-danger: #b42318;
+  --color-danger-soft: #fdecea;
+  --color-success: #1e6b3a;
+  --color-success-soft: #e7f4ec;
+  --color-warning: #8a5a00;
+  --color-warning-soft: #fff4d6;
 }
 
-body {
-  font-family: system-ui, sans-serif;
+@layer base {
+  html {
+    /* 112,5% = 18 px de base, respeitando o tamanho que a pessoa escolheu no navegador. */
+    font-size: 112.5%;
+    color-scheme: light;
+  }
+
+  body {
+    @apply min-h-screen bg-canvas font-sans text-ink antialiased;
+    line-height: 1.55;
+  }
+
+  a {
+    @apply text-primary underline underline-offset-4;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 3px;
+  }
 }

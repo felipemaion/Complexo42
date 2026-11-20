@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { Atkinson_Hyperlegible_Next } from "next/font/google";
 import { instance } from "@config/instance";
 import "./globals.css";
+
+// Fonte desenhada para leitura com baixa visão (Braille Institute, licença OFL, grátis).
+// O next/font baixa no build e serve do próprio app: sem chamada ao Google no navegador.
+const bodyFont = Atkinson_Hyperlegible_Next({ subsets: ["latin", "latin-ext"], variable: "--font-body", display: "swap" });
 
 // Nome, cores e textos da instância vêm de config/ (R17, ADR 0005).
 export const metadata: Metadata = {
@@ -17,10 +22,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     "--color-secondary": instance.colors.secondary,
   } as React.CSSProperties;
   return (
-    <html lang="pt-BR" style={theme}>
-      <body className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
-        {children}
-      </body>
+    <html lang="pt-BR" style={theme} className={bodyFont.variable}>
+      <body>{children}</body>
     </html>
   );
 }
