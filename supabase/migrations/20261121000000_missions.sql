@@ -13,6 +13,8 @@
 -- 5. Antifraude (§4): ninguém aprova entrega de execução da qual participou; a mesma etapa não
 --    é aprovada duas vezes na mesma execução (índice único parcial).
 -- 6. Sem upload (§7): evidência é link https, número de protocolo ou texto curto.
+-- 7. Códigos de erro para a tela: 42501 sem permissão, 22023 evidência inválida, C7611 etapa
+--    ainda fechada, C7612 já feito (ou não se repete), C7613 indisponível.
 
 -- ---------------------------------------------------------------------------------------
 -- Funções de apoio
@@ -438,11 +440,11 @@ begin
   where r.mission_id = p_mission and r.status = 'completed'
     and r.unit_id = run_unit and r.profile_id is not distinct from run_owner;
   if last_done is not null and not mission.repeatable then
-    raise exception 'esta missão já foi concluída e não se repete' using errcode = 'P0001';
+    raise exception 'esta missão já foi concluída e não se repete' using errcode = 'C7612';
   end if;
   if last_done is not null and mission.cooldown_days is not null
      and last_done > now() - make_interval(days => mission.cooldown_days) then
-    raise exception 'esta missão só pode ser repetida depois do intervalo mínimo' using errcode = 'P0001';
+    raise exception 'esta missão só pode ser repetida depois do intervalo mínimo' using errcode = 'C7612';
   end if;
 
   insert into public.mission_runs (mission_id, unit_id, profile_id)
@@ -489,12 +491,12 @@ begin
     raise exception 'só quem participa da execução pode entregar' using errcode = '42501';
   end if;
   if run.status <> 'active' then
-    raise exception 'a execução não está em andamento' using errcode = 'P0001';
+    raise exception 'a execução não está em andamento' using errcode = 'C7613';
   end if;
 
   select * into step from public.mission_steps where id = p_step and mission_id = run.mission_id;
   if step.id is null then
-    raise exception 'etapa não pertence a esta missão' using errcode = 'P0001';
+    raise exception 'etapa não pertence a esta missão' using errcode = 'C7613';
   end if;
 
   if step.requires_previous and exists (
@@ -506,7 +508,7 @@ begin
         where s.run_id = p_run and s.step_id = prev.id and s.status = 'approved'
       )
   ) then
-    raise exception 'esta etapa só abre depois das anteriores aprovadas' using errcode = 'P0001';
+    raise exception 'esta etapa só abre depois das anteriores aprovadas' using errcode = 'C7611';
   end if;
 
   if step.evidence_type = 'none' then
@@ -557,7 +559,7 @@ begin
     raise exception 'sem permissão para validar esta entrega' using errcode = '42501';
   end if;
   if submission.status <> 'submitted' then
-    raise exception 'esta entrega já foi validada' using errcode = 'P0001';
+    raise exception 'esta entrega já foi validada' using errcode = 'C7612';
   end if;
   if note is not null and length(note) > 500 then
     raise exception 'o comentário passa de 500 caracteres' using errcode = '22023';

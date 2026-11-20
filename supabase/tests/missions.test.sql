@@ -181,7 +181,7 @@ select throws_ok(
 select throws_ok(
   $$ select app.submit_step(current_setting('t.run')::uuid,
        (select id from public.mission_steps where title = 'Protocolar na câmara'), null, 'PL 123/2026') $$,
-  'P0001', null,
+  'C7611', null,
   'etapa 2 só abre depois da 1 aprovada'
 );
 select set_config('t.sub1', app.submit_step(current_setting('t.run')::uuid,
@@ -222,7 +222,7 @@ select results_eq(
 );
 select throws_ok(
   $$ select app.approve_submission(current_setting('t.sub1')::uuid, true) $$,
-  'P0001', null,
+  'C7612', null,
   'a mesma entrega não é validada duas vezes'
 );
 select throws_ok(
