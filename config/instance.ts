@@ -309,7 +309,10 @@ export const instance = parseInstanceConfig({
       assigned: "Pessoa colocada na equipe.",
       removed: "Pessoa tirada da equipe. Ela voltou para a lista da região.",
       lead: "Coordenador da equipe definido.",
+      moved: "Pessoa movida para a outra equipe. A mudança ficou registrada.",
     },
+    moveLabel: "Mover para",
+    moveButton: "Mover",
     errors: {
       not_allowed: "Você não tem papel de coordenação para montar equipes aqui.",
       invalid: "Confira os campos e tente de novo.",

@@ -336,7 +336,9 @@ export const instanceConfigSchema = z.strictObject({
     addButton: text,
     noUnassigned: text,
     noTeams: text,
-    done: z.strictObject({ created: text, assigned: text, removed: text, lead: text }),
+    done: z.strictObject({ created: text, assigned: text, removed: text, lead: text, moved: text }),
+    // Mover pessoa entre equipes (#47).
+    moveLabel: text, moveButton: text,
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
   nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, scoreboard: text, review: text, teams: text, search: text, badges: text, roles: text }),

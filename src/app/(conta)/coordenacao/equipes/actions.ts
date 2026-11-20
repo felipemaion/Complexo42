@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   assignToTeam,
   createTeam,
+  moveToTeam,
   removeFromTeam,
   sessionTeamsClient,
   setTeamLead,
@@ -66,4 +67,18 @@ export async function leadAction(formData: FormData): Promise<void> {
 
   if (!result.ok) log.warn("team_action_refused", { reason: result.error });
   redirect(`${TEAMS_PATH}?${result.ok ? "ok=lead" : `erro=${result.error}`}`);
+}
+
+// Mover pessoa entre equipes (#47): o banco confere o escopo e registra member_moved.
+export async function moveAction(formData: FormData): Promise<void> {
+  await requireUser();
+  const client = await sessionTeamsClient();
+  if (!client) redirect(`${TEAMS_PATH}?erro=failed`);
+  const result = await moveToTeam(client, {
+    profileId: formData.get("profileId"),
+    fromTeamId: formData.get("fromTeamId"),
+    toTeamId: formData.get("toTeamId"),
+  });
+  if (!result.ok) log.warn("team_action_refused", { reason: result.error });
+  redirect(`${TEAMS_PATH}?${result.ok ? "ok=moved" : `erro=${result.error}`}`);
 }

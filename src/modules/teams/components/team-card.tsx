@@ -9,6 +9,9 @@ type Props = {
   readonly assignAction: (formData: FormData) => Promise<void>;
   readonly removeAction: (formData: FormData) => Promise<void>;
   readonly leadAction: (formData: FormData) => Promise<void>;
+  /** Mover para outra equipe (#47): as outras equipes que a coordenação monta. */
+  readonly otherTeams?: readonly { readonly id: string; readonly name: string }[];
+  readonly moveAction?: (formData: FormData) => Promise<void>;
 };
 
 export function TeamCard({
@@ -19,6 +22,8 @@ export function TeamCard({
   assignAction,
   removeAction,
   leadAction,
+  otherTeams = [],
+  moveAction,
 }: Props) {
   return (
     <section className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-5">
@@ -69,6 +74,35 @@ export function TeamCard({
                     {text.removeButton}
                   </button>
                 </form>
+
+                {moveAction && otherTeams.length > 0 && (
+                  <form action={moveAction} className="flex items-center gap-2">
+                    <input type="hidden" name="fromTeamId" value={team.id} />
+                    <input type="hidden" name="profileId" value={member.profileId} />
+                    <label className="sr-only" htmlFor={`mover-${team.id}-${member.profileId}`}>
+                      {text.moveLabel}
+                    </label>
+                    <select
+                      id={`mover-${team.id}-${member.profileId}`}
+                      name="toTeamId"
+                      required
+                      defaultValue=""
+                      className="min-h-12 rounded-xl border-2 border-field bg-surface px-3 text-lg text-ink"
+                    >
+                      <option value="" disabled>
+                        {text.moveLabel}
+                      </option>
+                      {otherTeams.map((other) => (
+                        <option key={other.id} value={other.id}>
+                          {other.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="submit" className={buttonClass("quiet", { isFullWidth: false })}>
+                      {text.moveButton}
+                    </button>
+                  </form>
+                )}
               </div>
             </li>
           ))}

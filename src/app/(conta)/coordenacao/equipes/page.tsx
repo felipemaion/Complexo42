@@ -27,6 +27,7 @@ import {
   assignAction,
   createTeamAction,
   leadAction,
+  moveAction,
   removeAction,
 } from "./actions";
 import { closeDraftAction, evaluationAccessAction, openDraftAction } from "./draft-actions";
@@ -48,7 +49,7 @@ type Props = {
   readonly searchParams: SearchParams;
 };
 
-const validDoneKeys = ["created", "assigned", "removed", "lead"] as const;
+const validDoneKeys = ["created", "assigned", "removed", "lead", "moved"] as const;
 type ValidDoneKey = (typeof validDoneKeys)[number];
 
 const validErrorKeys = ["not_allowed", "invalid", "failed"] as const;
@@ -174,6 +175,8 @@ export default async function EquipesPage({ searchParams }: Props) {
               text={text}
               assignAction={assignAction}
               removeAction={removeAction}
+              otherTeams={detailedTeams.filter((other) => other.team.id !== team.id).map((other) => ({ id: other.team.id, name: other.team.name }))}
+              moveAction={moveAction}
               leadAction={leadAction}
             />
           ))}

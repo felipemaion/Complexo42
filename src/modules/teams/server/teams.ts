@@ -213,3 +213,21 @@ export async function setTeamLead(
   if (error) return { ok: false, error: mapDatabaseError(error) };
   return { ok: true };
 }
+
+// Mover pessoa de uma equipe para outra (#47). Quem pode o banco decide (move_to_team: quem
+// coordena as duas equipes) e registra member_moved no audit_log.
+const moveSchema = z
+  .strictObject({ profileId: z.guid(), fromTeamId: z.guid(), toTeamId: z.guid() })
+  .refine((input) => input.fromTeamId !== input.toTeamId);
+
+export async function moveToTeam(client: TeamsClient, input: unknown): Promise<TeamActionResult> {
+  const parsed = moveSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error } = await client.rpc("move_to_team", {
+    p_profile: parsed.data.profileId,
+    p_from: parsed.data.fromTeamId,
+    p_to: parsed.data.toTeamId,
+  });
+  if (error) return { ok: false, error: mapDatabaseError(error) };
+  return { ok: true };
+}
