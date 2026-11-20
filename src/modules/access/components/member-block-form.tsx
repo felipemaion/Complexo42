@@ -36,8 +36,8 @@ type Props = {
 };
 
 const big =
-  "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
-const field = "w-full rounded-lg border-2 border-current px-4 py-3 text-lg";
+  "block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
+const field = "w-full rounded-xl border-2 border-field bg-surface text-ink px-4 py-3 text-lg";
 
 export function MemberBlockForm({ action, text }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" });
@@ -53,7 +53,7 @@ export function MemberBlockForm({ action, text }: Props) {
         <input type="hidden" name={MEMBER_BLOCK_FIELDS.email} value={email} />
         <input type="hidden" name={MEMBER_BLOCK_FIELDS.action} value={wordOf(requested)} />
         <input type="hidden" name={MEMBER_BLOCK_FIELDS.reason} value={reason ?? ""} />
-        <button type="submit" name={MEMBER_BLOCK_FIELDS.step} value="confirmar" disabled={pending} className={`${big} bg-neutral-900 text-white`}>
+        <button type="submit" name={MEMBER_BLOCK_FIELDS.step} value="confirmar" disabled={pending} className={`${big} bg-primary text-on-primary`}>
           {text.confirmButton[requested]}
         </button>
         <button type="submit" name={MEMBER_BLOCK_FIELDS.step} value="cancelar" disabled={pending} className={big}>
@@ -66,12 +66,12 @@ export function MemberBlockForm({ action, text }: Props) {
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {state.status === "done" && (
-        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg" data-testid="member-block-done">
+        <p role="status" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg" data-testid="member-block-done">
           {text.done[state.action]}
         </p>
       )}
       {state.status === "error" && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="alert" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {text.errors[state.error]}
         </p>
       )}

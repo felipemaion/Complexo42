@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: instance.deleteAccount.title };
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 const button =
-  "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+  "block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 const statusText: Record<DeleteAccountStatus, string> = {
   confirmacao: instance.deleteAccount.invalidConfirmation,
@@ -40,7 +40,7 @@ export default async function DeleteAccountPage({ searchParams }: Props) {
     <main className="mx-auto flex max-w-md flex-col justify-center gap-6 p-6 pt-16">
       <h1 className="text-3xl font-bold">{text.title}</h1>
       {status && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="alert" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {statusText[status]}
         </p>
       )}
@@ -64,7 +64,7 @@ export default async function DeleteAccountPage({ searchParams }: Props) {
             spellCheck={false}
             maxLength={64}
             placeholder={CONFIRMATION_WORD}
-            className="rounded-lg border-2 border-current px-4 py-3 text-xl"
+            className="rounded-xl border-2 border-field bg-surface text-ink px-4 py-3 text-xl"
           />
           <button type="submit" className={button}>
             {text.confirmButton}

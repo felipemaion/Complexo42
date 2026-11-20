@@ -9,7 +9,7 @@ import { requireUserClient } from "@/server/auth/session";
 export const metadata: Metadata = { title: instance.coordination.title };
 
 const big =
-  "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+  "block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 // Entrada da coordenação (#26). Os atalhos seguem os papéis de quem está logado, só por
 // conforto: cada tela pede ao banco, com o JWT da pessoa, e o banco recusa quem não pode (R15).

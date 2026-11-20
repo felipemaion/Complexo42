@@ -21,8 +21,9 @@ type Props = {
   text: InstanceConfig["houseSelection"];
 };
 
-const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
-const primary = "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white";
+const bigBase = "min-h-14 w-full rounded-xl border-2 border-primary no-underline px-5 py-3 text-left text-lg font-semibold";
+const big = `${bigBase} bg-surface text-primary`;
+const primary = "min-h-14 w-full rounded-xl bg-primary px-5 py-3 text-lg font-bold text-on-primary";
 
 export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const router = useRouter();
@@ -124,7 +125,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       const option = (value: Answer, label: string, detail?: string) => (
         <button
           type="button"
-          className={`${big} ${chosen === value ? "bg-[var(--color-secondary)] text-neutral-900" : ""}`}
+          className={`${bigBase} ${chosen === value ? "bg-secondary text-ink" : "bg-surface text-primary"}`}
           aria-pressed={chosen === value}
           onClick={() => dispatch({ type: "answer", value })}
         >
@@ -180,7 +181,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
     <div className="flex flex-col gap-4">
       {body}
       {error && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+        <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg">
           {text.errors[error]}
         </p>
       )}

@@ -27,7 +27,7 @@ export default async function SignedInHome({ searchParams }: Props) {
     <main className="mx-auto flex max-w-md flex-col justify-center gap-6 p-6 pt-16">
       <h1 className="text-3xl font-bold">{text.signedInTitle}</h1>
       {saved && (
-        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="status" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {instance.profile.saved}
         </p>
       )}
@@ -46,28 +46,28 @@ export default async function SignedInHome({ searchParams }: Props) {
       )}
       <Link
         href={PROFILE_PATH}
-        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+        className="block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
       >
         {instance.profile.editLink}
       </Link>
       {/* Quem vê meu contato (#119, ADR 0010). */}
       <Link
         href={CONTACT_VISIBILITY_PATH}
-        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+        className="block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
       >
         {instance.contactVisibility.homeLink}
       </Link>
       {/* "Baixar meus dados" (#20): POST para o servidor montar o arquivo; nada no navegador. */}
       <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-3">
         {myDataStatus && (
-          <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+          <p role="alert" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
             {myDataStatus === "limite" ? instance.myData.rateLimited : instance.myData.failed}
           </p>
         )}
         <button
           type="submit"
           aria-describedby="my-data-hint"
-          className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+          className="block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
         >
           {instance.myData.downloadButton}
         </button>
@@ -78,7 +78,7 @@ export default async function SignedInHome({ searchParams }: Props) {
       {/* Escolha da casa de formação (#76). */}
       <Link
         href="/casa"
-        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+        className="block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
       >
         {instance.houseSelection.homeLink}
       </Link>
@@ -86,7 +86,7 @@ export default async function SignedInHome({ searchParams }: Props) {
       {coordination.waitlist && (
         <Link
           href={COORDINATION_PATH}
-          className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+          className="block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
         >
           {instance.coordination.homeLink}
         </Link>

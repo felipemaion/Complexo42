@@ -55,7 +55,7 @@ type Props = {
 };
 
 const inputClass =
-  "w-full rounded-xl border-2 border-neutral-500 bg-transparent px-4 py-4 text-xl aria-[invalid=true]:border-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+  "w-full rounded-xl border-2 border-field bg-surface text-ink px-4 py-4 text-xl aria-[invalid=true]:border-danger focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 const fieldOrder: readonly ProfileFormField[] = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"];
 const fieldId: Record<ProfileFormField, string> = {
   displayName: "perfil-nome",
@@ -66,7 +66,7 @@ const fieldId: Record<ProfileFormField, string> = {
 };
 const linkId = (index: number) => `perfil-rede-${index + 1}`;
 const buttonClass =
-  "block w-full rounded-xl border-2 border-current px-6 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+  "block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 export function ProfileForm({ action, initial, municipalities, districts, socialLinksUnreadable = false, text }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" } as ProfileFormState);
@@ -121,7 +121,7 @@ export function ProfileForm({ action, initial, municipalities, districts, social
     undefined;
   const errorText = (name: ProfileFormField) =>
     invalid.has(name) ? (
-      <p id={`${fieldId[name]}-erro`} className="text-lg font-semibold text-red-800 dark:text-red-300">
+      <p id={`${fieldId[name]}-erro`} className="text-lg font-semibold text-danger">
         {name === "whatsapp" && state.status === "duplicate_whatsapp" ? text.duplicateWhatsapp : text.fieldErrors[name]}
       </p>
     ) : null;
@@ -142,7 +142,7 @@ export function ProfileForm({ action, initial, municipalities, districts, social
       <p className="text-lg">{text.intro}</p>
 
       {state.status !== "idle" && (
-        <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg focus:outline-none focus-visible:ring-4">
+        <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg focus:outline-none focus-visible:ring-4 focus-visible:ring-focus">
           {state.status === "failed" || state.status === "too_many_attempts" ? (
             <p>{state.status === "failed" ? text.failed : text.tooManyAttempts}</p>
           ) : (
@@ -277,7 +277,7 @@ export function ProfileForm({ action, initial, municipalities, districts, social
         {errorText("socialLinks")}
         {!editingLinks && (
           <>
-            <p role="status" className="rounded-xl border-2 border-current p-4 text-lg">
+            <p role="status" className="rounded-xl border-2 border-line bg-surface p-4 text-lg">
               {text.socialLinksUnreadable}
             </p>
             <button
@@ -332,8 +332,8 @@ export function ProfileForm({ action, initial, municipalities, districts, social
       <button
         type="submit"
         disabled={pending}
-        className="block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 disabled:opacity-70"
-        style={{ backgroundColor: "var(--color-primary)" }}
+        className="block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold text-on-primary focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-70"
+       
       >
         {pending ? text.saving : text.saveButton}
       </button>

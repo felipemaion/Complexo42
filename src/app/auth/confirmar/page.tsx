@@ -23,14 +23,14 @@ export default async function ConfirmPage({ searchParams }: Props) {
           <input type="hidden" name="type" value={params.data.type} />
           <button
             type="submit"
-            className="block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-            style={{ backgroundColor: "var(--color-primary)" }}
+            className="block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold text-on-primary focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2"
+           
           >
             {text.confirmButton}
           </button>
         </form>
       ) : (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="alert" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {text.errors.failed}
         </p>
       )}

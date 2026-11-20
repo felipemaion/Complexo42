@@ -1,4 +1,5 @@
 import { instance } from "@config/instance";
+import { BrandMark, buttonClass } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
 import { requireUser } from "@/server/auth/session";
 
@@ -10,15 +11,20 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
   const text = instance.auth;
   return (
     <>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-300 px-6 py-3">
-        <p className="text-base" data-testid="connected-as">
-          {text.connectedAs} <strong>{user.maskedEmail}</strong>
-        </p>
-        <form action={signOut}>
-          <button type="submit" className="rounded-xl border-2 border-current px-5 py-3 text-lg font-semibold">
-            {text.signOutButton}
-          </button>
-        </form>
+      <header className="border-b border-line bg-surface">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 px-5 py-3">
+          <div className="flex items-center gap-3">
+            <BrandMark shortName={instance.shortName} />
+            <p className="text-base text-ink-muted" data-testid="connected-as">
+              {text.connectedAs} <strong>{user.maskedEmail}</strong>
+            </p>
+          </div>
+          <form action={signOut}>
+            <button type="submit" className={buttonClass("quiet", { isFullWidth: false })}>
+              {text.signOutButton}
+            </button>
+          </form>
+        </div>
       </header>
       {children}
     </>

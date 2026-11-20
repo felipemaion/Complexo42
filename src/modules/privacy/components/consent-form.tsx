@@ -20,7 +20,7 @@ export function ConsentForm({
   return (
     <form action={formAction} className="flex flex-col gap-5">
       {errorText && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-xl">
+        <p role="alert" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-xl">
           {errorText}
         </p>
       )}
@@ -38,7 +38,7 @@ export function ConsentForm({
         type="submit"
         disabled={!isChecked || isPending}
         aria-describedby={isChecked ? undefined : hintId}
-        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 disabled:opacity-50"
+        className="block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-50"
       >
         {term.continueButton}
       </button>
