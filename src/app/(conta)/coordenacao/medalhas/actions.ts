@@ -20,6 +20,9 @@ export async function createBadgeAction(formData: FormData): Promise<void> {
     name: formData.get("name"),
     description: formData.get("description") ?? "",
     icon: formData.get("icon"),
+    rule: formData.get("rule") ?? "manual",
+    points: formData.get("points") ?? "",
+    missionId: formData.get("missionId") ?? "",
   });
 
   if (!result.ok) log.warn("badge_action_refused", { reason: result.error });

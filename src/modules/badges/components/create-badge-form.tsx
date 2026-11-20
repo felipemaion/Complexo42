@@ -11,11 +11,15 @@ type ScopeUnit = {
 
 type CreateBadgeFormProps = {
   readonly scopes: readonly ScopeUnit[];
+  readonly missions?: readonly { readonly id: string; readonly title: string }[];
   readonly text: BadgesText;
   readonly createAction: (formData: FormData) => Promise<void>;
 };
 
-export function CreateBadgeForm({ scopes, text, createAction }: CreateBadgeFormProps) {
+const RULES = ["manual", "points_threshold", "mission_completed"] as const;
+
+export function CreateBadgeForm({ scopes, missions = [], text, createAction }: CreateBadgeFormProps) {
+  const ruleText = { manual: text.ruleManual, points_threshold: text.rulePoints, mission_completed: text.ruleMission };
   return (
     <form action={createAction} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -77,6 +81,40 @@ export function CreateBadgeForm({ scopes, text, createAction }: CreateBadgeFormP
           ))}
         </div>
       </fieldset>
+
+      {/* Como se ganha (#36). Tudo à vista, sem esconder campos (ata 17/11 §10). */}
+      <fieldset className="flex flex-col gap-2">
+        <legend className={labelClass}>{text.ruleLabel}</legend>
+        {RULES.map((rule, index) => (
+          <label key={rule} className="flex min-h-12 cursor-pointer items-center gap-3 text-lg">
+            <input type="radio" name="rule" value={rule} defaultChecked={index === 0} required className="h-6 w-6" />
+            {ruleText[rule]}
+          </label>
+        ))}
+      </fieldset>
+
+      <div className="flex flex-col gap-1">
+        <label htmlFor="points" className={labelClass}>
+          {text.pointsLabel}
+        </label>
+        <input id="points" name="points" type="number" min={1} max={100000} inputMode="numeric" className={inputClass} />
+      </div>
+
+      {missions.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor="missionId" className={labelClass}>
+            {text.missionLabel}
+          </label>
+          <select id="missionId" name="missionId" defaultValue="" className={inputClass}>
+            <option value="">—</option>
+            {missions.map((mission) => (
+              <option key={mission.id} value={mission.id}>
+                {mission.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <button type="submit" className={buttonClass("primary")}>
         {text.createButton}

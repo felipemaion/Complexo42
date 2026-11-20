@@ -1,6 +1,52 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BadgesClient } from "../types";
-import { grantBadge, readMyBadges } from "./badges";
+import { createBadge, grantBadge, readMyBadges } from "./badges";
+
+const scopeUnitId = "0b7e28b8-07cb-4f9e-a89c-3fa82944ce26";
+const missionId = "c38bdfae-f1f4-41d6-b8db-41710928a38b";
+
+describe("criar medalha (manual e automática, #36)", () => {
+  it("medalha manual continua indo para create_badge", async () => {
+    // Arrange
+    const rpcMock = vi.fn().mockResolvedValue({ data: "id", error: null });
+
+    // Act
+    const result = await createBadge({ rpc: rpcMock }, { scopeUnitId, name: "Melhor roteiro", description: "", icon: "trofeu", rule: "manual" });
+
+    // Assert
+    expect(result).toEqual({ ok: true });
+    expect(rpcMock).toHaveBeenCalledWith("create_badge", { p_scope_unit: scopeUnitId, p_name: "Melhor roteiro", p_description: "", p_icon: "trofeu" });
+  });
+
+  it("medalha por pontos vai para create_auto_badge com o limite", async () => {
+    const rpcMock = vi.fn().mockResolvedValue({ data: "id", error: null });
+
+    const result = await createBadge({ rpc: rpcMock }, { scopeUnitId, name: "Cem pontos", description: "", icon: "fogo", rule: "points_threshold", points: "100", missionId: "" });
+
+    expect(result).toEqual({ ok: true });
+    expect(rpcMock).toHaveBeenCalledWith("create_auto_badge", {
+      p_scope_unit: scopeUnitId, p_name: "Cem pontos", p_description: "", p_icon: "fogo",
+      p_rule_type: "points_threshold", p_mission: null, p_points: 100,
+    });
+  });
+
+  it("medalha por missão vai para create_auto_badge com a missão", async () => {
+    const rpcMock = vi.fn().mockResolvedValue({ data: "id", error: null });
+
+    await createBadge({ rpc: rpcMock }, { scopeUnitId, name: "Missão cumprida", description: "", icon: "trofeu", rule: "mission_completed", points: "", missionId });
+
+    expect(rpcMock).toHaveBeenCalledWith("create_auto_badge", expect.objectContaining({ p_rule_type: "mission_completed", p_mission: missionId, p_points: null }));
+  });
+
+  it("medalha por missão sem a missão escolhida é recusada sem ir ao banco", async () => {
+    const rpcMock = vi.fn();
+
+    const result = await createBadge({ rpc: rpcMock }, { scopeUnitId, name: "Sem missão", description: "", icon: "trofeu", rule: "mission_completed", points: "", missionId: "" });
+
+    expect(result).toEqual({ ok: false, error: "invalid" });
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("badges server module", () => {
   it("não chama o banco quando a entrada é inválida", async () => {

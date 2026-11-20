@@ -29,12 +29,23 @@ const badgeAwardRow = z.object({
 
 const badgeAwardRows = z.array(badgeAwardRow);
 
-const createBadgeSchema = z.strictObject({
-  scopeUnitId: z.guid(),
-  name: z.string().trim().min(2).max(60),
-  description: z.string().trim().max(300),
-  icon: z.enum(BADGE_ICONS),
-});
+// Campo vazio do formulário vira "não informado".
+const emptyToUndefined = (value: unknown) => (value === "" || value === null ? undefined : value);
+
+// Como se ganha a medalha (#36): manual (a coordenação dá) ou automática (missão concluída /
+// limite de pontos), concedida pelo banco.
+const createBadgeSchema = z
+  .strictObject({
+    scopeUnitId: z.guid(),
+    name: z.string().trim().min(2).max(60),
+    description: z.string().trim().max(300),
+    icon: z.enum(BADGE_ICONS),
+    rule: z.enum(["manual", "points_threshold", "mission_completed"]).default("manual"),
+    points: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(100000).optional()),
+    missionId: z.preprocess(emptyToUndefined, z.guid().optional()),
+  })
+  .refine((input) => input.rule !== "points_threshold" || input.points !== undefined)
+  .refine((input) => input.rule !== "mission_completed" || input.missionId !== undefined);
 
 const grantBadgeSchema = z.strictObject({
   badgeId: z.guid(),
@@ -104,12 +115,17 @@ export async function createBadge(
   const parsed = createBadgeSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
 
-  const { error } = await client.rpc("create_badge", {
-    p_scope_unit: parsed.data.scopeUnitId,
-    p_name: parsed.data.name,
-    p_description: parsed.data.description,
-    p_icon: parsed.data.icon,
-  });
+  const { rule, scopeUnitId, name, description, icon } = parsed.data;
+  const base = { p_scope_unit: scopeUnitId, p_name: name, p_description: description, p_icon: icon };
+  const { error } =
+    rule === "manual"
+      ? await client.rpc("create_badge", base)
+      : await client.rpc("create_auto_badge", {
+          ...base,
+          p_rule_type: rule,
+          p_mission: rule === "mission_completed" ? (parsed.data.missionId ?? null) : null,
+          p_points: rule === "points_threshold" ? (parsed.data.points ?? null) : null,
+        });
 
   if (error) return { ok: false, error: mapDatabaseError(error) };
   return { ok: true };

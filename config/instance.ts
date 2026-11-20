@@ -270,6 +270,12 @@ export const instance = parseInstanceConfig({
     descriptionLabel: "Explicação curta",
     iconLabel: "Desenho",
     createButton: "Criar medalha",
+    ruleLabel: "Como se ganha",
+    ruleManual: "A coordenação dá, com um motivo",
+    rulePoints: "Sozinha, ao juntar pontos",
+    ruleMission: "Sozinha, ao concluir uma missão",
+    pointsLabel: "Quantos pontos (só para a regra de pontos)",
+    missionLabel: "Qual missão (só para a regra de missão)",
     done: { created: "Medalha criada.", granted: "Medalha entregue." },
     errors: {
       not_allowed: "Você não tem papel de coordenação para dar medalhas.",

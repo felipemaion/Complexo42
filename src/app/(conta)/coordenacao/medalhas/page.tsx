@@ -7,6 +7,7 @@ import {
   readBadgeOptions,
   sessionBadgesClient,
 } from "@/modules/badges";
+import { listMissions, sessionMissionClient } from "@/modules/missions";
 import { readMyTeams, readTeamMembers, readTeamParents } from "@/modules/teams";
 import { Card, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
@@ -39,6 +40,9 @@ export default async function BadgesCoordinationPage({ searchParams }: PageProps
   }
 
   const scopes = await readTeamParents(client);
+  // Missões que podem dar medalha automática ao serem concluídas (#36).
+  const missionClient = await sessionMissionClient();
+  const missions = missionClient ? await listMissions(missionClient) : [];
   if (scopes.length === 0) {
     return (
       <PageShell title={text.title}>
@@ -94,7 +98,7 @@ export default async function BadgesCoordinationPage({ searchParams }: PageProps
           <GrantForm badges={badges} people={people} text={text} grantAction={grantBadgeAction} />
         </Card>
         <Card title={text.createTitle}>
-          <CreateBadgeForm scopes={scopes} text={text} createAction={createBadgeAction} />
+          <CreateBadgeForm scopes={scopes} missions={missions} text={text} createAction={createBadgeAction} />
         </Card>
       </div>
       <Link href="/inicio" className="text-lg">
