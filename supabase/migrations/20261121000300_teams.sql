@@ -101,6 +101,7 @@ create or replace function public.my_teams()
 returns table (
   id uuid,
   name text,
+  parent_id uuid,
   parent_name text,
   member_count integer
 )
@@ -111,6 +112,7 @@ as $$
   select
     u.id,
     u.name,
+    u.parent_id,
     p.name as parent_name,
     count(m.id)::integer as member_count
   from public.units u

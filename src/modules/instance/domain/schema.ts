@@ -236,6 +236,27 @@ export const instanceConfigSchema = z.strictObject({
    * Telas da coordenação (#26, ADR 0008 §1): envio da lista de autorizados e fila de espera.
    * `{count}`, `{lines}`, `{date}`, `{city}`, `{state}` e `{name}` são trocados na tela.
    */
+  teams: z.strictObject({
+    homeLink: text,
+    title: text,
+    intro: text,
+    createTitle: text,
+    parentLabel: text,
+    nameLabel: text,
+    createButton: text,
+    listTitle: text,
+    membersSuffix: text,
+    leadTag: text,
+    makeLeadButton: text,
+    removeButton: text,
+    noMembers: text,
+    addLabel: text,
+    addButton: text,
+    noUnassigned: text,
+    noTeams: text,
+    done: z.strictObject({ created: text, assigned: text, removed: text, lead: text }),
+    errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
+  }),
   search: z.strictObject({
     homeLink: text,
     title: text,

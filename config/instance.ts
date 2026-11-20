@@ -184,6 +184,37 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
+  // Montagem das equipes do 1º ciclo (#28, #29; ata de 17/11: a coordenação distribui as pessoas).
+  teams: {
+    homeLink: "Montar equipes",
+    title: "Equipes",
+    intro: "Crie as equipes da sua região, coloque as pessoas e escolha quem coordena cada equipe.",
+    createTitle: "Criar uma equipe",
+    parentLabel: "Região da equipe",
+    nameLabel: "Nome da equipe",
+    createButton: "Criar equipe",
+    listTitle: "Suas equipes",
+    membersSuffix: "pessoas",
+    leadTag: "Coordena a equipe",
+    makeLeadButton: "Tornar coordenador",
+    removeButton: "Tirar da equipe",
+    noMembers: "Ainda não há ninguém nesta equipe.",
+    addLabel: "Colocar uma pessoa nesta equipe",
+    addButton: "Colocar na equipe",
+    noUnassigned: "Todas as pessoas da região já estão em equipes.",
+    noTeams: "Você ainda não criou nenhuma equipe.",
+    done: {
+      created: "Equipe criada.",
+      assigned: "Pessoa colocada na equipe.",
+      removed: "Pessoa tirada da equipe. Ela voltou para a lista da região.",
+      lead: "Coordenador da equipe definido.",
+    },
+    errors: {
+      not_allowed: "Você não tem papel de coordenação para montar equipes aqui.",
+      invalid: "Confira os campos e tente de novo.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
+  },
   // Busca de pessoas por habilidade (#23): prioridade da coordenação.
   search: {
     homeLink: "Buscar pessoas por habilidade",
