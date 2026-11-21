@@ -7,7 +7,7 @@ import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPendingReviews, readPublishable
 import { PORTFOLIO_PATH } from "@/modules/portfolio";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
-import { SEARCH_PATH } from "@/modules/search";
+import { SEARCH_PATH, SKILLS_CATALOG_PATH } from "@/modules/search";
 import { MAP_PATH } from "@/modules/map";
 import { ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
 import { BrandMark, buttonClass } from "@/modules/ui";
@@ -153,6 +153,8 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
             ))}
             {/* Coordenação (#26): lista de espera, só para quem tem papel de gestor (R15). */}
             {hasWaitlist && <Link href={COORDINATION_PATH} className={footerLink}>{instance.coordination.homeLink}</Link>}
+            {/* Catálogo de habilidades (#25): a tela avisa se a pessoa não é gestora nacional. */}
+            {coordinationLinks.length > 0 && <Link href={SKILLS_CATALOG_PATH} className={footerLink}>{instance.skillsCatalog.homeLink}</Link>}
           </nav>
         )}
       </div>

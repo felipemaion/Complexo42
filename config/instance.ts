@@ -412,6 +412,30 @@ export const instance = parseInstanceConfig({
     roles: "Papéis",
     map: "Mapa",
   },
+  // Catálogo de habilidades (#25): só o gestor nacional mexe; desativar não apaga quem já marcou.
+  skillsCatalog: {
+    title: "Catálogo de habilidades",
+    intro: "Crie, renomeie e desative habilidades sem precisar de programador. Desativar não apaga quem já marcou a habilidade.",
+    homeLink: "Catálogo de habilidades",
+    nameLabel: "Nome",
+    categoryLabel: "Área",
+    aliasesLabel: "Sinônimos (separados por vírgula)",
+    saveButton: "Salvar",
+    addTitle: "Nova habilidade",
+    addButton: "Criar habilidade",
+    activeTag: "Ativa",
+    inactiveTag: "Desativada",
+    deactivateButton: "Desativar",
+    activateButton: "Reativar",
+    notAllowed: "Só o gestor nacional mexe no catálogo de habilidades.",
+    done: "Pronto! O catálogo foi atualizado.",
+    errors: {
+      invalid: "Confira o nome e a área (de 2 a 80 letras).",
+      not_allowed: "Só o gestor nacional mexe no catálogo de habilidades.",
+      duplicate: "Já existe uma habilidade com esse nome.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
+  },
   // Mapa de onde estão as pessoas (#24): só contagens, nunca localização precisa.
   areaMap: {
     title: "Onde estão as pessoas",

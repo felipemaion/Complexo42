@@ -342,6 +342,8 @@ export const instanceConfigSchema = z.strictObject({
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
   nav: z.strictObject({ label: text, home: text, missions: text, myTeam: text, scoreboard: text, review: text, teams: text, search: text, badges: text, roles: text, map: text }),
+  // Catálogo de habilidades (#25): só o gestor nacional.
+  skillsCatalog: z.strictObject({ title: text, intro: text, homeLink: text, nameLabel: text, categoryLabel: text, aliasesLabel: text, saveButton: text, addTitle: text, addButton: text, activeTag: text, inactiveTag: text, deactivateButton: text, activateButton: text, notAllowed: text, done: text, errors: z.strictObject({ invalid: text, not_allowed: text, duplicate: text, failed: text }) }),
   // Mapa de onde estão as pessoas (#24).
   areaMap: z.strictObject({ title: text, intro: text, mapLabel: text, few: text, citiesTitle: text, districtsTitle: text, empty: text, privacyNote: text }),
   // Histórico de equipes da pessoa (#69).
