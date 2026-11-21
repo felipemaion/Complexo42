@@ -40,7 +40,7 @@ const createBadgeSchema = z
     name: z.string().trim().min(2).max(60),
     description: z.string().trim().max(300),
     icon: z.enum(BADGE_ICONS),
-    rule: z.enum(["manual", "points_threshold", "mission_completed"]).default("manual"),
+    rule: z.enum(["manual", "event", "milestone", "points_threshold", "mission_completed"]).default("manual"),
     points: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(100000).optional()),
     missionId: z.preprocess(emptyToUndefined, z.guid().optional()),
   })
@@ -120,7 +120,9 @@ export async function createBadge(
   const { error } =
     rule === "manual"
       ? await client.rpc("create_badge", base)
-      : await client.rpc("create_auto_badge", {
+      : rule === "event" || rule === "milestone"
+        ? await client.rpc("create_special_badge", { ...base, p_rule_type: rule })
+        : await client.rpc("create_auto_badge", {
           ...base,
           p_rule_type: rule,
           p_mission: rule === "mission_completed" ? (parsed.data.missionId ?? null) : null,

@@ -38,6 +38,15 @@ describe("criar medalha (manual e automática, #36)", () => {
     expect(rpcMock).toHaveBeenCalledWith("create_auto_badge", expect.objectContaining({ p_rule_type: "mission_completed", p_mission: missionId, p_points: null }));
   });
 
+  it("medalha de evento ou marco (#71) vai para create_special_badge", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: "id", error: null });
+
+    const result = await createBadge({ rpc }, { scopeUnitId, name: "10 mil views", description: "", icon: "camera", rule: "milestone", points: "", missionId: "" });
+
+    expect(result).toEqual({ ok: true });
+    expect(rpc).toHaveBeenCalledWith("create_special_badge", { p_scope_unit: scopeUnitId, p_name: "10 mil views", p_description: "", p_icon: "camera", p_rule_type: "milestone" });
+  });
+
   it("medalha por missão sem a missão escolhida é recusada sem ir ao banco", async () => {
     const rpcMock = vi.fn();
 

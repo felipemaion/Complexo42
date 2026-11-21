@@ -272,6 +272,8 @@ export const instance = parseInstanceConfig({
     createButton: "Criar medalha",
     ruleLabel: "Como se ganha",
     ruleManual: "A coordenação dá, com um motivo",
+    ruleEvent: "De um evento: a coordenação dá a quem participou",
+    ruleMilestone: "Marco: leva o nome de quem conquistar primeiro",
     rulePoints: "Sozinha, ao juntar pontos",
     ruleMission: "Sozinha, ao concluir uma missão",
     pointsLabel: "Quantos pontos (só para a regra de pontos)",

@@ -16,10 +16,10 @@ type CreateBadgeFormProps = {
   readonly createAction: (formData: FormData) => Promise<void>;
 };
 
-const RULES = ["manual", "points_threshold", "mission_completed"] as const;
+const RULES = ["manual", "event", "milestone", "points_threshold", "mission_completed"] as const;
 
 export function CreateBadgeForm({ scopes, missions = [], text, createAction }: CreateBadgeFormProps) {
-  const ruleText = { manual: text.ruleManual, points_threshold: text.rulePoints, mission_completed: text.ruleMission };
+  const ruleText = { manual: text.ruleManual, event: text.ruleEvent, milestone: text.ruleMilestone, points_threshold: text.rulePoints, mission_completed: text.ruleMission };
   return (
     <form action={createAction} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">

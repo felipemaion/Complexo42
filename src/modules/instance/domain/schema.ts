@@ -314,7 +314,7 @@ export const instanceConfigSchema = z.strictObject({
     iconLabel: text,
     createButton: text,
     // Como se ganha (#36): manual ou automática.
-    ruleLabel: text, ruleManual: text, rulePoints: text, ruleMission: text, pointsLabel: text, missionLabel: text,
+    ruleLabel: text, ruleManual: text, ruleEvent: text, ruleMilestone: text, rulePoints: text, ruleMission: text, pointsLabel: text, missionLabel: text,
     done: z.strictObject({ created: text, granted: text }),
     errors: z.strictObject({ not_allowed: text, invalid: text, already_has: text, already_revoked: text, failed: text }),
   }),
