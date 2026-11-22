@@ -580,6 +580,13 @@ export const instance = parseInstanceConfig({
     accountTitle: "Minha conta",
     coordinationTitle: "Coordenação",
     privacyNote: "Nome, contato e avaliações ficam guardados cifrados.",
+    // Botão de som do cabeçalho (22/11): desligado até a pessoa ligar.
+    soundOn: "Som ligado",
+    soundOff: "Som desligado",
+    // Celebração da medalha nova ({nome} = nome da medalha).
+    newBadge: "Você ganhou uma medalha nova: {nome}!",
+    // Aviso do esqueleto de carregamento (só leitor de tela).
+    loading: "Carregando…",
   },
   // Busca de pessoas por habilidade (#23): prioridade da coordenação.
   search: {

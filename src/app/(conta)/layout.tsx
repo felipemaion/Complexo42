@@ -10,7 +10,7 @@ import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
 import { MY_SKILLS_PATH, SEARCH_PATH, SKILLS_CATALOG_PATH } from "@/modules/search";
 import { MAP_PATH } from "@/modules/map";
 import { PRIOR_TEAMS_PATH, ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
-import { BrandMark, buttonClass } from "@/modules/ui";
+import { BrandMark, buttonClass, SoundToggle } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
@@ -71,6 +71,7 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
             <p className="text-base text-ink-muted" data-testid="connected-as">
               {instance.auth.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
             </p>
+            <SoundToggle onLabel={instance.site.soundOn} offLabel={instance.site.soundOff} />
             <form action={signOut}>
               <button type="submit" className={buttonClass("quiet", { isFullWidth: false })}>
                 {instance.auth.signOutButton}

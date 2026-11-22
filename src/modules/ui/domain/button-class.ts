@@ -2,7 +2,7 @@ import type { ButtonVariant } from "../types";
 
 // Base compartilhada para preservar alinhamento e área de toque mínima acessível
 const baseClass =
-  "min-h-14 px-6 py-3 rounded-xl text-xl font-bold inline-flex items-center justify-center gap-3 text-center border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed";
+  "min-h-14 px-6 py-3 rounded-xl text-xl font-bold inline-flex items-center justify-center gap-3 text-center border-2 focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed transition-[transform,background-color,border-color] duration-150 active:scale-[0.97] motion-reduce:transform-none motion-reduce:transition-none";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: "bg-primary text-on-primary border-primary",

@@ -390,6 +390,8 @@ export const instanceConfigSchema = z.strictObject({
     pendingLabel: text, availableLabel: text, openMissionsTitle: text, seeAll: text, available: text,
     leadLabel: text, openTeam: text, peopleSuffix: text, teamPointsTitle: text, pendingTitle: text,
     pendingEmpty: text, footerAbout: text, accountTitle: text, coordinationTitle: text, privacyNote: text,
+    soundOn: text, soundOff: text, loading: text,
+    newBadge: text.refine((v) => v.includes("{nome}"), "precisa de {nome}"),
   }),
   search: z.strictObject({
     homeLink: text,

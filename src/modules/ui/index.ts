@@ -1,6 +1,8 @@
 export { BrandMark } from "./components/brand-mark";
 export { Card } from "./components/card";
 export { Notice } from "./components/notice";
+export { SoundCue } from "./components/sound-cue";
+export { SoundToggle } from "./components/sound-toggle";
 export { PageShell } from "./components/page-shell";
 export { Tag, type TagTone } from "./components/tag";
 export { buttonClass, inputClass, labelClass } from "./domain/button-class";

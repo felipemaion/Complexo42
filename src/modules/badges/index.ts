@@ -6,3 +6,4 @@ export * from "./server/session";
 export * from "./components/badge-collection";
 export * from "./components/grant-form";
 export * from "./components/create-badge-form";
+export * from "./components/new-badge-celebration";

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
-import { readMyBadges, sessionBadgesClient } from "@/modules/badges";
+import { NewBadgeCelebration, readMyBadges, sessionBadgesClient } from "@/modules/badges";
 import { MY_TEAM_PATH, readDashboard, readMyTeam, readTeamIdentity, readTeamMates, sessionCollabClient, TeamFlag } from "@/modules/collab";
 import {
   listMissions,
@@ -251,6 +251,11 @@ export default async function SignedInHome({ searchParams }: Props) {
 
             <section className={cardClass}>
               <h2 className="text-2xl font-bold">{instance.badges.myTitle}</h2>
+              {/* Medalha que este navegador ainda não viu: confete curto + aviso em texto (22/11). */}
+              <NewBadgeCelebration
+                awards={badges.map((badge) => ({ awardId: badge.awardId, name: badge.name }))}
+                message={instance.site.newBadge}
+              />
               {badges.length === 0 ? (
                 <p className="text-lg text-ink-muted">{instance.badges.empty}</p>
               ) : (
