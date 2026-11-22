@@ -269,7 +269,13 @@ export const instanceConfigSchema = z.strictObject({
     title: text, intro: text, personLabel: text, reasonLabel: text, button: text, none: text,
     errors: z.strictObject({ not_allowed: text, invalid: text, failed: text }),
   }),
-  myTeam: z.strictObject({ homeLink: text, title: text, noTeam: text, membersTitle: text, leadTag: text }),
+  myTeam: z.strictObject({
+    homeLink: text, title: text, noTeam: text, membersTitle: text, leadTag: text,
+    workedWith: z.strictObject({
+      hint: text, button: text, done: text,
+      errors: z.strictObject({ not_allowed: text, already_has: text, invalid: text, failed: text }),
+    }),
+  }),
   // Identidade da equipe (#56): lema, cores e emblema.
   // Portfólio por links (#70): até 3 itens, sem arquivo.
   // Propostas de missão pela equipe (#57).
@@ -287,6 +293,12 @@ export const instanceConfigSchema = z.strictObject({
     kinds: z.strictObject({ video: text, image: text, text: text, other: text }),
     done: z.strictObject({ added: text, removed: text }),
     errors: z.strictObject({ invalid: text, full: text, not_allowed: text, failed: text }),
+  }),
+  mySkills: z.strictObject({
+    homeLink: text, title: text, intro: text, searchLabel: text,
+    counter: text.refine((v) => v.includes("{count}") && v.includes("{max}"), "precisa de {count} e {max}"),
+    limitReached: text, noMatch: text, saveButton: text, done: text,
+    errors: z.strictObject({ invalid: text, too_many: text, not_allowed: text, failed: text }),
   }),
   priorTeams: z.strictObject({
     homeLink: text, title: text, intro: text, selfNote: text, coordinationTitle: text, coordinationNote: text, empty: text,

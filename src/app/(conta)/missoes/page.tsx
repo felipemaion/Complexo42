@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { instance } from "@config/instance";
 import { BadgeCollection, readMyBadges, sessionBadgesClient } from "@/modules/badges";
+import { decryptField } from "@/server/crypto";
 import { listMissions, MissionCard, missionPath, readMyRuns, readPoints, sessionMissionClient } from "@/modules/missions";
 import { Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
@@ -26,7 +27,11 @@ export default async function MissionsPage() {
     listMissions(client),
     readMyRuns(client, user.id),
     readPoints(client, user.id),
-    badgesClient ? readMyBadges(badgesClient, user.id) : Promise.resolve([]),
+    badgesClient
+      ? readMyBadges(badgesClient, user.id, (value, ownerId) =>
+          decryptField(value, { table: "profiles", column: "display_name_enc", rowId: ownerId }),
+        )
+      : Promise.resolve([]),
   ]);
   return (
     <PageShell title={text.title} intro={text.intro} width="wide">

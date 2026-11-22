@@ -250,6 +250,18 @@ export const instance = parseInstanceConfig({
     noTeam: "Você ainda não está numa equipe. A coordenação da sua região vai te colocar em uma.",
     membersTitle: "Quem está na equipe",
     leadTag: "Coordena a equipe",
+    // Medalha "trabalhou com" do porta-voz (#71, ADR 0007 §3).
+    workedWith: {
+      hint: "Você é porta-voz desta equipe: dê a sua medalha \"trabalhou com\" a quem trabalhou com você.",
+      button: "Dar minha medalha",
+      done: "Pronto! A medalha \"trabalhou com\" foi entregue.",
+      errors: {
+        not_allowed: "Só dá para dar a sua medalha a quem esteve na sua equipe enquanto você era porta-voz.",
+        already_has: "Essa pessoa já tem a sua medalha.",
+        invalid: "Não foi possível identificar a pessoa. Tente de novo.",
+        failed: "Não foi possível entregar agora. Tente de novo.",
+      },
+    },
   },
   // Medalhas (ADR 0006 §8, ADR 0007 §3; #35, #37): coleção no perfil, sem ranking individual.
   badges: {
@@ -371,6 +383,24 @@ export const instance = parseInstanceConfig({
       invalid: "Confira o link (precisa começar com https://) e o título.",
       full: "Seu portfólio já tem 3 itens. Tire um para pôr outro.",
       not_allowed: "Só você mexe no seu portfólio.",
+      failed: "Não foi possível salvar agora. Tente de novo.",
+    },
+  },
+  // A pessoa marca as próprias habilidades do catálogo (#15).
+  mySkills: {
+    homeLink: "Minhas habilidades",
+    title: "Minhas habilidades",
+    intro: "Marque o que você sabe fazer. A coordenação usa isso para achar quem pode ajudar em cada missão. Seu contato não aparece na busca.",
+    searchLabel: "Procurar habilidade (nome ou palavra parecida)",
+    counter: "{count} de {max} marcadas.",
+    limitReached: "Chegou no limite: desmarque uma para marcar outra.",
+    noMatch: "Nenhuma habilidade com esse nome. Tente outra palavra.",
+    saveButton: "Salvar minhas habilidades",
+    done: "Pronto! Suas habilidades foram salvas.",
+    errors: {
+      invalid: "Alguma habilidade marcada não está mais no catálogo. Confira e salve de novo.",
+      too_many: "Marque no máximo 12 habilidades.",
+      not_allowed: "Só quem já tem acesso liberado marca habilidades.",
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },

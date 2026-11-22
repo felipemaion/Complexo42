@@ -65,7 +65,11 @@ export default async function SignedInHome({ searchParams }: Props) {
     missionClient ? readMyRuns(missionClient, user.id) : Promise.resolve(new Map()),
     missionClient ? readPoints(missionClient, user.id) : Promise.resolve({ mine: 0, team: 0 }),
     missionClient ? readPublishableUnits(missionClient) : Promise.resolve([]),
-    badgesClient ? readMyBadges(badgesClient, user.id) : Promise.resolve([]),
+    badgesClient
+      ? readMyBadges(badgesClient, user.id, (value, ownerId) =>
+          decryptField(value, { table: "profiles", column: "display_name_enc", rowId: ownerId }),
+        )
+      : Promise.resolve([]),
     collabClient ? orFallback(readMyTeam(collabClient), null, "team") : Promise.resolve(null),
   ]);
   const isCoordinator = publishable.length > 0;

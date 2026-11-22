@@ -9,7 +9,8 @@ import {
   DraftPickPanel,
   sessionCollabClient,
 } from "@/modules/collab";
-import { Card, Notice, PageShell, Tag } from "@/modules/ui";
+import { buttonClass, Card, Notice, PageShell, Tag } from "@/modules/ui";
+import { readMyWorkedWithBadge, sessionBadgesClient } from "@/modules/badges";
 import { requireUser } from "@/server/auth/session";
 import { instance } from "@config/instance";
 import { teamChatEnabled } from "@/modules/collab";
@@ -17,7 +18,7 @@ import { decryptField } from "@/server/crypto";
 import { IdentityForm, readTeamIdentity, TeamFlag } from "@/modules/collab";
 import { PublishForm, readMyProposals, sessionMissionClient } from "@/modules/missions";
 import { log } from "@/server/log";
-import { pickInDraftAction, postMessageAction, proposeMissionAction, saveIdentityAction } from "./actions";
+import { grantWorkedWithAction, pickInDraftAction, postMessageAction, proposeMissionAction, saveIdentityAction } from "./actions";
 
 export const metadata = {
   title: instance.myTeam.title,
@@ -31,6 +32,8 @@ type PageProps = {
     readonly erro_identidade?: string;
     readonly proposta?: string;
     readonly erro_proposta?: string;
+    readonly medalha?: string;
+    readonly erro_medalha?: string;
   }>;
 };
 
@@ -55,6 +58,17 @@ export default async function EquipePage(props: PageProps) {
       </PageShell>
     );
   }
+
+  // Medalha "trabalhou com" (#71): o botão só aparece para o porta-voz desta equipe (o banco diz).
+  const badgesClient = await sessionBadgesClient();
+  const workedWithBadge = badgesClient
+    ? await readMyWorkedWithBadge(badgesClient, team.teamId).catch((error: unknown) => {
+        log.warn("worked_with_read_failed", { error: error instanceof Error ? error.message : "unknown" });
+        return null;
+      })
+    : null;
+  const wwText = instance.myTeam.workedWith;
+  const wwError = (["not_allowed", "already_has", "invalid", "failed"] as const).find((key) => key === searchParams.erro_medalha);
 
   const mates = await readTeamMates(client, team.teamId, (v, profileId) =>
     decryptField(v, {
@@ -121,6 +135,8 @@ export default async function EquipePage(props: PageProps) {
       {errorMessage ? <Notice tone="error">{errorMessage}</Notice> : null}
       {searchParams.identidade === "salva" && <Notice tone="success">{idText.saved}</Notice>}
       {identityError && <Notice tone="error">{idText.errors[identityError]}</Notice>}
+      {searchParams.medalha === "ok" && <Notice tone="success">{wwText.done}</Notice>}
+      {wwError && <Notice tone="error">{wwText.errors[wwError]}</Notice>}
 
       {identity && (
         <Card title={idText.title}>
@@ -145,11 +161,20 @@ export default async function EquipePage(props: PageProps) {
       <Card title={instance.myTeam.membersTitle}>
         <ul className="flex flex-col gap-2">
           {mates.map((mate) => (
-            <li key={mate.profileId} className="flex items-center justify-between">
+            <li key={mate.profileId} className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-lg">{mate.displayName}</span>
-              {mate.isLead ? (
-                <Tag tone="success">{instance.myTeam.leadTag}</Tag>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                {mate.isLead ? <Tag tone="success">{instance.myTeam.leadTag}</Tag> : null}
+                {workedWithBadge && mate.profileId !== user.id && (
+                  <form action={grantWorkedWithAction}>
+                    <input type="hidden" name="profileId" value={mate.profileId} />
+                    <button type="submit" className={buttonClass("quiet", { isFullWidth: false })}>
+                      {wwText.button}
+                      <span className="sr-only">: {mate.displayName}</span>
+                    </button>
+                  </form>
+                )}
+              </div>
             </li>
           ))}
         </ul>

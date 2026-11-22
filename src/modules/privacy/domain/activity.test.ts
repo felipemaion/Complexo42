@@ -12,6 +12,7 @@ const rows = {
   submissions: [{ mission: "Câmara", step: "Protocolar", status: "submitted", evidence_url: null, evidence_text: "PROT 1", review_note: null, created_at: "2026-11-20T10:00:00Z" }],
   team_messages: [{ team_id: TEAM, body_enc: "enc-msg", created_at: "2026-11-20T10:00:00Z" }],
   prior_teams: [{ team_name: "Equipe Saúde", period: "2023", role: "spokesperson", created_at: "2026-11-22T10:00:00Z" }],
+  skills: [{ name: "Oratória", category: "Comunicação" }],
 };
 
 describe("exportação da atividade (LGPD, depois do #20)", () => {
@@ -31,6 +32,7 @@ describe("exportação da atividade (LGPD, depois do #20)", () => {
     expect(out.medalhas[0]?.motivo).toBe("Etapa validada");
     expect(out.entregas[0]).toMatchObject({ missao: "Câmara", etapa: "Protocolar", comprovanteTexto: "PROT 1" });
     expect(out.equipesAnteriores).toEqual([{ equipe: "Equipe Saúde", quando: "2023", papel: "spokesperson", informadaEm: "2026-11-22T10:00:00Z" }]);
+    expect(out.habilidades).toEqual([{ nome: "Oratória", area: "Comunicação" }]);
   });
 
   it("campo que não abre sai como null e só a coluna vai para o aviso", async () => {

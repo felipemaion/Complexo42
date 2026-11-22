@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { BadgesClient } from "../types";
-import { createBadge, grantBadge, readMyBadges } from "./badges";
+import { createBadge, grantBadge, grantWorkedWith, readMyBadges } from "./badges";
 
 const scopeUnitId = "0b7e28b8-07cb-4f9e-a89c-3fa82944ce26";
 const missionId = "c38bdfae-f1f4-41d6-b8db-41710928a38b";
@@ -151,5 +151,56 @@ describe("badges server module", () => {
         awardedAt: "2026-11-20T10:00:00.000Z",
       },
     ]);
+  });
+});
+
+describe('medalha "trabalhou com" (#71)', () => {
+  const owner = "0b7e28b8-07cb-4f9e-a89c-3fa82944ce26";
+  const award = {
+    award_id: "5b5c3ff9-b3a1-43e9-b5fe-68bce75c7438",
+    name: "Trabalhou com",
+    description: "",
+    icon: "coracao",
+    reason: "Trabalhou na equipe",
+    awarded_at: "2026-11-22T10:00:00.000Z",
+    owner_id: owner,
+    owner_name_enc: "v1.nome-cifrado",
+  };
+
+  it("junta o nome do porta-voz, aberto com o contexto dele", async () => {
+    // Arrange
+    const rpc = vi.fn().mockResolvedValue({ data: [award], error: null });
+    const decrypt = vi.fn(async () => "Gabriela Teste");
+
+    // Act
+    const [first] = await readMyBadges({ rpc }, "c38bdfae-f1f4-41d6-b8db-41710928a38b", decrypt);
+
+    // Assert
+    expect(decrypt).toHaveBeenCalledWith("v1.nome-cifrado", owner);
+    expect(first?.name).toBe("Trabalhou com Gabriela Teste");
+  });
+
+  it("se o nome não abre (ou não veio), fica só \"Trabalhou com\"", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: [award, { ...award, owner_name_enc: null }], error: null });
+    const decrypt = vi.fn(async () => {
+      throw new Error("chave errada");
+    });
+
+    const awards = await readMyBadges({ rpc }, "c38bdfae-f1f4-41d6-b8db-41710928a38b", decrypt);
+
+    expect(awards.map((a) => a.name)).toEqual(["Trabalhou com", "Trabalhou com"]);
+    expect(decrypt).toHaveBeenCalledTimes(1);
+  });
+
+  it("o porta-voz dá a medalha só com id válido; erros do banco viram códigos da tela", async () => {
+    const ok = vi.fn().mockResolvedValue({ data: "id", error: null });
+    const denied = vi.fn().mockResolvedValue({ data: null, error: { code: "42501" } });
+    const twice = vi.fn().mockResolvedValue({ data: null, error: { code: "23505" } });
+
+    expect(await grantWorkedWith({ rpc: ok }, { profileId: "../x" })).toEqual({ ok: false, error: "invalid" });
+    expect(await grantWorkedWith({ rpc: ok }, { profileId: owner })).toEqual({ ok: true });
+    expect(ok).toHaveBeenCalledWith("grant_worked_with", { p_profile: owner });
+    expect(await grantWorkedWith({ rpc: denied }, { profileId: owner })).toEqual({ ok: false, error: "not_allowed" });
+    expect(await grantWorkedWith({ rpc: twice }, { profileId: owner })).toEqual({ ok: false, error: "already_has" });
   });
 });

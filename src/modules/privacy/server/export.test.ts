@@ -48,7 +48,7 @@ async function dbRows() {
 }
 
 // Atividade (medalhas, portfólio, pontos, entregas, mensagens): função irmã export_own_activity.
-const EMPTY_ACTIVITY = { badges: [], portfolio: [], points_total: 0, points: [], submissions: [], team_messages: [], prior_teams: [] };
+const EMPTY_ACTIVITY = { badges: [], portfolio: [], points_total: 0, points: [], submissions: [], team_messages: [], prior_teams: [], skills: [] };
 
 function setup(result: { data?: unknown; error?: unknown }, activity: { data?: unknown; error?: unknown } = { data: EMPTY_ACTIVITY }) {
   const lines: string[] = [];

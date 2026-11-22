@@ -9,11 +9,24 @@ import {
   sessionCollabClient,
 } from "@/modules/collab";
 import { instance } from "@config/instance";
+import { grantWorkedWith, sessionBadgesClient } from "@/modules/badges";
 import { proposeMission, sessionMissionClient } from "@/modules/missions";
 import { requireUser } from "@/server/auth/session";
 import { teamChatEnabled } from "@/modules/collab";
 import { encryptField } from "@/server/crypto";
 import { log } from "@/server/log";
+
+// Medalha "trabalhou com" (#71): o porta-voz dá a sua; quem pode, o banco decide.
+export async function grantWorkedWithAction(formData: FormData): Promise<void> {
+  await requireUser();
+  const client = await sessionBadgesClient();
+  if (!client) redirect(`${MY_TEAM_PATH}?erro_medalha=failed`);
+  const result = await grantWorkedWith(client, { profileId: formData.get("profileId") });
+  if (!result.ok) log.warn("worked_with_refused", { reason: result.error });
+  const known = ["not_allowed", "already_has", "invalid"] as const;
+  const code = result.ok ? "" : (known.find((k) => k === result.error) ?? "failed");
+  redirect(`${MY_TEAM_PATH}?${result.ok ? "medalha=ok" : `erro_medalha=${code}`}`);
+}
 
 export async function postMessageAction(formData: FormData): Promise<void> {
   await requireUser();

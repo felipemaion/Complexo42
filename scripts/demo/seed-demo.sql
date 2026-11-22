@@ -118,7 +118,12 @@ begin
   perform public.grant_badge(b_pesquisa, pg_temp.uid(pg_temp.email(9)), 'Relato das visitas às escolas, com detalhes.');
   perform public.grant_badge(b_rua, pg_temp.uid(pg_temp.email(14)), 'Marcou o debate na praça com os moradores.');
 
-  -- 7) Equipes de antes da plataforma (#136): a Gabriela informa duas, sem confirmação.
+  -- 7) Porta-voz (#71): a Gabriela também é porta-voz da Orçamento; a medalha "trabalhou com"
+  -- dela nasce sozinha, e ela pode dá-la aos colegas na tela "Minha equipe".
+  insert into public.role_assignments (profile_id, role, unit_id, granted_by)
+  values (pg_temp.uid(gabi), 'spokesperson', orc, pg_temp.uid(coord));
+
+  -- 8) Equipes de antes da plataforma (#136): a Gabriela informa duas, sem confirmação.
   perform pg_temp.como(gabi);
   perform public.add_prior_team('Equipe Transporte Público', '2023', 'spokesperson');
   perform public.add_prior_team('Equipe Bairro Limpo', 'ciclo 2024/1', 'member');

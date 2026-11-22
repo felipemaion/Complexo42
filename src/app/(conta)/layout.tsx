@@ -7,7 +7,7 @@ import { MISSION_REVIEW_PATH, MISSIONS_PATH, readPendingReviews, readPublishable
 import { PORTFOLIO_PATH } from "@/modules/portfolio";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
-import { SEARCH_PATH, SKILLS_CATALOG_PATH } from "@/modules/search";
+import { MY_SKILLS_PATH, SEARCH_PATH, SKILLS_CATALOG_PATH } from "@/modules/search";
 import { MAP_PATH } from "@/modules/map";
 import { PRIOR_TEAMS_PATH, ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
 import { BrandMark, buttonClass } from "@/modules/ui";
@@ -130,6 +130,8 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
         <nav aria-label={site.accountTitle} className="flex flex-col gap-3">
           <p className={footerTitle}>{site.accountTitle}</p>
           <Link href={PROFILE_PATH} className={footerLink}>{instance.profile.editLink}</Link>
+          {/* Habilidades marcadas pela própria pessoa (#15). */}
+          <Link href={MY_SKILLS_PATH} className={footerLink}>{instance.mySkills.homeLink}</Link>
           {/* Portfólio por links (#70). */}
           <Link href={PORTFOLIO_PATH} className={footerLink}>{instance.portfolio.homeLink}</Link>
           {/* Equipes de antes da plataforma (#136). */}

@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { log } from "@/server/log";
 import {
   BADGE_ICONS,
   type BadgeActionResult,
@@ -25,6 +26,9 @@ const badgeAwardRow = z.object({
   icon: z.enum(BADGE_ICONS),
   reason: z.string(),
   awarded_at: z.string(),
+  // "Trabalhou com" (#71): quem é o porta-voz dono da medalha e o nome dele, cifrado.
+  owner_id: z.guid().nullable().optional(),
+  owner_name_enc: z.string().nullable().optional(),
 });
 
 const badgeAwardRows = z.array(badgeAwardRow);
@@ -86,9 +90,14 @@ export async function readBadgeOptions(
   }));
 }
 
+/**
+ * Medalhas de uma pessoa. Na "trabalhou com" (#71) o nome do porta-voz vem cifrado e só é aberto
+ * aqui, no servidor ("Trabalhou com" + nome); se não abrir, fica só "Trabalhou com".
+ */
 export async function readMyBadges(
   client: BadgesClient,
   profileId: string,
+  decryptOwnerName?: (value: string, ownerId: string) => Promise<string>,
 ): Promise<readonly BadgeAward[]> {
   const { data, error } = await client.rpc("profile_badge_list", {
     p_profile: profileId,
@@ -98,14 +107,42 @@ export async function readMyBadges(
   const parsed = badgeAwardRows.safeParse(data);
   if (!parsed.success) throw new Error("badges_read_failed");
 
-  return parsed.data.map((row) => ({
-    awardId: row.award_id,
-    name: row.name,
-    description: row.description,
-    icon: row.icon,
-    reason: row.reason,
-    awardedAt: row.awarded_at,
-  }));
+  return Promise.all(
+    parsed.data.map(async (row) => {
+      const owner =
+        row.owner_id && row.owner_name_enc && decryptOwnerName
+          ? await decryptOwnerName(row.owner_name_enc, row.owner_id).catch(() => {
+              log.warn("badge_owner_unreadable");
+              return "";
+            })
+          : "";
+      return {
+        awardId: row.award_id,
+        name: owner ? `${row.name} ${owner}` : row.name,
+        description: row.description,
+        icon: row.icon,
+        reason: row.reason,
+        awardedAt: row.awarded_at,
+      };
+    }),
+  );
+}
+
+/** A medalha "trabalhou com" que quem está logado pode dar nesta equipe (é porta-voz), ou null. */
+export async function readMyWorkedWithBadge(client: BadgesClient, teamId: string): Promise<string | null> {
+  const { data, error } = await client.rpc("my_worked_with_badge", { p_team: teamId });
+  if (error) throw new Error("badges_read_failed");
+  const parsed = z.guid().nullable().safeParse(data);
+  if (!parsed.success) throw new Error("badges_read_failed");
+  return parsed.data;
+}
+
+/** O porta-voz dá a SUA medalha "trabalhou com" a quem esteve na equipe dele (o banco confere). */
+export async function grantWorkedWith(client: BadgesClient, input: unknown): Promise<BadgeActionResult> {
+  const parsed = z.strictObject({ profileId: z.guid() }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error } = await client.rpc("grant_worked_with", { p_profile: parsed.data.profileId });
+  return error ? { ok: false, error: mapDatabaseError(error) } : { ok: true };
 }
 
 export async function createBadge(
