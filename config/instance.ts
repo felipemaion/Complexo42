@@ -623,7 +623,8 @@ export const instance = parseInstanceConfig({
   // Missões, entregas e validação (ADR 0006, #31–#33).
   missions: {
     homeLink: "Missões",
-    title: "Missões",
+    // Duas palavras: a última ganha o itálico dourado do título (PageShell, 22/11).
+    title: "Suas missões",
     intro: "Missões publicadas para a sua equipe e a sua região. Cada etapa validada vale pontos.",
     empty: "Ainda não há missões para você. Quando a coordenação publicar, elas aparecem aqui.",
     origin: { national: "Nacional", regional: "Regional" },

@@ -42,9 +42,9 @@ export default async function MissionsPage() {
             <Notice tone="info">{text.empty}</Notice>
           ) : (
             <ul className="grid gap-4 md:grid-cols-2">
-              {missions.map((mission) => (
+              {missions.map((mission, index) => (
                 <li key={mission.id}>
-                  <MissionCard mission={mission} run={runs.get(mission.id)} href={missionPath(mission.id)} text={text} />
+                  <MissionCard mission={mission} run={runs.get(mission.id)} href={missionPath(mission.id)} text={text} index={index} />
                 </li>
               ))}
             </ul>

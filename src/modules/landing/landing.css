@@ -78,7 +78,7 @@
 
 /* Frase gigante */
 .cine-hero {
-  min-height: 64svh;
+  min-height: 54svh;
   display: grid;
   align-content: end;
   gap: 16px;
@@ -216,7 +216,8 @@
   margin: 0 0 22px;
   max-width: 42ch;
   font-size: 1.15rem;
-  color: var(--color-ink-muted);
+  /* Texto principal (não o apagado): sobre as ondas o fundo varia, e o contraste fica acima de 4,5:1. */
+  color: var(--color-ink);
   animation: cine-fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 

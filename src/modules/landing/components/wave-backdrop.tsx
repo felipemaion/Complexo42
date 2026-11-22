@@ -7,9 +7,10 @@ import { parseHexColor, rgba, shade, type Rgb } from "../domain/wave-colors";
 
 const SCALE = 6;
 const FRAME_MS = 40;
-// Véu escuro por cima das ondas: 0,3 deixa o dourado aparecer no celular e mantém o texto claro
-// acima de 4,5:1 (medido na prova de contraste da página).
-const VEIL = 0.3;
+// Véu escuro por cima das ondas: 0,2 deixa o dourado vivo atrás do título. No ponto mais claro o
+// fundo fica perto de rgb(100,80,30); o texto da página sobre as ondas é sempre o claro (text-ink),
+// que ali passa de 6:1. Texto apagado (ink-muted) não vai direto sobre as ondas.
+const VEIL = 0.2;
 const START_DELAY_MS = 600;
 const FALLBACK: Rgb = [212, 165, 55];
 const CANVAS_FALLBACK: Rgb = [11, 13, 18];

@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 // O movimento é do próprio navegador (CSS ligado à rolagem, landing.css): sem biblioteca nova, e
 // quem não tem suporte ou pediu "menos movimento" vê tudo parado e legível.
 // Fora da demonstração o convite é "Entrar"; com DEMO_MODE=1, a escolha entre membro e coordenação.
+// Texto solto sobre as ondas usa a cor principal (text-ink), não a apagada: o fundo varia de tom.
 export default function Home() {
   const home = instance.home;
   const isDemo = process.env.DEMO_MODE === "1";
@@ -89,7 +90,7 @@ export default function Home() {
       </section>
 
       <footer className="cine-wrap cine-foot">
-        <p className="text-base text-ink-muted">{instance.site.privacyNote}</p>
+        <p className="text-base text-ink">{instance.site.privacyNote}</p>
       </footer>
     </main>
   );
@@ -103,7 +104,7 @@ function EnterLink() {
         {home.enterButton}
         <span aria-hidden="true">→</span>
       </a>
-      <p className="text-lg text-ink-muted">{home.enterHint}</p>
+      <p className="text-lg text-ink">{home.enterHint}</p>
     </div>
   );
 }
@@ -113,7 +114,7 @@ function DemoChoice() {
   const demo = instance.demo;
   return (
     <div className="flex flex-col gap-6">
-      <p className="text-xl text-ink-muted">{demo.intro}</p>
+      <p className="text-xl text-ink">{demo.intro}</p>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="flex flex-col gap-4 rounded-2xl border border-line bg-surface p-6">
           <p className="text-lg text-ink-muted">{demo.memberHint}</p>

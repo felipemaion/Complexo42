@@ -17,9 +17,20 @@ describe("PageShell", () => {
     // Act
     const html = renderToStaticMarkup(createElement(PageShell, props));
 
+    // Assert: o texto do h1 é o título inteiro; a última palavra leva o destaque dourado (22/11).
+    const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(html)?.[1] ?? "";
+    expect(h1.replace(/<[^>]+>/g, "")).toBe("Página de Configuração");
+    expect(h1).toContain('<span class="c42-accent">Configuração</span>');
+  });
+
+  it("título de uma palavra só fica sem destaque (nada a separar)", () => {
+    // Act
+    const props = { title: "Placar", children: createElement("div", null, "Conteúdo") };
+    const html = renderToStaticMarkup(createElement(PageShell, props));
+
     // Assert
-    expect(html).toContain("<h1");
-    expect(html).toContain("Página de Configuração");
+    expect(html).toContain(">Placar</h1>");
+    expect(html).not.toContain("c42-accent");
   });
 
   it("omite elemento de introdução quando a prop intro está ausente", () => {
