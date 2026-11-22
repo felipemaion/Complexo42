@@ -6,12 +6,16 @@ import { useEffect, useRef } from "react";
 import { parseHexColor, rgba, shade, type Rgb } from "../domain/wave-colors";
 
 const SCALE = 6;
-const FRAME_MS = 40;
+// ~15 quadros por segundo: as manchas são lentas e desfocadas, e o olho não vê diferença de 25;
+// o processador do celular gasta menos (medido em 22/11, com e sem as ondas).
+const FRAME_MS = 66;
+// Velocidade das ondas por milissegundo (independe de quantos quadros saem).
+const SPEED_PER_MS = 0.01 / 40;
 // Véu escuro por cima das ondas: 0,2 deixa o dourado vivo atrás do título. No ponto mais claro o
 // fundo fica perto de rgb(100,80,30); o texto da página sobre as ondas é sempre o claro (text-ink),
 // que ali passa de 6:1. Texto apagado (ink-muted) não vai direto sobre as ondas.
 const VEIL = 0.2;
-const START_DELAY_MS = 600;
+const START_DELAY_MS = 1500;
 const FALLBACK: Rgb = [212, 165, 55];
 const CANVAS_FALLBACK: Rgb = [11, 13, 18];
 
@@ -62,8 +66,9 @@ export function WaveBackdrop() {
     const frame = (now: number) => {
       raf = window.requestAnimationFrame(frame);
       if (document.hidden || now - last < FRAME_MS) return;
+      // Passo pelo tempo real (com teto, para não "pular" ao voltar de outra aba).
+      t += Math.min(now - last, FRAME_MS * 3) * SPEED_PER_MS;
       last = now;
-      t += 0.01;
       draw();
     };
     const onResize = () => {
