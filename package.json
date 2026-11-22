@@ -21,7 +21,8 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
-    "db:seed-profiles": "node --conditions=react-server --experimental-strip-types --import ./scripts/ts-resolve.mjs --env-file=.env.local scripts/seed-fake-profiles.mjs"
+    "db:seed-profiles": "node --conditions=react-server --experimental-strip-types --import ./scripts/ts-resolve.mjs --env-file=.env.local scripts/seed-fake-profiles.mjs",
+    "db:seed-volume": "node --conditions=react-server --experimental-strip-types --import ./scripts/ts-resolve.mjs --env-file=.env.local scripts/seed-volume.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",
