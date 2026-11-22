@@ -148,12 +148,14 @@ export default async function SignedInHome({ searchParams }: Props) {
               ))}
             </div>
           </div>
-          <div className="flex flex-col gap-2 rounded-2xl border border-primary bg-soft p-6">
-            <span className="text-base text-ink-muted">{highlight.label}</span>
-            <span className="c42-display text-7xl leading-none text-primary">
+          {/* Destaque em dourado cheio, como a faixa "Feito ou não feito" da entrada (revisor 22/11).
+              Texto escuro herdado do bloco: contraste perto de 9:1 sobre o dourado. */}
+          <div className="flex flex-col gap-2 rounded-2xl bg-primary p-6 text-on-primary shadow-[0_24px_60px_-20px] shadow-primary/40">
+            <span className="text-base font-semibold uppercase tracking-wider">{highlight.label}</span>
+            <span className="c42-display text-8xl leading-none">
               <CountUp value={highlight.value} />
             </span>
-            {highlight.foot && <span className="mt-4 border-t border-line pt-4 text-base text-ink-muted">{highlight.foot}</span>}
+            {highlight.foot && <span className="mt-4 border-t border-current/25 pt-4 text-base font-semibold">{highlight.foot}</span>}
           </div>
         </div>
       </section>

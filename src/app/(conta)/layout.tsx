@@ -10,7 +10,7 @@ import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
 import { MY_SKILLS_PATH, SEARCH_PATH, SKILLS_CATALOG_PATH } from "@/modules/search";
 import { MAP_PATH } from "@/modules/map";
 import { PRIOR_TEAMS_PATH, ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
-import { BrandMark, buttonClass, SoundToggle } from "@/modules/ui";
+import { BrandMark, SoundToggle } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
@@ -59,9 +59,9 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
     <div className="flex min-h-screen flex-col">
       {isDemo && <DemoBar isCoordinator={isCoordinator} />}
       <header className="border-b border-line bg-surface">
-        {/* Celular: duas linhas (marca + som; "Conectado como" + Sair). Computador: uma linha só.
-            O e-mail mascarado fica sempre à vista (M1). */}
-        <div className="mx-auto grid w-full max-w-site grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-5 py-3 sm:flex sm:flex-wrap sm:justify-between">
+        {/* Celular: marca, som (só o ícone) e Sair numa linha; "Conectado como" sozinho embaixo, em
+            uma linha. Computador: tudo numa linha. O e-mail mascarado fica sempre à vista (M1). */}
+        <div className="mx-auto grid w-full max-w-site grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1 px-5 py-3 sm:flex sm:flex-wrap sm:justify-between sm:gap-x-3">
           <div className="flex min-w-0 items-center gap-3 sm:order-1">
             <BrandMark shortName={instance.shortName} />
             <div className="min-w-0">
@@ -69,17 +69,17 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
               <p className="hidden text-base text-ink-muted sm:block">{instance.site.tagline}</p>
             </div>
           </div>
-          <div className="justify-self-end sm:order-3">
-            <SoundToggle label={instance.site.sound} />
+          <div className="sm:order-3">
+            <SoundToggle label={instance.site.sound} isCompactOnPhone />
           </div>
-          <p className="min-w-0 text-base text-ink-muted sm:order-2 sm:ml-auto" data-testid="connected-as">
-            {instance.auth.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
-          </p>
-          <form action={signOut} className="justify-self-end sm:order-4">
-            <button type="submit" className={buttonClass("quiet", { isFullWidth: false })}>
+          <form action={signOut} className="sm:order-4">
+            <button type="submit" className={signOutClass}>
               {instance.auth.signOutButton}
             </button>
           </form>
+          <p className="col-span-3 min-w-0 text-base text-ink-muted sm:order-2 sm:ml-auto" data-testid="connected-as">
+            {instance.auth.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
+          </p>
         </div>
         <NavLinks items={items} label={nav.label} />
       </header>
@@ -123,6 +123,9 @@ type FooterProps = {
 
 // Área de toque de 48 px também no rodapé (ata 17/11 §10: público mais velho).
 const footerLink = "inline-flex min-h-12 items-center text-lg text-ink-muted no-underline hover:text-primary hover:underline";
+// "Sair" do cabeçalho: mesma pílula de 48 px do botão de som (cabe na linha da marca no celular).
+const signOutClass =
+  "inline-flex min-h-12 items-center justify-center rounded-full border-2 border-line px-4 text-lg font-bold text-primary transition-[transform,border-color] duration-150 hover:border-primary active:scale-95 motion-reduce:transform-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 // Títulos das colunas do rodapé não entram no sumário da página (a <nav> já tem nome).
 const footerTitle = "text-lg font-bold text-primary";
 

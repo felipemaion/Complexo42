@@ -52,7 +52,7 @@ export function IdentityForm({ teamId, identity, text, saveAction }: IdentityFor
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {TEAM_EMBLEMS.map((emblem) => (
             <label key={emblem} className="flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border-2 border-line bg-surface px-3 text-lg has-[:checked]:border-primary">
-              <input type="radio" name="emblem" value={emblem} defaultChecked={(identity.emblem ?? "estrela") === emblem} required className="h-5 w-5" />
+              <input type="radio" name="emblem" value={emblem} defaultChecked={(identity.emblem ?? "estrela") === emblem} required className="h-6 w-6 shrink-0" />
               <span aria-hidden="true" className="text-2xl">
                 {EMBLEM_SYMBOL[emblem]}
               </span>
