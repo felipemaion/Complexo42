@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(11);
+select plan(13);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -80,6 +80,22 @@ select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 select public.remove_portfolio_item((select id from public.portfolio_list('00000000-0000-0000-0000-0000000000a1') where title = 'Arte da campanha'));
 select is((select string_agg(title || ':' || position, ',' order by position) from public.portfolio_list('00000000-0000-0000-0000-0000000000a1')),
   'Corte do debate:1,Artigo no jornal:2', 'ao tirar um item, os outros sobem de posição');
+
+-- Linhas guardadas fora de ordem (o banco reaproveita espaço): tirar o 1º ainda reordena, sem
+-- "chave repetida" no meio da conta. A leitura sequencial é forçada para não depender do plano.
+reset role;
+insert into public.portfolio_items (profile_id, url_enc, kind, title, position) values
+  ('00000000-0000-0000-0000-0000000000f1', pg_temp.enc('o1'), 'video', 'Um', 1),
+  ('00000000-0000-0000-0000-0000000000f1', pg_temp.enc('o3'), 'video', 'Tres', 3),
+  ('00000000-0000-0000-0000-0000000000f1', pg_temp.enc('o2'), 'video', 'Dois', 2);
+set local enable_indexscan = off;
+set local enable_bitmapscan = off;
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000f1');
+select lives_ok($$ select public.remove_portfolio_item((select id from public.portfolio_items where title = 'Um')) $$,
+  'tirar o 1º item funciona com as linhas guardadas fora de ordem');
+select is((select string_agg(title || ':' || position, ',' order by position) from public.portfolio_list('00000000-0000-0000-0000-0000000000f1')),
+  'Dois:1,Tres:2', 'e os outros sobem sem buraco');
 
 select * from finish();
 rollback;

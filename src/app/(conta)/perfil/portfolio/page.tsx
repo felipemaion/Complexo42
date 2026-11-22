@@ -65,6 +65,7 @@ export default async function PortfolioPage({ searchParams }: Props) {
                     <input type="hidden" name="itemId" value={item.id} />
                     <button type="submit" className={buttonClass("danger", { isFullWidth: false })}>
                       {text.removeButton}
+                      <span className="sr-only">: {item.title}</span>
                     </button>
                   </form>
                 </li>
