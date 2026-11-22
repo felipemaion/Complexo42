@@ -11,7 +11,7 @@ export function NavLinks({ items, label }: { readonly items: readonly Item[]; re
   const pathname = usePathname();
   return (
     <nav aria-label={label} className="border-t border-line">
-      <ul className="mx-auto flex w-full max-w-site flex-wrap gap-x-1 px-3">
+      <ul className="mx-auto flex w-full max-w-site flex-wrap px-2 sm:gap-x-1 sm:px-3">
         {items.map((item) => {
           const isCurrent = item.href === "/inicio" ? pathname === item.href : pathname.startsWith(item.href);
           return (
@@ -19,7 +19,7 @@ export function NavLinks({ items, label }: { readonly items: readonly Item[]; re
               <Link
                 href={item.href}
                 aria-current={isCurrent ? "page" : undefined}
-                className={`inline-flex min-h-14 items-center gap-2 border-b-4 px-3 text-lg font-semibold no-underline ${
+                className={`inline-flex min-h-14 items-center gap-2 border-b-4 px-2 text-base font-semibold no-underline sm:px-3 sm:text-lg ${
                   isCurrent ? "border-primary text-primary" : "border-transparent text-ink-muted hover:text-ink"
                 }`}
               >

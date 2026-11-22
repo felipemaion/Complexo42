@@ -25,9 +25,26 @@ export const instance = parseInstanceConfig({
     spokesperson: "Porta-voz",
     tech_admin: "Administrador técnico",
   },
+  // Página de entrada "Cinema" (22/11, escolhida pelo dono): frase gigante em três linhas (a palavra
+  // de destaque vai em itálico dourado), o que acontece na plataforma em lista numerada, uma faixa
+  // dourada que se abre com a rolagem e o convite final.
   home: {
-    title: "Em construção",
-    message: "A plataforma está sendo preparada. Volte em breve.",
+    eyebrow: "Plataforma de membros",
+    hero: ["Sua equipe.", "Sua região.", "Sua"],
+    heroAccent: "história.",
+    listTitle: "O que acontece aqui",
+    items: [
+      { title: "Missões", detail: "A coordenação publica; a equipe entrega em etapas e ganha pontos a cada etapa validada." },
+      { title: "Equipes", detail: "Grupos pequenos, de gente da mesma região, com bandeira e nome escolhidos juntos." },
+      { title: "Medalhas", detail: "Reconhecimento pelo que você fez de verdade, dado pela coordenação com o motivo escrito." },
+      { title: "Mapa", detail: "Onde a rede está presente, cidade por cidade, sem mostrar o endereço de ninguém." },
+    ],
+    wipe: "Feito ou não feito. Quem valida é a",
+    wipeAccent: "coordenação.",
+    ctaTitle: "Entre e veja a sua",
+    ctaAccent: "equipe.",
+    enterButton: "Entrar na plataforma",
+    enterHint: "Sem senha: com a conta Google ou com um link no seu e-mail.",
   },
   waitlist: {
     title: "Seu cadastro está em análise",
@@ -557,6 +574,8 @@ export const instance = parseInstanceConfig({
     member: "membro",
     coordinator: "coordenação",
     switchTo: "Trocar para",
+    // No celular, o link da faixa mostra só esta palavra (o nome completo continua para leitor de tela).
+    switchShort: "Trocar",
   },
   // Moldura de site: cabeçalho, painel inicial e rodapé de quem entrou.
   site: {
@@ -581,8 +600,8 @@ export const instance = parseInstanceConfig({
     coordinationTitle: "Coordenação",
     privacyNote: "Nome, contato e avaliações ficam guardados cifrados.",
     // Botão de som do cabeçalho (22/11): desligado até a pessoa ligar.
-    soundOn: "Som ligado",
-    soundOff: "Som desligado",
+    // Botão de som: rótulo curto; ligado/desligado é dito pelo ícone e por aria-pressed.
+    sound: "Som",
     // Celebração da medalha nova ({nome} = nome da medalha).
     newBadge: "Você ganhou uma medalha nova: {nome}!",
     // Aviso do esqueleto de carregamento (só leitor de tela).

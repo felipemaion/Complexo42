@@ -49,9 +49,19 @@ export const instanceConfigSchema = z.strictObject({
   }),
   roleLabels: z.strictObject(roleLabelsShape),
   /** Textos da página inicial enquanto o produto não abre. */
+  // Entrada "Cinema" (22/11): três linhas de frase, a última termina na palavra de destaque.
   home: z.strictObject({
-    title: text,
-    message: text,
+    eyebrow: text,
+    hero: z.tuple([text, text, text]),
+    heroAccent: text,
+    listTitle: text,
+    items: z.array(z.strictObject({ title: text, detail: text })).min(1).max(6),
+    wipe: text,
+    wipeAccent: text,
+    ctaTitle: text,
+    ctaAccent: text,
+    enterButton: text,
+    enterHint: text,
   }),
   /** Tela de quem está na lista de espera (ADR 0008 §1): ainda não liberado pela coordenação. */
   waitlist: z.strictObject({
@@ -382,7 +392,7 @@ export const instanceConfigSchema = z.strictObject({
   }),
   demo: z.strictObject({
     title: text, intro: text, asMember: text, asCoordinator: text, memberHint: text, coordinatorHint: text,
-    banner: text, viewingAs: text, member: text, coordinator: text, switchTo: text,
+    banner: text, viewingAs: text, member: text, coordinator: text, switchTo: text, switchShort: text,
   }),
   // Moldura de site (cabeçalho, painel inicial e rodapé) das páginas de quem entrou.
   site: z.strictObject({
@@ -390,7 +400,7 @@ export const instanceConfigSchema = z.strictObject({
     pendingLabel: text, availableLabel: text, openMissionsTitle: text, seeAll: text, available: text,
     leadLabel: text, openTeam: text, peopleSuffix: text, teamPointsTitle: text, pendingTitle: text,
     pendingEmpty: text, footerAbout: text, accountTitle: text, coordinationTitle: text, privacyNote: text,
-    soundOn: text, soundOff: text, loading: text,
+    sound: text, loading: text,
     newBadge: text.refine((v) => v.includes("{nome}"), "precisa de {nome}"),
   }),
   search: z.strictObject({

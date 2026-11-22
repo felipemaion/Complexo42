@@ -18,7 +18,7 @@ import {
 } from "@/modules/missions";
 import { MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { loadOwnProfile, SocialLinkList } from "@/modules/profiles";
-import { buttonClass, Notice, Tag } from "@/modules/ui";
+import { buttonClass, CountUp, Notice, Tag } from "@/modules/ui";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
@@ -136,8 +136,8 @@ export default async function SignedInHome({ searchParams }: Props) {
         <div className="mx-auto grid w-full max-w-site gap-8 px-5 py-12 lg:grid-cols-[1fr_380px] lg:items-center">
           <div className="flex flex-col gap-4">
             <p className="text-base font-bold uppercase tracking-wider text-primary">{site.kicker}</p>
-            <h1 className="text-4xl font-bold leading-tight text-ink sm:text-5xl">
-              {site.greeting}, {firstName}
+            <h1 className="c42-display text-5xl text-ink sm:text-6xl">
+              {site.greeting}, <span className="c42-accent">{firstName}</span>
             </h1>
             <p className="max-w-2xl text-xl text-ink-muted">{isCoordinator ? site.coordinatorIntro : site.memberIntro}</p>
             <div className="flex flex-wrap gap-3">
@@ -150,7 +150,9 @@ export default async function SignedInHome({ searchParams }: Props) {
           </div>
           <div className="flex flex-col gap-2 rounded-2xl border border-primary bg-soft p-6">
             <span className="text-base text-ink-muted">{highlight.label}</span>
-            <span className="text-6xl font-bold leading-none text-primary">{highlight.value}</span>
+            <span className="c42-display text-7xl leading-none text-primary">
+              <CountUp value={highlight.value} />
+            </span>
             {highlight.foot && <span className="mt-4 border-t border-line pt-4 text-base text-ink-muted">{highlight.foot}</span>}
           </div>
         </div>
@@ -175,7 +177,7 @@ export default async function SignedInHome({ searchParams }: Props) {
               <h2 id="missoes-abertas" className="text-2xl font-bold">
                 {site.openMissionsTitle}
               </h2>
-              <Link href={MISSIONS_PATH} className="text-lg font-semibold">
+              <Link href={MISSIONS_PATH} className="inline-flex min-h-12 shrink-0 items-center text-lg font-semibold">
                 {site.seeAll}
               </Link>
             </div>

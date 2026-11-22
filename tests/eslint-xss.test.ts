@@ -1,9 +1,16 @@
 // #17 (revisão do #100): além de `react/no-danger` (tests/scaffold.test.ts), o ESLint barra HTML
 // cru no DOM: innerHTML, outerHTML, insertAdjacentHTML, document.write/writeln e srcDoc.
 import { ESLint } from "eslint";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 const eslint = new ESLint();
+// A primeira análise carrega a configuração e o analisador de TypeScript (vários segundos com o
+// servidor ocupado): ela acontece aqui, com prazo próprio, e cada teste mede só a regra.
+// Nasceu de falha real em 22/11: o primeiro caso estourava os 5 s sob carga.
+const WARM_UP_TIMEOUT_MS = 60_000;
+beforeAll(async () => {
+  await eslint.lintText("export {};", { filePath: "src/exemplo.ts" });
+}, WARM_UP_TIMEOUT_MS);
 
 async function ruleIds(code: string, file = "src/app/exemplo.tsx"): Promise<string[]> {
   const [result] = await eslint.lintText(code, { filePath: file });

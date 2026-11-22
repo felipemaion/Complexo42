@@ -59,25 +59,27 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
     <div className="flex min-h-screen flex-col">
       {isDemo && <DemoBar isCoordinator={isCoordinator} />}
       <header className="border-b border-line bg-surface">
-        <div className="mx-auto flex w-full max-w-site flex-wrap items-center justify-between gap-3 px-5 py-3">
-          <div className="flex items-center gap-3">
+        {/* Celular: duas linhas (marca + som; "Conectado como" + Sair). Computador: uma linha só.
+            O e-mail mascarado fica sempre à vista (M1). */}
+        <div className="mx-auto grid w-full max-w-site grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-5 py-3 sm:flex sm:flex-wrap sm:justify-between">
+          <div className="flex min-w-0 items-center gap-3 sm:order-1">
             <BrandMark shortName={instance.shortName} />
-            <div>
+            <div className="min-w-0">
               <p className="text-lg font-bold leading-tight text-ink">{instance.name}</p>
-              <p className="text-base text-ink-muted">{instance.site.tagline}</p>
+              <p className="hidden text-base text-ink-muted sm:block">{instance.site.tagline}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-base text-ink-muted" data-testid="connected-as">
-              {instance.auth.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
-            </p>
-            <SoundToggle onLabel={instance.site.soundOn} offLabel={instance.site.soundOff} />
-            <form action={signOut}>
-              <button type="submit" className={buttonClass("quiet", { isFullWidth: false })}>
-                {instance.auth.signOutButton}
-              </button>
-            </form>
+          <div className="justify-self-end sm:order-3">
+            <SoundToggle label={instance.site.sound} />
           </div>
+          <p className="min-w-0 text-base text-ink-muted sm:order-2 sm:ml-auto" data-testid="connected-as">
+            {instance.auth.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
+          </p>
+          <form action={signOut} className="justify-self-end sm:order-4">
+            <button type="submit" className={buttonClass("quiet", { isFullWidth: false })}>
+              {instance.auth.signOutButton}
+            </button>
+          </form>
         </div>
         <NavLinks items={items} label={nav.label} />
       </header>
@@ -89,15 +91,25 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
 
 function DemoBar({ isCoordinator }: { readonly isCoordinator: boolean }) {
   const demo = instance.demo;
+  const otherRole = isCoordinator ? demo.member : demo.coordinator;
   return (
     <div className="bg-secondary text-on-secondary">
-      <div className="mx-auto flex w-full max-w-site flex-wrap items-center justify-between gap-2 px-5 py-2 text-base">
+      {/* Uma linha no celular: "Demonstração · membro" e "Trocar" (nome completo para leitor de tela). */}
+      <div className="mx-auto flex w-full max-w-site items-center justify-between gap-3 px-5 text-base">
         <p>
-          <strong>{demo.banner}:</strong> {demo.viewingAs} <strong>{isCoordinator ? demo.coordinator : demo.member}</strong>
+          <strong>{demo.banner}</strong> · <span className="hidden sm:inline">{demo.viewingAs} </span>
+          <strong>{isCoordinator ? demo.coordinator : demo.member}</strong>
         </p>
         {/* Link comum (recarga inteira): a troca de conta não pode reaproveitar a página em cache. */}
-        <a href={`/demo?papel=${isCoordinator ? "membro" : "coordenacao"}`} className="font-bold text-on-secondary">
-          {demo.switchTo} {isCoordinator ? demo.member : demo.coordinator}
+        <a
+          href={`/demo?papel=${isCoordinator ? "membro" : "coordenacao"}`}
+          aria-label={`${demo.switchTo} ${otherRole}`}
+          className="inline-flex min-h-12 shrink-0 items-center font-bold text-on-secondary"
+        >
+          <span className="sm:hidden">{demo.switchShort}</span>
+          <span className="hidden sm:inline">
+            {demo.switchTo} {otherRole}
+          </span>
         </a>
       </div>
     </div>

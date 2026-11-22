@@ -11,10 +11,13 @@ test.describe("fumaça: página inicial", () => {
     // Sanidade de acessibilidade sem dependência extra: um único h1 e um landmark main.
     const heading = page.getByRole("heading", { level: 1 });
     await expect(heading).toHaveCount(1);
-    await expect(heading).toHaveText("Em construção");
+    // Entrada "Cinema" (22/11): frase em três linhas, vinda de config/instance.ts (home.hero).
+    await expect(heading).toHaveText("Sua equipe. Sua região. Sua história.");
     await expect(page.getByRole("main")).toBeVisible();
+    // Fora da demonstração, o único caminho é entrar.
+    await expect(page.getByRole("link", { name: "Entrar na plataforma" })).toHaveAttribute("href", "/entrar");
 
-    // Ainda em construção: não deve ser indexada.
+    // Ainda sem lançamento: não deve ser indexada.
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
   });
 

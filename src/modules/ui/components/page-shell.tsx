@@ -18,7 +18,7 @@ export function PageShell({ title, intro, width = "narrow", children }: PageShel
       <header className="border-b border-line bg-linear-to-br from-surface to-canvas">
         <div className="mx-auto flex w-full max-w-site flex-col gap-3 px-5 py-10">
           <span aria-hidden="true" className="h-1 w-14 rounded-full bg-primary" />
-          <h1 className="text-3xl font-bold leading-tight text-ink sm:text-4xl">{title}</h1>
+          <h1 className="c42-display text-4xl text-ink sm:text-5xl">{title}</h1>
           {intro && <p className="max-w-3xl text-lg text-ink-muted">{intro}</p>}
         </div>
       </header>

@@ -1,13 +1,16 @@
 "use client";
 // Botão de som do cabeçalho (22/11): desligado até a pessoa ligar; a escolha fica neste navegador.
 // Com o som ligado, todo toque em botão ou link faz um clique curto. Alvo de 48 px.
+// Rótulo curto ("Som"); o estado aparece no ícone (alto-falante com ondas ou riscado), no fundo
+// dourado e, para leitor de tela, em aria-pressed.
 import { useEffect, useSyncExternalStore } from "react";
 import { playSound, setSoundEnabled, unlockSound } from "../client/sound";
 import { readSoundOn, writeSoundOn } from "../domain/sound-pref";
 
 type SoundToggleProps = {
-  readonly onLabel: string;
-  readonly offLabel: string;
+  readonly label: string;
+  /** No celular, só o ícone à vista (o nome continua para leitor de tela). */
+  readonly isCompactOnPhone?: boolean;
 };
 
 function storage(): Storage | null {
@@ -32,7 +35,23 @@ function subscribe(onChange: () => void): () => void {
 const readSaved = (): boolean => readSoundOn(storage());
 const readOnServer = (): boolean => false;
 
-export function SoundToggle({ onLabel, offLabel }: SoundToggleProps) {
+function SpeakerIcon({ isOn }: { readonly isOn: boolean }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor" />
+      {isOn ? (
+        <>
+          <path d="M15.5 9a4 4 0 0 1 0 6" />
+          <path d="M18.5 6.5a7.5 7.5 0 0 1 0 11" />
+        </>
+      ) : (
+        <path d="M16 9.5l5 5M21 9.5l-5 5" />
+      )}
+    </svg>
+  );
+}
+
+export function SoundToggle({ label, isCompactOnPhone = false }: SoundToggleProps) {
   const isOn = useSyncExternalStore(subscribe, readSaved, readOnServer);
 
   useEffect(() => {
@@ -40,9 +59,9 @@ export function SoundToggle({ onLabel, offLabel }: SoundToggleProps) {
   }, [isOn]);
 
   useEffect(() => {
-    // Um ouvinte só para o site todo: clique em botão ou link toca o "tap" (se o som estiver ligado).
+    // Um ouvinte só para o site todo: clique em botão, link ou item que abre toca o "tap".
     const onClick = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target.closest("button, a[href]") : null;
+      const target = event.target instanceof Element ? event.target.closest("button, a[href], summary") : null;
       if (!target || target.hasAttribute("data-sound-toggle")) return;
       unlockSound();
       playSound("tap");
@@ -68,16 +87,12 @@ export function SoundToggle({ onLabel, offLabel }: SoundToggleProps) {
       data-sound-toggle=""
       aria-pressed={isOn}
       onClick={toggle}
-      className={`inline-flex min-h-12 items-center gap-2 rounded-full border-2 px-4 text-lg font-bold transition-[transform,background-color] duration-150 active:scale-95 motion-reduce:transform-none ${
+      className={`inline-flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-full border-2 ${isCompactOnPhone ? "px-2 sm:px-4" : "px-4"} text-lg font-bold transition-[transform,background-color] duration-150 active:scale-95 motion-reduce:transform-none ${
         isOn ? "border-primary bg-primary text-on-primary" : "border-line bg-transparent text-primary"
       }`}
     >
-      <span aria-hidden="true" className="inline-flex h-4 items-end gap-0.5">
-        <span className={`w-1 rounded-full bg-current ${isOn ? "h-4 animate-pulse motion-reduce:animate-none" : "h-1.5"}`} />
-        <span className={`w-1 rounded-full bg-current ${isOn ? "h-2.5 animate-pulse motion-reduce:animate-none" : "h-1.5"}`} />
-        <span className={`w-1 rounded-full bg-current ${isOn ? "h-3.5 animate-pulse motion-reduce:animate-none" : "h-1.5"}`} />
-      </span>
-      {isOn ? onLabel : offLabel}
+      <SpeakerIcon isOn={isOn} />
+      <span className={isCompactOnPhone ? "max-sm:sr-only" : undefined}>{label}</span>
     </button>
   );
 }

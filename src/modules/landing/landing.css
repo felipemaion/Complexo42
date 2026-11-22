@@ -1,0 +1,352 @@
+/*
+ * Entrada "Cinema" (22/11, escolhida pelo dono). Só cores do tema (var(--color-*)) e as duas letras
+ * da página (--font-display, --font-accent, de src/app/page.tsx).
+ * Movimento em três camadas, todas desligadas com "menos movimento":
+ *   1. abertura: cortina sobe e a frase gigante nasce de baixo, linha por linha;
+ *   2. rolagem: barra de progresso, frase que se afasta, itens que entram, faixa dourada que se abre
+ *      (CSS ligado à rolagem; navegador sem suporte mostra tudo parado e visível);
+ *   3. fundo em ondas (wave-backdrop.tsx) e granulado de filme.
+ */
+
+.cine {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  overflow-x: clip;
+  color: var(--color-ink);
+}
+
+.cine-wrap {
+  width: 100%;
+  max-width: var(--container-site);
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+.cine-waves {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+}
+
+.cine-grain {
+  position: fixed;
+  inset: -50%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.1;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='.9'/></svg>");
+  animation: cine-grain 1.2s steps(6) infinite;
+  will-change: transform;
+}
+
+/* Abertura: cortina com a marca, sobe logo (some em 0,75 s). Não bloqueia toque. */
+.cine-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: var(--color-canvas);
+  pointer-events: none;
+  animation: cine-curtain 0.6s cubic-bezier(0.76, 0, 0.24, 1) 0.15s both;
+}
+.cine-curtain > span {
+  transform: scale(1.6);
+}
+
+.cine-progress {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 40;
+  height: 3px;
+  background: var(--color-primary);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+.cine-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 16px;
+}
+
+/* Frase gigante */
+.cine-hero {
+  min-height: 64svh;
+  display: grid;
+  align-content: end;
+  gap: 16px;
+  padding-block: 32px 56px;
+}
+.cine-eyebrow {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 85%;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+.cine-big {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 64%;
+  text-transform: uppercase;
+  /* Teto de ~150 px: no computador as três linhas cabem na primeira tela (revisor 22/11). */
+  font-size: clamp(3.2rem, 13.5vw, 8.5rem);
+  line-height: 0.86;
+  letter-spacing: -0.01em;
+}
+.cine-line:last-child > span {
+  white-space: nowrap;
+}
+@media (min-width: 768px) {
+  .cine-hero {
+    min-height: 78svh;
+  }
+}
+/* A máscara de cada linha tem folga em cima: til e acento das maiúsculas (REGIÃO, É) não podem ser
+   cortados. A margem negativa devolve o espaço, e o desenho das linhas continua o mesmo. */
+.cine-line {
+  display: block;
+  overflow: hidden;
+  padding-block: 0.16em 0.06em;
+  margin-top: -0.16em;
+}
+.cine-line > span {
+  display: inline-block;
+  animation: cine-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* A frase sobe junto com a cortina: o maior texto da tela aparece cedo (medido no Lighthouse). */
+.cine-line:nth-child(1) > span { animation-delay: 0.2s; }
+.cine-line:nth-child(2) > span { animation-delay: 0.28s; }
+.cine-line:nth-child(3) > span { animation-delay: 0.36s; }
+
+/* Palavra de destaque: itálica com serifa, dourada, em minúsculas. */
+.cine-accent {
+  font-family: var(--font-accent);
+  font-style: italic;
+  font-weight: 500;
+  font-stretch: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-primary);
+}
+
+/* Lista numerada (abre e fecha sem JavaScript) */
+.cine-list {
+  padding-block: 40px 88px;
+}
+.cine-tag {
+  display: inline-block;
+  margin: 0 0 16px;
+  padding: 2px 10px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 85%;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--color-ink);
+  color: var(--color-canvas);
+}
+.cine-list ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid color-mix(in oklab, var(--color-ink) 22%, transparent);
+}
+.cine-item {
+  border-bottom: 1px solid color-mix(in oklab, var(--color-ink) 22%, transparent);
+}
+.cine-item summary {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 16px;
+  min-height: 72px;
+  padding-block: 18px;
+  cursor: pointer;
+  list-style: none;
+}
+.cine-item summary::-webkit-details-marker {
+  display: none;
+}
+.cine-no {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-stretch: 70%;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary);
+}
+.cine-item-title {
+  min-width: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-stretch: 80%;
+  text-transform: uppercase;
+  font-size: clamp(2rem, 8vw, 4.6rem);
+  line-height: 0.95;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.2s ease;
+}
+.cine-plus {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--color-primary);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cine-item summary:hover .cine-item-title,
+.cine-item summary:focus-visible .cine-item-title,
+.cine-item details[open] .cine-item-title {
+  color: var(--color-secondary);
+  transform: translateX(10px);
+}
+.cine-item details[open] .cine-plus {
+  transform: rotate(45deg);
+}
+.cine-item details p {
+  margin: 0 0 22px;
+  max-width: 42ch;
+  font-size: 1.15rem;
+  color: var(--color-ink-muted);
+  animation: cine-fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Faixa dourada */
+.cine-wipe {
+  padding-block: 88px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.cine-wipe p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 66%;
+  text-transform: uppercase;
+  font-size: clamp(2.6rem, 11vw, 8rem);
+  line-height: 0.9;
+}
+.cine-wipe .cine-accent {
+  color: var(--color-on-primary);
+}
+
+/* Convite final */
+.cine-cta {
+  display: grid;
+  gap: 32px;
+  padding-block: 96px 64px;
+}
+.cine-cta-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 66%;
+  text-transform: uppercase;
+  font-size: clamp(2.6rem, 11vw, 7rem);
+  line-height: 0.9;
+}
+.cine-arrow span {
+  display: inline-block;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cine-arrow:hover span,
+.cine-arrow:focus-visible span {
+  transform: translateX(6px);
+}
+.cine-foot {
+  padding-block: 24px 48px;
+  border-top: 1px solid var(--color-line);
+}
+
+@keyframes cine-grain {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-3%, 2%); }
+  40% { transform: translate(2%, -3%); }
+  60% { transform: translate(-2%, -1%); }
+  80% { transform: translate(3%, 3%); }
+  100% { transform: translate(0, 0); }
+}
+@keyframes cine-curtain {
+  to { transform: translateY(-100%); }
+}
+@keyframes cine-rise {
+  from { transform: translateY(110%); }
+}
+@keyframes cine-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* Movimento ligado à rolagem: só onde o navegador sabe fazer e a pessoa não pediu menos movimento. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .cine-progress {
+      animation: cine-grow linear both;
+      animation-timeline: scroll(root);
+    }
+    .cine-big {
+      animation: cine-drift linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 90vh;
+    }
+    .cine-item,
+    .cine-cta-title {
+      animation: cine-enter linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 80%;
+    }
+    .cine-wipe {
+      animation: cine-wipe linear both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 40%;
+    }
+    .cine-wipe p {
+      animation: cine-slide linear both;
+      animation-timeline: view();
+      animation-range: entry 0% exit 100%;
+    }
+  }
+}
+
+@keyframes cine-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes cine-drift {
+  to { transform: translateY(-14vh) scale(0.96); opacity: 0.35; }
+}
+@keyframes cine-enter {
+  from { opacity: 0; transform: translateY(48px); }
+}
+@keyframes cine-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+@keyframes cine-slide {
+  from { transform: translateX(8%); }
+  to { transform: translateX(-8%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cine-curtain {
+    display: none;
+  }
+  .cine-grain,
+  .cine-line > span,
+  .cine-item details p {
+    animation: none;
+  }
+  .cine-item-title,
+  .cine-plus,
+  .cine-arrow span {
+    transition: none;
+  }
+}

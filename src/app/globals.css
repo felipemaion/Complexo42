@@ -64,6 +64,29 @@
   }
 }
 
+/* Assinatura "Cinema" no interior (22/11): título em caixa alta estreita e a palavra de destaque em
+   itálica dourada, as mesmas letras da página de entrada (fontes no layout raiz). */
+@layer components {
+  .c42-display {
+    font-family: var(--font-display), var(--font-body), sans-serif;
+    font-weight: 900;
+    font-stretch: 70%;
+    text-transform: uppercase;
+    line-height: 0.95;
+    letter-spacing: -0.005em;
+    text-wrap: balance;
+  }
+  .c42-accent {
+    font-family: var(--font-accent), serif;
+    font-style: italic;
+    font-weight: 500;
+    font-stretch: normal;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--color-primary);
+  }
+}
+
 /* Movimento do app (22/11). Discreto por regra: até 320 ms, só transform/opacity, e nada com
    "menos movimento" ligado no aparelho. */
 @layer components {
