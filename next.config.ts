@@ -26,6 +26,9 @@ const nextConfig: NextConfig = {
     // login: por isso o mínimo que cabe a lista, não mais. O proxy de borda pode limitar o
     // tamanho por rota (docs/OPERACAO.md, #86).
     serverActions: { bodySizeLimit: "2mb" },
+    // CSS dentro da página (22/11): os dois arquivos de estilo (~38 KB, ~8 KB comprimidos) deixam de
+    // bloquear a primeira pintura no celular. A CSP já libera estilo embutido (style-src 'unsafe-inline').
+    inlineCss: true,
   },
 };
 
