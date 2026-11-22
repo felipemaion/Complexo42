@@ -112,19 +112,17 @@
     min-height: 78svh;
   }
 }
-/* A máscara de cada linha tem folga em cima: til e acento das maiúsculas (REGIÃO, É) não podem ser
-   cortados. A margem negativa devolve o espaço, e o desenho das linhas continua o mesmo. */
+/* Sem máscara (22/11): a frase nasce visível, um pouco abaixo, e sobe por baixo da cortina. Com a
+   máscara ela ficava escondida até o fim da animação, e o "maior conteúdo da tela" (LCP) só contava
+   depois disso. Sem máscara também não há risco de cortar til e acento das maiúsculas. */
 .cine-line {
   display: block;
-  overflow: hidden;
-  padding-block: 0.16em 0.06em;
-  margin-top: -0.16em;
 }
 .cine-line > span {
   display: inline-block;
   animation: cine-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-/* A frase sobe junto com a cortina: o maior texto da tela aparece cedo (medido no Lighthouse). */
+/* A frase sobe junto com a cortina, linha por linha. */
 .cine-line:nth-child(1) > span { animation-delay: 0.2s; }
 .cine-line:nth-child(2) > span { animation-delay: 0.28s; }
 .cine-line:nth-child(3) > span { animation-delay: 0.36s; }
@@ -280,7 +278,7 @@
   to { transform: translateY(-100%); }
 }
 @keyframes cine-rise {
-  from { transform: translateY(110%); }
+  from { transform: translateY(0.45em); }
 }
 @keyframes cine-fade-up {
   from { opacity: 0; transform: translateY(8px); }
