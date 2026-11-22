@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { instance } from "@config/instance";
 import { BadgeCollection, readMyBadges, sessionBadgesClient } from "@/modules/badges";
 import { decryptField } from "@/server/crypto";
 import { listMissions, MissionCard, missionPath, readMyRuns, readPoints, sessionMissionClient } from "@/modules/missions";
-import { Notice, PageShell } from "@/modules/ui";
+import { BackLink, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 
 export const metadata: Metadata = { title: instance.missions.title };
@@ -73,9 +72,7 @@ export default async function MissionsPage() {
           </section>
         </aside>
       </div>
-      <Link href="/inicio" className="text-lg">
-        {instance.coordination.homeBackLink}
-      </Link>
+      <BackLink href="/inicio" label={instance.coordination.homeBackLink} />
     </PageShell>
   );
 }

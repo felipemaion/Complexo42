@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { instance } from "@config/instance";
 import { evaluationsEnabled } from "@/modules/collab";
 import {
@@ -20,7 +19,7 @@ import {
   readDraftState,
   sessionCollabClient,
 } from "@/modules/collab";
-import { Card, Notice, PageShell } from "@/modules/ui";
+import { BackLink, Card, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
 import {
@@ -88,9 +87,7 @@ export default async function EquipesPage({ searchParams }: Props) {
         {doneNoticeMessage && <Notice tone="success">{doneNoticeMessage}</Notice>}
         {errorNoticeMessage && <Notice tone="error">{errorNoticeMessage}</Notice>}
         <Notice tone="warning">{text.errors.not_allowed}</Notice>
-        <Link href="/inicio" className="text-ink-muted hover:underline">
-          {instance.coordination.homeBackLink}
-        </Link>
+        <BackLink href="/inicio" label={instance.coordination.homeBackLink} />
       </PageShell>
     );
   }
@@ -210,9 +207,7 @@ export default async function EquipesPage({ searchParams }: Props) {
         </Card>
       )}
 
-      <Link href="/inicio" className="text-lg">
-        {instance.coordination.homeBackLink}
-      </Link>
+      <BackLink href="/inicio" label={instance.coordination.homeBackLink} />
     </PageShell>
   );
 }

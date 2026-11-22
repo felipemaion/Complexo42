@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { instance } from "@config/instance";
 import {
   listSkills,
@@ -8,7 +7,7 @@ import {
   searchPeople,
   sessionSearchClient,
 } from "@/modules/search";
-import { Notice, PageShell } from "@/modules/ui";
+import { BackLink, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
 
@@ -70,9 +69,7 @@ export default async function SearchBySkillPage({ searchParams }: Props) {
         </div>
       </div>
 
-      <Link href="/inicio" className="text-lg">
-        {instance.coordination.homeBackLink}
-      </Link>
+      <BackLink href="/inicio" label={instance.coordination.homeBackLink} />
     </PageShell>
   );
 }

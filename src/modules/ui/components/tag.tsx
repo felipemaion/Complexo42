@@ -8,8 +8,9 @@ type TagProps = {
 };
 
 // O estado vem sempre escrito; a cor só reforça (WCAG 1.4.1: não depender só da cor). Desde 22/11
-// cada tom tem também um desenho próprio (círculo vazio, ponto, relógio, visto, exclamação): dá
-// para distinguir os estados até sem enxergar cor.
+// cada tom de ESTADO tem também um desenho próprio (ponto = disponível/destaque, relógio = em
+// andamento, visto = concluída, exclamação = problema). "neutral" é para categoria e contagem
+// (Regional, Em equipe, 5 pessoas): só texto, para não ser lido como estado.
 const toneClass: Record<TagTone, string> = {
   neutral: "bg-soft text-ink border-line",
   primary: "bg-soft text-primary border-primary",
@@ -19,7 +20,7 @@ const toneClass: Record<TagTone, string> = {
 };
 
 const toneIcon: Record<TagTone, ReactNode> = {
-  neutral: <circle cx="8" cy="8" r="4.5" />,
+  neutral: null,
   primary: <circle cx="8" cy="8" r="4" fill="currentColor" />,
   warning: (
     <>
@@ -34,9 +35,11 @@ const toneIcon: Record<TagTone, ReactNode> = {
 export function Tag({ tone = "neutral", children }: TagProps) {
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-base font-semibold ${toneClass[tone]}`}>
-      <svg aria-hidden="true" viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        {toneIcon[tone]}
-      </svg>
+      {toneIcon[tone] && (
+        <svg aria-hidden="true" viewBox="0 0 16 16" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {toneIcon[tone]}
+        </svg>
+      )}
       {children}
     </span>
   );

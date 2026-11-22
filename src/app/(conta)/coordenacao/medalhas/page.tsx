@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import {
@@ -9,7 +8,7 @@ import {
 } from "@/modules/badges";
 import { listMissions, sessionMissionClient } from "@/modules/missions";
 import { readMyTeams, readTeamMembers, readTeamParents } from "@/modules/teams";
-import { Card, Notice, PageShell } from "@/modules/ui";
+import { BackLink, Card, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
 import { createBadgeAction, grantBadgeAction } from "./actions";
@@ -101,9 +100,7 @@ export default async function BadgesCoordinationPage({ searchParams }: PageProps
           <CreateBadgeForm scopes={scopes} missions={missions} text={text} createAction={createBadgeAction} />
         </Card>
       </div>
-      <Link href="/inicio" className="text-lg">
-        {instance.coordination.homeBackLink}
-      </Link>
+      <BackLink href="/inicio" label={instance.coordination.homeBackLink} />
     </PageShell>
   );
 }

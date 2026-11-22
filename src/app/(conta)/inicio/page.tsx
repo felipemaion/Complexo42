@@ -202,7 +202,7 @@ export default async function SignedInHome({ searchParams }: Props) {
                           <Tag>{text.origin[mission.origin]}</Tag>
                           {run?.status === "active" && <Tag tone="warning">{text.runStatus.active}</Tag>}
                           {run?.status === "completed" && <Tag tone="success">{text.runStatus.completed}</Tag>}
-                          {!run && <Tag>{site.available}</Tag>}
+                          {!run && <Tag tone="primary">{site.available}</Tag>}
                         </span>
                       </Link>
                     </li>

@@ -11,7 +11,7 @@ import {
   ReviewItem,
   sessionMissionClient,
 } from "@/modules/missions";
-import { buttonClass, Notice, PageShell } from "@/modules/ui";
+import { BackLink, buttonClass, Notice, PageShell } from "@/modules/ui";
 import { requireUser } from "@/server/auth/session";
 import { decideProposalAction, reviewSubmissionAction } from "./actions";
 
@@ -70,9 +70,7 @@ export default async function MissionReviewPage({ searchParams }: Props) {
           </ul>
         )}
       </section>
-      <Link href="/inicio" className="text-center text-lg">
-        {instance.coordination.homeBackLink}
-      </Link>
+      <BackLink href="/inicio" label={instance.coordination.homeBackLink} />
     </PageShell>
   );
 }

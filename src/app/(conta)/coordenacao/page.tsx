@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { ALLOWLIST_UPLOAD_PATH, MEMBER_BLOCK_PATH, WAITLIST_QUEUE_PATH, readCoordinationMenu } from "@/modules/access";
+import { BackLink } from "@/modules/ui";
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -33,9 +34,7 @@ export default async function CoordinationHome() {
           {text.allowlist.menuLink}
         </Link>
       )}
-      <Link href={HOME_PATH} className="text-center text-lg underline">
-        {text.homeBackLink}
-      </Link>
+      <BackLink href={HOME_PATH} label={text.homeBackLink} />
     </main>
   );
 }

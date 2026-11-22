@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   ChatPanel,
   readChat,
@@ -9,7 +8,7 @@ import {
   DraftPickPanel,
   sessionCollabClient,
 } from "@/modules/collab";
-import { buttonClass, Card, Notice, PageShell, Tag } from "@/modules/ui";
+import { BackLink, buttonClass, Card, Notice, PageShell, Tag } from "@/modules/ui";
 import { readMyWorkedWithBadge, sessionBadgesClient } from "@/modules/badges";
 import { requireUser } from "@/server/auth/session";
 import { instance } from "@config/instance";
@@ -146,7 +145,7 @@ export default async function EquipePage(props: PageProps) {
           </div>
           {canEditIdentity && (
             <details className="rounded-xl border border-line p-4">
-              <summary className="cursor-pointer text-lg font-bold text-primary">{idText.editTitle}</summary>
+              <summary className="flex min-h-12 cursor-pointer items-center text-lg font-bold text-primary">{idText.editTitle}</summary>
               <div className="pt-4">
                 <IdentityForm teamId={team.teamId} identity={identity} text={idText} saveAction={saveIdentityAction} />
               </div>
@@ -230,9 +229,7 @@ export default async function EquipePage(props: PageProps) {
         </div>
       </div>
 
-      <Link href="/inicio" className="text-lg">
-        {instance.coordination.homeBackLink}
-      </Link>
+      <BackLink href="/inicio" label={instance.coordination.homeBackLink} />
     </PageShell>
   );
 }
