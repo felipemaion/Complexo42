@@ -41,7 +41,7 @@ export default async function SkillsCatalogPage({ searchParams }: Props) {
         <ul className="flex flex-col gap-3 lg:col-span-8">
           {skills.map((skill) => (
             <li key={skill.id} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4">
-              <form action={saveSkillAction} className="grid gap-3 md:grid-cols-3">
+              <form action={saveSkillAction} className="grid gap-3 md:grid-cols-3 md:items-end">
                 <input type="hidden" name="skillId" value={skill.id} />
                 <label className="flex flex-col gap-1">
                   <span className={labelClass}>{text.nameLabel}</span>
