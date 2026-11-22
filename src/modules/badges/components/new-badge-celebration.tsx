@@ -1,11 +1,15 @@
 "use client";
 // Celebração da medalha nova (22/11): na primeira vez que este navegador vê uma medalha que chegou,
-// confete dourado por ~1,5 s, um acorde curto (se o som estiver ligado) e um aviso em texto, que é o
-// que importa para quem usa leitor de tela ou pediu menos movimento. Depois, silêncio.
+// um aviso em texto (o que importa para leitor de tela e para quem pediu menos movimento) e, quando
+// o aviso aparece na tela, confete dourado por ~1,5 s e um acorde curto (se o som estiver ligado).
+// O confete espera o aviso ficar visível: no celular a medalha fica longe do topo, e o confete
+// disparado na abertura estourava fora da tela (achado no vídeo de 22/11). Depois, silêncio.
 import { useEffect, useRef, useState } from "react";
 import { burstConfetti } from "@/modules/ui/client/confetti";
 import { playSound } from "@/modules/ui/client/sound";
 import { takeNewAwards } from "../domain/seen";
+
+const VISIBLE_SHARE = 0.6;
 
 type NewBadgeCelebrationProps = {
   readonly awards: readonly { readonly awardId: string; readonly name: string }[];
@@ -18,8 +22,9 @@ export function NewBadgeCelebration({ awards, message }: NewBadgeCelebrationProp
   const anchor = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
-    // Tudo num quadro de animação: o confete precisa da posição já desenhada, e a limpeza cancela o
-    // quadro (no modo estrito do React a medalha não é "gasta" pela primeira montagem descartada).
+    let observer: IntersectionObserver | null = null;
+    // Num quadro de animação: a limpeza cancela o quadro, e no modo estrito do React a medalha não é
+    // "gasta" pela primeira montagem descartada.
     const frame = window.requestAnimationFrame(() => {
       let store: Storage | null = null;
       try {
@@ -29,13 +34,25 @@ export function NewBadgeCelebration({ awards, message }: NewBadgeCelebrationProp
       }
       const fresh = takeNewAwards(awards.map((a) => a.awardId), store);
       const first = awards.find((a) => fresh.includes(a.awardId));
-      if (!first) return;
+      const el = anchor.current;
+      if (!first || !el) return;
       setText(message.replace("{nome}", first.name));
-      playSound("medal");
-      const box = anchor.current?.getBoundingClientRect();
-      burstConfetti(box ? { x: box.left + box.width / 2, y: box.top } : { x: window.innerWidth / 2, y: window.innerHeight / 3 });
+      observer = new IntersectionObserver(
+        (entries) => {
+          if (!entries.some((entry) => entry.isIntersecting)) return;
+          observer?.disconnect();
+          playSound("medal");
+          const box = el.getBoundingClientRect();
+          burstConfetti({ x: box.left + box.width / 2, y: box.top });
+        },
+        { threshold: VISIBLE_SHARE },
+      );
+      observer.observe(el);
     });
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
   }, [awards, message]);
 
   return (

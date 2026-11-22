@@ -120,6 +120,20 @@
   }
 }
 
+/* Número que conta (count-up.tsx): escondido até a contagem começar, para não mostrar o valor final,
+   voltar a 0 e contar de novo. Sem script, aparece sozinho em 1,5 s; com menos movimento, nunca some. */
+@media (scripting: enabled) and (prefers-reduced-motion: no-preference) {
+  .c42-count[data-state="idle"] {
+    opacity: 0;
+    animation: c42-mostra 0s 1.5s forwards;
+  }
+}
+@keyframes c42-mostra {
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes c42-entra {
   from {
     opacity: 0;

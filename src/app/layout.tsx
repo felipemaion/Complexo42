@@ -21,7 +21,9 @@ export const metadata: Metadata = {
   icons: { icon: [{ url: "/favicon.ico", type: "image/svg+xml" }] },
 };
 
-export const viewport: Viewport = { themeColor: instance.colors.primary };
+// colorScheme "dark": o navegador já pinta a tela escura antes do CSS chegar (sem clarão branco na
+// abertura "Cinema", achado no vídeo de 22/11).
+export const viewport: Viewport = { themeColor: instance.colors.primary, colorScheme: "dark" };
 
 // CSP com nonce (#152): o nonce nasce a cada requisição, então nenhuma página pode sair pronta do
 // build (página estática não recebe nonce e teria os scripts bloqueados).
