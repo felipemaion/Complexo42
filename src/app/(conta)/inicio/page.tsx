@@ -140,9 +140,14 @@ export default async function SignedInHome({ searchParams }: Props) {
               {site.greeting}, <span className="c42-accent">{firstName}</span>
             </h1>
             <p className="max-w-2xl text-xl text-ink-muted">{isCoordinator ? site.coordinatorIntro : site.memberIntro}</p>
-            <div className="flex flex-wrap gap-3">
+            {/* Celular: os dois atalhos lado a lado (o bloco dourado aparece inteiro na primeira tela). */}
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
               {actions.map((action) => (
-                <Link key={action.href} href={action.href} className={`${buttonClass(action.variant, { isFullWidth: false })} no-underline`}>
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className={`${buttonClass(action.variant)} no-underline max-sm:px-3 max-sm:text-lg sm:w-auto`}
+                >
                   {action.label}
                 </Link>
               ))}
