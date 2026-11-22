@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
-// Cabeçalhos de segurança que não dependem do conteúdo da página (#68). A CSP fica de fora de
-// propósito: exige nonce e liberar Turnstile e Supabase, e tem issue própria.
+// Cabeçalhos de segurança que não dependem do conteúdo da página (#68). A CSP não fica aqui: ela
+// leva um nonce novo a cada requisição e é montada no proxy (src/server/csp.ts, #152).
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Anti-clickjacking: nenhuma tela do app precisa ser embutida em outro site.
@@ -10,13 +10,6 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
   // 180 dias, sem includeSubDomains nem preload: reversível se um subdomínio ficar sem HTTPS.
   { key: "Strict-Transport-Security", value: "max-age=15552000" },
-  // CSP parcial (#70): só o que pode ser embutido. Lista fechada: o Turnstile do login e a prévia
-  // do portfólio pelo YouTube sem cookies (ADR 0007 §5). Scripts, estilos e conexões seguem sem
-  // regra aqui: a CSP completa com nonce é a #152.
-  {
-    key: "Content-Security-Policy",
-    value: "frame-src 'self' https://challenges.cloudflare.com https://www.youtube-nocookie.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'",
-  },
 ] as const;
 
 const nextConfig: NextConfig = {

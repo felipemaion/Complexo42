@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next } from "next/font/google";
+import { connection } from "next/server";
 import { instance } from "@config/instance";
 import "./globals.css";
 
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: instance.colors.primary };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+// CSP com nonce (#152): o nonce nasce a cada requisição, então nenhuma página pode sair pronta do
+// build (página estática não recebe nonce e teria os scripts bloqueados).
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  await connection();
   const theme = {
     "--color-primary": instance.colors.primary,
     "--color-secondary": instance.colors.secondary,
