@@ -6,3 +6,4 @@ export * from "./server/session";
 export * from "./components/team-card";
 export * from "./components/create-team-form";
 export * from "./server/history";
+export * from "./server/prior-teams";

@@ -1,8 +1,8 @@
 # Entrega: visual e módulos de M2 a M5 (proposta para revisão)
 
 Feito sobre a `main` em `7b5c30e` (19/11), **sem alterar o que já existia**, em commits pequenos e
-separados por assunto, para você aceitar aos poucos (um PR por commit, se preferir). Nada foi
-enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entrega/plataforma-completa`).
+separados por assunto, para você aceitar aos poucos (um PR por commit, se preferir). Está no ramo
+`entrega/plataforma-completa` do GitHub; a `main` não foi tocada.
 
 ## O que entra
 
@@ -22,6 +22,12 @@ enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entre
 | Propostas de missão pela equipe; a coordenação ajusta pontos e publica ou recusa com justificativa | #57 | `…001200`, `/equipe`, `/coordenacao/missoes` |
 | Placar de equipes por região e período (7, 30, 90 dias ou tudo), sem ranking de pessoas | #58 | `…001300`, `/placar` |
 | Delegar papéis pela tela (só para baixo, nunca a si mesmo), com `role_granted`/`role_revoked` no audit_log | #22 | `…001400`, `/coordenacao/papeis` |
+| Mover a pessoa de equipe (o vínculo antigo fecha com `left_at`), com `member_moved` no audit_log | #47 | `…001500`, `/coordenacao/equipes` |
+| Histórico de equipes da pessoa, com os porta-vozes de cada período (só a coordenação do escopo) | #69 | `…001600`, `/coordenacao/historico/[id]` |
+| Mapa: onde as pessoas estão, por cidade da região metropolitana e distrito da capital; número abaixo de 5 aparece como "< 5" | #24 | `…001700`, `src/modules/map`, `/coordenacao/mapa` |
+| Medalhas de evento e de marco (o marco guarda quem chegou primeiro e a história) | #71 | `…001800`, `/coordenacao/medalhas` |
+| Catálogo de habilidades pela tela do gestor nacional (criar, renomear, sinônimos, desativar sem apagar) | #25 | `…001900`, `/coordenacao/habilidades` |
+| Equipes de antes da plataforma (ex-aluno): a pessoa informa até 5, sem confirmação e sem colegas; não dão acesso; a coordenação vê no histórico; saem no "Baixar meus dados". **ADR 0012 proposto** (R4) | #136 | `20261122000000`, `/perfil/equipes-anteriores` |
 
 ## Ligado e desligado (config/instance.ts)
 
@@ -34,7 +40,8 @@ enviado ao GitHub: chega como bundle (`git fetch complexo42-entrega.bundle entre
 ## Regras seguidas
 
 - Toda tabela nova com RLS e teste "fora do escopo → negado"; ações só por funções `security definer`
-  com `search_path = ''`; sem `service_role` no navegador; nada de dado pessoal novo; nomes, mensagens e
+  com `search_path = ''`; sem `service_role` no navegador; dado pessoal novo só com ADR (o único é o
+  das equipes de antes da plataforma, ADR 0012, ainda **proposto**, e entra no termo só na `v2`); nomes, mensagens e
   avaliações só cifrados pelo app (`src/server/crypto`).
 - Exclusão de conta testada com os dados novos (cascata ou `set null`, conforme o MODELO_DADOS).
 - Uma mudança em teste existente: `truncate ... public.units` ganhou `cascade` em 5 testes, porque as
@@ -49,9 +56,9 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 
 ## Provas
 
-- `supabase test db` (banco limpo): 28 arquivos, 1478 testes passando (os seus e os novos), com 17 linhas novas na
+- `supabase test db` (banco limpo, 22/11): 34 arquivos, 1531 testes passando (os seus e os novos), com 17 linhas novas na
   matriz de permissões (R16: publicar missão e ver pontos da unidade, com casos negados).
-- `vitest`: 733 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
+- `vitest`: 748 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
 - Guarda `tests/visual-tokens.test.ts`: reprova cor fora do tema, texto sem o fundo certo (branco sem
   primário, letra clara no amarelo) e letra abaixo da base (`text-xs`, `text-sm`).
 - Fotos em 1440 px e 390 px de todas as telas, nas duas visões: nada passa da largura da tela e a menor
@@ -61,5 +68,10 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
   (abrir → vez da equipe → escolher → a vez passa).
 
 ## Pendências conhecidas
+
+- **ADR 0012 (equipes de antes da plataforma) está proposto**: precisa do seu OK (R4). O termo de
+  consentimento não mudou; o item entra na `v2`, junto com o que espera o jurídico.
+- Conserto já incluído: tirar um item do portfólio podia dar "chave repetida" com as linhas guardadas
+  fora de ordem (`…20261122000100`, com teste que reproduzia a falha).
 
 - `tests/eslint-xss.test.ts` às vezes estoura os 5 s em máquina lenta (já acontecia antes).

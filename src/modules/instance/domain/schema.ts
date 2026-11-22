@@ -288,6 +288,14 @@ export const instanceConfigSchema = z.strictObject({
     done: z.strictObject({ added: text, removed: text }),
     errors: z.strictObject({ invalid: text, full: text, not_allowed: text, failed: text }),
   }),
+  priorTeams: z.strictObject({
+    homeLink: text, title: text, intro: text, selfNote: text, coordinationTitle: text, coordinationNote: text, empty: text,
+    addTitle: text, teamNameLabel: text, periodLabel: text, roleLabel: text,
+    roles: z.strictObject({ member: text, spokesperson: text, coordinator: text }),
+    addButton: text, removeButton: text, full: text,
+    done: z.strictObject({ added: text, removed: text }),
+    errors: z.strictObject({ invalid: text, full: text, not_allowed: text, failed: text }),
+  }),
   teamIdentity: z.strictObject({
     title: text, flagLabel: text, noIdentity: text, editTitle: text, mottoLabel: text, colorsLegend: text,
     color1Label: text, color2Label: text, color3Label: text, useColor3Label: text, emblemLegend: text,

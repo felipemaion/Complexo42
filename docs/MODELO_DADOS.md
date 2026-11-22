@@ -19,7 +19,8 @@
 | HMAC de quem espera | `access_waitlist_hmac.email_hmac` | Só HMAC | Ninguém; usado só para a importação liberar quem espera (ADR 0008 §1) |
 
 Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe, casa,
-habilidades, missões, pontos e badges.
+habilidades, missões, pontos e badges. Também as **equipes de antes da plataforma** (nome,
+período e papel, informados pela pessoa; `prior_teams`, ADR 0012 **proposto**).
 
 > **"Feitos" = entregas de missão validadas** (ADR 0006). Não existe campo de texto livre
 > para isso.
@@ -388,6 +389,12 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 (avaliação dupla, ADR 0008 §3). Só INSERT; leitura por
 `app.request_evaluation_access` (gera `evaluation_viewed`).
 
+### `prior_teams` (#136, ADR 0012 proposto)
+`id`, `profile_id` (cascade), `team_name` (2 a 80), `period` (1 a 40, ex.: "2023"), `role`
+(`member`, `spokesperson`, `coordinator`), `position` (máx. 5 por pessoa), `created_at`.
+Equipes de **antes** da plataforma, informadas pela própria pessoa e sem confirmação; não dão
+escopo nem acesso e não citam colegas. Leem: a pessoa e a coordenação do escopo dela.
+
 ### `audit_log`
 `id`, `actor_id`, `event` (`contact_viewed`, `role_granted`,
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
@@ -483,7 +490,7 @@ Toda tabela que cita uma pessoa precisa sobreviver à exclusão da conta sem gua
 
 | Caso | `on delete` | Exemplos (futuros) |
 |---|---|---|
-| A linha é **dado da pessoa** | `cascade` | `profile_skills`, `profile_badges`, `portfolio_items`, `mission_run_members` |
+| A linha é **dado da pessoa** | `cascade` | `profile_skills`, `profile_badges`, `portfolio_items`, `prior_teams`, `mission_run_members` |
 | A pessoa é **autora/ator** numa linha de outra pessoa ou de uma unidade | `set null` | `granted_by`, `ended_by`, `reviewed_by`, `awarded_by`, `created_by`, `member_evaluations.evaluator_id` |
 | **Contagem anônima** que precisa ficar (ações da unidade) | `set null` na coluna da pessoa | `points_ledger.profile_id`, `step_submissions.submitted_by`: o lançamento fica para a unidade, sem dono |
 | Log só-inserção | **sem FK** (uuid solto) | `audit_log.actor_id`/`target_id` |

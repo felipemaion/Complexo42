@@ -127,6 +127,7 @@ const valid = {
   site: instance.site,
   teamIdentity: instance.teamIdentity,
   portfolio: instance.portfolio,
+  priorTeams: instance.priorTeams,
   proposals: instance.proposals,
   scoreboard: instance.scoreboard,
   roles: instance.roles,

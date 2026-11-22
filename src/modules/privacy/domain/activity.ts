@@ -26,6 +26,8 @@ export const activityRowsSchema = z.object({
     }),
   ),
   team_messages: z.array(z.object({ team_id: z.guid(), body_enc: z.string(), created_at: when })),
+  // Equipes de antes da plataforma (#136), informadas pela pessoa.
+  prior_teams: z.array(z.object({ team_name: z.string(), period: z.string(), role: z.string(), created_at: when })),
 });
 
 export type ActivityRows = z.infer<typeof activityRowsSchema>;
@@ -44,6 +46,7 @@ export type ActivityExport = {
     enviadaEm: string;
   }[];
   mensagensDaEquipe: { texto: string | null; enviadaEm: string }[];
+  equipesAnteriores: { equipe: string; quando: string; papel: string; informadaEm: string }[];
 };
 
 export async function buildActivityExport(
@@ -84,5 +87,6 @@ export async function buildActivityExport(
       enviadaEm: s.created_at,
     })),
     mensagensDaEquipe,
+    equipesAnteriores: rows.prior_teams.map((t) => ({ equipe: t.team_name, quando: t.period, papel: t.role, informadaEm: t.created_at })),
   };
 }

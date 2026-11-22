@@ -117,6 +117,11 @@ begin
   perform public.grant_badge(b_comunica, pg_temp.uid(gabi), 'Roteiro do vídeo da votação muito claro.');
   perform public.grant_badge(b_pesquisa, pg_temp.uid(pg_temp.email(9)), 'Relato das visitas às escolas, com detalhes.');
   perform public.grant_badge(b_rua, pg_temp.uid(pg_temp.email(14)), 'Marcou o debate na praça com os moradores.');
+
+  -- 7) Equipes de antes da plataforma (#136): a Gabriela informa duas, sem confirmação.
+  perform pg_temp.como(gabi);
+  perform public.add_prior_team('Equipe Transporte Público', '2023', 'spokesperson');
+  perform public.add_prior_team('Equipe Bairro Limpo', 'ciclo 2024/1', 'member');
 end $$;
 
 commit;

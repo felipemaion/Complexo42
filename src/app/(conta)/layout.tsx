@@ -9,7 +9,7 @@ import { DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
 import { SEARCH_PATH, SKILLS_CATALOG_PATH } from "@/modules/search";
 import { MAP_PATH } from "@/modules/map";
-import { ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
+import { PRIOR_TEAMS_PATH, ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
 import { BrandMark, buttonClass } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
 import { PROFILE_PATH } from "@/server/auth/routes";
@@ -132,6 +132,8 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
           <Link href={PROFILE_PATH} className={footerLink}>{instance.profile.editLink}</Link>
           {/* Portfólio por links (#70). */}
           <Link href={PORTFOLIO_PATH} className={footerLink}>{instance.portfolio.homeLink}</Link>
+          {/* Equipes de antes da plataforma (#136). */}
+          <Link href={PRIOR_TEAMS_PATH} className={footerLink}>{instance.priorTeams.homeLink}</Link>
           {/* Quem vê meu contato (#119, ADR 0010). */}
           <Link href={CONTACT_VISIBILITY_PATH} className={footerLink}>{instance.contactVisibility.homeLink}</Link>
           <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-1">
