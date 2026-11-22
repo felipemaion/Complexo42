@@ -20,13 +20,13 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 
 | Risco | Já coberto | Lacuna |
 |---|---|---|
-| **RLS** | `rls_enabled`, `permissions_matrix`, um pgTAP por tabela e função; `privilege_guards` (#68): função definer com `search_path` fixo, `anon` só executa lista curta e não tem tabela | Matriz gerada papel × tabela × operação, em vez de casos à mão (#154) |
-| **Cripto** (R13) | Vitest de `src/server/crypto/`; CHECK de valor cifrado; varredura de colunas em texto puro | Rotação de chave (#50); teste que lê o banco e prova que `*_enc` não é texto legível (#155) |
-| **XSS** | ESLint barra `innerHTML` e afins (`tests/eslint-xss.test.ts`); `react/no-danger`; teste de redes sociais | **CSP** (nonce, Turnstile, Supabase) (#152); E2E que injeta `<script>` em todo campo de texto (#156) |
-| **Auth** | Vitest de sessão, rotas, Turnstile e erros; E2E do link mágico; allowlist | E2E de toda rota protegida sem sessão → login (#156); expiração e reuso do link (passo 3 do §4) |
+| **RLS** | `rls_enabled`, `permissions_matrix`, um pgTAP por tabela e função; `privilege_guards` (#68): função definer com `search_path` fixo, `anon` só executa lista curta e não tem tabela; **`rls_matrix` (#154)**: matriz gerada do catálogo (tabela × leitura/escrita, falha fechado para tabela nova) e varredura de aluno, líder e coordenador contra pessoa fora do escopo | — |
+| **Cripto** (R13) | Vitest de `src/server/crypto/`; CHECK de valor cifrado; varredura de colunas em texto puro; **`e2e/encrypted-columns-live.spec.ts` (#155)**: salva pela tela e varre todas as colunas de texto do banco, também depois de exportar e de excluir a conta | Rotação de chave (#50) |
+| **XSS** | ESLint barra `innerHTML` e afins (`tests/eslint-xss.test.ts`); `react/no-danger`; teste de redes sociais; **CSP com nonce (#152)**; **`e2e/xss-live.spec.ts` (#156)**: código em nome (fila da coordenação), portfólio, equipes anteriores e catálogo de habilidades | Novos campos de texto mostrados a outra pessoa entram no `xss-live` |
+| **Auth** | Vitest de sessão, rotas, Turnstile e erros; E2E do link mágico; allowlist; **`e2e/protected-routes.spec.ts` (#156)**: toda rota de `src/app` fora da lista pública manda para o login (rota nova entra sozinha) | Expiração e reuso do link (passo 3 do §4) |
 | **Deploy** | Testes bash de deploy, backup e segredos; `ci-hardening` (actions por SHA); `check-image.sh` | Scan de dependências e imagem (`npm audit`, Trivy) e de código (Semgrep) no CI (#153) |
-| **Cabeçalhos HTTP** | `tests/security-headers.test.ts` (#68): nosniff, frame, referrer, permissions, HSTS | CSP (#152); conferir no staging que o proxy não remove os cabeçalhos |
-| **Desempenho** | Nada | §5 inteiro (#74, #75) |
+| **Cabeçalhos HTTP** | `tests/security-headers.test.ts` (#68) e `src/server/csp.test.ts` (#152): nosniff, frame, referrer, permissions, HSTS e a CSP montada no proxy | Conferir no staging que o proxy de borda não remove os cabeçalhos (no túnel da demonstração, a CSP chega inteira) |
+| **Desempenho** | **Seed em volume e medição (#74, §5.1)** | Carga com k6 (#75) |
 
 ## 3. Ferramentas
 
@@ -94,3 +94,27 @@ Metas ainda a validar com o stakeholder. Medir os limites dos planos gratuitos: 
 egress). Banco: `EXPLAIN ANALYZE` e `pg_stat_statements`. Celular: Lighthouse CI. Saída: um
 plano de capacidade ("até X usuários custa R$ 0; o primeiro limite é Y; resolver custa Z"),
 comparado ao teto de R$ 100/mês (R19).
+
+### 5.1 Base em volume (#74)
+
+Numa base limpa (`npm run db:reset`): `npm run db:seed-volume -- --n 2000` (ou 50000, 500000).
+Pessoas 100% fictícias (`volume-NNNNNN@example.com`, telefones `+5511900` + 6 dígitos), nome e
+WhatsApp cifrados com as chaves de teste pelo mesmo código do app (`src/server/crypto`). Municípios
+da RMSP com pesos (São Paulo pesa mais), equipes de 10 em 10 regiões, 1 a 8 habilidades por
+pessoa, 20 missões com entregas aprovadas e pendentes, e os pontos no livro-razão. Recusa
+`NODE_ENV=production` e banco que não seja o local ou um staging com "staging" no endereço
+(`SEED_VOLUME_DB_URL`, com `psql` instalado). Medição: `scripts/seed-volume-explain.sql`.
+
+Medido em 22/11/2026 no servidor da demonstração (2 núcleos ARM, carregado):
+
+| Base | Tempo | Espaço | Perfis da região (gestora) | Busca por habilidade | Vínculos da região |
+|---|---|---|---|---|---|
+| 2 mil | 3 s | — | 10 ms | 292 ms | 3 ms |
+| 50 mil | 4 min 34 s | 122 MB | ~50 ms | 67–105 ms | 80–96 ms |
+| 500 mil | não rodado aqui (estimativa: ~45 min e ~1,2 GB) | | | | |
+
+O seed revelou que as políticas de leitura de `profiles` e `unit_members` e a busca (#23)
+checavam o escopo linha por linha: com só 2 mil perfis, a lista da gestora levava 2,9 s e a busca
+com 50 mil levava 7,4 s. A migration `20261122000300_scope_listing_perf.sql` calcula o conjunto do
+escopo uma vez por consulta, com as mesmas condições (a matriz de permissões inteira passa igual).
+No staging (plano gratuito, 500 MB), rode 2 mil e 50 mil; 500 mil não cabe.

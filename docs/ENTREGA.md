@@ -28,6 +28,12 @@ separados por assunto, para você aceitar aos poucos (um PR por commit, se prefe
 | Medalhas de evento e de marco (o marco guarda quem chegou primeiro e a história) | #71 | `…001800`, `/coordenacao/medalhas` |
 | Catálogo de habilidades pela tela do gestor nacional (criar, renomear, sinônimos, desativar sem apagar) | #25 | `…001900`, `/coordenacao/habilidades` |
 | Equipes de antes da plataforma (ex-aluno): a pessoa informa até 5, sem confirmação e sem colegas; não dão acesso; a coordenação vê no histórico; saem no "Baixar meus dados". **ADR 0012 proposto** (R4) | #136 | `20261122000000`, `/perfil/equipes-anteriores` |
+| A pessoa marca as próprias habilidades do catálogo (até 12, só ativas; busca por nome, área ou sinônimo, pensada para o celular); saem no "Baixar meus dados" | #15 | `…000200`, `src/modules/search/server/my-skills.ts`, `/perfil/habilidades` |
+| Medalha "trabalhou com": cada porta-voz tem a sua (nasce sozinha), só ele dá, a quem esteve na equipe dele no mesmo período; a concessão manual não a dá; o nome do porta-voz é decifrado só na tela | #71 | `…000400`, `/equipe` |
+| CSP completa com nonce por requisição (sem `unsafe-inline` em script; Turnstile só em `/entrar`, YouTube só no portfólio; `CSP_REPORT_ONLY=1` só avisa, para o staging) | #152 | `src/server/csp.ts`, `src/proxy.ts` |
+| Matriz de RLS gerada do catálogo (falha fechado para tabela nova) com varredura de aluno, líder e coordenador contra pessoa de fora | #154 | `supabase/tests/rls_matrix.test.sql` |
+| E2E: colunas cifradas sem texto legível (também depois de exportar e excluir); XSS em campos mostrados a outra pessoa; toda rota protegida sem sessão vai ao login | #155 #156 | `e2e/encrypted-columns-live.spec.ts`, `e2e/xss-live.spec.ts`, `e2e/protected-routes.spec.ts` |
+| Base em volume (2 mil, 50 mil, 500 mil) e medição; o seed revelou listas e busca por escopo lentas (checagem por linha) e elas ficaram rápidas com as mesmas regras | #74 (#23, #46) | `scripts/seed-volume.*`, `…000300`, `docs/TESTES.md` §5.1 |
 
 ## Ligado e desligado (config/instance.ts)
 
@@ -56,9 +62,12 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 
 ## Provas
 
-- `supabase test db` (banco limpo, 22/11): 34 arquivos, 1531 testes passando (os seus e os novos), com 17 linhas novas na
+- `supabase test db` (banco limpo, 22/11): 37 arquivos, 1572 testes passando (os seus e os novos), com 17 linhas novas na
   matriz de permissões (R16: publicar missão e ver pontos da unidade, com casos negados).
-- `vitest`: 748 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
+- `vitest`: 772 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
+- Playwright com o Supabase local (22/11): 82 passam. 3 dos seus (`auth-live`, `fluxo-completo`, `profile`)
+  leem o link do e-mail, que aponta para a porta 3000 do `site_url`; aqui a 3000 está ocupada por outro
+  serviço e o teste rodou na 3100, então eles não chegaram ao app. No CI (porta 3000) rodam normalmente.
 - Guarda `tests/visual-tokens.test.ts`: reprova cor fora do tema, texto sem o fundo certo (branco sem
   primário, letra clara no amarelo) e letra abaixo da base (`text-xs`, `text-sm`).
 - Fotos em 1440 px e 390 px de todas as telas, nas duas visões: nada passa da largura da tela e a menor
@@ -71,6 +80,13 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 
 - **ADR 0012 (equipes de antes da plataforma) está proposto**: precisa do seu OK (R4). O termo de
   consentimento não mudou; o item entra na `v2`, junto com o que espera o jurídico.
+- **Esperam decisão de outra pessoa:** papel de mentor (#137, as 4 perguntas da issue ao stakeholder);
+  medalha de presença (#71: falta definir reuniões e quem registra a presença); baixar/excluir dados
+  para quem está na espera ou bloqueado (#130, jurídico); termo (#7, jurídico); conversa da equipe
+  (#120, ligada por configuração); pontos × "feito/não feito" (retorno do stakeholder em 21/11,
+  diferente do ADR 0006).
+- As políticas de leitura de `profiles` e `unit_members` mudaram de forma, não de regra
+  (`…000300`): o escopo é calculado uma vez por consulta. A matriz de permissões passa inteira.
 - Conserto já incluído: tirar um item do portfólio podia dar "chave repetida" com as linhas guardadas
   fora de ordem (`…20261122000100`, com teste que reproduzia a falha).
 
