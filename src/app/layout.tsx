@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Atkinson_Hyperlegible_Next, Fraunces } from "next/font/google";
+import { Atkinson_Hyperlegible_Next, Fraunces } from "next/font/google";
+import localFont from "next/font/local";
 import { connection } from "next/server";
 import { instance } from "@config/instance";
 import "./globals.css";
@@ -11,7 +12,16 @@ import "./globals.css";
 const bodyFont = Atkinson_Hyperlegible_Next({ subsets: ["latin"], variable: "--font-body", display: "swap" });
 // Assinatura "Cinema" (22/11): Archivo de largura variável nos títulos em caixa alta e Fraunces
 // itálica na palavra de destaque (OFL, grátis, servidas pelo app como a de cima).
-const displayFont = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-display", display: "swap" });
+// Archivo só para títulos (22/11): todo texto com esta letra está em caixa alta, peso 700–900 e
+// largura 62–90%. O arquivo leva só isso (fonts/archivo-titulos.woff2, 18 KB em vez de 88 KB; licença
+// OFL em fonts/OFL-Archivo.txt). Caractere fora do recorte cai na letra de reserva da pilha.
+const displayFont = localFont({
+  src: "./fonts/archivo-titulos.woff2",
+  variable: "--font-display",
+  display: "swap",
+  weight: "700 900",
+  declarations: [{ prop: "font-stretch", value: "62% 90%" }],
+});
 // A itálica só pinta uma palavra por título: chega depois, sem disputar o começo da página.
 const accentFont = Fraunces({ subsets: ["latin"], style: ["italic"], variable: "--font-accent", display: "swap", preload: false });
 
