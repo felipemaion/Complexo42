@@ -64,7 +64,11 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 
 - `supabase test db` (banco limpo, 22/11): 37 arquivos, 1572 testes passando (os seus e os novos), com 17 linhas novas na
   matriz de permissões (R16: publicar missão e ver pontos da unidade, com casos negados).
-- `vitest`: 772 testes. `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
+- `vitest`: 791 testes (22/11, depois do visual). `tsc`, `eslint --max-warnings 0` e `next build` sem erro.
+- Visual (22/11): revisão por critérios do júri da Awwwards, nota 9,0 na entrada e no interior, com o
+  movimento conferido em vídeo de celular quadro a quadro (sem clarão branco na abertura, número sem
+  piscar, confete à vista). Guardas novas: `tests/no-js-loading.test.ts` (nada de `loading.tsx`: sem
+  JavaScript o esqueleto nunca dava lugar ao conteúdo) e "sem medalha, nada no `localStorage`" (ADR 0008).
 - Playwright com o Supabase local (22/11): 82 passam. 3 dos seus (`auth-live`, `fluxo-completo`, `profile`)
   leem o link do e-mail, que aponta para a porta 3000 do `site_url`; aqui a 3000 está ocupada por outro
   serviço e o teste rodou na 3100, então eles não chegaram ao app. No CI (porta 3000) rodam normalmente.
@@ -90,4 +94,6 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 - Conserto já incluído: tirar um item do portfólio podia dar "chave repetida" com as linhas guardadas
   fora de ordem (`…20261122000100`, com teste que reproduzia a falha).
 
-- `tests/eslint-xss.test.ts` às vezes estoura os 5 s em máquina lenta (já acontecia antes).
+- Velocidade no celular (Lighthouse): a entrada nova ficou tão leve quanto `/entrar` (73 × 75 na mesma
+  força de máquina), com o maior texto na primeira pintura. A nota oficial do PageSpeed não foi medida:
+  a cota grátis acabou em 22/11 e o PageSpeed não abre endereços `trycloudflare`. Medir no endereço final.
