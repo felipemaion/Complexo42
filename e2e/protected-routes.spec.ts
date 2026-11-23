@@ -7,8 +7,10 @@ import { expect, test } from "@playwright/test";
 // Rota nova entra aqui sozinha; uma rota pública nova precisa entrar na lista abaixo de propósito
 // (e em src/server/auth/routes.ts). Não precisa de Supabase: sem ele, ninguém está logado.
 
-/** Rotas abertas sem sessão (espelho de PUBLIC_PATHS em src/server/auth/routes.ts e do matcher do proxy). */
-const PUBLIC = new Set(["/", "/entrar", "/auth/callback", "/auth/confirmar", "/auth/sair", "/espera", "/conta-excluida", "/demo", "/api/healthz"]);
+/** Rotas abertas sem sessão (espelho de PUBLIC_PATHS em src/server/auth/routes.ts e do matcher do proxy).
+ *  /favicon.ico (22/11): ícone da aba gerado da configuração; o matcher do proxy já o deixava passar,
+ *  porque o navegador pede o ícone antes de qualquer login. Não tem dado de ninguém. */
+const PUBLIC = new Set(["/", "/entrar", "/auth/callback", "/auth/confirmar", "/auth/sair", "/espera", "/conta-excluida", "/demo", "/api/healthz", "/favicon.ico"]);
 /** Rotas que só aceitam POST: conferidas com POST (o GET nem existe). */
 const POST_ONLY = new Set(["/meus-dados"]);
 const SAMPLE_ID = "00000000-0000-4000-8000-000000000000";

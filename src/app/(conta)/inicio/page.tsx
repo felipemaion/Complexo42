@@ -262,7 +262,7 @@ export default async function SignedInHome({ searchParams }: Props) {
               <h2 className="text-2xl font-bold">{instance.badges.myTitle}</h2>
               {/* Medalha que este navegador ainda não viu: confete curto + aviso em texto (22/11). */}
               <NewBadgeCelebration
-                awards={badges.map((badge) => ({ awardId: badge.awardId, name: badge.name }))}
+                awards={badges.map((badge) => ({ awardId: badge.awardId, name: badge.name, awardedAt: badge.awardedAt }))}
                 message={instance.site.newBadge}
               />
               {badges.length === 0 ? (

@@ -12,7 +12,7 @@ import { takeNewAwards } from "../domain/seen";
 const VISIBLE_SHARE = 0.6;
 
 type NewBadgeCelebrationProps = {
-  readonly awards: readonly { readonly awardId: string; readonly name: string }[];
+  readonly awards: readonly { readonly awardId: string; readonly name: string; readonly awardedAt: string }[];
   /** Texto com {nome}, de config/instance.ts. */
   readonly message: string;
 };
@@ -32,7 +32,10 @@ export function NewBadgeCelebration({ awards, message }: NewBadgeCelebrationProp
       } catch {
         store = null;
       }
-      const fresh = takeNewAwards(awards.map((a) => a.awardId), store);
+      const fresh = takeNewAwards(
+        awards.map((a) => ({ id: a.awardId, awardedAt: a.awardedAt })),
+        store,
+      );
       const first = awards.find((a) => fresh.includes(a.awardId));
       const el = anchor.current;
       if (!first || !el) return;

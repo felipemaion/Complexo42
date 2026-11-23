@@ -604,8 +604,6 @@ export const instance = parseInstanceConfig({
     sound: "Som",
     // Celebração da medalha nova ({nome} = nome da medalha).
     newBadge: "Você ganhou uma medalha nova: {nome}!",
-    // Aviso do esqueleto de carregamento (só leitor de tela).
-    loading: "Carregando…",
   },
   // Busca de pessoas por habilidade (#23): prioridade da coordenação.
   search: {

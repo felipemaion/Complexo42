@@ -36,26 +36,55 @@ describe("preferência de som", () => {
 });
 
 describe("medalha nova (celebração uma vez só)", () => {
-  it("primeira visita: nada a celebrar, mas guarda o que viu", () => {
+  const NOW = Date.parse("2026-11-22T12:00:00Z");
+  const DAY = 24 * 60 * 60 * 1000;
+  const award = (id: string, daysAgo: number) => ({ id, awardedAt: new Date(NOW - daysAgo * DAY).toISOString() });
+
+  it("sem medalha nenhuma, nada é gravado no aparelho (ADR 0008: nada da pessoa fica no navegador à toa)", () => {
+    // Arrange
     const store = memoryStore();
 
-    expect(takeNewAwards(["a", "b"], store)).toEqual([]);
-    expect(takeNewAwards(["a", "b"], store)).toEqual([]);
+    // Act
+    const fresh = takeNewAwards([], store, NOW);
+
+    // Assert
+    expect(fresh).toEqual([]);
+    expect(store.data.size).toBe(0);
+  });
+
+  it("primeira vez neste aparelho: celebra só a que chegou nos últimos 7 dias; as antigas não", () => {
+    const store = memoryStore();
+
+    expect(takeNewAwards([award("antiga", 30), award("nova", 1)], store, NOW)).toEqual(["nova"]);
+    expect(takeNewAwards([award("antiga", 30), award("nova", 1)], store, NOW)).toEqual([]);
+  });
+
+  it("a primeira medalha da vida, recém-chegada, ganha festa (antes não havia nada guardado)", () => {
+    const store = memoryStore();
+    takeNewAwards([], store, NOW);
+
+    expect(takeNewAwards([award("primeira", 0)], store, NOW)).toEqual(["primeira"]);
   });
 
   it("depois, só as que chegaram de novo, e uma vez", () => {
     const store = memoryStore();
-    takeNewAwards(["a"], store);
+    takeNewAwards([award("a", 20)], store, NOW);
 
-    expect(takeNewAwards(["a", "c"], store)).toEqual(["c"]);
-    expect(takeNewAwards(["a", "c"], store)).toEqual([]);
+    expect(takeNewAwards([award("a", 20), award("c", 30)], store, NOW)).toEqual(["c"]);
+    expect(takeNewAwards([award("a", 20), award("c", 30)], store, NOW)).toEqual([]);
+  });
+
+  it("data estranha não quebra: só não conta como recente", () => {
+    const store = memoryStore();
+
+    expect(takeNewAwards([{ id: "x", awardedAt: "ontem" }], store, NOW)).toEqual([]);
   });
 
   it("armazenamento quebrado ou estranho: nada a celebrar", () => {
     const store = memoryStore();
     store.data.set("c42-medalhas-vistas", "{nao é lista");
 
-    expect(takeNewAwards(["a"], broken)).toEqual([]);
-    expect(takeNewAwards(["a"], store)).toEqual([]);
+    expect(takeNewAwards([award("a", 0)], broken, NOW)).toEqual([]);
+    expect(takeNewAwards([award("a", 0)], store, NOW)).toEqual([]);
   });
 });
