@@ -127,18 +127,19 @@ substituídas pelas abaixo.
 ## Núcleos (decisão do gestor de 2026-11-24, ADR 0013)
 
 O núcleo é um agrupamento de debate e de tarefas públicas, fora da árvore de território, com
-pessoas de regiões diferentes. A **sugestão padrão** de cada pergunta vale até a resposta.
+pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos internos. A
+**sugestão padrão** das perguntas em aberto vale até a resposta.
 
-81. **Um ou vários núcleos por pessoa?** *Padrão: um vínculo aberto.*
-82. **Entrada:** por pedido aprovado pelo coordenador do núcleo, ou só por convite? *Padrão:
-    convite, com aceite da pessoa.*
-83. **Diretório de núcleos** visível aos membros? *Padrão: não.*
-84. **Relação com as casas:** o núcleo é independente da casa, ou há ligação (por exemplo, núcleo
-    de uma casa só)? *Padrão: independentes.*
-85. **Reuniões e ritos como entidade** (reunião, pauta, presença)? *Padrão: reunião e presença
-    mínimas, sem pauta em texto livre.*
-86. **A presença conta pontos**, ou só gera a medalha de presença? *Padrão: só medalha.*
-87. **Quem cria núcleos e concede o coordenador de núcleo?** *Padrão: o gestor da raiz.*
+81. ✅ *(gestor, 2026-11-24)* **Um ou vários núcleos por pessoa?** Vários, com exatamente um
+    principal.
+82. ✅ *(gestor, 2026-11-24)* **Entrada:** a pessoa pede e o coordenador aprova ou recusa.
+83. ✅ *(gestor, 2026-11-24)* **Diretório de núcleos** visível aos membros? Por enquanto não.
+84. ✅ *(gestor, 2026-11-24)* **Relação com as casas:** independentes, sem vínculo.
+85. ✅ *(gestor, 2026-11-24)* **Reuniões, pauta e presença** entram na plataforma.
+86. ✅ *(gestor, 2026-11-24)* **A presença conta pontos**, além da medalha de presença.
+87. **Quem cria núcleos de topo e designa o primeiro coordenador?** *Padrão: o gestor da raiz.*
+88. **Para pedir um subnúcleo, é preciso ser membro do núcleo pai?** *Padrão: não.*
+89. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
 
 ## Novas perguntas (após as definições)
 

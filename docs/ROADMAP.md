@@ -13,7 +13,7 @@
 | M4 · Missões e pontos | 2027-02-21 | Catálogo de missões com etapas e pontos, entregas, validação e livro-razão de pontos (ADR 0006). |
 | M5 · Badges, placar e acompanhamento | 2027-03-14 | Badges revogáveis, placar de turmas por escopo e painel de acompanhamento. |
 | M7 · Expansão SP/Brasil | a definir | Coordenação regional com escopo e ampliação da base de municípios. |
-| M8 · Núcleos | sem data (marco futuro) | Núcleos fora do território, coordenador de núcleo, reuniões e presença (ADR 0013, proposto). |
+| M8 · Núcleos | sem data (marco futuro) | Árvore de núcleos fora do território, cargos internos, pedido de entrada, reuniões, presença e pontos (ADR 0013, proposto). |
 
 ## Marcos do stakeholder
 
@@ -125,8 +125,8 @@
 
 ## M8 · Núcleos
 
-Aguardam o stakeholder (perguntas 81 a 87) e o parecer jurídico sobre o vínculo.
+Aguardam o stakeholder (perguntas 87 a 89) e o parecer jurídico sobre o vínculo.
 
-- #168 Núcleos: tabelas, vínculo, papel de coordenador e RLS (ADR 0013) — `bloqueada, precisa-decisao, seguranca, backend`
-- #169 Núcleos: reuniões e presença, com medalha de presença (ADR 0013) — `bloqueada, precisa-decisao, seguranca, backend`
+- #168 Núcleos: árvore, vínculo com principal, cargos, pedido de entrada e RLS (ADR 0013) — `bloqueada, precisa-decisao, seguranca, backend`
+- #169 Núcleos: reuniões com pauta e presença que conta pontos (ADR 0013) — `bloqueada, precisa-decisao, seguranca, backend`
 - #170 Núcleos: telas do coordenador de núcleo (ADR 0013) — `bloqueada, precisa-decisao, frontend`

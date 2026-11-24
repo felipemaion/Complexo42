@@ -78,9 +78,9 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 9. **Portfólio por links** (ADR 0007 §5): até 3 itens, com prévia, sem guardar arquivos.
 10. **Avaliação reservada** (ADR 0007 §4 e ADR 0008 §3): da equipe e da casa; desligada até
     o parecer jurídico.
-11. **Núcleos** (ADR 0013, proposto, marco futuro): agrupamento fora do território, com
-    coordenador de núcleo, reuniões, presença e missões assumidas pelo núcleo. Depende das
-    respostas do stakeholder (perguntas 81 a 87).
+11. **Núcleos** (ADR 0013, proposto, marco futuro): árvore de núcleos e subnúcleos fora do
+    território, com cargos internos, entrada por pedido aprovado, reuniões com pauta, presença
+    que conta pontos e missões assumidas pelo núcleo. Pendem as perguntas 87 a 89.
 
 ### Fora do POC (por enquanto)
 - Chat interno: o WhatsApp continua sendo o canal de conversa.
@@ -99,7 +99,7 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 |---|---|---|
 | **Aluno** | si mesmo | Editar e excluir o próprio perfil; ver suas turmas, equipes, tarefas e badges; enviar a conclusão de tarefas |
 | **Monitor** | turmas/equipes atribuídas | Ver os alunos do escopo e suas habilidades; criar tarefas; validar feitos; conceder badges |
-| **Coordenador de núcleo** (proposto, ADR 0013) | os membros do seu núcleo | Ver nome, habilidades e medalhas dos membros ativos; ver contato (auditado); registrar reuniões e presença. Sem escopo territorial |
+| **Coordenador de núcleo** (proposto, ADR 0013) | o seu núcleo e os subnúcleos abaixo | Ver nome, habilidades e medalhas dos membros ativos; ver contato (auditado); aprovar pedidos de entrada; registrar reuniões e presença. Sem escopo territorial |
 | **Gestor estadual** | sua UF | Tudo do monitor na UF + criar turmas e equipes + nomear monitores |
 | **Gestor nacional** | tudo | Tudo + catálogo de habilidades e badges + nomear gestores estaduais |
 | **Admin técnico** | sistema | Configuração e primeiro gestor nacional. **Não vê dados pessoais** |
