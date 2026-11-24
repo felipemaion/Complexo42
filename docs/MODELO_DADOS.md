@@ -48,6 +48,7 @@ unit_types ─< units (árvore: nacional > estado > [região] > turma, via ltree
 profiles ───────┼─< unit_members >── units
    │            ├─< role_assignments >── units   (papel vale na unidade e abaixo dela)
    │            ├─< house_members >── houses     (casa nacional, fora da árvore; ADR 0011)
+   │            ├─< circle_members >── circles   (núcleo, fora da árvore; PROPOSTO, ADR 0013)
    │            ├─< profile_skills >── skills
    │            ├─< mission_run_members >── mission_runs
    │            └─< profile_badges >── badges
@@ -299,6 +300,27 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
 - **`ended_by`**: quem gravou `left_at` (trigger; nulo em operação direta no banco). Se outra
   pessoa encerrou o vínculo de casa, a pessoa não volta sozinha, nem para a mesma casa nem para
   outra (erro C7602): a volta é decisão da coordenação.
+
+### `circles`, `circle_members` e reuniões (PROPOSTO, ADR 0013)
+Nada disso existe em migration: depende das perguntas 81 a 87 e do parecer jurídico. O núcleo é
+um terceiro eixo, fora do território e da casa; o rótulo "Núcleo" vem de `config/` (R17).
+
+- `circles`: `id`, `name`, `municipality_code` null (**do núcleo**, nunca da pessoa), `status`
+  (`active`, `archived`), `created_by`, `created_at`. Sem `path`: não herda escopo.
+- `circle_members`: `id`, `circle_id`, `profile_id`, `join_method`, `joined_at`, `accepted_at`
+  null, `left_at` null, `ended_by` null. Mesmo molde de `house_members`: só conta com aceite,
+  encerrar guarda histórico e, se o coordenador encerrou, a pessoa não volta sozinha. Padrão
+  conservador: um vínculo aberto por pessoa [?].
+- Papel `circle_coordinator` (`role_assignments.circle_id`): vê só os membros ativos do núcleo
+  (nome, habilidades, medalhas); contato pelo ADR 0010, só desses membros. Sem escopo territorial.
+- `circle_meetings` (`circle_id`, `held_on`, `title` null) e `circle_attendance` (`meeting_id`,
+  `profile_id`) [?]: presença é dado pessoal mínimo, lida só por quem esteve e pelo coordenador;
+  sem pauta em texto livre.
+- `mission_runs.circle_id` null: a execução é de uma pessoa, de uma unidade **ou** de um núcleo.
+- **`on delete`:** `circle_members` e `circle_attendance` são dado da pessoa (`cascade`);
+  `ended_by` e `created_by`, `set null`.
+- Fica **fora**: localização da pessoa, dado de saúde (atividade física só como participação em
+  evento) e foto.
 
 ### `consent_acceptances` (#11)
 `user_id` (FK `auth.users`, `on delete cascade`), `version`, `accepted_at`; PK `(user_id, version)`.

@@ -21,6 +21,9 @@
   questionário a uma **casa** de formação (quatro na instância piloto); a hierarquia é
   nacional → estado → região (incubadora) → casas e equipes; cada membro recebe avaliação da
   equipe e da casa. Usabilidade acima de aparência: botões grandes e nada escondido.
+- **Decisão do gestor de 2026-11-24 (ADR 0013, proposto):** além do território e da casa, há o
+  **núcleo**, agrupamento de debate e de tarefas públicas (reuniões, estudo, tarefas no bairro
+  ou na cidade) com pessoas de regiões diferentes. Marco futuro, sem data.
 - **Cronograma do stakeholder:**
 
   | Quando | O quê |
@@ -75,6 +78,9 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 9. **Portfólio por links** (ADR 0007 §5): até 3 itens, com prévia, sem guardar arquivos.
 10. **Avaliação reservada** (ADR 0007 §4 e ADR 0008 §3): da equipe e da casa; desligada até
     o parecer jurídico.
+11. **Núcleos** (ADR 0013, proposto, marco futuro): agrupamento fora do território, com
+    coordenador de núcleo, reuniões, presença e missões assumidas pelo núcleo. Depende das
+    respostas do stakeholder (perguntas 81 a 87).
 
 ### Fora do POC (por enquanto)
 - Chat interno: o WhatsApp continua sendo o canal de conversa.
@@ -93,6 +99,7 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 |---|---|---|
 | **Aluno** | si mesmo | Editar e excluir o próprio perfil; ver suas turmas, equipes, tarefas e badges; enviar a conclusão de tarefas |
 | **Monitor** | turmas/equipes atribuídas | Ver os alunos do escopo e suas habilidades; criar tarefas; validar feitos; conceder badges |
+| **Coordenador de núcleo** (proposto, ADR 0013) | os membros do seu núcleo | Ver nome, habilidades e medalhas dos membros ativos; ver contato (auditado); registrar reuniões e presença. Sem escopo territorial |
 | **Gestor estadual** | sua UF | Tudo do monitor na UF + criar turmas e equipes + nomear monitores |
 | **Gestor nacional** | tudo | Tudo + catálogo de habilidades e badges + nomear gestores estaduais |
 | **Admin técnico** | sistema | Configuração e primeiro gestor nacional. **Não vê dados pessoais** |
