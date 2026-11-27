@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(34);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp', 'br.mg');
@@ -100,6 +100,19 @@ select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('p_sp')) 
 select pg_temp.login('root_mgr');
 select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('p_mg')) $$, 'a coordenação nacional abre o de qualquer pessoa ativa');
 select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('p_sp')) $$, '... inclusive de quem o delegado já abriu');
+-- Abrir de novo logo em seguida (recarregar a página) não repete o evento: o mesmo ator e alvo,
+-- dentro de 10 minutos, valem um só. Outro ator ou outro alvo registra à parte (acima).
+select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('p_sp')) $$, 'abrir de novo, logo em seguida, não dá erro');
+select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed' and actor_id = pg_temp.person('root_mgr') and target_id = pg_temp.person('p_sp')), 1,
+  '... e não repete o evento (mesmo ator e alvo em 10 minutos)');
+-- Abrir de novo logo em seguida (recarregar a página) não repete o evento: o mesmo ator e alvo, em 10 minutos, valem um.
+select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('p_sp')) $$, 'abrir de novo, logo em seguida, não dá erro');
+select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed' and actor_id = pg_temp.person('root_mgr') and target_id = pg_temp.person('p_sp')), 1,
+  '... e não repete o evento (mesmo ator e alvo em 10 minutos)');
+reset role;
+update public.audit_log set created_at = created_at where false;
+set local role authenticated;
+select pg_temp.login('root_mgr');
 
 reset role;
 select results_eq(
