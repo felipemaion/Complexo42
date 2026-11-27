@@ -5,6 +5,8 @@ export const HOME_PATH = "/inicio";
 /** Formulário do perfil (#12): quem ainda não tem perfil vai para cá a partir da página inicial. */
 export const PROFILE_PATH = "/perfil";
 export const CALLBACK_PATH = "/auth/callback";
+/** Início do login com Google: um GET que termina em redirect para o /auth/v1/authorize (navegação real). */
+export const GOOGLE_PATH = "/auth/google";
 /** Criar, trocar ou remover a senha (ADR 0018). Exige sessão: o link de recuperação termina aqui. */
 export const PASSWORD_PATH = "/senha";
 /** Página intermediária do link mágico: o GET só mostra o botão; o login é um POST. */
@@ -20,7 +22,7 @@ export const ACCOUNT_DELETED_PATH = "/conta-excluida";
 // de ninguém (#26), e precisa abrir mesmo sem sessão válida. /conta-excluida também é só texto
 // fixo (#18). `/api/healthz` nem passa pelo
 // proxy (veja o matcher em src/proxy.ts).
-const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", LOGIN_PATH, CALLBACK_PATH, CONFIRM_PATH, SIGNOUT_PATH, WAITLIST_PATH, ACCOUNT_DELETED_PATH]);
+const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", LOGIN_PATH, CALLBACK_PATH, GOOGLE_PATH, CONFIRM_PATH, SIGNOUT_PATH, WAITLIST_PATH, ACCOUNT_DELETED_PATH]);
 
 /**
  * Caminhos de link de e-mail de versões antigas (e do Supabase Auth direto): carregam token de uso único na
