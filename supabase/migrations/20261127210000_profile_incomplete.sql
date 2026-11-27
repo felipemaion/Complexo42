@@ -12,7 +12,9 @@ alter table public.profiles
   alter column display_name_enc drop not null,
   alter column municipality_code drop not null,
   alter column state_code drop not null,
-  alter column consent_version drop not null;
+  alter column consent_version drop not null,
+  alter column consent_at drop not null,
+  alter column consent_at drop default;
 
 comment on column public.profiles.profile_completed_at is
   'Quando o perfil foi completado (nome, município, UF e termo). Nulo = perfil incompleto, criado no primeiro login (ADR 0017). Só save_own_profile define; nunca volta a nulo.';
@@ -22,7 +24,8 @@ update public.profiles set profile_completed_at = created_at;
 alter table public.profiles
   add constraint profiles_complete_has_fields check (
     profile_completed_at is null
-    or (display_name_enc is not null and municipality_code is not null and state_code is not null and consent_version is not null)
+    or (display_name_enc is not null and municipality_code is not null and state_code is not null
+        and consent_version is not null and consent_at is not null)
   );
 
 create or replace function app.tg_profiles_completed_once()
@@ -65,12 +68,13 @@ begin
   end if;
 
   if tg_op = 'INSERT' then
-    new.consent_at := now();
+    -- Linha incompleta (sem termo aceito) não grava consent_at falso (revisão do #227).
+    new.consent_at := case when new.consent_version is null then null else now() end;
     new.created_at := now();
   else
     new.created_at := old.created_at;
     new.consent_at := case
-      when new.consent_version is distinct from old.consent_version then now()
+      when new.consent_version is distinct from old.consent_version then (case when new.consent_version is null then null else now() end)
       else old.consent_at
     end;
   end if;
@@ -231,7 +235,8 @@ begin
           district_code = excluded.district_code,
           neighborhood_enc = excluded.neighborhood_enc,
           -- Perfil incompleto (ADR 0017) é completado aqui; o já completo mantém o que tem.
-          consent_version = coalesce(public.profiles.consent_version, excluded.consent_version),
+          -- Perfil incompleto: o termo exigido agora (excluded), nunca um valor velho da linha; completo: mantém.
+          consent_version = case when public.profiles.profile_completed_at is null then excluded.consent_version else public.profiles.consent_version end,
           profile_completed_at = coalesce(public.profiles.profile_completed_at, now());
 
     insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac, social_links_enc)
@@ -443,3 +448,217 @@ begin
   );
 end;
 $$;
+
+-- ---------------------------------------------------------------------------------------
+-- Dois predicados (revisão do #227)
+-- ---------------------------------------------------------------------------------------
+-- Com a linha incompleta já `active`, quem não aceitou o termo nem tem perfil passaria por membro ativo em toda
+-- RLS/função que usa `app.is_active_member()`. Separa:
+--   * `app.is_onboarding_member()`: a linha existe e está liberada (era o antigo `is_active_member`). SÓ para o que a
+--     pessoa faz ANTES de ter casa: ver as casas, aceitar o termo do questionário, o questionário, aceitar a casa.
+--     (Ver/baixar os próprios dados e excluir a conta não dependem de predicado de membro.)
+--   * `app.is_active_member()`: o membro de verdade: liberado + termo vigente aceito + perfil completo. Toda leitura
+--     de dados de outras pessoas, unidades, coordenação etc. continua com ele. (No PR do guard, também a casa aceita.)
+create or replace function app.is_onboarding_member()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select app.is_active_profile((select auth.uid()));
+$$;
+
+comment on function app.is_onboarding_member() is
+  'Liberado (linha em profiles com acesso ativo), mesmo sem termo nem perfil completo: só o fluxo de entrada, antes da casa (ADR 0017).';
+
+revoke execute on function app.is_onboarding_member() from public, anon;
+grant execute on function app.is_onboarding_member() to authenticated;
+
+create or replace function app.is_active_member()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select app.is_onboarding_member()
+    and exists (
+      select 1 from public.profiles as p
+      where p.id = (select auth.uid()) and p.profile_completed_at is not null
+    )
+    and exists (
+      select 1 from public.consent_acceptances as c
+      where c.user_id = (select auth.uid()) and c.version = app.current_consent_version()
+    );
+$$;
+
+comment on function app.is_active_member() is
+  'Membro de verdade: liberado, com o termo vigente aceito e o perfil completo. Sem isso, não tem escopo nem lê a estrutura (ADR 0008 §1, ADR 0017).';
+
+-- Entrada (antes da casa) usa `is_onboarding_member`: as funções e políticas abaixo, copiadas das suas últimas
+-- definições com só esse predicado trocado.
+create or replace function public.accept_house(p_house_key text, p_join_method text, p_term_version text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := (select auth.uid());
+  consent_ver text;
+  open_id uuid;
+  open_house text;
+  open_accepted timestamptz;
+  open_locked timestamptz;
+  new_id uuid;
+begin
+  if caller is null then
+    raise exception 'sessão obrigatória' using errcode = 'insufficient_privilege';
+  end if;
+
+  perform 1 from public.profiles as p where p.id = caller for update;
+  if not app.is_onboarding_member() then
+    raise exception 'só quem está ativo escolhe a casa' using errcode = 'insufficient_privilege';
+  end if;
+
+  if p_join_method is null or p_join_method not in ('self', 'questionnaire') then
+    raise exception 'forma de entrada inválida' using errcode = 'invalid_parameter_value';
+  end if;
+  if p_join_method = 'questionnaire' then
+    if not exists (
+      select 1 from public.questionnaire_consents as c
+      where c.profile_id = caller and c.term_version = p_term_version
+    ) then
+      raise exception 'o questionário exige o termo desta versão aceito'
+        using errcode = 'invalid_parameter_value';
+    end if;
+    consent_ver := p_term_version;
+  end if;
+
+  select h.id, h.house_key, h.accepted_at, h.locked_until
+  into open_id, open_house, open_accepted, open_locked
+  from public.house_members as h
+  where h.profile_id = caller and h.left_at is null
+  for update;
+
+  if open_accepted is not null then
+    if open_house is not distinct from p_house_key then
+      return open_id;
+    end if;
+    if now() < open_locked then
+      raise exception 'a casa só pode ser trocada pela própria pessoa depois de %',
+        to_char(open_locked at time zone 'America/Sao_Paulo', 'DD/MM/YYYY')
+        using errcode = 'C7603', hint = to_char(open_locked at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
+    end if;
+  end if;
+
+  if p_house_key is null or not app.is_open_house(p_house_key) then
+    raise exception 'casa indisponível' using errcode = 'no_data_found';
+  end if;
+
+  if exists (
+    select 1 from public.house_members as h
+    where h.profile_id = caller
+      and h.left_at is not null
+      and not h.moved
+      and h.ended_by is distinct from caller
+  ) then
+    raise exception 'a coordenação encerrou a sua casa; a volta é com ela' using errcode = 'C7602';
+  end if;
+
+  begin
+    if open_id is not null then
+      update public.house_members set left_at = now(), moved = (open_accepted is not null) where id = open_id;
+    end if;
+
+    insert into public.house_members (profile_id, house_key, join_method, accepted_at, consent_version, locked_until)
+    values (
+      caller, p_house_key, p_join_method, now(), consent_ver,
+      case when open_accepted is not null then now() + app.house_lock_interval() end
+    )
+    returning id into new_id;
+  exception when unique_violation then
+    raise exception 'a casa mudou enquanto a troca era feita; tente de novo' using errcode = 'C7604';
+  end;
+
+  if open_accepted is not null then
+    insert into public.audit_log (actor_id, event, target_id, reason, house_key)
+    values (caller, 'house_changed', caller, 'self', p_house_key);
+  else
+    insert into public.audit_log (actor_id, event, target_id, reason, term_version, house_key)
+    values (caller, 'house_accepted', caller, p_join_method, consent_ver, p_house_key);
+  end if;
+  return new_id;
+end;
+$$;
+
+create or replace function public.record_questionnaire_consent(p_term_version text)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := (select auth.uid());
+  inserted integer;
+  at timestamptz;
+begin
+  if caller is null or not app.is_onboarding_member() then
+    raise exception 'só quem está ativo responde ao questionário'
+      using errcode = 'insufficient_privilege';
+  end if;
+  if p_term_version is null
+     or not exists (select 1 from app.questionnaire_term_versions as v where v.version = p_term_version) then
+    raise exception 'versão do termo desconhecida' using errcode = 'invalid_parameter_value';
+  end if;
+
+  insert into public.questionnaire_consents (profile_id, term_version)
+  values (caller, p_term_version)
+  on conflict (profile_id, term_version) do nothing;
+  get diagnostics inserted = row_count;
+
+  if inserted > 0 then
+    insert into public.audit_log (actor_id, event, term_version)
+    values (caller, 'questionnaire_consented', p_term_version);
+  end if;
+
+  select c.consented_at into at
+  from public.questionnaire_consents as c
+  where c.profile_id = caller and c.term_version = p_term_version;
+  return at;
+end;
+$$;
+
+create or replace function app.lock_active_caller()
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := (select auth.uid());
+begin
+  if caller is null then
+    raise exception 'sessão obrigatória' using errcode = 'insufficient_privilege';
+  end if;
+  perform 1 from public.profiles as p where p.id = caller for update;
+  if not app.is_onboarding_member() then
+    raise exception 'só quem está ativo usa o questionário' using errcode = 'insufficient_privilege';
+  end if;
+  return caller;
+end;
+$$;
+
+drop policy houses_select on public.houses;
+create policy houses_select on public.houses
+  for select to authenticated
+  using (app.is_onboarding_member());
+
+drop policy house_members_select on public.house_members;
+create policy house_members_select on public.house_members
+  for select to authenticated
+  using (
+    (profile_id = (select auth.uid()) and app.is_onboarding_member())
+    or (accepted_at is not null and app.can_manage_house_member(profile_id, house_key))
+  );

@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { decryptWith, encryptWith, whatsappBlindIndexWith, type FieldContext } from "@/server/crypto/field";
 import { importKeyring } from "@/server/crypto/keys";
 import { createLogger } from "@/server/log";
-import { hasOwnProfile, listDistricts, listMunicipalitiesByState, loadOwnProfile, saveOwnProfile, type ProfileDeps } from "./profile";
+import { listDistricts, listMunicipalitiesByState, loadOwnProfile, saveOwnProfile, type ProfileDeps } from "./profile";
 import type { ProfileDbClient } from "../types";
 
 const key = () => crypto.getRandomValues(new Uint8Array(32));
@@ -480,12 +480,7 @@ describe("redes sociais (#17)", () => {
   });
 });
 
-describe("hasOwnProfile e listMunicipalities", () => {
-  it("diz se a pessoa já tem perfil", async () => {
-    expect(await hasOwnProfile(fakeClient({ row: { id: USER } }).client, USER)).toBe(true);
-    expect(await hasOwnProfile(fakeClient().client, USER)).toBe(false);
-  });
-
+describe("listMunicipalities", () => {
   it("lista os municípios da UF em ordem alfabética do português", async () => {
     const rows = [
       { code: 3550308, name: "São Paulo" },

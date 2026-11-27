@@ -31,6 +31,8 @@ grant select on people, unit_ids to authenticated;
 
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
 select id, 'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3550308, 'v1' from people;
+-- Membro de verdade exige o termo vigente aceito (is_active_member, revisão do #227): quem tem perfil aceitou o termo.
+insert into public.consent_acceptances (user_id, version) select id, 'v1' from public.profiles on conflict do nothing;
 update public.profiles set access_status = 'active', status = 'active' where id in (select id from people);
 
 -- p_mg fica em Minas Gerais (fora do escopo do gestor de SP).

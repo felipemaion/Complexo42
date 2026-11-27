@@ -68,6 +68,8 @@ insert into public.profiles (id, display_name_enc, municipality_code, consent_ve
 select id, pg_temp.enc(name),
        case when name in ('mg_mgr', 'wait_mg') then 3106200 else 3550308 end, 'v1'
 from people where name <> 'noprof';
+-- Membro de verdade exige o termo vigente aceito (is_active_member, revisão do #227): quem tem perfil aceitou o termo.
+insert into public.consent_acceptances (user_id, version) select id, 'v1' from public.profiles on conflict do nothing;
 update public.profiles set access_status = 'active', status = 'active'
 where id in (select id from people where name in ('root_mgr', 'sp_mgr', 'mg_mgr', 'sp_mon', 'tech', 'member'));
 update public.profiles set access_status = 'waitlisted'

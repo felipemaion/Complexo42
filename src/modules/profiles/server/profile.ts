@@ -251,13 +251,6 @@ function safeJson(text: string): unknown {
   }
 }
 
-/** A pessoa já tem perfil? (Sem perfil, a página inicial manda para o formulário.) */
-export async function hasOwnProfile(client: ProfileDbClient, userId: string): Promise<boolean> {
-  const { data, error } = await client.from("profiles").select("id").eq("id", uuid.parse(userId)).maybeSingle();
-  if (error) throw new Error(`profile_read_failed:${errorCode(error)}`);
-  return data !== null;
-}
-
 /** Teto de linhas por consulta da API (PostgREST); explícito para o corte nunca ser silencioso. */
 const referenceListMaxRows = 1000;
 const stateCodeSchema = z.string().regex(/^[A-Z]{2}$/);
