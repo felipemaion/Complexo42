@@ -59,7 +59,7 @@ describe("readQuestionnaireResultOf", () => {
     const { client } = fake({
       from: { data: { house_key: "casa-a", totem_enc: `enc[questionnaire_results.totem_enc.${U2}](XV)`, source: "analysis", created_at: "t" } },
     });
-    await expect(readQuestionnaireResultOf(client, U1, crypto)).rejects.toThrow("aad_mismatch");
+    await expect(readQuestionnaireResultOf(client, U1, crypto)).rejects.toThrow("decrypt_failed:totem_enc");
   });
 
   it("erro do banco: falha sem vazar mensagem", async () => {
@@ -70,35 +70,64 @@ describe("readQuestionnaireResultOf", () => {
 });
 
 describe("listOpenAnalysisRequests", () => {
+  const good = (profile: string, answers: unknown) => ({
+    id: REQ,
+    profile_id: profile,
+    tied_axes: ["house1"],
+    answers_enc: `enc[house_analysis_requests.answers_enc.${profile}](${typeof answers === "string" ? answers : JSON.stringify(answers)})`,
+    created_at: "t",
+  });
+
   it("decifra as respostas de cada pedido aberto", async () => {
-    const { client, filters } = fake({
-      from: {
-        data: [
-          { id: REQ, profile_id: U1, tied_axes: ["house1"], answers_enc: `enc[house_analysis_requests.answers_enc.${U1}]({"q1":"a","q2":"both"})`, created_at: "t" },
-        ],
-      },
+    const { client, filters } = fake({ from: { data: [good(U1, { q1: "a", q2: "both" })] } });
+    expect(await listOpenAnalysisRequests(client, crypto)).toEqual({
+      requests: [{ requestId: REQ, profileId: U1, tiedAxes: ["house1"], answers: { q1: "a", q2: "both" }, createdAt: "t" }],
+      unreadable: 0,
     });
-    expect(await listOpenAnalysisRequests(client, crypto)).toEqual([
-      { requestId: REQ, profileId: U1, tiedAxes: ["house1"], answers: { q1: "a", q2: "both" }, createdAt: "t" },
-    ]);
     expect(filters).toContainEqual(["eq", "status", "open"]);
   });
 
   it("sem pedidos visíveis: lista vazia", async () => {
-    expect(await listOpenAnalysisRequests(fake().client, crypto)).toEqual([]);
+    expect(await listOpenAnalysisRequests(fake().client, crypto)).toEqual({ requests: [], unreadable: 0 });
+  });
+
+  it("uma linha ilegível não derruba a fila: as outras saem e só o nome da coluna é avisado", async () => {
+    const SECRET = "TRECHO-EM-CLARO-QUE-NAO-PODE-VAZAR";
+    const rows = [
+      good(U1, { q1: "a" }),
+      { ...good(U2, {}), answers_enc: `enc[house_analysis_requests.answers_enc.${U1}]({})` }, // cifrada para outra pessoa: não decifra
+      good(U2, `{nao-json ${SECRET}`), // decifra, mas não é JSON
+      good(U2, { q1: 1 }), // JSON de formato errado
+      { id: REQ, profile_id: U2 }, // linha com formato inesperado
+      good(U2, { q2: "b" }),
+    ];
+    const reported: string[] = [];
+    const out = await listOpenAnalysisRequests(fake({ from: { data: rows } }).client, crypto, (c) => reported.push(c));
+    expect(out.requests.map((r) => r.answers)).toEqual([{ q1: "a" }, { q2: "b" }]);
+    expect(out.unreadable).toBe(4);
+    expect(reported).toEqual(["answers_enc", "answers_enc", "answers_enc", "row"]);
+    expect(JSON.stringify(reported)).not.toContain(SECRET);
   });
 });
 
 describe("resolveAnalysis", () => {
   const houseIds = ["casa-a", "casa-b"];
 
-  it("cifra o totem para a pessoa do pedido e resolve", async () => {
+  const signing = { userId: U2, nowSeconds: 1000, sign: (m: string) => `sig(${m})` };
+
+  it("cifra o totem para a pessoa do pedido, assina a resolução para quem resolve e resolve", async () => {
     const { client, rpcCalls } = fake({ from: { data: { profile_id: U1 } } });
-    expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-b", totem: "XV" }, houseIds, crypto)).toEqual({ ok: true });
+    expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-b", totem: "XV" }, houseIds, crypto, signing)).toEqual({ ok: true });
     expect(rpcCalls).toEqual([
       {
         fn: "resolve_house_analysis",
-        args: { p_request_id: REQ, p_house_key: "casa-b", p_totem_enc: `enc[questionnaire_results.totem_enc.${U1}](XV)` },
+        args: {
+          p_request_id: REQ,
+          p_house_key: "casa-b",
+          p_totem_enc: `enc[questionnaire_results.totem_enc.${U1}](XV)`,
+          p_issued_at: 1000,
+          p_signature: `sig(resolve|${U2}|${REQ}|casa-b|enc[questionnaire_results.totem_enc.${U1}](XV)|1000)`,
+        },
       },
     ]);
   });
@@ -112,13 +141,13 @@ describe("resolveAnalysis", () => {
       { requestId: "nao-uuid", houseId: "casa-a", totem: "XV" },
       { requestId: REQ, houseId: "casa-a", totem: "XV", profileId: U2 },
     ]) {
-      expect(await resolveAnalysis(client, input, houseIds, crypto)).toEqual({ ok: false, error: "invalid" });
+      expect(await resolveAnalysis(client, input, houseIds, crypto, signing)).toEqual({ ok: false, error: "invalid" });
     }
     expect(rpcCalls).toEqual([]);
   });
 
   it("pedido que não aparece (fechado ou fora do escopo): not_found", async () => {
-    expect(await resolveAnalysis(fake().client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, houseIds, crypto)).toEqual({
+    expect(await resolveAnalysis(fake().client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, houseIds, crypto, signing)).toEqual({
       ok: false,
       error: "not_found",
     });
@@ -126,7 +155,7 @@ describe("resolveAnalysis", () => {
 
   it("quem não é da coordenação nacional (nem delegado): o banco recusa", async () => {
     const { client } = fake({ from: { data: { profile_id: U1 } }, rpc: { error: { code: "42501" } } });
-    expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, houseIds, crypto)).toEqual({
+    expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, houseIds, crypto, signing)).toEqual({
       ok: false,
       error: "forbidden",
     });

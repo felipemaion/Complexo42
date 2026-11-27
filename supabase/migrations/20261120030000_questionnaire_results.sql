@@ -23,8 +23,9 @@
 --      resultado conclusivo e fecha um pedido aberto;
 --    - `request_house_analysis(termo, eixos, respostas_enc, emitido_em, assinatura)`: abre (ou
 --      renova, no máximo uma vez por hora) o pedido e apaga o resultado anterior;
---    - `resolve_house_analysis(pedido, casa, totem_enc)`: só a coordenação nacional, nunca sobre
---      si mesma e só sobre pessoa ativa; grava o resultado, apaga as respostas e audita.
+--    - `resolve_house_analysis(pedido, casa, totem_enc, emitido_em, assinatura)`: só a coordenação
+--      nacional (e com a assinatura do servidor), nunca sobre si mesma e só sobre pessoa ativa;
+--      grava o resultado, apaga as respostas e audita.
 --    A assinatura cobre o valor cifrado: o navegador não troca nem o totem nem as respostas.
 --    Como o banco não decifra, ele não valida o conteúdo das respostas: a garantia é a assinatura.
 --    Os pedidos abertos expiram em 30 dias (`app.analysis_max_age()`): as respostas deixam de
@@ -104,12 +105,16 @@ grant execute on function app.analysis_max_age() to authenticated;
 -- ---------------------------------------------------------------------------------------
 -- 1b. Delegação: concessão explícita, revogável e auditada. Só o gestor ativo da raiz concede
 -- e revoga; ninguém concede a si mesmo; vale só para gestor de unidade ABAIXO da raiz, só
--- enquanto ele mantém o papel de gestor ali, e só sobre pessoas ativas com vínculo aberto na
+-- enquanto o MESMO papel de gestor segue ativo (revogado o papel, a concessão não volta com um papel
+-- novo: precisa de nova decisão da nacional), e só sobre pessoas ativas com vínculo aberto na
 -- unidade ou abaixo dela. Sem linha ativa aqui, só a coordenação nacional lê.
 create table public.questionnaire_data_grants (
   id uuid primary key default gen_random_uuid(),
   grantee_id uuid not null references public.profiles (id) on delete cascade,
   unit_id uuid not null references public.units (id) on delete restrict,
+  -- A concessão é amarrada ao papel de gestor que existia ao conceder: se esse papel for revogado
+  -- e depois concedido de novo (outra linha), a concessão antiga NÃO volta a valer.
+  role_assignment_id uuid not null references public.role_assignments (id) on delete cascade,
   granted_by uuid references public.profiles (id) on delete set null,
   granted_at timestamptz not null default now(),
   revoked_at timestamptz,
@@ -123,6 +128,7 @@ comment on table public.questionnaire_data_grants is
 
 create unique index questionnaire_data_grants_one_active
   on public.questionnaire_data_grants (grantee_id, unit_id) where revoked_at is null;
+create index questionnaire_data_grants_role_assignment_id_idx on public.questionnaire_data_grants (role_assignment_id);
 create index questionnaire_data_grants_unit_id_idx on public.questionnaire_data_grants (unit_id);
 create index questionnaire_data_grants_granted_by_idx on public.questionnaire_data_grants (granted_by);
 create index questionnaire_data_grants_revoked_by_idx on public.questionnaire_data_grants (revoked_by);
@@ -137,8 +143,8 @@ create policy questionnaire_data_grants_select on public.questionnaire_data_gran
   using (app.is_active_member() and (grantee_id = (select auth.uid()) or app.manages_root()));
 
 -- Quem chama tem concessão ativa que cobre `target`? A pessoa precisa estar ativa e ter vínculo
--- aberto numa unidade igual ou abaixo da unidade da concessão; o papel de gestor do dono da
--- concessão ainda precisa estar ativo naquela unidade; nunca sobre si mesmo.
+-- aberto numa unidade igual ou abaixo da unidade da concessão; o papel de gestor a que a
+-- concessão foi amarrada (`role_assignment_id`) ainda precisa estar ativo; nunca sobre si mesmo.
 create or replace function app.has_questionnaire_delegation_over(target uuid)
 returns boolean
 language sql
@@ -155,7 +161,8 @@ as $$
       from public.questionnaire_data_grants as g
       join public.units as gu on gu.id = g.unit_id
       join public.role_assignments as r
-        on r.profile_id = g.grantee_id and r.unit_id = g.unit_id and r.role = 'manager' and r.revoked_at is null
+        on r.id = g.role_assignment_id and r.profile_id = g.grantee_id and r.unit_id = g.unit_id
+           and r.role = 'manager' and r.revoked_at is null
       join public.unit_members as m on m.profile_id = target and m.left_at is null
       join public.units as mu on mu.id = m.unit_id
       where g.grantee_id = (select auth.uid())
@@ -277,6 +284,17 @@ create policy house_analysis_requests_select on public.house_analysis_requests
 -- ---------------------------------------------------------------------------------------
 -- 4. audit_log
 -- ---------------------------------------------------------------------------------------
+-- Concessão de acesso (seção 3b): o evento guarda a unidade e a concessão (ids, sem dado pessoal),
+-- para a auditoria dizer inequivocamente o que foi concedido ou revogado. Uuids soltos (sem FK),
+-- como os demais ids do log: a trilha sobrevive à unidade e à concessão.
+alter table public.audit_log
+  add column unit_id uuid,
+  add column grant_id uuid,
+  add constraint audit_log_access_grant_ids check (
+    (event in ('questionnaire_access_granted', 'questionnaire_access_revoked')) = (unit_id is not null and grant_id is not null)
+    and (unit_id is null) = (grant_id is null)
+  );
+
 alter table public.audit_log drop constraint audit_log_event_check;
 alter table public.audit_log add constraint audit_log_event_check check (event in (
   'contact_viewed', 'role_granted', 'role_revoked', 'member_moved', 'logo_approved',
@@ -492,7 +510,9 @@ comment on function public.request_house_analysis(text, text[], text, bigint, te
   'Abre o pedido de análise da pessoa da sessão (respostas cifradas), só com a assinatura do servidor do app; as respostas são apagadas ao resolver (ADR 0014).';
 
 -- A coordenação nacional decide a casa e o totem; as respostas são apagadas.
-create or replace function public.resolve_house_analysis(p_request_id uuid, p_house_key text, p_totem_enc text)
+create or replace function public.resolve_house_analysis(
+  p_request_id uuid, p_house_key text, p_totem_enc text, p_issued_at bigint, p_signature text
+)
 returns void
 language plpgsql
 security definer
@@ -506,6 +526,11 @@ begin
   if caller is null or not app.manages_root() then
     raise exception 'só a coordenação nacional resolve pedidos de análise' using errcode = 'insufficient_privilege';
   end if;
+  -- O servidor do app cifra o totem e assina a resolução (pedido, casa, totem cifrado): sem isso,
+  -- a coordenação, pela API direta, gravaria qualquer valor com o formato de cifrado.
+  perform app.verify_server_signature(
+    format('resolve|%s|%s|%s|%s|%s', caller, p_request_id, p_house_key, p_totem_enc, p_issued_at),
+    p_issued_at, p_signature);
   perform app.purge_expired_analysis();
   if p_totem_enc is null or not app.is_encrypted_value(p_totem_enc, 256) then
     raise exception 'totem inválido' using errcode = 'invalid_parameter_value';
@@ -552,8 +577,8 @@ begin
 end;
 $$;
 
-comment on function public.resolve_house_analysis(uuid, text, text) is
-  'A coordenação nacional resolve o pedido: grava a casa e o totem (cifrado pelo servidor), apaga as respostas e audita (ADR 0014). A delegação NÃO inclui resolver.';
+comment on function public.resolve_house_analysis(uuid, text, text, bigint, text) is
+  'A coordenação nacional resolve o pedido, assinado pelo servidor do app: grava a casa e o totem (cifrado pelo servidor), apaga as respostas e audita (ADR 0014). A delegação NÃO inclui resolver.';
 
 -- Delegação (seção 1b): só o gestor ativo da raiz concede e revoga; cada ato é auditado.
 create or replace function public.grant_questionnaire_access(p_grantee uuid, p_unit_id uuid)
@@ -565,6 +590,8 @@ as $$
 declare
   caller uuid := (select auth.uid());
   grant_id uuid;
+  manager_role uuid;
+  stale uuid;
 begin
   if caller is null or not app.manages_root() then
     raise exception 'só a coordenação nacional delega o acesso' using errcode = 'insufficient_privilege';
@@ -576,15 +603,28 @@ begin
     raise exception 'só a quem está ativo' using errcode = 'invalid_parameter_value';
   end if;
   -- Unidade abaixo da raiz, onde o gestor tem o papel de gestor ativo.
-  if not exists (
-    select 1
-    from public.units as u
-    join public.role_assignments as r on r.unit_id = u.id
-    where u.id = p_unit_id and u.parent_id is not null
-      and r.profile_id = p_grantee and r.role = 'manager' and r.revoked_at is null
-  ) then
+  select r.id into manager_role
+  from public.units as u
+  join public.role_assignments as r on r.unit_id = u.id
+  where u.id = p_unit_id and u.parent_id is not null
+    and r.profile_id = p_grantee and r.role = 'manager' and r.revoked_at is null;
+  if manager_role is null then
     raise exception 'a pessoa precisa ser gestora ativa de uma unidade abaixo da raiz' using errcode = 'invalid_parameter_value';
   end if;
+  -- Concessão antiga amarrada a um papel que já foi revogado (e não vale mais) é encerrada aqui,
+  -- com o evento de revogação, para que a nova decisão da nacional a substitua.
+  for stale in
+    update public.questionnaire_data_grants as g
+    set revoked_at = now(), revoked_by = caller
+    where g.grantee_id = p_grantee and g.unit_id = p_unit_id and g.revoked_at is null
+      and not exists (
+        select 1 from public.role_assignments as r where r.id = g.role_assignment_id and r.revoked_at is null
+      )
+    returning g.id
+  loop
+    insert into public.audit_log (actor_id, event, target_id, unit_id, grant_id)
+    values (caller, 'questionnaire_access_revoked', p_grantee, p_unit_id, stale);
+  end loop;
   if exists (
     select 1 from public.questionnaire_data_grants as g
     where g.grantee_id = p_grantee and g.unit_id = p_unit_id and g.revoked_at is null
@@ -592,11 +632,11 @@ begin
     raise exception 'a concessão já existe' using errcode = 'unique_violation';
   end if;
 
-  insert into public.questionnaire_data_grants (grantee_id, unit_id, granted_by)
-  values (p_grantee, p_unit_id, caller)
+  insert into public.questionnaire_data_grants (grantee_id, unit_id, role_assignment_id, granted_by)
+  values (p_grantee, p_unit_id, manager_role, caller)
   returning id into grant_id;
-  insert into public.audit_log (actor_id, event, target_id)
-  values (caller, 'questionnaire_access_granted', p_grantee);
+  insert into public.audit_log (actor_id, event, target_id, unit_id, grant_id)
+  values (caller, 'questionnaire_access_granted', p_grantee, p_unit_id, grant_id);
   return grant_id;
 end;
 $$;
@@ -613,6 +653,7 @@ as $$
 declare
   caller uuid := (select auth.uid());
   grantee uuid;
+  grant_unit uuid;
 begin
   if caller is null or not app.manages_root() then
     raise exception 'só a coordenação nacional revoga o acesso' using errcode = 'insufficient_privilege';
@@ -620,12 +661,12 @@ begin
   update public.questionnaire_data_grants
   set revoked_at = now(), revoked_by = caller
   where id = p_grant_id and revoked_at is null
-  returning grantee_id into grantee;
+  returning grantee_id, unit_id into grantee, grant_unit;
   if grantee is null then
     raise exception 'concessão inexistente ou já revogada' using errcode = 'no_data_found';
   end if;
-  insert into public.audit_log (actor_id, event, target_id)
-  values (caller, 'questionnaire_access_revoked', grantee);
+  insert into public.audit_log (actor_id, event, target_id, unit_id, grant_id)
+  values (caller, 'questionnaire_access_revoked', grantee, grant_unit, p_grant_id);
 end;
 $$;
 
@@ -634,12 +675,12 @@ comment on function public.revoke_questionnaire_access(uuid) is
 
 revoke execute on function public.record_questionnaire_result(text, text, text, bigint, text) from public, anon;
 revoke execute on function public.request_house_analysis(text, text[], text, bigint, text) from public, anon;
-revoke execute on function public.resolve_house_analysis(uuid, text, text) from public, anon;
+revoke execute on function public.resolve_house_analysis(uuid, text, text, bigint, text) from public, anon;
 revoke execute on function public.grant_questionnaire_access(uuid, uuid) from public, anon;
 revoke execute on function public.revoke_questionnaire_access(uuid) from public, anon;
 grant execute on function public.record_questionnaire_result(text, text, text, bigint, text) to authenticated;
 grant execute on function public.request_house_analysis(text, text[], text, bigint, text) to authenticated;
-grant execute on function public.resolve_house_analysis(uuid, text, text) to authenticated;
+grant execute on function public.resolve_house_analysis(uuid, text, text, bigint, text) to authenticated;
 grant execute on function public.grant_questionnaire_access(uuid, uuid) to authenticated;
 grant execute on function public.revoke_questionnaire_access(uuid) to authenticated;
 

@@ -1,6 +1,7 @@
 // Coordenação do questionário no servidor (ADR 0014): ler o totem e os pedidos de análise (o
 // banco só guarda o valor CIFRADO, ADR 0003; aqui ele é decifrado para quem a RLS deixou ler),
-// resolver a fila e delegar o acesso. Usa o cliente com o JWT de quem está logado (R14): o banco
+// resolver a fila e delegar o acesso. Ainda SEM chamador: a tela da fila é a issue #174 (estas funções
+// existem, testadas, para ela usar). Usa o cliente com o JWT de quem está logado (R14): o banco
 // decide quem lê (a própria pessoa, a coordenação nacional ou quem ela delegou) e quem resolve
 // ou concede (só a coordenação nacional). Nada aqui vai para log (R11).
 import "server-only";
@@ -43,7 +44,13 @@ export async function readQuestionnaireResultOf(
   if (error) throw new Error(`questionnaire_read_failed:${errorOf(error)}`);
   const row = z.nullable(resultRow).parse(data);
   if (!row) return null;
-  const totem = await crypto.decrypt(row.totem_enc, totemContext(personId));
+  let totem: string;
+  try {
+    totem = await crypto.decrypt(row.totem_enc, totemContext(personId));
+  } catch {
+    // Só o nome da coluna: nunca a mensagem do erro nem o valor.
+    throw new Error("decrypt_failed:totem_enc");
+  }
   return { houseId: row.house_key, totem, source: row.source, createdAt: row.created_at };
 }
 
@@ -64,24 +71,69 @@ export type AnalysisRequestView = {
   createdAt: string;
 };
 
-/** Pedidos abertos que a RLS deixa ver a quem chama (nacional: todos; delegado: os do escopo), com as respostas decifradas. */
-export async function listOpenAnalysisRequests(client: HouseClient, crypto: CoordinationCrypto): Promise<AnalysisRequestView[]> {
+export type AnalysisRequestList = {
+  requests: AnalysisRequestView[];
+  /** Quantas linhas não deram para ler (valor que não decifra, formato inesperado): a fila segue sem elas. */
+  unreadable: number;
+};
+
+/**
+ * Pedidos abertos que a RLS deixa ver a quem chama (nacional: todos; delegado: os do escopo), com as
+ * respostas decifradas. Linha a linha: uma linha ilegível NÃO derruba a fila; ela é contada em
+ * `unreadable` e `onUnreadable` recebe só o NOME da coluna (como o export), nunca valor nem a
+ * mensagem do erro (que poderia trazer trecho de texto claro).
+ */
+export async function listOpenAnalysisRequests(
+  client: HouseClient,
+  crypto: CoordinationCrypto,
+  onUnreadable?: (column: string) => void,
+): Promise<AnalysisRequestList> {
   const { data, error } = await client
     .from("house_analysis_requests")
     .select("id,profile_id,tied_axes,answers_enc,created_at")
     .eq("status", "open");
   if (error) throw new Error(`analysis_read_failed:${errorOf(error)}`);
-  const rows = z.array(requestRow).parse(data ?? []);
-  return Promise.all(
-    rows.map(async (row) => ({
-      requestId: row.id,
-      profileId: row.profile_id,
-      tiedAxes: row.tied_axes,
-      answers: answersJson.parse(JSON.parse(await crypto.decrypt(row.answers_enc, answersContext(row.profile_id)))),
-      createdAt: row.created_at,
-    })),
+  const rawRows: unknown[] = Array.isArray(data) ? data : [];
+  const settled = await Promise.allSettled(
+    rawRows.map(async (raw): Promise<AnalysisRequestView> => {
+      const row = requestRow.safeParse(raw);
+      if (!row.success) throw new UnreadableRow("row");
+      let plain: string;
+      try {
+        plain = await crypto.decrypt(row.data.answers_enc, answersContext(row.data.profile_id));
+      } catch {
+        throw new UnreadableRow("answers_enc");
+      }
+      let answers: Record<string, string>;
+      try {
+        answers = answersJson.parse(JSON.parse(plain));
+      } catch {
+        throw new UnreadableRow("answers_enc");
+      }
+      return { requestId: row.data.id, profileId: row.data.profile_id, tiedAxes: row.data.tied_axes, answers, createdAt: row.data.created_at };
+    }),
   );
+  const requests: AnalysisRequestView[] = [];
+  let unreadable = 0;
+  for (const outcome of settled) {
+    if (outcome.status === "fulfilled") requests.push(outcome.value);
+    else {
+      unreadable += 1;
+      onUnreadable?.(outcome.reason instanceof UnreadableRow ? outcome.reason.column : "row");
+    }
+  }
+  return { requests, unreadable };
 }
+
+/** Erro interno que carrega só o nome da coluna (sem valor nem mensagem de origem). */
+class UnreadableRow extends Error {
+  constructor(readonly column: string) {
+    super(`unreadable:${column}`);
+  }
+}
+
+/** Quem assina a resolução: o servidor, para a pessoa da sessão (nunca vinda do navegador). */
+export type ResolveSigning = { userId: string; nowSeconds: number; sign(message: string): string };
 
 export type CoordinationResult = { ok: true } | { ok: false; error: CoordinationError };
 
@@ -94,6 +146,7 @@ export async function resolveAnalysis(
   input: unknown,
   houseIds: readonly string[],
   crypto: CoordinationCrypto,
+  signing: ResolveSigning,
 ): Promise<CoordinationResult> {
   const parsed = z
     .strictObject({
@@ -108,10 +161,15 @@ export async function resolveAnalysis(
   const person = z.nullable(z.object({ profile_id: z.string() })).parse(found.data);
   if (!person) return { ok: false, error: "not_found" };
   const totemEnc = await crypto.encrypt(parsed.data.totem, totemContext(person.profile_id));
+  // O banco só aceita a resolução assinada pelo servidor (pedido, casa e totem cifrado, para quem resolve).
+  const { userId, nowSeconds, sign } = signing;
+  const signature = sign(`resolve|${userId}|${parsed.data.requestId}|${parsed.data.houseId}|${totemEnc}|${nowSeconds}`);
   const { error } = await client.rpc("resolve_house_analysis", {
     p_request_id: parsed.data.requestId,
     p_house_key: parsed.data.houseId,
     p_totem_enc: totemEnc,
+    p_issued_at: nowSeconds,
+    p_signature: signature,
   });
   return error ? { ok: false, error: errorOf(error) } : { ok: true };
 }

@@ -76,6 +76,8 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
   prazo). Depois do prazo as respostas deixam de ser lidas na hora (a política de leitura
   esconde) e são apagadas na chamada seguinte de qualquer uma das funções do pedido. A linha do
   pedido fica, sem as respostas.
+- A resolução também é **assinada pelo servidor** (casa, totem cifrado, pedido e quem resolve), como o
+  resultado: a coordenação não grava um valor qualquer pela API direta.
 - A coordenação nacional resolve só pedido de **pessoa ativa** e nunca o **próprio**. Resolver
   é só dela: a delegação (§4) não inclui resolver [?] (se deve incluir, é decisão do gestor).
 - Abrir e resolver o pedido geram `house_analysis_requested` e `house_analysis_resolved` no
@@ -103,8 +105,10 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
 (a nacional escolhe o gestor e a unidade), **revogável** (`revoked_at`/`revoked_by`) e **auditada**
 (`questionnaire_access_granted/revoked`). Regras:
 - só o gestor ativo da raiz concede e revoga; **ninguém concede a si mesmo**; quem recebeu não repassa;
-- a concessão é a **uma unidade abaixo da raiz** em que a pessoa é gestora ativa, e **só vale
-  enquanto ela mantém o papel de gestor ali** (perder o papel encerra o efeito);
+- a concessão é a **uma unidade abaixo da raiz** em que a pessoa é gestora ativa, **amarrada a esse
+  papel** (`role_assignment_id`): perdê-lo encerra o efeito, e um papel novo na mesma unidade NÃO
+  ressuscita a concessão antiga (a nacional decide de novo);
+- os eventos de concessão e revogação guardam a unidade e a concessão (`unit_id`, `grant_id`);
 - sem concessão ativa, só a nacional lê; revogada, 0 linhas; nunca lê quem não está ativo;
 - **resolver a fila continua só da nacional** [?] (a delegação deve incluir resolver?).
 
