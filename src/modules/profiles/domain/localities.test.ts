@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { filterMunicipalities, hasDistrictChoice, normalizeForSearch } from "./localities";
+import {
+  filterMunicipalities,
+  hasDistrictChoice,
+  normalizeForSearch,
+  patchOnMunicipalityChange,
+  patchOnStateChange,
+} from "./localities";
 
 const options = [
   { code: 3509502, name: "Campinas" },
@@ -43,5 +49,15 @@ describe("hasDistrictChoice", () => {
         { code: 355030802, name: "Alto de Pinheiros" },
       ]),
     ).toBe(true);
+  });
+});
+
+describe("o que trocar de lugar zera", () => {
+  it("estado novo: cidade, distrito e bairro voltam a vazio", () => {
+    expect(patchOnStateChange("MG")).toEqual({ stateCode: "MG", municipalityCode: "", district: "", neighborhood: "" });
+  });
+
+  it("cidade nova: distrito e bairro voltam a vazio, o estado não muda", () => {
+    expect(patchOnMunicipalityChange("3106200")).toEqual({ municipalityCode: "3106200", district: "", neighborhood: "" });
   });
 });

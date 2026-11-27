@@ -82,8 +82,8 @@ async function consents(profileId: string): Promise<{ term_version: string }[]> 
   return (await admin(`/rest/v1/questionnaire_consents?profile_id=eq.${profileId}&select=term_version`)).json();
 }
 
-async function resultRows(profileId: string): Promise<{ house_key: string; totem_enc: string; source: string }[]> {
-  return (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${profileId}&select=house_key,totem_enc,source`)).json();
+async function resultRows(profileId: string): Promise<{ house_key: string; totem_enc: string; scores_enc: string; source: string }[]> {
+  return (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${profileId}&select=house_key,totem_enc,scores_enc,source`)).json();
 }
 type AnalysisRow = { status: string; resolution: string | null; answers_enc: string | null; tied_axes: string[] };
 async function analysisRows(profileId: string): Promise<AnalysisRow[]> {
@@ -112,7 +112,6 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await expect(page).toHaveURL(/\/casa$/);
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   // A chave (eixos, desempates, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
@@ -120,16 +119,11 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   for (const secret of ["tieBreakItems", "houseByPoles", "itemIds", "letters"]) expect(html).not.toContain(secret);
 
   const total = questionnaire.items.length;
-  const answers: Record<string, "a" | "b" | "both"> = {};
-  // Tudo "a", com "as duas" no 4º item: resultado conclusivo (casa 1 e o totem do exemplo).
-  const pick = (i: number) => (i === 3 ? "both" : "a") as "a" | "both";
-  const button = (i: number) => {
-    const item = questionnaire.items[i]!;
-    const choice = pick(i);
-    return choice === "both"
-      ? page.getByRole("button", { name: "as duas", exact: true })
-      : page.getByRole("button").filter({ hasText: item[choice].text });
-  };
+  const answers: Record<string, number> = {};
+  // Intensidades variadas, todas do lado "a" (negativas): resultado conclusivo (casa 1 e o totem do exemplo).
+  const pick = (i: number) => [-3, -2, -1][i % 3]!;
+  const circle = (value: number) => page.getByTestId(`scale-${value}`);
+  const next = page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ });
   const before = requests.length;
   for (let i = 0; i < total; i++) {
     const item = questionnaire.items[i]!;
@@ -137,26 +131,62 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
     await expect(page.getByTestId("question-progress")).toHaveText(`${i + 1} de ${total}`);
     await expect(page.getByRole("heading", { level: 2 })).toHaveText(item.text);
     await expect(page.getByRole("button", { name: /Voltar/ })).toBeVisible();
-    expect((await page.getByRole("button", { name: "as duas", exact: true }).boundingBox())?.height).toBeGreaterThanOrEqual(56);
+    // Seis círculos num grupo de rádio, NENHUM marcado de início, e "próxima" só vale com resposta.
+    await expect(page.getByRole("radiogroup")).toBeVisible();
+    await expect(page.getByRole("radio")).toHaveCount(6);
+    await expect(page.locator('[role="radio"][aria-checked="true"]')).toHaveCount(0);
+    await expect(next).toBeDisabled();
+    if (i === 0) {
+      // Teclado: as setas movem e marcam; sem círculo marcado, a primeira seta marca o seguinte.
+      await circle(-3).focus();
+      await page.keyboard.press("ArrowRight");
+      await expect(circle(-2)).toHaveAttribute("aria-checked", "true");
+      // Abaixo dos círculos, a frase composta da posição (intensidade + texto da alternativa), com maiúscula
+      // e pontuação final; o mesmo texto é o nome acessível do círculo, e o "a)"/"b)" não aparece.
+      const first = questionnaire.items[0]!;
+      const sentence = `Na maior parte das vezes: ${first.a.text.trim().replace(/[;,:]$/, "").replace(/([^.!?…])$/, "$1.")}`;
+      await expect(page.getByTestId("scale-reading")).toHaveText(sentence);
+      await expect(circle(-2)).toHaveAttribute("aria-label", sentence);
+      await expect(page.getByText(/^\s*[ab]\)/)).toHaveCount(0);
+      // Passar o mouse mostra a frase do outro círculo; sair volta à marcada.
+      await circle(1).hover();
+      await expect(page.getByTestId("scale-reading")).toHaveText(/^Um pouco mais: /);
+      await page.mouse.move(0, 0);
+      await expect(page.getByTestId("scale-reading")).toHaveText(sentence);
+    }
     if (i === 1) {
       // Voltar mantém a resposta anterior marcada e deixa trocar.
       await page.getByRole("button", { name: /Voltar/ }).click();
       await expect(page.getByTestId("question-progress")).toHaveText(`1 de ${total}`);
-      await expect(button(0)).toHaveAttribute("aria-pressed", "true");
-      await button(0).click();
+      await expect(circle(pick(0))).toHaveAttribute("aria-checked", "true");
+      // Já respondida, "próxima" volta à pergunta 2 (que continua sem resposta).
+      await next.click();
+      await expect(page.getByTestId("question-progress")).toHaveText(`2 de ${total}`);
     }
     // Enquanto a pessoa responde, o navegador não faz requisição nenhuma; a primeira sai ao
     // concluir a última pergunta (o resultado vai ao servidor).
     if (i === total - 1) expect(requests.slice(before).map((r) => r.url())).toEqual([]);
-    await button(i).click();
+    await circle(pick(i)).click();
+    await expect(circle(pick(i))).toHaveAttribute("aria-checked", "true");
+    await next.click();
     answers[item.id] = pick(i);
   }
 
   const result = scoreQuestionnaire(questionnaire, answers as Answers);
+  // O perfil mostra só os eixos da casa (4 raios); o totem e as notas dos outros eixos não aparecem.
+  await expect(page.getByTestId("spider-chart")).toBeVisible();
   if (result.status !== "ok") throw new Error("o exemplo deveria dar resultado conclusivo");
   const expected = result.houseId;
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await expect(page.getByRole("button", { name: "Escolher outra casa" })).toBeVisible();
+  const chart = page.getByTestId("spider-chart");
+  await expect(chart.locator("svg text")).toHaveCount(4);
+  for (const label of [questionnaire.axes.house1.poleLabels.a, questionnaire.axes.house1.poleLabels.b, questionnaire.axes.house2.poleLabels.a, questionnaire.axes.house2.poleLabels.b]) {
+    await expect(chart.locator("svg text", { hasText: label })).toHaveCount(1);
+  }
+  for (const hidden of [questionnaire.axes.totem1.poleLabels.a, questionnaire.axes.totem2.poleLabels.b, questionnaire.axes.totem1.label]) {
+    await expect(page.getByText(hidden)).toHaveCount(0);
+  }
   await expectNoStorage(page);
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
@@ -176,7 +206,6 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
     expect(sent).not.toContain(result.totem);
     if (JSON.stringify(actionBodies([r])) === JSON.stringify([[{ answers }]])) continue;
     for (const leak of leaks) expect(sent, r.url()).not.toContain(leak);
-    expect(sent).not.toContain('"both"');
   }
   await expectNoStorage(page);
   expect(page.url()).toMatch(/\/casa$/);
@@ -195,6 +224,9 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   expect(stored).toMatchObject({ house_key: expected, source: "questionnaire" });
   expect(stored!.totem_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
   expect(stored!.totem_enc).not.toContain(result.totem);
+  // As notas dos eixos também ficam cifradas (ADR 0014), nunca em JSON legível.
+  expect(stored!.scores_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
+  expect(stored!.scores_enc).not.toContain("house1");
   expect(await analysisRows(member.id)).toEqual([]);
   // O totem é interno: não aparece na tela da casa.
   await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);
@@ -202,7 +234,7 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ainda não" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Aceito e quero responder" })).toHaveCount(0);
 });
 
 test("resultado inconclusivo: pedido de análise com as respostas, sem casa; escolher direto apaga as respostas", async ({ page }) => {
@@ -211,11 +243,21 @@ test("resultado inconclusivo: pedido de análise com as respostas, sem casa; esc
   await page.goto("/casa");
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
-  // "As duas" em tudo empata todos os eixos.
-  for (let i = 0; i < questionnaire.items.length; i++) {
-    await page.getByRole("button", { name: "as duas", exact: true }).click();
+  // Notas 0 nos eixos 2, 3 e 4 (sem desempate no exemplo): eixo 2 com -2, -1 e 3; eixos 3 e 4 com -3 e 3.
+  // O eixo 1 fica conclusivo (tudo "muito a"). Resultado inconclusivo.
+  const tiedAnswers: Record<string, number> = {
+    q01: -3, q05: -3, q09: -3,
+    q02: -2, q06: -1, q10: 3,
+    q03: -3, q07: 3,
+    q04: -3, q08: 3,
+  };
+  const answers: Record<string, number> = {};
+  for (const item of questionnaire.items) {
+    const value = tiedAnswers[item.id]!;
+    answers[item.id] = value;
+    await page.getByTestId(`scale-${value}`).click();
+    await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await expect(page.getByRole("heading", { name: "Vamos analisar o seu resultado" })).toBeVisible();
   await expect(page.getByText("Sugerimos esta casa para você")).toHaveCount(0);
@@ -224,14 +266,14 @@ test("resultado inconclusivo: pedido de análise com as respostas, sem casa; esc
   // O navegador manda só as respostas; o servidor decide que é inconclusivo. Nenhuma casa foi atribuída.
   const bodies = actionBodies(requests);
   expect(bodies).toHaveLength(2);
-  expect(bodies[1]).toEqual([{ answers: Object.fromEntries(questionnaire.items.map((item) => [item.id, "both"])) }]);
+  expect(bodies[1]).toEqual([{ answers }]);
   expect(await houseRows(member.id)).toEqual([]);
   expect(await resultRows(member.id)).toEqual([]);
   const [open] = await analysisRows(member.id);
   expect(open).toMatchObject({ status: "open", resolution: null });
   // As respostas ficam cifradas no banco, nunca em JSON legível.
   expect(open!.answers_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
-  expect(open!.answers_enc).not.toContain("both");
+  expect(open!.answers_enc).not.toContain("q01");
 
   // A pessoa pode escolher a casa direto; o pedido fecha e as respostas somem.
   await page.getByRole("button", { name: "Escolher a casa direto" }).click();
@@ -239,7 +281,7 @@ test("resultado inconclusivo: pedido de análise com as respostas, sem casa; esc
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   expect(await analysisRows(member.id)).toEqual([
-    { status: "resolved", resolution: "self", answers_enc: null, tied_axes: ["house1", "house2", "totem1", "totem2"] },
+    { status: "resolved", resolution: "self", answers_enc: null, tied_axes: ["house2", "totem1", "totem2"] },
   ]);
 });
 
@@ -249,19 +291,19 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await page.goto("/casa");
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
   await expect(page.getByText("Conheça a casa")).toBeVisible();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Dois");
+  await expect(page.getByTestId("house-name")).toHaveText("Atenas");
   await page.getByRole("button", { name: "Escolher outra casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 3A" }).click();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Três");
+  await expect(page.getByTestId("house-name")).toHaveText("Alexandria");
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-3", joinMethod: "self" }]]);
+  expect(actionBodies(requests)).toEqual([[{ houseId: "alexandria", joinMethod: "self" }]]);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-3" },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "alexandria" },
   ]);
   expect(await consents(member.id)).toEqual([]);
   await expectNoStorage(page);
@@ -273,14 +315,13 @@ test("recusar o termo leva à escolha direta e não grava aceite", async ({ page
   await page.goto("/casa");
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await expect(page.getByRole("heading", { name: "O que você quer fazer?" })).toBeVisible();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-1", joinMethod: "self" }]]);
+  expect(actionBodies(requests)).toEqual([[{ houseId: "esparta", joinMethod: "self" }]]);
   expect(await consents(member.id)).toEqual([]);
   expect((await houseRows(member.id))[0]?.join_method).toBe("self");
 });
@@ -291,7 +332,7 @@ test("quem ainda não está ativo vê o motivo e nada é gravado", async ({ page
   // Suspensa depois do login: o banco recusa a escolha (accept_house exige perfil ativo).
   await admin(`/rest/v1/profiles?id=eq.${member.id}`, { method: "PATCH", body: JSON.stringify({ status: "suspended" }) });
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toHaveText("Complete o seu cadastro antes de escolher a casa.");
@@ -302,13 +343,13 @@ test("quem ainda está só no estado (sem região) escolhe a casa (ADR 0011)", a
   const member = await createMember("e", false);
   await signIn(page, member.email);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-1" },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "esparta" },
   ]);
 });
 
@@ -316,7 +357,7 @@ test("tirada da casa pela coordenação, a pessoa vê o motivo e não volta sozi
   const member = await createMember("x");
   await signIn(page, member.email);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
@@ -327,7 +368,7 @@ test("tirada da casa pela coordenação, a pessoa vê o motivo e não volta sozi
   });
   expect(ended.ok).toBe(true);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toHaveText(/A coordenação tirou você da sua casa/);

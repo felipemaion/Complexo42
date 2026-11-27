@@ -8,7 +8,7 @@ const valid = {
   colors: { primary: "#000000", secondary: "#FFFFFF" },
   roleLabels: Object.fromEntries(roleKeys.map((k) => [k, `rótulo ${k}`])),
   home: { title: "Título", message: "Mensagem" },
-  waitlist: { title: "Espera", message: "Mensagem de espera" },
+  waitlist: { title: "Espera", message: "Mensagem de espera", signOutButton: "Sair" },
   auth: {
     title: "t",
     intro: "t",
@@ -46,6 +46,10 @@ const valid = {
     districtLabel: "t",
     districtHint: "t",
     districtNone: "t",
+    neighborhoodLabel: "t",
+    neighborhoodHint: "t",
+    neighborhoodUnreadable: "t",
+    replaceNeighborhood: "t",
     socialLinksLabel: "t",
     socialLinksHint: "t",
     socialLinkLabel: "t",
@@ -59,7 +63,7 @@ const valid = {
     saved: "t",
     editLink: "t",
     errorSummary: "t",
-    fieldErrors: { displayName: "t", whatsapp: "t", municipalityCode: "t", district: "t", socialLinks: "t" },
+    fieldErrors: { displayName: "t", whatsapp: "t", municipalityCode: "t", district: "t", neighborhood: "t", socialLinks: "t" },
     duplicateWhatsapp: "t",
     tooManyAttempts: "t",
     failed: "t",
@@ -100,15 +104,16 @@ const valid = {
   },
   houseSelection: {
     title: "t",
-    knowsQuestion: "t",
-    knowsYes: "t",
-    knowsNo: "t",
     activitiesTitle: "t",
     consentTitle: "t",
     consentAccept: "t",
     consentDecline: "t",
     progress: "{current} de {total}",
-    bothButton: "t",
+    scaleLegend: "t",
+    scaleIntensities: ["t", "t", "t", "t", "t", "t"],
+    nextButton: "t",
+    finishButton: "t",
+    chartTitle: "t",
     backButton: "t",
     suggestedTitle: "t",
     chosenTitle: "t",
@@ -122,6 +127,7 @@ const valid = {
     analysisChooseButton: "t",
     acceptedTitle: "t",
     homeLink: "t",
+    rateLimitedWait: "{minutes}",
     errors: {
       unavailable: "t",
       already_accepted: "t",
@@ -131,6 +137,27 @@ const valid = {
       rate_limited: "t",
       failed: "t",
     },
+  },
+  questionnaireCoordination: {
+    linkResults: "t", linkQueue: "t", linkDelegations: "t", backLink: "t", noName: "t",
+    results: {
+      title: "t", intro: "t", houseFilterLabel: "t", houseFilterAll: "t", filterButton: "t", empty: "t",
+      columnPerson: "t", columnHouse: "t", columnDate: "t", openLink: "t",
+      truncated: "{count}", detailTitle: "{name}", houseLabel: "t", totemLabel: "t", dateLabel: "t",
+      chartTitle: "t", noScores: "t", unreadableOne: "t", backLink: "t",
+    },
+    queue: {
+      title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", openLink: "t",
+      truncated: "{count}", unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t",
+      resolveTitle: "t", houseLabel: "t", totemLabel: "t", totemOption: "{label}{description}",
+      resolveButton: "t", resolvedNotice: "t", unreadableOne: "t", backLink: "t",
+    },
+    delegations: {
+      title: "t", intro: "t", activeTitle: "t", empty: "t", columnManager: "t", columnUnit: "t", columnDate: "t",
+      revokeButton: "t", grantTitle: "t", managerLabel: "t", grantButton: "t", noCandidates: "t",
+      grantedNotice: "t", revokedNotice: "t",
+    },
+    errors: { forbidden: "t", invalid: "t", not_found: "t", exists: "t", changed: "t", failed: "t" },
   },
   coordination: {
     homeLink: "t",
@@ -255,7 +282,7 @@ describe("parseInstanceConfig", () => {
     expect(fieldsOf({ ...valid, extra: 1 })).toEqual(["(raiz)"]);
     expect(fieldsOf({ ...valid, roleLabels: { ...valid.roleLabels, student: "x" } })).toEqual(["roleLabels"]);
     expect(fieldsOf({ ...valid, houses: [] })).toEqual(["houses"]);
-    expect(fieldsOf({ ...valid, waitlist: { title: "Espera", message: " " } })).toEqual(["waitlist.message"]);
+    expect(fieldsOf({ ...valid, waitlist: { title: "Espera", message: " ", signOutButton: "Sair" } })).toEqual(["waitlist.message"]);
   });
 
   it("recusa id de casa repetido, id fora do padrão e vídeo sem https", () => {

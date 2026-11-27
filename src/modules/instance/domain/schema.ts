@@ -57,6 +57,8 @@ export const instanceConfigSchema = z.strictObject({
   waitlist: z.strictObject({
     title: text,
     message: text,
+    /** Botão "Sair" da espera (#195): encerra a sessão para trocar de conta. */
+    signOutButton: text,
   }),
   /** Textos do login (#9). Botões grandes e nada escondido (pedido do stakeholder). */
   auth: z.strictObject({
@@ -110,6 +112,12 @@ export const instanceConfigSchema = z.strictObject({
     districtHint: text,
     /** Opção vazia do distrito (ele é opcional). */
     districtNone: text,
+    /** Bairro (#179): texto livre, opcional. */
+    neighborhoodLabel: text,
+    neighborhoodHint: text,
+    /** Bairro guardado que não abriu: aviso de que continua guardado e o botão para trocá-lo. */
+    neighborhoodUnreadable: text,
+    replaceNeighborhood: text,
     /** Redes sociais (#17): grupo do formulário, cada caixa ("Link 1"...) e os botões. */
     socialLinksLabel: text,
     socialLinksHint: text,
@@ -135,6 +143,7 @@ export const instanceConfigSchema = z.strictObject({
       whatsapp: text,
       municipalityCode: text,
       district: text,
+      neighborhood: text,
       socialLinks: text,
     }),
     /** WhatsApp já usado em outro cadastro (não diz de quem). */
@@ -203,9 +212,6 @@ export const instanceConfigSchema = z.strictObject({
   houseSelection: z.strictObject({
     title: text,
     /** Pergunta inicial: "Você sabe o que quer fazer?". */
-    knowsQuestion: text,
-    knowsYes: text,
-    knowsNo: text,
     activitiesTitle: text,
     consentTitle: text,
     consentAccept: text,
@@ -214,7 +220,16 @@ export const instanceConfigSchema = z.strictObject({
     /** Progresso do questionário, com `{current}` e `{total}` (ex.: "{current} de {total}"). */
     progress: text.refine((v) => v.includes("{current}") && v.includes("{total}"), "use {current} e {total}"),
     /** Botão de quem marca as duas alternativas (indecisão). */
-    bothButton: text,
+    /**
+     * Pergunta da escala de intensidade (leitor de tela) e a intensidade de cada um dos seis círculos,
+     * da ponta "a" à ponta "b". A frase da posição é "intensidade: texto da alternativa".
+     */
+    scaleLegend: text,
+    scaleIntensities: z.tuple([text, text, text, text, text, text]),
+    nextButton: text,
+    finishButton: text,
+    /** Título do gráfico de aranha do perfil (eixos da casa). */
+    chartTitle: text,
     backButton: text,
     /** Título do resultado do questionário (a casa sugerida). */
     suggestedTitle: text,
@@ -235,6 +250,8 @@ export const instanceConfigSchema = z.strictObject({
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
+    rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,
@@ -248,6 +265,85 @@ export const instanceConfigSchema = z.strictObject({
       removed_by_coordination: text,
       /** Pedido de análise renovado há pouco (no máximo um por hora). */
       rate_limited: text,
+      failed: text,
+    }),
+  }),
+  /**
+   * Telas da coordenação do questionário (#174, ADR 0014): resultados, casos para analisar e
+   * delegações. `{name}`, `{count}`, `{first}`, `{second}` e `{code}` são trocados na tela.
+   */
+  questionnaireCoordination: z.strictObject({
+    linkResults: text,
+    linkQueue: text,
+    linkDelegations: text,
+    backLink: text,
+    noName: text,
+    results: z.strictObject({
+      title: text,
+      intro: text,
+      houseFilterLabel: text,
+      houseFilterAll: text,
+      filterButton: text,
+      empty: text,
+      columnPerson: text,
+      columnHouse: text,
+      columnDate: text,
+      openLink: text,
+      truncated: text.refine((v) => v.includes("{count}"), "use {count}"),
+      detailTitle: text.refine((v) => v.includes("{name}"), "use {name}"),
+      houseLabel: text,
+      totemLabel: text,
+      dateLabel: text,
+      chartTitle: text,
+      noScores: text,
+      unreadableOne: text,
+      backLink: text,
+    }),
+    queue: z.strictObject({
+      title: text,
+      intro: text,
+      empty: text,
+      columnPerson: text,
+      columnDate: text,
+      columnAxes: text,
+      openLink: text,
+      truncated: text.refine((v) => v.includes("{count}"), "use {count}"),
+      unreadableList: text.refine((v) => v.includes("{count}"), "use {count}"),
+      caseTitle: text.refine((v) => v.includes("{name}"), "use {name}"),
+      tiedAxesLabel: text,
+      answersTitle: text,
+      chartTitle: text,
+      resolveTitle: text,
+      houseLabel: text,
+      totemLabel: text,
+      totemOption: text.refine((v) => v.includes("{label}") && v.includes("{description}"), "use {label} e {description}"),
+      resolveButton: text,
+      resolvedNotice: text,
+      unreadableOne: text,
+      backLink: text,
+    }),
+    delegations: z.strictObject({
+      title: text,
+      intro: text,
+      activeTitle: text,
+      empty: text,
+      columnManager: text,
+      columnUnit: text,
+      columnDate: text,
+      revokeButton: text,
+      grantTitle: text,
+      managerLabel: text,
+      grantButton: text,
+      noCandidates: text,
+      grantedNotice: text,
+      revokedNotice: text,
+    }),
+    errors: z.strictObject({
+      forbidden: text,
+      invalid: text,
+      not_found: text,
+      exists: text,
+      changed: text,
       failed: text,
     }),
   }),

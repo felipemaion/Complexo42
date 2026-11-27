@@ -79,7 +79,9 @@ sed -n '/^insert into public.houses (key) values/,/;$/p' supabase/seed.sql \
       exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
 ```
 
-Casa que **saiu** da config não é apagada (tem vínculos e histórico): desative-a, e ela deixa de
+Trocar a **chave** de uma casa (como em 2026-11, de `casa-exemplo-N` para os ids reais) é por
+migration (`app.rename_house_key`): ela leva junto vínculos, papéis, resultados e o log de auditoria
+sem apagar nada. Casa que **saiu** da config não é apagada (tem vínculos e histórico): desative-a, e ela deixa de
 aceitar entradas e coordenadores novos (quem já está nela continua):
 
 ```bash
@@ -123,15 +125,27 @@ questionário falha (fechado).
 docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c "select app.purge_expired_analysis()"
 ```
-A versão do termo do arquivo do questionário também precisa estar em
-`app.questionnaire_term_versions`.
 
-**O totem e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `answers_enc`,
+**Checklist de deploy do questionário (a cada JSON novo).** Antes de publicar um arquivo com
+`consentTermVersion` novo, cadastre a versão no banco. **Sem isso o aceite do termo falha fechado**
+(o banco recusa a versão desconhecida, e ninguém consegue responder). Troque `<versao>` pelo valor
+exato de `consentTermVersion` do arquivo (só letras, números, ponto, hífen e sublinhado, até 32):
+
+```bash
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  -c "insert into app.questionnaire_term_versions (version) values ('<versao>') on conflict do nothing"
+```
+
+1. cadastrar a versão do termo (acima); 2. instalar o arquivo em `QUESTIONNAIRE_PATH`; 3. reiniciar
+o app (ele valida o arquivo na subida e recusa subir com um inválido).
+
+**O totem, as notas dos eixos e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `scores_enc`, `answers_enc`,
 AES-256-GCM, ADR 0003 e ADR 0014 §5): o Postgres nunca recebe nem devolve esses valores em claro,
 então o log do Postgres e o `pg_stat_statements` não os expõem. Verificações:
-- `FIELD_ENCRYPTION_KEY` é a mesma do app que grava e lê (perdê-la perde totem e respostas, como
-  o nome e o contato). A **rotação** de chaves (ADR 0003 §5) recifra também `totem_enc` e
-  `answers_enc`.
+- `FIELD_ENCRYPTION_KEY` é a mesma do app que grava e lê (perdê-la perde totem, notas e respostas, como
+  o nome e o contato). A **rotação** de chaves (ADR 0003 §5) recifra também `totem_enc`,
+  `scores_enc` e `answers_enc`.
 - O backup (#84) é cifrado e contém essas tabelas (já cifradas): vale a mesma retenção dos demais dados.
 - **Delegação:** quem concede, revoga e o que cada gestor vê: `questionnaire_data_grants` e os
   eventos `questionnaire_access_granted/revoked` no `audit_log` (leitura só da coordenação nacional).
@@ -815,7 +829,7 @@ Testes: `deploy/migra.test.sh` (25 asserções, dublê de `docker`) e
 verdade — é ele que prova que o DDL e a linha de controle caem juntos
 quando uma migration falha; pula limpo sem Docker).
 
-### Mudança de coluna: janela de deploy e expand/contract
+### Mudança de coluna ou de função: janela de deploy e expand/contract
 
 O `migra.sh` aplica as migrations **antes** de o app novo subir. Migration que
 renomeia, troca o tipo ou apaga uma coluna que o app em execução usa deixa o
@@ -823,7 +837,11 @@ app antigo quebrado (salvar e ler) até a troca, por segundos.
 
 - **Hoje, aceito:** ainda não há app em produção. A #175 (`profiles.district`
   vira `district_code`) faz exatamente isso, de uma vez, e a migration aborta
-  (em vez de perder dado) se algum nome de distrito não virou código.
+  (em vez de perder dado) se algum nome de distrito não virou código. A #179
+  (bairro cifrado) muda a **assinatura** de `save_own_profile` (parâmetro novo, função
+  antiga apagada) e a forma do `export_own_data`: o app antigo também quebra
+  ao salvar o perfil até a troca. Vale para toda mudança de assinatura de função
+  que o app chama, não só para colunas.
 - **Com app em produção, use expand/contract** em releases separados: (1)
   *expand*: migration que **só acrescenta** (coluna nova, função nova com outra
   assinatura), com o app lendo as duas e gravando a nova; (2) migrar os dados;

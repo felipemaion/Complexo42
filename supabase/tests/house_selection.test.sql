@@ -544,12 +544,14 @@ select is(
   'accept_house recebe só a casa, a forma de entrada e a versão do termo'
 );
 -- Resposta só existe CIFRADA (ADR 0003) e só no pedido de análise do resultado inconclusivo
--- (ADR 0014), com o pedido aberto (testado em questionnaire_results.test.sql).
+-- (ADR 0014), com o pedido aberto; as notas dos eixos também só cifradas (`scores_enc`)
+-- (testado em questionnaire_results.test.sql).
 select is_empty(
   $$ select 1 from information_schema.columns
      where table_schema in ('public', 'app') and column_name ~ '(answer|resposta|temperament|score)'
-       and (table_name, column_name) <> ('house_analysis_requests', 'answers_enc') $$,
-  'nenhuma coluna do banco guarda resposta, temperamento ou pontuação, além das respostas cifradas do pedido de análise'
+       and (table_name, column_name) <> ('house_analysis_requests', 'answers_enc')
+       and (table_name, column_name) <> ('questionnaire_results', 'scores_enc') $$,
+  'nenhuma coluna do banco guarda resposta, temperamento ou pontuação, além das respostas e das notas cifradas (ADR 0014)'
 );
 select ok(
   not has_function_privilege('authenticated', 'app.open_house_of(uuid)', 'execute')

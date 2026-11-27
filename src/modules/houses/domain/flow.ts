@@ -1,11 +1,12 @@
-import type { Answer, Answers } from "@/modules/questionnaire";
+import type { Answer, Answers, ChartAxis } from "@/modules/questionnaire";
+import type { Refusal } from "./refusal";
 
 /*
  * Fluxo da escolha da casa (#76, ADR 0008 §2 e §2.1). Puro: a tela só despacha eventos.
  *
- *   ask ─ sim ─▶ activities ─ atividade ─▶ presentation (self)
- *    └─ não ─▶ consent ─ recusa ─▶ activities
- *                 └─ aceita ─▶ question 1..N ─ última ─▶ submit ─ casa ─▶ presentation (questionnaire)
+ *   consent ─ recusa ─▶ activities ─ atividade ─▶ presentation (self)
+ *      └─ aceita ─▶ question 1..N ─ última ─▶ submit ─ casa ─▶ presentation (questionnaire)
+ *                              (marcar um círculo e "próxima": resposta obrigatória, nenhuma de início)
  *                                                          └─ análise ─▶ analysis ─▶ activities
  *
  * As respostas vivem só neste estado, em memória (nunca no armazenamento do navegador). Ao fim
@@ -17,26 +18,30 @@ import type { Answer, Answers } from "@/modules/questionnaire";
 export type JoinMethod = "self" | "questionnaire";
 
 export type Step =
-  | { kind: "ask" }
   | { kind: "activities" }
+  /** O começo (#193): o termo do questionário; quem o recusa escolhe a casa direto. */
   | { kind: "consent" }
   | { kind: "question"; index: number }
   /** Depois da última pergunta: as respostas vão ao servidor, que pontua e grava o resultado. */
   | { kind: "submit" }
   /** Resultado inconclusivo: a coordenação nacional decide a casa. */
   | { kind: "analysis" }
-  | { kind: "presentation"; houseId: string; method: JoinMethod };
+  /** `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário. */
+  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[] };
 
-export type FlowState = { step: Step; answers: Answers };
+/** `refusal`: por que o último envio das respostas foi recusado; some na próxima ação da pessoa (#199). */
+export type FlowState = { step: Step; answers: Answers; refusal?: Refusal };
 
 export type FlowEvent =
-  | { type: "knows"; value: boolean }
   | { type: "consent_accepted" }
   | { type: "consent_declined" }
+  /** Marca a intensidade da pergunta atual; só `next` avança. */
   | { type: "answer"; value: Answer }
-  | { type: "result_recorded"; houseId: string }
+  | { type: "next" }
+  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[] }
   | { type: "analysis_requested" }
-  | { type: "submit_failed" }
+  /** O servidor recusou o envio; `error` (e o tempo restante, no limite) aparece na tela. */
+  | ({ type: "submit_failed" } & Refusal)
   | { type: "activity_chosen"; houseId: string }
   | { type: "choose_other" }
   | { type: "back" };
@@ -46,7 +51,7 @@ export type FlowContext = {
   itemIds: readonly string[];
 };
 
-export const initialFlow: FlowState = { step: { kind: "ask" }, answers: {} };
+export const initialFlow: FlowState = { step: { kind: "consent" }, answers: {} };
 
 function at(step: Step, answers: Answers): FlowState {
   return { step, answers };
@@ -60,8 +65,7 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
   if (event.type === "back") {
     switch (step.kind) {
       case "activities":
-      case "consent":
-        return at({ kind: "ask" }, answers);
+        return at({ kind: "consent" }, answers);
       case "question":
         return at(step.index === 0 ? { kind: "consent" } : { kind: "question", index: step.index - 1 }, answers);
       case "analysis":
@@ -74,20 +78,17 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
   }
 
   switch (step.kind) {
-    case "ask":
-      if (event.type !== "knows") return state;
-      return at(event.value ? { kind: "activities" } : { kind: "consent" }, answers);
     case "consent":
       if (event.type === "consent_declined") return at({ kind: "activities" }, {});
       if (event.type === "consent_accepted") return at({ kind: "question", index: 0 }, answers);
       return state;
     case "question": {
-      if (event.type !== "answer") return state;
       const id = ctx.itemIds[step.index];
       if (id === undefined) return state;
-      const next = { ...answers, [id]: event.value };
-      if (step.index < last) return at({ kind: "question", index: step.index + 1 }, next);
-      return at({ kind: "submit" }, next);
+      if (event.type === "answer") return at(step, { ...answers, [id]: event.value });
+      // Resposta obrigatória: sem círculo marcado, "próxima" não faz nada.
+      if (event.type !== "next" || answers[id] === undefined) return state;
+      return step.index < last ? at({ kind: "question", index: step.index + 1 }, answers) : at({ kind: "submit" }, answers);
     }
     case "submit":
       return afterSubmit(state, event, last);
@@ -105,9 +106,15 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
 /** O servidor respondeu ao envio das respostas: segue para a casa, a análise, ou volta à última pergunta. */
 function afterSubmit(state: FlowState, event: FlowEvent, lastIndex: number): FlowState {
   const { answers } = state;
-  if (event.type === "result_recorded") return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire" }, answers);
+  if (event.type === "result_recorded") {
+    return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire", chart: event.chart }, answers);
+  }
   if (event.type === "analysis_requested") return at({ kind: "analysis" }, answers);
-  if (event.type === "submit_failed") return at({ kind: "question", index: lastIndex }, answers);
+  if (event.type === "submit_failed") {
+    const { error, retryAfterSeconds } = event;
+    const refusal: Refusal = retryAfterSeconds === undefined ? { error } : { error, retryAfterSeconds };
+    return { step: { kind: "question", index: lastIndex }, answers, refusal };
+  }
   return state;
 }
 

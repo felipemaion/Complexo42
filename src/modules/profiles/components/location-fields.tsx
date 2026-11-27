@@ -2,7 +2,13 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import type { StateOption } from "@config/states";
-import { filterMunicipalities, hasDistrictChoice } from "../domain/localities";
+import {
+  filterMunicipalities,
+  hasDistrictChoice,
+  patchOnMunicipalityChange,
+  patchOnStateChange,
+  type LocationPatch,
+} from "../domain/localities";
 import type { DistrictOption, MunicipalityOption, ProfileFormValues } from "../types";
 
 // Localização do perfil em três passos (issue #175): estado → cidade (com busca) → distrito.
@@ -28,7 +34,7 @@ type LocationValues = Pick<ProfileFormValues, "stateCode" | "municipalityCode" |
 
 type Props = {
   values: LocationValues;
-  onChange: (patch: Partial<LocationValues>) => void;
+  onChange: (patch: LocationPatch) => void;
   states: readonly StateOption[];
   /** Listas já carregadas no servidor para quem tem perfil salvo; vazias para quem começa agora. */
   initialMunicipalities: readonly MunicipalityOption[];
@@ -83,7 +89,7 @@ export function LocationFields({
   }
 
   function chooseState(stateCode: string) {
-    onChange({ stateCode, municipalityCode: "", district: "" });
+    onChange(patchOnStateChange(stateCode));
     setSearch("");
     setMunicipalities([]);
     setDistricts([]);
@@ -96,7 +102,7 @@ export function LocationFields({
   }
 
   function chooseMunicipality(municipalityCode: string) {
-    onChange({ municipalityCode, district: "" });
+    onChange(patchOnMunicipalityChange(municipalityCode));
     setDistricts([]);
     if (municipalityCode === "") {
       latestRequest.current++;

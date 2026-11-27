@@ -1,4 +1,4 @@
-import type { DistrictOption, MunicipalityOption } from "../types";
+import type { DistrictOption, MunicipalityOption, ProfileFormValues } from "../types";
 
 // Regras puras da escolha de localização (issue #175): busca no município e quando o distrito
 // aparece. Quem confere de verdade que o distrito é do município é o banco (`save_own_profile`).
@@ -28,4 +28,20 @@ export function filterMunicipalities(
  */
 export function hasDistrictChoice(districts: readonly DistrictOption[]): boolean {
   return districts.length > 1;
+}
+
+/** O que a escolha de localização muda nos valores do formulário. */
+export type LocationPatch = Partial<Pick<ProfileFormValues, "stateCode" | "municipalityCode" | "district" | "neighborhood">>;
+
+/**
+ * Trocar de estado zera cidade, distrito e bairro: o que foi escolhido ou digitado para o lugar
+ * antigo não vale para o novo (o bairro é texto livre e poderia ficar de outra cidade).
+ */
+export function patchOnStateChange(stateCode: string): LocationPatch {
+  return { stateCode, municipalityCode: "", district: "", neighborhood: "" };
+}
+
+/** Trocar de cidade zera distrito e bairro, pelo mesmo motivo. */
+export function patchOnMunicipalityChange(municipalityCode: string): LocationPatch {
+  return { municipalityCode, district: "", neighborhood: "" };
 }

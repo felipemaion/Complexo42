@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 6;
+export const exportFormatVersion = 8;
 
 const timestamp = z.string().min(1);
 
@@ -34,6 +34,7 @@ export const ownDataRowsSchema = z.object({
       state_code: z.string(),
       district_code: z.number().int().nullable(),
       district_name: z.string().nullable(),
+      neighborhood_enc: z.string().nullable(),
       status: z.string(),
       access_status: z.string(),
       consent_version: z.string(),
@@ -80,6 +81,8 @@ export const ownDataRowsSchema = z.object({
     .object({
       house_key: z.string(),
       totem_enc: z.string(),
+      /** Notas dos 4 eixos (JSON cifrado, ADR 0003); nulo em resultado antigo, de antes da escala. */
+      scores_enc: z.string().nullable(),
       term_version: z.string(),
       source: z.string(),
       created_at: timestamp,
@@ -149,6 +152,7 @@ export type OwnDataExport = {
     nome: string | null;
     municipio: { codigoIbge: number; nome: string | null; uf: string };
     distrito: { codigoIbge: number; nome: string | null } | null;
+    bairro: string | null;
     situacaoDaConta: string;
     liberacaoDeAcesso: string;
     termoDeConsentimento: { versao: string | null; aceitoEm: string | null };
@@ -174,6 +178,8 @@ export type OwnDataExport = {
     casaSugerida: string;
     /** Nulo se o valor cifrado não decifra (o resto do arquivo sai). */
     totem: string | null;
+    /** Nota de cada eixo, de -100 (muito polo "a") a 100 (muito polo "b"); nula sem notas. */
+    notasPorEixo: { eixo1: number; eixo2: number; eixo3: number; eixo4: number } | null;
     versaoDoTermo: string;
     origem: string;
     em: string;
@@ -186,7 +192,7 @@ export type OwnDataExport = {
     resolucao: string | null;
     versaoDoTermo: string;
     eixosEmpatados: string[];
-    respostas: Record<string, string> | null;
+    respostas: Record<string, number> | null;
     criadoEm: string;
     resolvidoEm: string | null;
   }[];
@@ -224,7 +230,13 @@ export type BuildExportInput = {
 };
 
 const socialLinks = z.array(z.string());
-const answersJson = z.record(z.string(), z.string());
+const answersJson = z.record(z.string(), z.number().int());
+const axisScoresJson = z.strictObject({
+  house1: z.number().int(),
+  house2: z.number().int(),
+  totem1: z.number().int(),
+  totem2: z.number().int(),
+});
 
 /**
  * Monta o arquivo a partir do que o banco devolveu. Um valor que não decifra vira `null` (o
@@ -264,6 +276,19 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     }
   };
 
+  // Notas dos eixos: JSON cifrado, nulo em resultado antigo (de antes da escala de intensidade).
+  const openScores = async (value: string | null) => {
+    const raw = await open(value, "questionnaire_results", "scores_enc");
+    if (raw === null) return null;
+    try {
+      const scores = axisScoresJson.parse(JSON.parse(raw));
+      return { eixo1: scores.house1, eixo2: scores.house2, eixo3: scores.totem1, eixo4: scores.totem2 };
+    } catch (error) {
+      input.onDecryptError?.("scores_enc", error);
+      return null;
+    }
+  };
+
   const p = rows.profile;
   const c = rows.contact;
   const houseName = (key: string | null) => (key === null ? null : (input.houseNames[key] ?? key));
@@ -288,6 +313,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       nome: await open(p.display_name_enc, "profiles", "display_name_enc"),
       municipio: { codigoIbge: p.municipality_code, nome: p.municipality_name, uf: p.state_code },
       distrito: p.district_code === null ? null : { codigoIbge: p.district_code, nome: p.district_name },
+      bairro: await open(p.neighborhood_enc, "profiles", "neighborhood_enc"),
       situacaoDaConta: p.status,
       liberacaoDeAcesso: p.access_status,
       // `none` = ainda sem aceite (o perfil nasce assim; só o aceite, #11, avança).
@@ -321,6 +347,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     resultadoDoQuestionario: rows.questionnaire_result && {
       casaSugerida: houseName(rows.questionnaire_result.house_key) ?? rows.questionnaire_result.house_key,
       totem: await open(rows.questionnaire_result.totem_enc, "questionnaire_results", "totem_enc"),
+      notasPorEixo: await openScores(rows.questionnaire_result.scores_enc),
       versaoDoTermo: rows.questionnaire_result.term_version,
       origem: rows.questionnaire_result.source,
       em: rows.questionnaire_result.created_at,

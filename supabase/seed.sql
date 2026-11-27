@@ -47,10 +47,10 @@ select pg_temp.seed_unit('team', 'br.mg.central', 'equipe_1', 'Equipe 1');
 -- Idempotente: em produção (onde o seed não roda) este mesmo comando é aplicado à mão
 -- (docs/OPERACAO.md, "Casas").
 insert into public.houses (key) values
-  ('casa-exemplo-1'),
-  ('casa-exemplo-2'),
-  ('casa-exemplo-3'),
-  ('casa-exemplo-4')
+  ('esparta'),
+  ('atenas'),
+  ('alexandria'),
+  ('siracusa')
 on conflict (key) do update set active = true;
 
 -- Versão do termo do questionário de exemplo (config/questionnaire.example.json). Uma versão só

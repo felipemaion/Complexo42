@@ -24,30 +24,42 @@ O texto das perguntas e a chave real são privados e não entram no repositório
 ### 1. Formato e pontuação
 
 Cada item tem duas alternativas, **a** e **b**. O config lista os **itens de cada eixo** (não a
-ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b".
+ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b". Cada eixo tem um
+**nome** e o **nome dos dois polos** no config (`label`, `poleLabels`), usados no gráfico.
 
+**Escala de intensidade** (decisão do gestor, 2026-11-27; substitui a escolha a/b/"as duas"). Cada
+pergunta mostra seis círculos, sem meio, maiores nas pontas (a à esquerda, b à direita), **nenhum
+marcado de início** (resposta obrigatória). A resposta é um inteiro em {-3, -2, -1, 1, 2, 3}
+(negativo = polo "a"). Sem "a)" e "b)": as pontas mostram o texto de cada alternativa e, abaixo dos
+círculos, a **frase composta** da posição escolhida (ou em foco/sob o mouse): "Intensidade: texto da
+alternativa." (ex.: "Totalmente: …", "Na maior parte das vezes: …", "Um pouco mais: …"; as intensidades
+ficam na config da instância). A mesma frase é o nome acessível do círculo. Toda frase exibida começa
+com maiúscula e termina em pontuação (normalização só de exibição: o JSON do questionário não muda;
+`domain/sentence.ts`). Acessível: grupo de rádio, teclado (setas, Home e End) e botão "próxima".
+
+- **Nota do eixo** = média das respostas dos itens do eixo, normalizada para -100..100
+  (`média / 3 × 100`, arredondada). O polo é o **sinal da soma** (negativo = a); nota 0 é empate.
 - **Casa** = interseção dos polos dos eixos 1 e 2: `(a,a)` casa 1, `(a,b)` casa 2, `(b,a)` casa 3,
   `(b,b)` casa 4. O mapa vive no config (`houseByPoles`), com as quatro casas distintas.
 - **Totem** = uma letra por eixo extra (eixos 3 e 4; as letras de cada polo vêm do config). Dá
   quatro totens.
-- **"As duas"** conta um ponto para cada polo do item.
-- **Empate no eixo:** desempata pelos `tieBreakItems` do eixo (subconjunto dos itens do próprio
-  eixo, indicados pelo stakeholder; vale por eixo e pode ser vazio). Se ainda empatar, ou se o
-  eixo não tem desempate, o resultado é **inconclusivo**.
-- **Resultado** (função pura): `{ status: 'ok', houseId, totem }` ou
-  `{ status: 'inconclusive', axes }`, com a lista dos eixos empatados. Inconclusivo não atribui
-  casa nem totem.
+- **Empate no eixo** (nota 0): desempata pelo sinal da média dos `tieBreakItems` do eixo
+  (subconjunto dos itens do próprio eixo, indicados pelo stakeholder; vale por eixo e pode ser
+  vazio). Se ainda for 0, ou se o eixo não tem desempate, o resultado é **inconclusivo**.
+- **Resultado** (função pura): `{ status: 'ok', houseId, totem, scores }` ou
+  `{ status: 'inconclusive', axes, scores }`, com a lista dos eixos empatados e as quatro notas.
+  Inconclusivo não atribui casa nem totem.
 - **A pontuação roda no servidor**, não no navegador (revisão do PR #173). Motivos: o navegador
   que pontua recebe a chave real (o totem deixaria de ser interno) e pode mandar qualquer casa
   e totem direto à API. O navegador manda **só as respostas**; o servidor valida (todas as
-  perguntas, só `a`, `b` ou `both`), pontua com o arquivo real (`QUESTIONNAIRE_PATH`) e devolve
+  perguntas, só os seis valores da escala), pontua com o arquivo real (`QUESTIONNAIRE_PATH`) e devolve
   só a casa. A chave (eixos, desempates, mapa das casas) nunca sai do servidor
   (`toPublicQuestionnaire`).
 - **O banco só aceita resultado assinado pelo servidor.** O app não tem `service_role` (R6);
   em vez dela, assina cada resultado com HMAC-SHA256 (`QUESTIONNAIRE_SIGNING_KEY`, a mesma chave
   em `app.server_secrets`, sem acesso pela API). A assinatura cobre a pessoa da sessão
-  (`auth.uid()`, nunca um parâmetro), a versão do termo, a casa e o valor **cifrado** do totem
-  (ou, no pedido de análise, os eixos e o valor cifrado das respostas) e vale 5 minutos. O navegador, mesmo chamando
+  (`auth.uid()`, nunca um parâmetro), a versão do termo, a casa e os valores **cifrados** do totem
+  e das notas (ou, no pedido de análise, os eixos e o valor cifrado das respostas) e vale 5 minutos. O navegador, mesmo chamando
   a API direto com o próprio login, não consegue impor casa nem totem nem abrir pedido.
 - As respostas **passam pelo servidor** em todo envio (para a pontuação), mas só são **guardadas**
   no pedido de análise. Não vão para o log (R11).
@@ -56,8 +68,17 @@ ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b"
 
 ### 2. O que a pessoa vê
 
-A pessoa vê **só a casa** ("a casa sugerida para você"). O **totem é interno**: não aparece na
-tela da casa. Por ser dado pessoal, aparece em "Baixar meus dados" (LGPD art. 18).
+A pessoa vê a casa ("a casa sugerida para você") e o **gráfico de aranha dos eixos 1 e 2**, os que
+definem a casa. O **totem é interno**, e as notas dos eixos 3 e 4 também: não aparecem na tela da
+casa. Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
+
+**Gráfico de aranha** (SVG próprio, sem biblioteca): os polos "a" de todos os eixos vêm primeiro e
+depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frente (meia volta). Cada
+raio vale a intensidade do polo (0 a 100). A pessoa vê 4 raios; a coordenação nacional e os
+delegados veem os 4 eixos (8 raios) e o totem. Os nomes das dimensões e dos polos vêm do config do
+questionário: o exemplo público usa nomes genéricos; no arquivo privado são **provisórios** até o
+stakeholder (Convívio: Expansivo/Reservado; Decisão: Razão/Coração; Percepção: P·Prático/A·Abstrato;
+Ritmo: R·Regrado/A·Adaptável).
 
 A sugestão é só o ponto de partida: a pessoa continua podendo **escolher outra casa** e aceitar
 pelo fluxo de sempre (`accept_house`). Trocar de casa depois de aceitar continua sendo com a
@@ -69,6 +90,10 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
   e as **respostas completas**. Esse é o **único** caso em que as respostas são guardadas; com
   resultado conclusivo guarda-se só a casa e o totem. Só o servidor abre o pedido (assinado);
   renovar o pedido aberto só é possível depois de 1 hora.
+- **Recusa visível** (#199): se o envio das respostas é recusado, a tela volta à última pergunta e
+  mostra o motivo em texto da config da instância; no limite de renovação (1 hora), com os minutos
+  que faltam (calculados no servidor a partir da abertura do pedido). Termo não reconhecido pelo banco
+  vira "leia o termo de novo". Só o pedido de análise tem limite: o resultado conclusivo nunca esbarra nele.
 - A tela diz que a coordenação nacional vai analisar e deixa a pessoa **escolher a casa direto**.
 - As respostas ficam guardadas **só enquanto o pedido está aberto** e são apagadas quando:
   a coordenação nacional resolve (e define casa e totem); a pessoa aceita uma casa; ela refaz o
@@ -76,10 +101,10 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
   prazo). Depois do prazo as respostas deixam de ser lidas na hora (a política de leitura
   esconde) e são apagadas na chamada seguinte de qualquer uma das funções do pedido. A linha do
   pedido fica, sem as respostas.
-- A resolução também é **assinada pelo servidor** (casa, totem cifrado, pedido e quem resolve), como o
-  resultado: a coordenação não grava um valor qualquer pela API direta.
-- A coordenação nacional resolve só pedido de **pessoa ativa** e nunca o **próprio**. Resolver
-  é só dela: a delegação (§4) não inclui resolver [?] (se deve incluir, é decisão do gestor).
+- A resolução também é **assinada pelo servidor** (casa, totem e notas cifrados, o hash das respostas
+  lidas, pedido e quem resolve), como o resultado; se o pedido mudou desde a leitura, é recusada: a coordenação não grava um valor qualquer pela API direta.
+- Resolve a coordenação nacional **ou quem ela delegou** (§4), este só sobre pedido de pessoa do
+  escopo dele. Sempre só pedido de **pessoa ativa** e nunca o **próprio**.
 - Abrir e resolver o pedido geram `house_analysis_requested` e `house_analysis_resolved` no
   `audit_log`, sem as respostas.
 - O termo do questionário precisa dizer isso: as respostas vão ao servidor para o cálculo e só
@@ -110,13 +135,34 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
   ressuscita a concessão antiga (a nacional decide de novo);
 - os eventos de concessão e revogação guardam a unidade e a concessão (`unit_id`, `grant_id`);
 - sem concessão ativa, só a nacional lê; revogada, 0 linhas; nunca lê quem não está ativo;
-- **resolver a fila continua só da nacional** [?] (a delegação deve incluir resolver?).
+- a delegação inclui **resolver a fila** (decisão do gestor, 2026-11-27), nas mesmas regras de escopo
+  e de papel ativo da leitura; a resolução do delegado também é assinada pelo servidor e auditada
+  (ator = o delegado). Regra conservadora (decisão do orquestrador): o delegado **não resolve** o
+  pedido de quem é gestor ativo na raiz ou em unidade igual ou acima da unidade da concessão (nem
+  de outro delegado nessa condição); esses a coordenação nacional resolve. O escopo é conferido logo
+  ao ler o pedido: fora dele, ou de pessoa inativa, o pedido aparece como inexistente.
+
+**Telas da coordenação** (#174), todas com o JWT da pessoa (nada de `service_role`): em
+`/coordenacao/casas/`, **resultados** (lista de pessoas ativas do escopo com casa, totem e data, filtro por
+casa; abrir mostra o gráfico completo de 4 eixos e o totem), **analise** (fila de casos inconclusivos: nome,
+data e eixos empatados; abrir mostra as respostas como frases da escala e o gráfico; formulário para
+escolher casa e totem e resolver; linhas ilegíveis são contadas e avisadas) e **delegacoes** (só a
+nacional: conceder, revogar e listar). A lista de resultados mostra **só nome, casa e data**, sem a
+própria pessoa e com no máximo 200 por página (avisa quando trunca; filtre por casa); **totem, notas e
+gráfico só no detalhe**, que registra o acesso. A fila mostra nome, data e eixos empatados, sem respostas. Quem não tem permissão recebe **404**, nunca 403. O link no menu da
+coordenação só aparece para quem pode (`questionnaire_coordination_access()`, que só alimenta menu e 404:
+quem lê e quem resolve segue sendo o banco). **Abrir o resultado ou o caso de alguém gera o evento
+`questionnaire_result_viewed`** (ator e alvo, sem conteúdo; o mesmo ator e alvo em 10 minutos valem um só; função `log_questionnaire_view`, só para quem
+pode ler os dados do alvo e nunca sobre si), que só a coordenação nacional lê no log; a pessoa vista o
+encontra no "Baixar meus dados".
 
 ### 5. Dados novos
 
-O totem e as respostas são dado pessoal e ficam **cifrados** com o esquema existente (R13, ADR
+O totem, as notas dos eixos e as respostas são dado pessoal e ficam **cifrados** com o esquema existente (R13, ADR
 0003: AES-256-GCM, `v<n>.<iv>.<ct>`), **sem exceção**:
 - `questionnaire_results.totem_enc`, AAD `questionnaire_results.totem_enc.<profile_id>`;
+- `questionnaire_results.scores_enc` (JSON das quatro notas, -100..100), AAD
+  `questionnaire_results.scores_enc.<profile_id>`; nulo só em resultado antigo, de antes da escala;
 - `house_analysis_requests.answers_enc` (JSON das respostas), AAD
   `house_analysis_requests.answers_enc.<profile_id>` (a linha é a da pessoa: só um pedido aberto
   por pessoa, e as respostas só existem com ele aberto).
@@ -127,7 +173,7 @@ coordenação lê pelo servidor, que consulta com o JWT dela (a RLS decide quem 
 banco nunca recebe nem devolve o valor em claro, o log do Postgres e o `pg_stat_statements` não
 expõem esses dados; ficam as chaves (`FIELD_ENCRYPTION_KEY`, `QUESTIONNAIRE_SIGNING_KEY`) e o
 backup cifrado como único ponto de cuidado. A exclusão da conta apaga tudo em cascata. "Baixar
-meus dados" decifra e entrega o totem e as respostas (formato 5).
+meus dados" decifra e entrega o totem, as notas dos eixos e as respostas (formato 8).
 
 ## Alternativas consideradas
 
@@ -138,6 +184,8 @@ meus dados" decifra e entrega o totem e as respostas (formato 5).
   é o caminho de quem lê.
 - **Decifrar no banco (pgcrypto, chave no banco):** poria a chave de dados no Postgres; o ADR 0003
   a mantém só no servidor do app.
+- **Guardar as notas dos eixos cifradas junto do resultado** (decisão do gestor): é o que permite
+  o gráfico sem guardar as respostas. As notas são dado pessoal e seguem o ADR 0003 (§5).
 - **Guardar sempre as respostas:** formaria um perfil psicológico sem necessidade. Só o caso
   inconclusivo precisa delas.
 - **Atribuir a casa por sorteio ou pelo polo "padrão" em empate:** esconderia uma decisão que é
@@ -152,7 +200,7 @@ meus dados" decifra e entrega o totem e as respostas (formato 5).
 - (+) A regra é um dado do config: trocar a chave não muda o código.
 - (+) O navegador não vê a chave nem impõe resultado; o difícil tem fila, prazo e auditoria.
 - (−) Uma chave de assinatura a mais para guardar e instalar nos dois lados (app e banco).
-- (−) Quando há empate sem desempate, depende de a coordenação nacional resolver os pedidos. A
+- (−) Quando há empate sem desempate, depende de a coordenação nacional (ou de um delegado) resolver os pedidos. A
   tela da fila ainda não existe (acompanha em issue própria); hoje a resolução é a função
   `resolve_house_analysis`.
 - (−) O termo do questionário precisa de revisão para cobrir o envio das respostas.

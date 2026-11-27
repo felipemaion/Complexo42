@@ -34,7 +34,7 @@ missões e o desempenho de cada um. Não vendemos nem cedemos seus dados a ningu
 | Nome | Para a coordenação e sua equipe saberem quem é você |
 | E-mail | Para você entrar na plataforma e para a coordenação falar com você |
 | WhatsApp | Para a coordenação falar com você |
-| Município e bairro | Para organizar as equipes por região |
+| Município, distrito e bairro (opcional) | Para organizar as equipes por região |
 | Redes sociais (opcional) | Para mostrar seu trabalho, se você quiser |
 | Habilidades e formação | Para encontrar quem pode ajudar em cada atividade |
 | Casa sugerida pelo questionário | Para indicar sua casa de formação. **As suas respostas não ficam guardadas** |
@@ -109,7 +109,7 @@ dos responsáveis, art. 14]**
 2. **Base legal:** consentimento (art. 7º, I). Avaliar se alguma finalidade, como as listas
    da coordenação, cabe melhor em outra base.
 3. **Questionário das casas:** o termo próprio do questionário (#91) é separado. Só a casa
-   sugerida e o totem são guardados; as respostas só são guardadas se o resultado for
+   sugerida, o totem e as notas por dimensão (cifrados) são guardados; as respostas só são guardadas se o resultado for
    inconclusivo, e são apagadas ao resolver ou em 30 dias (ADR 0014). O texto do termo precisa dizer isso.
 4. **Exportação de listas pela coordenação:** o item **[decidir]** está no texto para não
    ser preciso pedir novo aceite depois. Se não for usado, remova antes do `v1`.

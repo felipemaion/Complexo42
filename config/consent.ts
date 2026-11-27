@@ -31,7 +31,7 @@ export const consentTerm = parseConsentTerm({
         { label: "Nome", text: "Para a coordenação e sua equipe saberem quem é você." },
         { label: "E-mail", text: "Para você entrar na plataforma e para a coordenação falar com você." },
         { label: "WhatsApp", text: "Para a coordenação falar com você." },
-        { label: "Município e bairro", text: "Para organizar as equipes por região." },
+        { label: "Município, distrito e bairro (opcional)", text: "Para organizar as equipes por região." },
         { label: "Redes sociais (opcional)", text: "Para mostrar seu trabalho, se você quiser." },
         { label: "Habilidades e formação", text: "Para encontrar quem pode ajudar em cada atividade." },
         {
