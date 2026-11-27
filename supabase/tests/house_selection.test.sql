@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(111);
+select plan(121);
 
 truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 
@@ -79,7 +79,9 @@ insert into people values
   ('p_removed2','00000000-0000-0000-0000-0000000000bf'),  -- equipe A; tirada da casa por coord2
   ('p_lock',    '00000000-0000-0000-0000-0000000000c0'),  -- equipe A; trava de 4 meses, troca da própria pessoa
   ('p_lock2',   '00000000-0000-0000-0000-0000000000c1'),  -- equipe A; casa-w, fora do alcance de coord
-  ('p_lock3',   '00000000-0000-0000-0000-0000000000c2');  -- equipe A; a coordenação troca a casa
+  ('p_lock3',   '00000000-0000-0000-0000-0000000000c2'),  -- equipe A; a coordenação troca a casa
+  ('p_trg1',    '00000000-0000-0000-0000-0000000000c3'),  -- equipe A; termo aceito antes da casa
+  ('p_trg2',    '00000000-0000-0000-0000-0000000000c4');  -- equipe A; termo aceito depois da casa
 grant select on people to authenticated;
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
 declare
@@ -120,7 +122,8 @@ from (values ('br.sp.abc.team_a', 'p_team'), ('br.sp.zl.team_z', 'p_zl'),
              ('br.sp.abc.team_a', 'p_self'), ('br.sp.abc.team_a', 'p_wait'),
              ('br.sp.abc.team_a', 'p_pend'), ('br.sp.abc.team_a', 'coord'),
              ('br.sp.abc.team_a', 'p_removed2'), ('br.sp.abc.team_a', 'p_lock'),
-             ('br.sp.abc.team_a', 'p_lock2'), ('br.sp.abc.team_a', 'p_lock3')) as u(path, name);
+             ('br.sp.abc.team_a', 'p_lock2'), ('br.sp.abc.team_a', 'p_lock3'),
+             ('br.sp.abc.team_a', 'p_trg1'), ('br.sp.abc.team_a', 'p_trg2')) as u(path, name);
 insert into public.role_assignments (profile_id, role, unit_id, house_key) values
   (pg_temp.person('coord'), 'house_coordinator', pg_temp.unit('br.sp.abc'), 'casa-x'),
   (pg_temp.person('coord2'), 'house_coordinator', pg_temp.unit('br.sp.abc'), 'casa-x');
@@ -680,6 +683,68 @@ set local role authenticated;
 select pg_temp.login('p_lock3');
 select throws_ok($$ select public.accept_house('casa-x', 'self', null) $$, 'C7603', null,
   'depois da troca pela coordenação a pessoa continua travada (não vira "removida")');
+
+-- ---------------------------------------------------------------------------------------
+-- Revisão do #210: alcance só de gestão, trava a partir do mais tardio, casos de borda, exportação
+-- ---------------------------------------------------------------------------------------
+select ok(
+  pg_get_functiondef('public.coordination_set_house(uuid, text)'::regprocedure) not like '%can_read_questionnaire_data%',
+  'delegação de leitura (resultados) não vira poder de escrita: só can_manage_house_member'
+);
+set local role anon;
+select throws_ok($$ select public.coordination_set_house(pg_temp.person('p_lock3'), 'casa-x') $$, '42501', null,
+  'anônimo não troca a casa de ninguém');
+set local role authenticated;
+select pg_temp.login('coord');
+select throws_ok($$ select public.coordination_set_house(pg_temp.person('coord'), 'casa-y') $$, '42501', null,
+  'a coordenação não troca a própria casa');
+select throws_ok($$ select public.coordination_set_house(pg_temp.person('p_wait'), 'casa-y') $$, '42501', null,
+  'pessoa na espera (sem casa aceita): sem alcance');
+reset role;
+update public.profiles set status = 'suspended' where id = pg_temp.person('p_lock2');
+set local role authenticated;
+select pg_temp.login('coord');
+select throws_ok($$ select public.coordination_set_house(pg_temp.person('p_lock2'), 'casa-y') $$, '42501', null,
+  'pessoa suspensa/bloqueada: a coordenação não troca a casa');
+reset role;
+update public.profiles set status = 'active' where id = pg_temp.person('p_lock2');
+
+-- A trava vale 4 meses a partir do MAIS TARDE entre o aceite do termo do questionário e o da casa.
+insert into public.questionnaire_consents (profile_id, term_version, consented_at)
+values (pg_temp.person('p_trg1'), 'termo-1', now() - interval '10 days'),
+       (pg_temp.person('p_trg2'), 'termo-1', now());
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at) values
+  (pg_temp.person('p_trg1'), 'casa-x', 'self', now(), now()),
+  (pg_temp.person('p_trg2'), 'casa-x', 'self', now() - interval '1 month', now() - interval '1 month');
+select ok(
+  (select locked_until between now() + interval '4 months' - interval '1 minute' and now() + interval '4 months' + interval '1 minute'
+   from public.house_members where profile_id = pg_temp.person('p_trg1')),
+  'termo aceito antes da casa: 4 meses a partir do aceite da casa (nunca entra com trava vencida)'
+);
+select ok(
+  (select locked_until between now() + interval '4 months' - interval '1 minute' and now() + interval '4 months' + interval '1 minute'
+   from public.house_members where profile_id = pg_temp.person('p_trg2')),
+  'termo aceito depois da casa: 4 meses a partir do aceite do termo'
+);
+select throws_ok(
+  $$ update public.house_members set locked_until = null where profile_id = pg_temp.person('p_trg1') $$,
+  '23514', null, 'vínculo aceito nunca fica sem trava (vale também para o preenchimento da migration)'
+);
+
+-- Exportação: a trava e o histórico de trocas da própria pessoa.
+set local role authenticated;
+select pg_temp.login('p_lock');
+select ok(
+  (select bool_and(m ? 'locked_until') from jsonb_array_elements(public.export_own_data() -> 'house_memberships') as m),
+  'Baixar meus dados traz locked_until de cada vínculo'
+);
+select ok(
+  exists (
+    select 1 from jsonb_array_elements(public.export_own_data() -> 'audit_events') as e
+    where e ->> 'event' = 'house_changed' and e ->> 'reason' = 'self'
+  ),
+  'Baixar meus dados traz o histórico house_changed da pessoa (sem totem)'
+);
 
 select * from finish();
 rollback;
