@@ -6,6 +6,7 @@ export {
   toPublicQuestionnaire,
 } from "./domain/schema";
 export { chartAxes, chartSpokes, spokePoint } from "./domain/chart";
+export { answerSentence, intensitySentence, toDisplaySentence } from "./domain/sentence";
 export { answerValues, QuestionnaireAnswerError, scoreQuestionnaire } from "./domain/score";
 export { loadQuestionnaire } from "./server/load";
 export type {

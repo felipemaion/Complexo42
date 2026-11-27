@@ -5,6 +5,8 @@
  * exibição: o arquivo do questionário não muda.
  */
 
+import { answerValues } from "./score";
+
 const finalPunctuation = /[.!?…]$/;
 // Aspas e parênteses de abertura que podem vir antes da primeira letra.
 const opening = /^([“"'‘«(\[]*)(\p{L})/u;
@@ -36,4 +38,18 @@ export function intensitySentence(intensity: string, alternativeText: string): s
   const label = capitalize(intensity.trim().replace(/[:;,.]$/, ""));
   const body = terminate(alternativeText);
   return body === "" ? `${label}.` : `${label}: ${body}`;
+}
+
+/**
+ * A resposta de um item como frase ("Totalmente: …"), para a coordenação ler. Negativo é a alternativa
+ * a, positivo a b. Valor fora da escala: `null`.
+ */
+export function answerSentence(
+  item: { a: { text: string }; b: { text: string } },
+  value: number,
+  intensities: readonly [string, string, string, string, string, string],
+): string | null {
+  const index = (answerValues as readonly number[]).indexOf(value);
+  if (index === -1) return null;
+  return intensitySentence(intensities[index]!, index < 3 ? item.a.text : item.b.text);
 }

@@ -34,6 +34,10 @@ export type HouseQuery = PromiseLike<{ data: unknown; error: unknown }> & {
   eq(column: string, value: string): HouseQuery;
   is(column: string, value: null): HouseQuery;
   not(column: string, operator: string, value: null): HouseQuery;
+  neq(column: string, value: string): HouseQuery;
+  in(column: string, values: readonly string[]): HouseQuery;
+  order(column: string, options: { ascending: boolean }): HouseQuery;
+  limit(count: number): HouseQuery;
   maybeSingle(): PromiseLike<{ data: unknown; error: unknown }>;
 };
 
