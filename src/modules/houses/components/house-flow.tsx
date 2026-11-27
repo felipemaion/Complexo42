@@ -35,7 +35,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const [pending, startTransition] = useTransition();
 
   const ctx = useMemo<FlowContext>(
-    () => ({ itemIds: questionnaire.items.map((item) => item.id) }),
+    () => ({ questionIds: questionnaire.items.map((item) => item.id) }),
     [questionnaire],
   );
   const dispatch = (event: FlowEvent) => {
@@ -63,7 +63,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       if (!response.ok) {
         setError(response.error);
         dispatch({ type: "submit_failed" });
-      } else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, houseByPoles: response.houseByPoles });
+      } else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles });
       else dispatch({ type: "analysis_requested" });
     })();
     return () => {
@@ -186,11 +186,11 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
                 {text.chartTitle}
               </h2>
               <SpiderChart
-                axes={step.chart}
+                chart={step.chart}
                 title={text.chartTitle}
                 houses={
-                  step.houseByPoles && {
-                    byPoles: step.houseByPoles,
+                  step.byPoles && {
+                    byPoles: step.byPoles,
                     houses,
                     currentHouseId: step.houseId,
                     currentLabel: text.chartCurrentHouse,

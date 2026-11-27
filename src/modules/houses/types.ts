@@ -22,7 +22,7 @@ export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCod
  * quando o resultado foi inconclusivo.
  */
 export type SubmitAnswersResult =
-  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; houseByPoles: HouseByPoles }
+  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; byPoles: HouseByPoles }
   | { ok: true; outcome: "analysis" }
   | { ok: false; error: HouseErrorCode };
 

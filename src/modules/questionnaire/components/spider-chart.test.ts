@@ -21,7 +21,7 @@ const houses: ChartHouses = {
   currentHouseId: "casa-2",
   currentLabel: "sua casa",
 };
-const render = (axes: readonly ChartAxis[], withHouses?: ChartHouses) => renderToStaticMarkup(createElement(SpiderChart, { axes, title: "Perfil", houses: withHouses }));
+const render = (axes: readonly ChartAxis[], withHouses?: ChartHouses) => renderToStaticMarkup(createElement(SpiderChart, { chart: axes, title: "Perfil", houses: withHouses }));
 
 describe("SpiderChart com as zonas das casas", () => {
   it("desenha uma zona por casa, com o nome dentro, e a legenda das quatro", () => {

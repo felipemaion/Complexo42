@@ -48,7 +48,7 @@ export default async function ResultPage({ params }: Readonly<{ params: Promise<
             {text.results.chartTitle}
           </h2>
           <SpiderChart
-            axes={crossOrder(result.chart)}
+            chart={crossOrder(result.chart)}
             title={text.results.chartTitle}
             houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentHouseId: result.houseId, currentLabel: text.results.chartCurrentHouse }}
           />

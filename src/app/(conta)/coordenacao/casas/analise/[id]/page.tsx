@@ -66,7 +66,7 @@ export default async function CasePage({
           {text.queue.chartTitle}
         </h2>
         <SpiderChart
-          axes={crossOrder(opened.chart)}
+          chart={crossOrder(opened.chart)}
           title={text.queue.chartTitle}
           houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentLabel: text.queue.chartCurrentHouse }}
         />

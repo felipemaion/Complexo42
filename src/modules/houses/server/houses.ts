@@ -117,7 +117,7 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
       houseId: result.houseId,
       chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
       // O mapa das casas só vai depois das respostas, para as zonas do gráfico (#201); a chave dos itens segue no servidor.
-      houseByPoles: ctx.questionnaire.houseByPoles,
+      byPoles: ctx.questionnaire.houseByPoles,
     };
   }
   const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), answersContext(userId));
