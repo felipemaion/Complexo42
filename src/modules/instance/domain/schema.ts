@@ -216,7 +216,7 @@ export const instanceConfigSchema = z.strictObject({
     chooseOtherButton: text,
     /** Enquanto o resultado é enviado ao servidor, logo depois da última pergunta. */
     submitting: text,
-    /** Resultado inconclusivo (ADR 0012): a coordenação nacional vai analisar. */
+    /** Resultado inconclusivo (ADR 0014): a coordenação nacional vai analisar. */
     analysisTitle: text,
     analysisMessage: text,
     /** Botão para escolher a casa direto, sem esperar a análise. */

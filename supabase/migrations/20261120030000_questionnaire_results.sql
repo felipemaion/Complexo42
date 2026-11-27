@@ -1,5 +1,5 @@
 -- Chave nova do questionário das casas: totem, casa sugerida e fila de análise (issue #172,
--- ADR 0012; refs #91 #76).
+-- ADR 0014; refs #91 #76).
 --
 -- O questionário passa a dar, além da casa, um totem (dois eixos extras). Quando um eixo empata
 -- sem desempate, o resultado é inconclusivo: nenhuma casa é atribuída e as respostas vão à
@@ -45,7 +45,7 @@ as $$
 $$;
 
 comment on function app.can_read_questionnaire_data(uuid) is
-  'Totem, casa sugerida e pedidos de análise: a própria pessoa, ou a coordenação nacional (gestor da raiz) sobre pessoa ativa (ADR 0012).';
+  'Totem, casa sugerida e pedidos de análise: a própria pessoa, ou a coordenação nacional (gestor da raiz) sobre pessoa ativa (ADR 0014).';
 
 revoke execute on function app.can_read_questionnaire_data(uuid) from public, anon;
 grant execute on function app.can_read_questionnaire_data(uuid) to authenticated;
@@ -65,7 +65,7 @@ create table public.questionnaire_results (
 );
 
 comment on table public.questionnaire_results is
-  'Casa sugerida e totem do questionário (ADR 0012). O totem é interno: só a pessoa e a coordenação nacional leem. Nunca as respostas.';
+  'Casa sugerida e totem do questionário (ADR 0014). O totem é interno: só a pessoa e a coordenação nacional leem. Nunca as respostas.';
 comment on column public.questionnaire_results.source is
   'questionnaire (pontuação no aparelho) ou analysis (decidido pela coordenação nacional num pedido de análise).';
 
@@ -110,7 +110,7 @@ create table public.house_analysis_requests (
 );
 
 comment on table public.house_analysis_requests is
-  'Fila do resultado inconclusivo (ADR 0012): a coordenação nacional decide a casa. As respostas só existem com o pedido aberto.';
+  'Fila do resultado inconclusivo (ADR 0014): a coordenação nacional decide a casa. As respostas só existem com o pedido aberto.';
 comment on column public.house_analysis_requests.answers is
   'Respostas do questionário (item → a, b ou both), só com o pedido aberto; nulas depois de resolvido.';
 comment on column public.house_analysis_requests.resolution is
@@ -247,7 +247,7 @@ end;
 $$;
 
 comment on function public.record_questionnaire_result(text, text, text) is
-  'Quem chama grava a casa sugerida e o totem do seu questionário conclusivo (ADR 0012).';
+  'Quem chama grava a casa sugerida e o totem do seu questionário conclusivo (ADR 0014).';
 
 -- Resultado inconclusivo: abre o pedido de análise (ou renova o aberto) com as respostas.
 create or replace function public.request_house_analysis(p_term_version text, p_tied_axes text[], p_answers jsonb)
@@ -303,7 +303,7 @@ end;
 $$;
 
 comment on function public.request_house_analysis(text, text[], jsonb) is
-  'Quem chama abre um pedido de análise do seu resultado inconclusivo, com as respostas (apagadas ao resolver). ADR 0012.';
+  'Quem chama abre um pedido de análise do seu resultado inconclusivo, com as respostas (apagadas ao resolver). ADR 0014.';
 
 -- A coordenação nacional decide a casa e o totem; as respostas são apagadas.
 create or replace function public.resolve_house_analysis(p_request_id uuid, p_house_key text, p_totem text)
@@ -351,7 +351,7 @@ end;
 $$;
 
 comment on function public.resolve_house_analysis(uuid, text, text) is
-  'A coordenação nacional resolve o pedido: grava a casa e o totem, apaga as respostas e audita (ADR 0012).';
+  'A coordenação nacional resolve o pedido: grava a casa e o totem, apaga as respostas e audita (ADR 0014).';
 
 revoke execute on function public.record_questionnaire_result(text, text, text) from public, anon;
 revoke execute on function public.request_house_analysis(text, text[], jsonb) from public, anon;

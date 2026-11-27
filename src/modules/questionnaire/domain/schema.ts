@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /*
- * Formato do questionário das casas (ADR 0012, #172; antes ADR 0008 §2.1, #91). Este arquivo é
+ * Formato do questionário das casas (ADR 0014, #172; antes ADR 0008 §2.1, #91). Este arquivo é
  * puro: roda no servidor (validação na subida) e no navegador (a pontuação acontece no
  * dispositivo).
  *

@@ -1,7 +1,7 @@
 "use server";
 // Server actions da escolha da casa (#76). O navegador manda `{ houseId, joinMethod }`,
 // `{ termVersion }` ou o resultado (`{ houseId, totem }`); as respostas do questionário ficam no
-// aparelho, salvo no pedido de análise do resultado inconclusivo (ADR 0012). O cliente
+// aparelho, salvo no pedido de análise do resultado inconclusivo (ADR 0014). O cliente
 // do Supabase é o da sessão, com o JWT de quem está logado (R14).
 import { instance } from "@config/instance";
 import { requireUser } from "@/server/auth/session";

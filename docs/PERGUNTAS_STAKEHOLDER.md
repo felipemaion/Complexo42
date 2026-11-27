@@ -86,7 +86,7 @@
 73. **Questionário das casas:** a licença permite usá-lo na plataforma?
 74. **Tamanho da equipe** (cerca de 12?) e **duração do ciclo** (4 meses?).
 
-### Questionário das casas (chave nova de 2026-11-25, ADR 0012)
+### Questionário das casas (chave nova de 2026-11-25, ADR 0014)
 
 Chave recebida: 28 perguntas, quatro eixos (dois para a casa, dois para o totem) e
 desempate só no eixo 1. As perguntas 75 a 78 da versão anterior (temperamentos) ficam

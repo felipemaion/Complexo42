@@ -6,7 +6,7 @@
 // Não vão para o localStorage/sessionStorage nem para a URL. A pontuação roda aqui
 // (`scoreQuestionnaire`, #172): com resultado conclusivo, vão ao servidor só a casa sugerida e o
 // totem, a casa aceita (com a forma de entrada) e a versão do termo. Só no resultado
-// inconclusivo as respostas vão, no pedido de análise da coordenação nacional (ADR 0012 §3).
+// inconclusivo as respostas vão, no pedido de análise da coordenação nacional (ADR 0014 §3).
 // tests/house-privacy.test.ts e e2e/house-live.spec.ts conferem.
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";

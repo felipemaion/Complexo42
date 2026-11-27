@@ -10,7 +10,7 @@ import type { Answer, Answers, QuestionnaireResult } from "@/modules/questionnai
  *
  * As respostas vivem só neste estado, em memória (nunca no armazenamento do navegador). Só
  * saem do aparelho no resultado inconclusivo, para o pedido de análise da coordenação nacional
- * (ADR 0012 §3); com resultado conclusivo, vão só a casa e o totem. "Escolher outra casa" leva à
+ * (ADR 0014 §3); com resultado conclusivo, vão só a casa e o totem. "Escolher outra casa" leva à
  * lista de atividades, e a entrada vira `self`.
  */
 

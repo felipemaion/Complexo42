@@ -53,7 +53,7 @@ describe("fluxo da escolha da casa", () => {
     });
   });
 
-  describe("depois da última pergunta (ADR 0012)", () => {
+  describe("depois da última pergunta (ADR 0014)", () => {
     it("resultado conclusivo: só a casa vai adiante; o pedido de análise não é um desfecho válido", () => {
       outcome = ok;
       const submitting = run(answerAll);

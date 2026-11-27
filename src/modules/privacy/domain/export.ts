@@ -71,7 +71,7 @@ export const ownDataRowsSchema = z.object({
   /** Aceites do termo do questionário (versão e data; nunca as respostas). */
   questionnaire_consents: z.array(z.object({ term_version: z.string(), consented_at: timestamp })),
   /**
-   * Resultado do questionário (ADR 0012, #172): a casa sugerida e o totem. O totem é interno e só
+   * Resultado do questionário (ADR 0014, #172): a casa sugerida e o totem. O totem é interno e só
    * aparece aqui (LGPD art. 18), nunca na tela da casa. Nulo sem resultado (ou com análise aberta).
    */
   questionnaire_result: z
@@ -162,7 +162,7 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
-  /** Casa sugerida e totem (ADR 0012). O totem é interno: só aparece neste arquivo. */
+  /** Casa sugerida e totem (ADR 0014). O totem é interno: só aparece neste arquivo. */
   resultadoDoQuestionario: {
     casaSugerida: string;
     totem: string;

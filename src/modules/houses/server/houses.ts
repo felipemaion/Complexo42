@@ -1,6 +1,6 @@
 // Escolha e aceite da casa no servidor (#76, ADR 0008 §2 e §2.1). Recebe o id da casa e a forma
 // de entrada, a versão do termo, ou o resultado do questionário (casa e totem). As respostas só
-// chegam no pedido de análise do resultado inconclusivo (ADR 0012).
+// chegam no pedido de análise do resultado inconclusivo (ADR 0014).
 // Toda entrada passa por Zod antes de ir ao banco, que confere de novo (R15).
 import "server-only";
 import { z } from "zod";
@@ -60,7 +60,7 @@ export async function recordConsent(client: HouseClient, input: unknown, current
 }
 
 /**
- * Grava o resultado conclusivo do questionário: a casa sugerida e o totem (ADR 0012). `input`
+ * Grava o resultado conclusivo do questionário: a casa sugerida e o totem (ADR 0014). `input`
  * vem do navegador; as respostas nunca vêm junto. A versão do termo é a do servidor.
  */
 export async function recordQuestionnaireResult(
@@ -85,7 +85,7 @@ export async function recordQuestionnaireResult(
 }
 
 /**
- * Pede a análise da coordenação nacional quando o resultado é inconclusivo (ADR 0012 §3). É o
+ * Pede a análise da coordenação nacional quando o resultado é inconclusivo (ADR 0014 §3). É o
  * único caso em que as respostas saem do aparelho: o banco as guarda só com o pedido aberto.
  * Os ids dos itens precisam ser os do questionário carregado no servidor.
  */

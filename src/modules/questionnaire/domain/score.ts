@@ -1,9 +1,9 @@
 import type { Axis, Pole, QuestionnaireConfig } from "./schema";
 
 /*
- * Pontuação do questionário (ADR 0012, #172). Função pura: sem I/O, sem data, sem estado. Roda
+ * Pontuação do questionário (ADR 0014, #172). Função pura: sem I/O, sem data, sem estado. Roda
  * no navegador; as respostas só saem do aparelho no caso inconclusivo, para o pedido de análise
- * da coordenação nacional (ADR 0012 §3). Com resultado conclusivo, vão só a casa e o totem.
+ * da coordenação nacional (ADR 0014 §3). Com resultado conclusivo, vão só a casa e o totem.
  */
 
 /** Resposta de um item: alternativa a, b, ou as duas (indecisão). */
@@ -70,7 +70,7 @@ function poleOf(config: QuestionnaireConfig, axis: Axis, answers: Answers): Pole
 /**
  * Transforma as respostas na casa sugerida e no totem. A casa é a interseção dos polos dos
  * eixos 1 e 2; o totem, as letras dos polos dos eixos 3 e 4. Se algum eixo empata sem
- * desempate, o resultado é inconclusivo: nenhuma casa é atribuída (ADR 0012 §2).
+ * desempate, o resultado é inconclusivo: nenhuma casa é atribuída (ADR 0014 §2).
  */
 export function scoreQuestionnaire(config: QuestionnaireConfig, answers: Answers): QuestionnaireResult {
   checkAnswers(config, answers);

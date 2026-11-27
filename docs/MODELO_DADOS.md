@@ -21,7 +21,7 @@
 Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe, casa,
 habilidades, missões, pontos e badges.
 
-O **totem** (ADR 0012) é dado pessoal, também em texto puro e em tabela de leitura restrita:
+O **totem** (ADR 0014) é dado pessoal, também em texto puro e em tabela de leitura restrita:
 `questionnaire_results.totem`. Aparece em "Baixar meus dados" (LGPD art. 18) e nunca na tela da
 casa. Quem lê: a própria pessoa e a coordenação nacional (gestor da raiz). [?] Se mais alguém da
 coordenação (casa, território) deve ver o totem: o padrão é que ninguém além da coordenação
@@ -54,8 +54,8 @@ profiles ───────┼─< unit_members >── units
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
-questionnaire_results (1:1 com profiles: casa sugerida e totem; só a pessoa e a coordenação nacional leem, ADR 0012)
-house_analysis_requests (fila do resultado inconclusivo; as respostas só existem com o pedido aberto, ADR 0012)
+questionnaire_results (1:1 com profiles: casa sugerida e totem; só a pessoa e a coordenação nacional leem, ADR 0014)
+house_analysis_requests (fila do resultado inconclusivo; as respostas só existem com o pedido aberto, ADR 0014)
 consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
 missions ─< mission_steps
@@ -323,7 +323,7 @@ titular lê; sem grant de escrita. **A pontuação roda no aparelho**: com resul
 a casa e o totem vão ao servidor. As respostas só chegam ao banco no resultado inconclusivo
 (`house_analysis_requests`, abaixo).
 
-### `questionnaire_results` e `house_analysis_requests` (ADR 0012, #172)
+### `questionnaire_results` e `house_analysis_requests` (ADR 0014, #172)
 `questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
 `app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem` (duas letras maiúsculas),
 `source` (`questionnaire`, pontuação no aparelho; `analysis`, decidido pela coordenação

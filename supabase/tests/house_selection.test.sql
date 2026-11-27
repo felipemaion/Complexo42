@@ -543,7 +543,7 @@ select is(
   'p_house_key text, p_join_method text, p_term_version text',
   'accept_house recebe só a casa, a forma de entrada e a versão do termo'
 );
--- Única exceção (ADR 0012): as respostas do pedido de análise do resultado inconclusivo, que
+-- Única exceção (ADR 0014): as respostas do pedido de análise do resultado inconclusivo, que
 -- só existem com o pedido aberto (testado em questionnaire_results.test.sql).
 select is_empty(
   $$ select 1 from information_schema.columns

@@ -272,7 +272,7 @@ from (values
 --   edit    → app.can_edit_profile (criar/editar perfil e contato)
 --   import  → app.can_import_allowlist   decide → app.can_decide_access (fila de espera)
 --   block / unblock → app.can_block_member / app.can_unblock_member (quem já entrou)
---   quest_data → app.can_read_questionnaire_data (totem e pedidos de análise, ADR 0012)
+--   quest_data → app.can_read_questionnaire_data (totem e pedidos de análise, ADR 0014)
 --   audit_import / audit_decision → app.can_read_audit (importação / decisão sobre o alvo)
 --   grant_<papel>     → app.can_grant_role('<papel>', unidade, outsider)
 --   selfgrant_<papel> → app.can_grant_role('<papel>', unidade, o próprio ator)
@@ -656,7 +656,7 @@ insert into matrix (actor, action, target, expected) values
   ('nat_mgr', 'decide', 'stu_wait', true),
   ('sp_mgr', 'decide', 'stu_wait', true),
   ('abc_mgr', 'decide', 'stu_wait', true),
-  -- Totem e pedidos de análise (ADR 0012): só a coordenação nacional, sobre pessoa ativa
+  -- Totem e pedidos de análise (ADR 0014): só a coordenação nacional, sobre pessoa ativa
   ('nat_mgr', 'quest_data', 'stu_ah', true),
   ('nat_mgr', 'quest_data', 'stu_wait', false),
   ('sp_mgr', 'quest_data', 'stu_ah', false),

@@ -4,7 +4,7 @@
   marcados com [?] ainda dependem de confirmação.
 - **Data:** 2026-11-18
 - **Complementa:** ADR 0002 (permissões), ADR 0005 (hierarquia genérica) e ADR 0007
-  (equipes e avaliação). O §2.1 foi reescrito pelo ADR 0012.
+  (equipes e avaliação). O §2.1 foi reescrito pelo ADR 0014.
 
 ## Contexto
 
@@ -73,7 +73,7 @@ território. Daqui continuam valendo:
 - **Uma casa e uma equipe por pessoa ao mesmo tempo.**
 - **A escolha da casa**, com `join_method` (`self` ou `questionnaire`) e `accepted_at`. Sem
   aceite, o vínculo não conta.
-- **O questionário** (§2.1 e ADR 0012). A plataforma guarda **a casa sugerida e o totem**, e
+- **O questionário** (§2.1 e ADR 0014). A plataforma guarda **a casa sugerida e o totem**, e
   não as respostas, que formariam um perfil psicológico desnecessário (coleta mínima, LGPD).
   A exceção é o resultado inconclusivo, em que a coordenação nacional precisa das respostas e
   elas ficam só até o pedido ser resolvido.
@@ -82,7 +82,7 @@ território. Daqui continuam valendo:
 
 ### 2.1 Questionário das casas
 
-**A chave, os eixos, o totem, o desempate e o resultado inconclusivo estão no ADR 0012**, que
+**A chave, os eixos, o totem, o desempate e o resultado inconclusivo estão no ADR 0014**, que
 substitui o formato de 26 perguntas e quatro eixos de temperamento recebido em 2026-11-18. O
 questionário atual tem 28 perguntas de escolha entre duas alternativas (a/b), com a opção de
 marcar **as duas**, e um termo de consentimento próprio.
@@ -91,7 +91,7 @@ marcar **as duas**, e um termo de consentimento próprio.
 - **A pontuação roda no navegador,** é uma função pura, configurável e coberta por testes. Com
   resultado conclusivo, o servidor recebe só a casa sugerida e o totem; as respostas não vão
   para a rede, para logs nem para o `localStorage`. Só no resultado inconclusivo elas vão, para
-  a coordenação nacional (ADR 0012 §3).
+  a coordenação nacional (ADR 0014 §3).
 - **Interface:**
   - uma pergunta por tela, com o progresso visível ("3 de 28") e botões grandes "a", "b" e
     "as duas";

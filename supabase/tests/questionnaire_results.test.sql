@@ -1,4 +1,4 @@
--- Chave nova do questionário das casas (issue #172, ADR 0012): `questionnaire_results` (casa
+-- Chave nova do questionário das casas (issue #172, ADR 0014): `questionnaire_results` (casa
 -- sugerida e totem), `house_analysis_requests` (fila do resultado inconclusivo), as funções
 -- `record_questionnaire_result`, `request_house_analysis` e `resolve_house_analysis`, a
 -- auditoria e o apagamento das respostas. Pessoas fictícias, só dentro desta transação.
