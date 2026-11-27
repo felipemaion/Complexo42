@@ -55,6 +55,11 @@ grant execute on function pg_temp.access_of(text) to authenticated;
 -- ---------------------------------------------------------------------------------------
 -- Quem vê e resolve: a nacional, o delegado com concessão válida; ninguém mais
 -- ---------------------------------------------------------------------------------------
+-- Membro de verdade exige a casa aceita (ADR 0017): quem tem papel (coordenação) ganha uma casa só dele. Quem aceita casa no teste fica sem.
+insert into public.houses (key, active) select 'g-' || profile_id::text, true from (select distinct profile_id from public.role_assignments) as r on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select r.profile_id, 'g-' || r.profile_id::text, 'self', now() from (select distinct profile_id from public.role_assignments) as r
+where not exists (select 1 from public.house_members as h where h.profile_id = r.profile_id and h.left_at is null) on conflict do nothing;
 set local role anon;
 select throws_ok($$ select public.questionnaire_coordination_access() $$, '42501', null, 'anônimo NÃO consulta a permissão');
 
@@ -192,6 +197,7 @@ insert into public.questionnaire_results (profile_id, term_version, house_key, t
 insert into public.house_members (profile_id, house_key, join_method) values (pg_temp.person('p_none'), 'casa-y', 'self');
 insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at, left_at)
 values (pg_temp.person('plain'), 'casa-y', 'self', now(), now(), now());
+delete from public.house_members where profile_id = pg_temp.person('root_mgr') and house_key like 'g-%'; -- a casa de fixture dá lugar à casa deste teste
 insert into public.house_members (profile_id, house_key, join_method, accepted_at) values (pg_temp.person('root_mgr'), 'casa-y', 'self', now());
 set local role authenticated;
 select pg_temp.login('root_mgr');

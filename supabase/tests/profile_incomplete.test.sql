@@ -113,6 +113,7 @@ insert into public.consent_acceptances (user_id, version) values
   ('00000000-0000-0000-0000-0000000000d2', 'v1'), ('00000000-0000-0000-0000-0000000000d4', 'v1');
 insert into app.questionnaire_term_versions (version) values ('termo-1') on conflict do nothing;
 insert into public.houses (key, active) values ('casa-t1', true) on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values ('00000000-0000-0000-0000-0000000000d4', 'casa-t1', 'self', now());
 set local role authenticated;
 
 select pg_temp.login('00000000-0000-0000-0000-0000000000d1');
@@ -186,7 +187,7 @@ select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t
 -- A linha incompleta (d2: ativa, com termo) não lê contato, auditoria, delegação nem resultados/coordenação.
 select pg_temp.login('00000000-0000-0000-0000-0000000000d2');
 select is((select count(*)::int from public.profile_contacts), 0, 'a linha incompleta NÃO lê contatos');
-select is((select count(*)::int from public.audit_log), 0, '... nem a auditoria');
+select is((select count(*)::int from public.audit_log where actor_id is distinct from '00000000-0000-0000-0000-0000000000d2'), 0, '... nem a auditoria dos outros (só os próprios eventos de entrada)');
 select is((select count(*)::int from public.questionnaire_data_grants), 0, '... nem as delegações');
 select is((select count(*)::int from public.questionnaire_results) + (select count(*)::int from public.house_analysis_requests), 0, '... nem os resultados e pedidos do questionário (cortes da coordenação)');
 
