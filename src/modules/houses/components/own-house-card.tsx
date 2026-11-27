@@ -4,7 +4,7 @@
 import { SpiderChart, type ChartHouse } from "@/modules/questionnaire/components/spider-chart";
 import type { InstanceConfig } from "@/modules/instance";
 import { houseLockNotice } from "../domain/house-lock";
-import { HouseShield } from "./house-shield";
+import { HouseHero } from "./house-shield";
 import type { OwnHouseCard } from "../server/own-house";
 
 type Props = {
@@ -34,11 +34,7 @@ export function OwnHouse({ card, houses, text, lockedUntil = null }: Readonly<Pr
       <h2 id="own-house-title" className="text-xl font-semibold">
         {card.isAccepted ? text.acceptedTitle : text.suggestedTitle}
       </h2>
-      <p className="flex items-center gap-2 text-2xl font-bold">
-        <HouseShield houseId={house.id} name={house.name} size={64} />
-        <span aria-hidden="true" className="inline-block size-4 rounded-sm" style={{ background: `light-dark(${house.color.light}, ${house.color.dark})` }} />
-        {house.name}
-      </p>
+      <HouseHero houseId={house.id} name={house.name} />
       <p className="text-lg">{house.description}</p>
       {lockNotice && (
         <p className="text-lg font-semibold" data-testid="house-lock-notice">

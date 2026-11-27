@@ -314,7 +314,7 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await expect(page.getByTestId("house-name")).toHaveText("Alexandria");
   // O escudo da casa ao lado do nome, com o nome como alt e tamanho fixo (sem salto de layout).
   await expect(page.getByTestId("house-shield")).toHaveAttribute("alt", "Alexandria");
-  await expect(page.getByTestId("house-shield")).toHaveAttribute("width", "96");
+  await expect(page.getByTestId("house-shield")).toHaveAttribute("width", "180");
   await expect(page.getByTestId("app-logo").first()).toHaveAttribute("alt", /\S/);
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();

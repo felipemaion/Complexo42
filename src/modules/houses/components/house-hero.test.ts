@@ -22,4 +22,10 @@ describe("HouseHero", () => {
     expect(html).toContain('id="nome"');
     expect(html).not.toContain("rounded-sm");
   });
+
+  it("nome em MAIÚSCULAS só por CSS (o texto continua como na config), com espaçamento leve entre letras", () => {
+    expect(html).toMatch(/<h2[^>]*class="[^"]*\buppercase\b[^"]*"/);
+    expect(html).toMatch(/<h2[^>]*class="[^"]*\btracking-wide\b/);
+    expect(html).toContain(">Casa A</h2>");
+  });
 });
