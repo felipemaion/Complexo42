@@ -88,10 +88,10 @@ questionário atual tem 28 perguntas de escolha entre duas alternativas (a/b), c
 marcar **as duas**, e um termo de consentimento próprio.
 
 **Decisões que continuam valendo:**
-- **A pontuação roda no navegador,** é uma função pura, configurável e coberta por testes. Com
-  resultado conclusivo, o servidor recebe só a casa sugerida e o totem; as respostas não vão
-  para a rede, para logs nem para o `localStorage`. Só no resultado inconclusivo elas vão, para
-  a coordenação nacional (ADR 0014 §3).
+- **A pontuação roda no servidor** (ADR 0014 §1), é uma função pura, configurável e coberta por
+  testes. O navegador manda só as respostas, que ficam só em memória (nunca no log nem no
+  `localStorage`); o servidor guarda a casa sugerida e o totem. Só no resultado inconclusivo as
+  respostas são guardadas, para a coordenação nacional (ADR 0014 §3).
 - **Interface:**
   - uma pergunta por tela, com o progresso visível ("3 de 28") e botões grandes "a", "b" e
     "as duas";

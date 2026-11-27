@@ -88,6 +88,34 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   -c "update public.houses set active = false where key = '<id-da-casa>'"
 ```
 
+## Questionário das casas (ADR 0014)
+
+O app pontua o questionário e assina o resultado; o banco só aceita resultado assinado. A chave
+`QUESTIONNAIRE_SIGNING_KEY` (gerada por `deploy/gen-secrets.sh`) precisa estar **igual** no
+ambiente do app e em `app.server_secrets` (a tabela não tem grant: só funções do banco leem). Na
+primeira subida e ao trocar a chave (valor lido do arquivo de segredos, sem ir para o histórico):
+
+```bash
+set -eu
+KEY=$(sed -n 's/^QUESTIONNAIRE_SIGNING_KEY=//p' <segredos>)
+[ -n "$KEY" ]
+printf "insert into app.server_secrets (name, value) values ('questionnaire_signing_key', '%s') on conflict (name) do update set value = excluded.value;\n" "$KEY" \
+  | docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+      exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
+```
+
+Sem a chave no banco, ou diferente da do app, gravar o resultado do questionário falha (fechado).
+A versão do termo do arquivo do questionário também precisa estar em
+`app.questionnaire_term_versions`.
+
+**Verificações (as respostas do questionário e o totem ficam em texto puro no banco, ADR 0014 §5):**
+- `show log_statement;` deve dar `none`: com `all` ou `mod`, as respostas e o totem iriam para o
+  log do Postgres, em texto puro, junto com a chamada das funções do §3.
+- `pg_stat_statements` não pode estar ligado com parâmetros visíveis (`pg_stat_statements.track_utility`
+  e o `compute_query_id` só guardam o texto normalizado, sem valores; confira que ninguém ligou
+  `auto_explain`, `log_parameter_max_length` ou captura de parâmetros).
+- O backup (#84) é cifrado, mas contém essas tabelas: vale a mesma retenção dos demais dados.
+
 ## Subir, parar, ver
 
 ```bash

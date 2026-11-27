@@ -319,34 +319,47 @@ precisa existir; repetir a versão mantém a primeira data e não gera outro
 `app.questionnaire_term_versions` (`version` PK, `created_at`): as versões do termo que
 existem. Entram só por migration ou seed (sem grant para a API); a versão do arquivo do
 questionário instalado no servidor precisa estar aqui. RLS: só o
-titular lê; sem grant de escrita. **A pontuação roda no aparelho**: com resultado conclusivo, só
-a casa e o totem vão ao servidor. As respostas só chegam ao banco no resultado inconclusivo
-(`house_analysis_requests`, abaixo).
+titular lê; sem grant de escrita. **A pontuação roda no servidor do app** (ADR 0014 §1): o
+navegador manda só as respostas. Com resultado conclusivo, o banco recebe só a casa e o totem; as
+respostas só chegam ao banco no resultado inconclusivo (`house_analysis_requests`, abaixo).
 
 ### `questionnaire_results` e `house_analysis_requests` (ADR 0014, #172)
 `questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
 `app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem` (duas letras maiúsculas),
-`source` (`questionnaire`, pontuação no aparelho; `analysis`, decidido pela coordenação
+`source` (`questionnaire`, pontuação no servidor do app; `analysis`, decidido pela coordenação
 nacional), `created_at`. Uma linha por pessoa, a mais recente.
 
 `house_analysis_requests`: `id`, `profile_id` (FK, cascata), `term_version`, `tied_axes` (eixos
 empatados: `house1`, `house2`, `totem1`, `totem2`), `answers` (jsonb: item → `a`, `b` ou `both`,
 até 4 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
-`created_at`, `resolved_at`, `resolved_by` (nulo em `self` e se a conta de quem resolveu sair).
+`created_at`, `resolved_at`, `resolved_by` (nulo fora de `coordination` e se a conta de quem resolveu
+sair). `resolution`: `coordination`, `self`, `inactive` (pessoa bloqueada ou suspensa) ou
+`expired` (passou de 30 dias).
 Um pedido aberto por pessoa. **As respostas existem só com o pedido aberto** (o banco recusa
 `answers` em pedido resolvido): são apagadas quando a coordenação nacional resolve, quando a
-pessoa aceita uma casa (gatilho em `house_members`) ou quando refaz o questionário com resultado
-conclusivo. A linha resolvida fica, sem respostas.
+pessoa aceita uma casa (gatilho em `house_members`), quando refaz o questionário com resultado
+conclusivo, quando é bloqueada ou suspensa (gatilho em `profiles`) e **depois de 30 dias**
+(`app.analysis_max_age()`: a política de leitura já esconde o pedido vencido, e as respostas são
+apagadas na chamada seguinte das funções abaixo). A linha resolvida fica, sem respostas.
+
+`app.server_secrets` (`name`, `value`): segredos que o app e o banco compartilham; hoje a
+`questionnaire_signing_key` (ADR 0014 §1), instalada por quem opera (`docs/OPERACAO.md`). RLS sem
+política e sem grant: só funções `security definer` leem.
 
 - **Quem lê** (RLS, `app.can_read_questionnaire_data`): a própria pessoa e a coordenação nacional
   (gestor da raiz ativo) sobre pessoa ativa. Ninguém escreve pela API: só as funções abaixo.
-- **`record_questionnaire_result(termo, casa, totem)`:** a própria pessoa (ativa, com o aceite
-  daquela versão do termo; casa existente e ativa) grava o resultado conclusivo e fecha um
-  pedido aberto.
-- **`request_house_analysis(termo, eixos, respostas)`:** a própria pessoa abre (ou renova) o
-  pedido do resultado inconclusivo e apaga o resultado anterior. Valida os eixos, o formato das
-  respostas e o tamanho (erro 54000). Gera `house_analysis_requested`.
-- **`resolve_house_analysis(pedido, casa, totem)`:** só a coordenação nacional. Grava o resultado
+- **`record_questionnaire_result(termo, casa, totem, emitido_em, assinatura)`:** a pessoa da
+  sessão (ativa, com o aceite daquela versão do termo; casa existente e ativa) grava o resultado
+  conclusivo e fecha um pedido aberto. **Só com a assinatura do servidor do app** (HMAC-SHA256
+  sobre pessoa, termo, casa, totem e hora; vale 5 minutos; erro 42501 se faltar ou não bater):
+  chamar a API direto, sem a chave, não impõe resultado.
+- **`request_house_analysis(termo, eixos, respostas, emitido_em, assinatura)`:** a pessoa da
+  sessão abre (ou renova) o pedido do resultado inconclusivo e apaga o resultado anterior; também
+  só com a assinatura (que cobre os eixos e a quantidade de respostas). Valida os eixos, o formato
+  das respostas e o tamanho (erro 54000). Renovar um pedido aberto antes de 1 hora é recusado
+  (54000). Gera `house_analysis_requested`.
+- **`resolve_house_analysis(pedido, casa, totem)`:** só a coordenação nacional, nunca sobre o
+  próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Grava o resultado
   (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
   aceita a casa pelo fluxo normal (`accept_house`). A tela da coordenação para a fila ainda não
   existe (issue de seguimento).
@@ -442,8 +455,8 @@ eventos é obrigatório. Em `member_blocked` é opcional (`impersonation`, `cond
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
 `actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória; só neste evento).
 Em `house_analysis_requested`, ator e alvo são a pessoa; em `house_analysis_resolved`, o ator é a
-coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, o totem nem a casa;
-a coordenação nacional os lê.
+coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, o totem nem a casa.
+**Só a coordenação nacional os lê**: o gestor territorial que gerencia a pessoa não.
 Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca
 respostas do questionário.
 **Nunca contém dados pessoais em claro.** Quem lê (`app.can_read_audit(evento, alvo, ator,

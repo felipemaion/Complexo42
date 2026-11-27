@@ -1,16 +1,16 @@
-import type { Answer, Answers, QuestionnaireResult } from "@/modules/questionnaire";
+import type { Answer, Answers } from "@/modules/questionnaire";
 
 /*
  * Fluxo da escolha da casa (#76, ADR 0008 §2 e §2.1). Puro: a tela só despacha eventos.
  *
  *   ask ─ sim ─▶ activities ─ atividade ─▶ presentation (self)
  *    └─ não ─▶ consent ─ recusa ─▶ activities
- *                 └─ aceita ─▶ question 1..N ─ última ─▶ submit ─ conclusivo ─▶ presentation (questionnaire)
- *                                                          └─ inconclusivo ─▶ analysis ─▶ activities
+ *                 └─ aceita ─▶ question 1..N ─ última ─▶ submit ─ casa ─▶ presentation (questionnaire)
+ *                                                          └─ análise ─▶ analysis ─▶ activities
  *
- * As respostas vivem só neste estado, em memória (nunca no armazenamento do navegador). Só
- * saem do aparelho no resultado inconclusivo, para o pedido de análise da coordenação nacional
- * (ADR 0014 §3); com resultado conclusivo, vão só a casa e o totem. "Escolher outra casa" leva à
+ * As respostas vivem só neste estado, em memória (nunca no armazenamento do navegador). Ao fim
+ * das perguntas vão ao servidor, que pontua (ADR 0014 §1) e devolve a casa ou o aviso de que o
+ * pedido de análise foi aberto; o navegador não conhece a chave. "Escolher outra casa" leva à
  * lista de atividades, e a entrada vira `self`.
  */
 
@@ -21,8 +21,8 @@ export type Step =
   | { kind: "activities" }
   | { kind: "consent" }
   | { kind: "question"; index: number }
-  /** Depois da última pergunta: o resultado vai ao servidor (casa e totem, ou o pedido de análise). */
-  | { kind: "submit"; result: QuestionnaireResult }
+  /** Depois da última pergunta: as respostas vão ao servidor, que pontua e grava o resultado. */
+  | { kind: "submit" }
   /** Resultado inconclusivo: a coordenação nacional decide a casa. */
   | { kind: "analysis" }
   | { kind: "presentation"; houseId: string; method: JoinMethod };
@@ -34,17 +34,16 @@ export type FlowEvent =
   | { type: "consent_accepted" }
   | { type: "consent_declined" }
   | { type: "answer"; value: Answer }
-  | { type: "result_recorded" }
+  | { type: "result_recorded"; houseId: string }
   | { type: "analysis_requested" }
   | { type: "submit_failed" }
   | { type: "activity_chosen"; houseId: string }
   | { type: "choose_other" }
   | { type: "back" };
 
-/** O que o fluxo precisa do questionário: a ordem dos itens e a pontuação (no aparelho). */
+/** O que o fluxo precisa do questionário: a ordem dos itens (a pontuação é do servidor). */
 export type FlowContext = {
   itemIds: readonly string[];
-  score(answers: Answers): QuestionnaireResult;
 };
 
 export const initialFlow: FlowState = { step: { kind: "ask" }, answers: {} };
@@ -88,10 +87,10 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
       if (id === undefined) return state;
       const next = { ...answers, [id]: event.value };
       if (step.index < last) return at({ kind: "question", index: step.index + 1 }, next);
-      return at({ kind: "submit", result: ctx.score(next) }, next);
+      return at({ kind: "submit" }, next);
     }
     case "submit":
-      return afterSubmit(state, step.result, event, last);
+      return afterSubmit(state, event, last);
     case "activities":
       if (event.type !== "activity_chosen") return state;
       return at({ kind: "presentation", houseId: event.houseId, method: "self" }, answers);
@@ -103,13 +102,11 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
   }
 }
 
-/** O servidor respondeu ao envio do resultado: segue para a casa, a análise, ou volta à última pergunta. */
-function afterSubmit(state: FlowState, result: QuestionnaireResult, event: FlowEvent, lastIndex: number): FlowState {
+/** O servidor respondeu ao envio das respostas: segue para a casa, a análise, ou volta à última pergunta. */
+function afterSubmit(state: FlowState, event: FlowEvent, lastIndex: number): FlowState {
   const { answers } = state;
-  if (event.type === "result_recorded" && result.status === "ok") {
-    return at({ kind: "presentation", houseId: result.houseId, method: "questionnaire" }, answers);
-  }
-  if (event.type === "analysis_requested" && result.status === "inconclusive") return at({ kind: "analysis" }, answers);
+  if (event.type === "result_recorded") return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire" }, answers);
+  if (event.type === "analysis_requested") return at({ kind: "analysis" }, answers);
   if (event.type === "submit_failed") return at({ kind: "question", index: lastIndex }, answers);
   return state;
 }

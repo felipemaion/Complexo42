@@ -1,13 +1,14 @@
 "use server";
 // Server actions da escolha da casa (#76). O navegador manda `{ houseId, joinMethod }`,
-// `{ termVersion }` ou o resultado (`{ houseId, totem }`); as respostas do questionário ficam no
-// aparelho, salvo no pedido de análise do resultado inconclusivo (ADR 0014). O cliente
+// `{ termVersion }` ou `{ answers }`; o servidor pontua as respostas e só as guarda no pedido de
+// análise do resultado inconclusivo (ADR 0014). O cliente
 // do Supabase é o da sessão, com o JWT de quem está logado (R14).
 import { instance } from "@config/instance";
-import { requireUser } from "@/server/auth/session";
+import { signQuestionnaireMessage } from "@/server/crypto";
+import { requireUser, requireUserClient } from "@/server/auth/session";
 import { log } from "@/server/log";
-import type { HouseActionResult } from "../types";
-import { acceptHouse, recordConsent, recordQuestionnaireResult, requestHouseAnalysis } from "./houses";
+import type { HouseActionResult, SubmitAnswersResult } from "../types";
+import { acceptHouse, recordConsent, submitQuestionnaire } from "./houses";
 import { getQuestionnaire } from "./questionnaire";
 import { sessionHouseClient } from "./session";
 
@@ -34,20 +35,27 @@ export async function recordConsentAction(input: unknown): Promise<HouseActionRe
   return logged("questionnaire_consent_refused", await recordConsent(client, input, getQuestionnaire().consentTermVersion));
 }
 
-export async function recordResultAction(input: unknown): Promise<HouseActionResult> {
-  await requireUser();
+/**
+ * Pontua as respostas no servidor e grava o resultado (ADR 0014 §1). O navegador manda só
+ * `{ answers }`; a chave real do questionário nunca sai do servidor. As respostas não vão para o log.
+ */
+export async function submitAnswersAction(input: unknown): Promise<SubmitAnswersResult> {
+  const { user } = await requireUserClient();
   const client = await sessionHouseClient();
   if (!client) return { ok: false, error: "failed" };
-  const questionnaire = getQuestionnaire();
-  const houseIds = instance.houses.map((h) => h.id);
-  return logged("questionnaire_result_refused", await recordQuestionnaireResult(client, input, houseIds, questionnaire.consentTermVersion));
-}
-
-export async function requestAnalysisAction(input: unknown): Promise<HouseActionResult> {
-  await requireUser();
-  const client = await sessionHouseClient();
-  if (!client) return { ok: false, error: "failed" };
-  const questionnaire = getQuestionnaire();
-  const itemIds = questionnaire.items.map((item) => item.id);
-  return logged("house_analysis_refused", await requestHouseAnalysis(client, input, itemIds, questionnaire.consentTermVersion));
+  let result: SubmitAnswersResult;
+  try {
+    result = await submitQuestionnaire(client, input, {
+      questionnaire: getQuestionnaire(),
+      houseIds: instance.houses.map((h) => h.id),
+      userId: user.id,
+      nowSeconds: Math.floor(Date.now() / 1000),
+      sign: signQuestionnaireMessage,
+    });
+  } catch {
+    // Sem chave de assinatura (ou erro inesperado): falha fechado, sem detalhe nem respostas no log.
+    result = { ok: false, error: "failed" };
+  }
+  if (!result.ok) log.warn("questionnaire_submit_refused", { reason: result.error });
+  return result;
 }

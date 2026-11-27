@@ -2,8 +2,8 @@ import type { Axis, Pole, QuestionnaireConfig } from "./schema";
 
 /*
  * Pontuação do questionário (ADR 0014, #172). Função pura: sem I/O, sem data, sem estado. Roda
- * no navegador; as respostas só saem do aparelho no caso inconclusivo, para o pedido de análise
- * da coordenação nacional (ADR 0014 §3). Com resultado conclusivo, vão só a casa e o totem.
+ * só no servidor (ADR 0014 §1): o navegador não recebe a chave. As respostas só são guardadas no
+ * caso inconclusivo, para o pedido de análise da coordenação nacional (ADR 0014 §3).
  */
 
 /** Resposta de um item: alternativa a, b, ou as duas (indecisão). */

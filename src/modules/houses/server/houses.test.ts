@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HouseClient, HouseQuery } from "../types";
-import { acceptHouse, readAcceptedHouse, recordConsent, recordQuestionnaireResult, requestHouseAnalysis } from "./houses";
+import { parseQuestionnaire } from "@/modules/questionnaire";
+import { acceptHouse, readAcceptedHouse, recordConsent, submitQuestionnaire } from "./houses";
 
 const houseIds = ["casa-a", "casa-b"];
 
@@ -128,67 +129,107 @@ describe("readAcceptedHouse", () => {
   });
 });
 
-describe("recordQuestionnaireResult", () => {
-  it("manda ao banco a casa, o totem e a versão do termo do servidor", async () => {
+describe("submitQuestionnaire", () => {
+  // Chave de teste: dois itens por eixo; a letra de cada polo do totem vem do config.
+  const items = ["h1a", "h1b", "h2a", "h2b", "t1a", "t1b", "t2a", "t2b"].map((id) => ({ id, text: "x", a: { text: "x" }, b: { text: "x" } }));
+  const questionnaire = parseQuestionnaire(
+    {
+      version: "v",
+      consentTermVersion: "termo-1",
+      consentTerm: "t",
+      items,
+      axes: {
+        house1: { itemIds: ["h1a", "h1b"], tieBreakItems: ["h1a"] },
+        house2: { itemIds: ["h2a", "h2b"] },
+        totem1: { itemIds: ["t1a", "t1b"], letters: { a: "X", b: "Y" } },
+        totem2: { itemIds: ["t2a", "t2b"], letters: { a: "V", b: "W" } },
+      },
+      houseByPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
+    },
+    ["casa-a", "casa-b", "casa-c", "casa-d"],
+  );
+  const signed: string[] = [];
+  const ctx = {
+    questionnaire,
+    houseIds: ["casa-a", "casa-b", "casa-c", "casa-d"],
+    userId: "u-1",
+    nowSeconds: 1000,
+    sign: (message: string) => (signed.push(message), `sig(${message})`),
+  };
+  const all = (value: "a" | "b" | "both") => Object.fromEntries(items.map((i) => [i.id, value]));
+
+  it("resultado conclusivo: o servidor pontua e manda ao banco casa e totem assinados (para a pessoa da sessão)", async () => {
     const { client, calls } = fakeClient();
-    expect(await recordQuestionnaireResult(client, { houseId: "casa-a", totem: "AB" }, houseIds, "termo-1")).toEqual({ ok: true });
-    expect(calls).toEqual([
-      { fn: "record_questionnaire_result", args: { p_term_version: "termo-1", p_house_key: "casa-a", p_totem: "AB" } },
-    ]);
-  });
-
-  it("recusa, sem chamar o banco, casa fora da config, totem malformado e campos a mais (respostas, versão)", async () => {
-    const { client, calls } = fakeClient();
-    for (const input of [
-      { houseId: "casa-x", totem: "AB" },
-      { houseId: "casa-a", totem: "ab" },
-      { houseId: "casa-a", totem: "ABC" },
-      { houseId: "casa-a", totem: "AB", answers: { q01: "a" } },
-      { houseId: "casa-a", totem: "AB", termVersion: "termo-forjado" },
-      { houseId: "casa-a" },
-    ]) {
-      expect(await recordQuestionnaireResult(client, input, houseIds, "termo-1")).toEqual({ ok: false, error: "failed" });
-    }
-    expect(calls).toEqual([]);
-  });
-
-  it("traduz o erro do banco em motivo da tela", async () => {
-    const { client } = fakeClient({ error: { code: "42501" } });
-    expect(await recordQuestionnaireResult(client, { houseId: "casa-a", totem: "AB" }, houseIds, "termo-1")).toEqual({
-      ok: false,
-      error: "not_active",
-    });
-  });
-});
-
-describe("requestHouseAnalysis", () => {
-  const itemIds = ["q01", "q02"];
-
-  it("manda ao banco os eixos empatados e as respostas, com a versão do termo do servidor", async () => {
-    const { client, calls } = fakeClient();
-    const input = { axes: ["house1", "totem2"], answers: { q01: "a", q02: "both" } };
-    expect(await requestHouseAnalysis(client, input, itemIds, "termo-1")).toEqual({ ok: true });
+    const answers = { ...all("a"), h2a: "b", h2b: "b", t1a: "b", t1b: "b" };
+    expect(await submitQuestionnaire(client, { answers }, ctx)).toEqual({ ok: true, outcome: "recorded", houseId: "casa-b" });
     expect(calls).toEqual([
       {
-        fn: "request_house_analysis",
-        args: { p_term_version: "termo-1", p_tied_axes: ["house1", "totem2"], p_answers: { q01: "a", q02: "both" } },
+        fn: "record_questionnaire_result",
+        args: {
+          p_term_version: "termo-1",
+          p_house_key: "casa-b",
+          p_totem: "YV",
+          p_issued_at: 1000,
+          p_signature: "sig(result|u-1|termo-1|casa-b|YV|1000)",
+        },
       },
     ]);
   });
 
-  it("recusa, sem chamar o banco, eixo desconhecido, item que não existe, resposta inválida e campos a mais", async () => {
+  it("a resposta ao navegador traz a casa, nunca o totem", async () => {
+    const { client } = fakeClient();
+    expect(JSON.stringify(await submitQuestionnaire(client, { answers: all("a") }, ctx))).not.toMatch(/AA|XV|totem/);
+  });
+
+  it("resultado inconclusivo: abre o pedido de análise com as respostas completas, assinado", async () => {
     const { client, calls } = fakeClient();
+    const answers = all("both");
+    expect(await submitQuestionnaire(client, { answers }, ctx)).toEqual({ ok: true, outcome: "analysis" });
+    expect(calls).toEqual([
+      {
+        fn: "request_house_analysis",
+        args: {
+          p_term_version: "termo-1",
+          p_tied_axes: ["house1", "house2", "totem1", "totem2"],
+          p_answers: answers,
+          p_issued_at: 1000,
+          p_signature: "sig(analysis|u-1|termo-1|house1,house2,totem1,totem2|1000|8)",
+        },
+      },
+    ]);
+  });
+
+  it("recusa, sem chamar o banco nem assinar, respostas incompletas, itens inventados, valores inválidos e campos a mais", async () => {
+    const { client, calls } = fakeClient();
+    const incomplete: Record<string, "a" | "b" | "both"> = all("a");
+    delete incomplete.h1a;
     for (const input of [
-      { axes: [], answers: { q01: "a" } },
-      { axes: ["house9"], answers: { q01: "a" } },
-      { axes: ["house1"], answers: { zz: "a" } },
-      { axes: ["house1"], answers: { q01: "talvez" } },
-      { axes: ["house1"], answers: { q01: "a" }, houseId: "casa-a" },
-      { axes: ["house1"] },
-      "house1",
+      { answers: {} },
+      { answers: incomplete },
+      { answers: { ...all("a"), zz: "a" } },
+      { answers: { ...all("a"), h1a: "talvez" } },
+      { answers: all("a"), houseId: "casa-a" },
+      { answers: all("a"), totem: "AB" },
+      { houseId: "casa-a", totem: "AB" },
+      "a",
     ]) {
-      expect(await requestHouseAnalysis(client, input, itemIds, "termo-1")).toEqual({ ok: false, error: "failed" });
+      expect(await submitQuestionnaire(client, input, ctx)).toEqual({ ok: false, error: "failed" });
     }
     expect(calls).toEqual([]);
+    expect(signed.every((m) => !m.includes("talvez"))).toBe(true);
+  });
+
+  it("casa fora da config é recusada", async () => {
+    const { client, calls } = fakeClient();
+    expect(await submitQuestionnaire(client, { answers: all("a") }, { ...ctx, houseIds: ["outra"] })).toEqual({ ok: false, error: "failed" });
+    expect(calls).toEqual([]);
+  });
+
+  it("traduz o erro do banco: sem permissão, e pedido renovado há pouco", async () => {
+    expect(await submitQuestionnaire(fakeClient({ error: { code: "42501" } }).client, { answers: all("a") }, ctx)).toEqual({ ok: false, error: "not_active" });
+    expect(await submitQuestionnaire(fakeClient({ error: { code: "54000" } }).client, { answers: all("both") }, ctx)).toEqual({
+      ok: false,
+      error: "rate_limited",
+    });
   });
 });

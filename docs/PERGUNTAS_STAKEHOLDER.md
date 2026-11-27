@@ -101,8 +101,9 @@ substituídas pelas abaixo.
     o empate deixa o resultado inconclusivo e abre um pedido de análise.
 78. **Termo de consentimento:** podemos adaptá-lo assim?
     - **Resultado:** a pessoa vê só a casa. A plataforma guarda a casa sugerida e o totem (interno).
-    - **Respostas:** só saem do aparelho se o resultado for inconclusivo, para a coordenação
-      nacional analisar, e são apagadas ao resolver. O texto atual não diz isso [?].
+    - **Respostas:** vão ao servidor para o cálculo e só são guardadas se o resultado for
+      inconclusivo, para a coordenação nacional analisar; são apagadas ao resolver ou em 30 dias.
+      O texto atual não diz isso [?].
     - **Assinatura e e-mail:** dão lugar a um aceite na tela, registrado com data e versão.
     - **Desistência:** vira o botão "escolher outra casa".
 79. **Licença:** quem detém os direitos das perguntas e da adaptação? Até a resposta, o texto

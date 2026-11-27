@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(71);
+select plan(97);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -59,6 +59,28 @@ insert into public.role_assignments (profile_id, role, unit_id) values
 insert into public.questionnaire_consents (profile_id, term_version)
 select id, 'termo-1' from people where name in ('p1', 'p2', 'p3', 'wait');
 
+
+-- Assinatura do servidor (ADR 0014): a mesma chave do banco, num temp para o teste assinar como o app.
+insert into app.server_secrets (name, value) values ('questionnaire_signing_key', 'chave-de-teste-do-servidor')
+on conflict (name) do update set value = excluded.value;
+create temp table signing_key (k text);
+insert into signing_key values ('chave-de-teste-do-servidor');
+grant select on signing_key to anon, authenticated;
+create function pg_temp.sig(p_message text, p_key text default null) returns text language sql stable as $$
+  select encode(extensions.hmac(convert_to(p_message, 'utf8'), convert_to(coalesce(p_key, (select k from signing_key)), 'utf8'), 'sha256'), 'hex')
+$$;
+create function pg_temp.now_s() returns bigint language sql stable as $$ select extract(epoch from now())::bigint $$;
+-- Como a server action: assina para a pessoa da sessão e chama a função do banco.
+create function pg_temp.record(p_term text, p_house text, p_totem text, p_age_s bigint default 0) returns void language sql as $$
+  select public.record_questionnaire_result(p_term, p_house, p_totem, pg_temp.now_s() - p_age_s,
+    pg_temp.sig(format('result|%s|%s|%s|%s|%s', (select auth.uid()), p_term, p_house, p_totem, pg_temp.now_s() - p_age_s)))
+$$;
+create function pg_temp.analyze(p_term text, p_axes text[], p_answers jsonb) returns uuid language sql as $$
+  select public.request_house_analysis(p_term, p_axes, p_answers, pg_temp.now_s(),
+    pg_temp.sig(format('analysis|%s|%s|%s|%s|%s', (select auth.uid()), p_term, array_to_string(p_axes, ','), pg_temp.now_s(),
+      (select count(*) from jsonb_object_keys(p_answers)))))
+$$;
+
 create function pg_temp.results_seen() returns int language sql stable as $$
   select count(*)::int from public.questionnaire_results
 $$;
@@ -74,31 +96,31 @@ grant execute on function pg_temp.results_seen(), pg_temp.requests_seen() to aut
 -- record_questionnaire_result
 -- ---------------------------------------------------------------------------------------
 set local role anon;
-select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', 'AB') $$, '42501', null,
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AB') $$, '42501', null,
   'anônimo NÃO grava resultado');
 
 set local role authenticated;
 select pg_temp.login('wait');
-select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', 'AB') $$, '42501', null,
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AB') $$, '42501', null,
   'quem está na espera NÃO grava resultado');
 
 select pg_temp.login('p1');
-select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', 'ab') $$, '22023', null,
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'ab') $$, '22023', null,
   'totem em minúsculas é recusado');
-select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', 'ABC') $$, '22023', null,
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'ABC') $$, '22023', null,
   'totem com três letras é recusado');
-select throws_ok($$ select public.record_questionnaire_result('termo-9', 'casa-t1', 'AB') $$, '22023', null,
+select throws_ok($$ select pg_temp.record('termo-9', 'casa-t1', 'AB') $$, '22023', null,
   'sem o aceite dessa versão do termo, é recusado');
-select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-nao-existe', 'AB') $$, 'P0002', null,
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-nao-existe', 'AB') $$, 'P0002', null,
   'casa inexistente é recusada');
-select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-off', 'AB') $$, 'P0002', null,
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-off', 'AB') $$, 'P0002', null,
   'casa inativa é recusada');
 select is(pg_temp.results_seen(), 0, 'as recusas não gravaram nada');
 
-select lives_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', 'AB') $$,
+select lives_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AB') $$,
   'a própria pessoa grava o resultado');
 select is((select totem from public.questionnaire_results), 'AB', 'a pessoa lê o próprio totem');
-select lives_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'BA') $$,
+select lives_ok($$ select pg_temp.record('termo-1', 'casa-t2', 'BA') $$,
   'refazer o questionário substitui o resultado');
 select results_eq($$ select house_key, totem, source from public.questionnaire_results $$,
   $$ values ('casa-t2'::text, 'BA'::text, 'questionnaire'::text) $$,
@@ -145,36 +167,42 @@ select is(pg_temp.results_seen(), 0, 'quem está na espera NÃO lê nem o própr
 -- request_house_analysis
 -- ---------------------------------------------------------------------------------------
 select pg_temp.login('p1');
-select throws_ok($$ select public.request_house_analysis('termo-1', array['house3'], '{"q01": "a"}') $$, '22023', null,
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house3'], '{"q01": "a"}') $$, '22023', null,
   'eixo desconhecido é recusado');
-select throws_ok($$ select public.request_house_analysis('termo-1', array[]::text[], '{"q01": "a"}') $$, '22023', null,
+select throws_ok($$ select pg_temp.analyze('termo-1', array[]::text[], '{"q01": "a"}') $$, '22023', null,
   'lista de eixos vazia é recusada');
-select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '["a"]') $$, '22023', null,
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house1'], '["a"]') $$, '22023', null,
   'respostas que não são um objeto são recusadas');
-select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "talvez"}') $$, '22023', null,
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house1'], '{"q01": "talvez"}') $$, '22023', null,
   'resposta fora de a, b e both é recusada');
-select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"Q 01": "a"}') $$, '22023', null,
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house1'], '{"Q 01": "a"}') $$, '22023', null,
   'id de item fora do formato é recusado');
 select throws_ok(
-  format($$ select public.request_house_analysis('termo-1', array['house1'], %L::jsonb) $$,
+  format($$ select pg_temp.analyze('termo-1', array['house1'], %L::jsonb) $$,
          (select jsonb_object_agg('q' || n, 'a') from generate_series(1, 600) as n)::text),
   '54000', null, 'respostas grandes demais são recusadas');
-select throws_ok($$ select public.request_house_analysis('termo-9', array['house1'], '{"q01": "a"}') $$, '22023', null,
+select throws_ok($$ select pg_temp.analyze('termo-9', array['house1'], '{"q01": "a"}') $$, '22023', null,
   'sem o aceite dessa versão do termo, é recusado');
 select pg_temp.login('wait');
-select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "a"}') $$, '42501', null,
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house1'], '{"q01": "a"}') $$, '42501', null,
   'quem está na espera NÃO abre pedido');
 
 select pg_temp.login('p1');
-select lives_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "a", "q02": "both"}') $$,
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house1'], '{"q01": "a", "q02": "both"}') $$,
   'a pessoa abre o pedido de análise');
 select is(pg_temp.requests_seen(), 1, 'um pedido');
 select is((select status from public.house_analysis_requests), 'open', 'o pedido está aberto');
 select is((select answers from public.house_analysis_requests), '{"q01": "a", "q02": "both"}'::jsonb,
   'as respostas ficam guardadas enquanto o pedido está aberto');
 select is(pg_temp.results_seen(), 0, 'o resultado anterior deixa de valer');
-select lives_ok($$ select public.request_house_analysis('termo-1', array['house1', 'totem2'], '{"q01": "b"}') $$,
-  'refazer o questionário renova o pedido aberto');
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house1', 'totem2'], '{"q01": "b"}') $$, '54000', null,
+  'renovar o pedido logo em seguida é recusado (no máximo um por hora)');
+reset role;
+update public.house_analysis_requests set created_at = now() - interval '2 hours' where profile_id = pg_temp.person('p1');
+set local role authenticated;
+select pg_temp.login('p1');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house1', 'totem2'], '{"q01": "b"}') $$,
+  'passada 1 hora, refazer o questionário renova o pedido aberto');
 select results_eq($$ select count(*)::int, min(tied_axes::text), min(answers::text) from public.house_analysis_requests $$,
   $$ values (1, '{house1,totem2}'::text, '{"q01": "b"}'::text) $$,
   'continua um pedido aberto por pessoa, com as respostas mais recentes');
@@ -251,25 +279,125 @@ set local role authenticated;
 -- As respostas somem quando o pedido deixa de fazer sentido
 -- ---------------------------------------------------------------------------------------
 select pg_temp.login('p2');
-select lives_ok($$ select public.request_house_analysis('termo-1', array['house2'], '{"q01": "a"}') $$, 'p2 abre um pedido');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house2'], '{"q01": "a"}') $$, 'p2 abre um pedido');
 select lives_ok($$ select public.accept_house('casa-t1', 'self', null) $$, 'p2 escolhe e aceita uma casa direto');
 select results_eq($$ select status, resolution, answers is null, resolved_by is null from public.house_analysis_requests $$,
   $$ values ('resolved'::text, 'self'::text, true, true) $$,
   'aceitar uma casa fecha o pedido e apaga as respostas');
 
 select pg_temp.login('p3');
-select lives_ok($$ select public.request_house_analysis('termo-1', array['totem1'], '{"q01": "b"}') $$, 'p3 abre um pedido');
-select lives_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', 'AA') $$,
+select lives_ok($$ select pg_temp.analyze('termo-1', array['totem1'], '{"q01": "b"}') $$, 'p3 abre um pedido');
+select lives_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AA') $$,
   'p3 refaz e agora o resultado é conclusivo');
 select results_eq($$ select status, resolution, answers is null from public.house_analysis_requests $$,
   $$ values ('resolved'::text, 'self'::text, true) $$,
   'um resultado conclusivo fecha o pedido e apaga as respostas');
 
+
+-- ---------------------------------------------------------------------------------------
+-- O navegador não impõe resultado: só o servidor assina (ADR 0014)
+-- ---------------------------------------------------------------------------------------
+select pg_temp.login('p2');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(), 'assinatura-qualquer') $$, '42501', null,
+  'resultado sem assinatura válida é recusado (chamada direta pela API)');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(), null) $$, '42501', null,
+  'resultado sem assinatura nenhuma é recusado');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(),
+    pg_temp.sig(format('result|%s|termo-1|casa-t2|AA|%s', pg_temp.person('p2'), pg_temp.now_s()), 'outra-chave')) $$, '42501', null,
+  'assinatura com outra chave é recusada');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(),
+    pg_temp.sig(format('result|%s|termo-1|casa-t2|AB|%s', pg_temp.person('p2'), pg_temp.now_s()))) $$, '42501', null,
+  'assinatura de outro totem NÃO vale para este (campo adulterado)');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(),
+    pg_temp.sig(format('result|%s|termo-1|casa-t2|AA|%s', pg_temp.person('p3'), pg_temp.now_s()))) $$, '42501', null,
+  'resultado assinado para OUTRA pessoa NÃO vale na sessão desta');
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-t2', 'AA', 600) $$, '42501', null,
+  'assinatura emitida há mais de 5 minutos é recusada');
+select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "a"}', pg_temp.now_s(), 'x') $$, '42501', null,
+  'pedido de análise sem assinatura do servidor é recusado');
+select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "a", "q02": "a"}', pg_temp.now_s(),
+    pg_temp.sig(format('analysis|%s|termo-1|house1|%s|1', pg_temp.person('p2'), pg_temp.now_s()))) $$, '42501', null,
+  'a assinatura cobre a quantidade de respostas (não dá para trocar por um conjunto menor ou maior)');
+select throws_ok($$ select public.request_house_analysis('termo-1', null, '{}', pg_temp.now_s(), 'x') $$, '42501', null,
+  'pedido vazio e sem assinatura é recusado');
+select throws_ok($$ select * from app.server_secrets $$, '42501', null, 'a chave de assinatura NÃO é lida pela API');
+
+-- ---------------------------------------------------------------------------------------
+-- Eventos da fila só para a coordenação nacional; resolução e prazo
+-- ---------------------------------------------------------------------------------------
+reset role;
+insert into public.audit_log (actor_id, event, target_id) values (pg_temp.person('p1'), 'house_analysis_requested', pg_temp.person('p1'));
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select is((select count(*)::int from public.audit_log where event in ('house_analysis_requested', 'house_analysis_resolved')), 0,
+  'gestor de estado, que gerencia a pessoa, NÃO lê os eventos da fila');
+select pg_temp.login('hc_root');
+select is((select count(*)::int from public.audit_log where event in ('house_analysis_requested', 'house_analysis_resolved')), 0,
+  'coordenador nacional de casa NÃO lê os eventos da fila');
+select pg_temp.login('root_mgr');
+select ok((select count(*)::int from public.audit_log where event in ('house_analysis_requested', 'house_analysis_resolved')) >= 2,
+  'a coordenação nacional lê os eventos da fila');
+
+-- A coordenação nacional não resolve o próprio pedido.
+reset role;
+insert into public.questionnaire_consents (profile_id, term_version) values (pg_temp.person('root_mgr'), 'termo-1');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house1'], '{"q01": "a"}') $$, 'o gestor da raiz abre um pedido para si');
+create temp table own_request (id uuid);
+reset role;
+insert into own_request select pg_temp.open_request_of('root_mgr');
+grant select on own_request to authenticated;
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select throws_ok($$ select public.resolve_house_analysis((select id from own_request), 'casa-t1', 'AB') $$, '42501', null,
+  'a coordenação NÃO resolve o próprio pedido');
+
+-- Só resolve pedido de quem está ativo.
+select pg_temp.login('p3');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['totem2'], '{"q01": "a"}') $$, 'p3 abre outro pedido');
+create temp table p3_request (id uuid);
+reset role;
+insert into p3_request select pg_temp.open_request_of('p3');
+grant select on p3_request to authenticated;
+update public.profiles set status = 'suspended' where id = pg_temp.person('p3');
+select is((select resolution from public.house_analysis_requests where id = (select id from p3_request)),
+  'inactive', 'suspender a pessoa fecha o pedido');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p3') and answers is not null), 0,
+  '... e apaga as respostas');
+update public.profiles set status = 'active' where id = pg_temp.person('p3');
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers) values (pg_temp.person('p3'), 'termo-1', array['house1'], '{"q01": "a"}');
+update public.profiles set access_status = 'blocked' where id = pg_temp.person('p3');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p3') and status = 'open'), 0,
+  'bloquear a pessoa também fecha o pedido aberto');
+update public.profiles set access_status = 'active' where id = pg_temp.person('p3');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select throws_ok($$ select public.resolve_house_analysis((select id from p3_request), 'casa-t1', 'AB') $$, 'P0002', null,
+  'pedido já fechado (pessoa suspensa) não é resolvido');
+
+-- Prazo: depois de 30 dias as respostas não são lidas e são apagadas na próxima chamada.
+select pg_temp.login('p2');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house2'], '{"q01": "b"}') $$, 'p2 abre um pedido (antes do prazo)');
+reset role;
+update public.house_analysis_requests set created_at = now() - interval '31 days' where profile_id = pg_temp.person('p2') and status = 'open';
+set local role authenticated;
+select pg_temp.login('p2');
+select is((select count(*)::int from public.house_analysis_requests where status = 'open'), 0, 'pedido vencido não aparece como aberto para a pessoa');
+select pg_temp.login('root_mgr');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p2') and status = 'open'), 0,
+  'nem para a coordenação nacional');
+select pg_temp.login('p3');
+select lives_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AA') $$, 'qualquer chamada das funções apaga as respostas vencidas');
+reset role;
+select results_eq($$ select status, resolution, answers is null from public.house_analysis_requests where profile_id = pg_temp.person('p2') and resolution = 'expired' $$,
+  $$ values ('resolved'::text, 'expired'::text, true) $$, 'o pedido vencido foi fechado como expirado, sem respostas');
+set local role authenticated;
 -- ---------------------------------------------------------------------------------------
 -- Exportação (LGPD art. 18): o totem e os pedidos vão para a própria pessoa
 -- ---------------------------------------------------------------------------------------
 select pg_temp.login('p1');
-select lives_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "a"}') $$, 'p1 abre outro pedido');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house1'], '{"q01": "a"}') $$, 'p1 abre outro pedido');
 select is((public.export_own_data() -> 'questionnaire_result' ->> 'totem'), null,
   'o pedido novo apagou o resultado anterior, e o export reflete isso');
 select is(jsonb_array_length(public.export_own_data() -> 'house_analysis_requests'), 2,

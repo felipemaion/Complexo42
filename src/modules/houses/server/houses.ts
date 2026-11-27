@@ -1,11 +1,11 @@
 // Escolha e aceite da casa no servidor (#76, ADR 0008 §2 e §2.1). Recebe o id da casa e a forma
-// de entrada, a versão do termo, ou o resultado do questionário (casa e totem). As respostas só
-// chegam no pedido de análise do resultado inconclusivo (ADR 0014).
+// de entrada, a versão do termo, ou as respostas do questionário, que o servidor pontua (ADR 0014).
+// As respostas só são guardadas no pedido de análise do resultado inconclusivo.
 // Toda entrada passa por Zod antes de ir ao banco, que confere de novo (R15).
 import "server-only";
 import { z } from "zod";
-import { axisKeys } from "@/modules/questionnaire";
-import type { HouseActionResult, HouseClient, HouseErrorCode } from "../types";
+import { QuestionnaireAnswerError, scoreQuestionnaire, type QuestionnaireConfig, type QuestionnaireResult } from "@/modules/questionnaire";
+import type { HouseActionResult, HouseClient, HouseErrorCode, SubmitAnswersResult } from "../types";
 
 /** Código do Postgres/PostgREST → motivo exibido. Qualquer outro vira `failed`. */
 const errorByCode: Record<string, HouseErrorCode> = {
@@ -13,6 +13,7 @@ const errorByCode: Record<string, HouseErrorCode> = {
   P0002: "unavailable", // casa inexistente ou inativa
   "23505": "already_accepted", // outra casa já aceita
   C7602: "removed_by_coordination", // a coordenação encerrou a casa da pessoa
+  "54000": "rate_limited", // pedido de análise renovado há pouco
 };
 
 function errorCode(error: unknown): HouseErrorCode {
@@ -59,55 +60,56 @@ export async function recordConsent(client: HouseClient, input: unknown, current
   return error ? { ok: false, error: errorCode(error) } : { ok: true };
 }
 
-/**
- * Grava o resultado conclusivo do questionário: a casa sugerida e o totem (ADR 0014). `input`
- * vem do navegador; as respostas nunca vêm junto. A versão do termo é a do servidor.
- */
-export async function recordQuestionnaireResult(
-  client: HouseClient,
-  input: unknown,
-  houseIds: readonly string[],
-  termVersion: string,
-): Promise<HouseActionResult> {
-  const parsed = z
-    .strictObject({
-      houseId: z.string().refine((id) => houseIds.includes(id)),
-      totem: z.string().regex(/^[A-Z]{2}$/),
-    })
-    .safeParse(input);
-  if (!parsed.success) return { ok: false, error: "failed" };
-  const { error } = await client.rpc("record_questionnaire_result", {
-    p_term_version: termVersion,
-    p_house_key: parsed.data.houseId,
-    p_totem: parsed.data.totem,
-  });
-  return error ? { ok: false, error: errorCode(error) } : { ok: true };
-}
+/** O que o envio das respostas precisa do servidor: o questionário real, a pessoa da sessão e a assinatura. */
+export type SubmitContext = {
+  questionnaire: QuestionnaireConfig;
+  houseIds: readonly string[];
+  /** Id da pessoa da sessão (nunca vem do navegador): o banco confere com `auth.uid()`. */
+  userId: string;
+  /** Segundos desde 1970 (injetado para o teste). */
+  nowSeconds: number;
+  sign(message: string): string;
+};
 
 /**
- * Pede a análise da coordenação nacional quando o resultado é inconclusivo (ADR 0014 §3). É o
- * único caso em que as respostas saem do aparelho: o banco as guarda só com o pedido aberto.
- * Os ids dos itens precisam ser os do questionário carregado no servidor.
+ * Pontua as respostas NO SERVIDOR e grava o resultado (ADR 0014 §1). O navegador manda só as
+ * respostas; nunca casa, totem, versão do termo nem id. O resultado vai ao banco assinado, e o
+ * banco só o aceita para a pessoa da sessão: pela API direta, o navegador não impõe resultado.
+ * As respostas só são guardadas no resultado inconclusivo (pedido de análise).
  */
-export async function requestHouseAnalysis(
-  client: HouseClient,
-  input: unknown,
-  itemIds: readonly string[],
-  termVersion: string,
-): Promise<HouseActionResult> {
-  const parsed = z
-    .strictObject({
-      axes: z.array(z.enum(axisKeys)).min(1).max(axisKeys.length),
-      answers: z.record(z.string().refine((id) => itemIds.includes(id)), z.enum(["a", "b", "both"])),
-    })
-    .safeParse(input);
+export async function submitQuestionnaire(client: HouseClient, input: unknown, ctx: SubmitContext): Promise<SubmitAnswersResult> {
+  const parsed = z.strictObject({ answers: z.record(z.string(), z.enum(["a", "b", "both"])) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "failed" };
+  let result: QuestionnaireResult;
+  try {
+    result = scoreQuestionnaire(ctx.questionnaire, parsed.data.answers);
+  } catch (error) {
+    if (error instanceof QuestionnaireAnswerError) return { ok: false, error: "failed" };
+    throw error;
+  }
+  const { userId, nowSeconds, questionnaire: { consentTermVersion: term } } = ctx;
+  if (result.status === "ok") {
+    if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
+    const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${result.totem}|${nowSeconds}`);
+    const { error } = await client.rpc("record_questionnaire_result", {
+      p_term_version: term,
+      p_house_key: result.houseId,
+      p_totem: result.totem,
+      p_issued_at: nowSeconds,
+      p_signature: signature,
+    });
+    return error ? { ok: false, error: errorCode(error) } : { ok: true, outcome: "recorded", houseId: result.houseId };
+  }
+  const answerCount = Object.keys(parsed.data.answers).length;
+  const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${nowSeconds}|${answerCount}`);
   const { error } = await client.rpc("request_house_analysis", {
-    p_term_version: termVersion,
-    p_tied_axes: parsed.data.axes,
+    p_term_version: term,
+    p_tied_axes: result.axes,
     p_answers: parsed.data.answers,
+    p_issued_at: nowSeconds,
+    p_signature: signature,
   });
-  return error ? { ok: false, error: errorCode(error) } : { ok: true };
+  return error ? { ok: false, error: errorCode(error) } : { ok: true, outcome: "analysis" };
 }
 
 const acceptedRow = z.object({ house_key: z.string() }).nullable();

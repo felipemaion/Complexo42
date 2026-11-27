@@ -236,6 +236,8 @@ export const instanceConfigSchema = z.strictObject({
       stale_consent: text,
       /** A coordenação encerrou a casa da pessoa: a volta é com ela. */
       removed_by_coordination: text,
+      /** Pedido de análise renovado há pouco (no máximo um por hora). */
+      rate_limited: text,
       failed: text,
     }),
   }),

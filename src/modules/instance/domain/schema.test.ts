@@ -121,6 +121,7 @@ const valid = {
       not_active: "t",
       stale_consent: "t",
       removed_by_coordination: "t",
+      rate_limited: "t",
       failed: "t",
     },
   },

@@ -3,23 +3,22 @@
 // fluxo está em domain/flow.ts, e quem fala com o banco são as server actions.
 //
 // Privacidade: as respostas do questionário ficam só no estado deste componente, em memória.
-// Não vão para o localStorage/sessionStorage nem para a URL. A pontuação roda aqui
-// (`scoreQuestionnaire`, #172): com resultado conclusivo, vão ao servidor só a casa sugerida e o
-// totem, a casa aceita (com a forma de entrada) e a versão do termo. Só no resultado
-// inconclusivo as respostas vão, no pedido de análise da coordenação nacional (ADR 0014 §3).
+// Não vão para o localStorage/sessionStorage nem para a URL. Ao fim das perguntas vão ao
+// servidor, que pontua com a chave real (que o navegador nunca recebe, ADR 0014 §1) e só as
+// guarda no pedido de análise do resultado inconclusivo. O navegador não manda casa nem totem.
 // tests/house-privacy.test.ts e e2e/house-live.spec.ts conferem.
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import type { InstanceConfig } from "@/modules/instance";
-import { scoreQuestionnaire, type Answer, type QuestionnaireConfig } from "@/modules/questionnaire";
+import type { Answer, PublicQuestionnaire } from "@/modules/questionnaire";
 import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent } from "../domain/flow";
-import { acceptHouseAction, recordConsentAction, recordResultAction, requestAnalysisAction } from "../server/actions";
+import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
 import { HousePresentation, type HouseView } from "./house-presentation";
 
 type Props = {
   houses: readonly HouseView[];
-  questionnaire: QuestionnaireConfig;
+  questionnaire: PublicQuestionnaire;
   text: InstanceConfig["houseSelection"];
 };
 
@@ -33,10 +32,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const [pending, startTransition] = useTransition();
 
   const ctx = useMemo<FlowContext>(
-    () => ({
-      itemIds: questionnaire.items.map((item) => item.id),
-      score: (answers) => scoreQuestionnaire(questionnaire, answers),
-    }),
+    () => ({ itemIds: questionnaire.items.map((item) => item.id) }),
     [questionnaire],
   );
   const dispatch = (event: FlowEvent) => {
@@ -51,25 +47,21 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       else setError(result.error);
     });
 
-  // Depois da última pergunta o resultado vai ao servidor: casa e totem, ou o pedido de análise.
-  // As ações são idempotentes, então repetir o efeito (modo estrito do React) não duplica nada.
+  // Depois da última pergunta as respostas vão ao servidor, que pontua e grava o resultado. A
+  // ação é idempotente, então repetir o efeito (modo estrito do React) não duplica nada.
   const { step } = state;
   const answers = state.answers;
   useEffect(() => {
     if (step.kind !== "submit") return;
-    const { result } = step;
     let cancelled = false;
     void (async () => {
-      const response =
-        result.status === "ok"
-          ? await recordResultAction({ houseId: result.houseId, totem: result.totem })
-          : await requestAnalysisAction({ axes: result.axes, answers });
+      const response = await submitAnswersAction({ answers });
       if (cancelled) return;
-      if (response.ok) dispatch({ type: result.status === "ok" ? "result_recorded" : "analysis_requested" });
-      else {
+      if (!response.ok) {
         setError(response.error);
         dispatch({ type: "submit_failed" });
-      }
+      } else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId });
+      else dispatch({ type: "analysis_requested" });
     })();
     return () => {
       cancelled = true;

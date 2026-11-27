@@ -186,6 +186,7 @@ export const instance = parseInstanceConfig({
       not_active: "Complete o seu cadastro antes de escolher a casa.",
       stale_consent: "O termo foi atualizado. Recarregue a página para ler a versão nova.",
       removed_by_coordination: "A coordenação tirou você da sua casa. Para voltar ou trocar de casa, fale com a coordenação.",
+      rate_limited: "Você acabou de enviar as suas respostas. Espere um pouco antes de tentar de novo, ou escolha a casa direto.",
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },

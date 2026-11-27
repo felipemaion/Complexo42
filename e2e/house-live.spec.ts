@@ -105,7 +105,7 @@ async function expectNoStorage(page: Page): Promise<void> {
 
 test.describe.configure({ mode: "serial" });
 
-test("não sabe → termo → questionário → casa sugerida → aceitar: só a casa e o totem saem do aparelho", async ({ page }) => {
+test("não sabe → termo → questionário → casa sugerida → aceitar: o servidor pontua e o navegador não manda casa nem totem", async ({ page }) => {
   const member = await createMember("q");
   await signIn(page, member.email);
   await page.getByRole("link", { name: "Escolher sua casa" }).click();
@@ -115,6 +115,9 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: só a
   await page.getByRole("button", { name: "Ainda não" }).click();
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+  // A chave (eixos, desempates, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
+  const html = await page.content();
+  for (const secret of ["tieBreakItems", "houseByPoles", "itemIds", "letters"]) expect(html).not.toContain(secret);
 
   const total = questionnaire.items.length;
   const answers: Record<string, "a" | "b" | "both"> = {};
@@ -158,16 +161,20 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: só a
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  // Só três chamadas ao servidor: a versão do termo, a casa com o totem e a casa com a forma de entrada.
+  // Só três chamadas ao servidor: a versão do termo, as respostas (o servidor pontua) e a casa com
+  // a forma de entrada. O navegador nunca manda casa nem totem do resultado.
   expect(actionBodies(requests)).toEqual([
     [{ termVersion: questionnaire.consentTermVersion }],
-    [{ houseId: expected, totem: result.totem }],
+    [{ answers }],
     [{ houseId: expected, joinMethod: "questionnaire" }],
   ]);
-  // Nenhuma requisição (URL, cabeçalho ou corpo) leva um id de item ou o texto de uma resposta.
+  // Fora do envio das respostas, nenhuma requisição (URL, cabeçalho ou corpo) leva um id de item
+  // ou o texto de uma resposta; e nenhuma leva o totem.
   const leaks = questionnaire.items.flatMap((item) => [item.id, item.a.text, item.b.text]);
   for (const r of requests) {
     const sent = `${r.url()} ${JSON.stringify(r.headers())} ${r.postData() ?? ""}`;
+    expect(sent).not.toContain(result.totem);
+    if (JSON.stringify(actionBodies([r])) === JSON.stringify([[{ answers }]])) continue;
     for (const leak of leaks) expect(sent, r.url()).not.toContain(leak);
     expect(sent).not.toContain('"both"');
   }
@@ -210,15 +217,10 @@ test("resultado inconclusivo: pedido de análise com as respostas, sem casa; esc
   await expect(page.getByText("Sugerimos esta casa para você")).toHaveCount(0);
   await expectNoStorage(page);
 
-  // Só o pedido de análise leva as respostas; nenhuma casa foi atribuída.
+  // O navegador manda só as respostas; o servidor decide que é inconclusivo. Nenhuma casa foi atribuída.
   const bodies = actionBodies(requests);
   expect(bodies).toHaveLength(2);
-  expect(bodies[1]).toEqual([
-    {
-      axes: ["house1", "house2", "totem1", "totem2"],
-      answers: Object.fromEntries(questionnaire.items.map((item) => [item.id, "both"])),
-    },
-  ]);
+  expect(bodies[1]).toEqual([{ answers: Object.fromEntries(questionnaire.items.map((item) => [item.id, "both"])) }]);
   expect(await houseRows(member.id)).toEqual([]);
   expect(await resultRows(member.id)).toEqual([]);
   const [open] = await analysisRows(member.id);

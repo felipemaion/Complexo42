@@ -11,13 +11,19 @@
 -- 2. `house_analysis_requests`: a fila do caso inconclusivo. As respostas (`answers`) existem só
 --    enquanto o pedido está aberto: ao resolver, ou quando a pessoa aceita uma casa ou refaz
 --    o questionário com resultado conclusivo, viram nulas. A linha resolvida fica, sem respostas.
--- 3. Funções, todas só da própria pessoa, exceto a resolução:
---    - `record_questionnaire_result(termo, casa, totem)`: grava o resultado conclusivo e fecha
---      um pedido aberto;
---    - `request_house_analysis(termo, eixos, respostas)`: abre (ou renova) o pedido e apaga o
---      resultado anterior;
---    - `resolve_house_analysis(pedido, casa, totem)`: só a coordenação nacional; grava o
---      resultado, apaga as respostas e audita.
+-- 3. Funções. A pontuação roda no SERVIDOR do app (ADR 0014 §1), que assina o resultado com uma
+--    chave que só ele e o banco têm (`app.server_secrets`); o banco confere a assinatura, o
+--    prazo de 5 minutos e que o resultado é da pessoa da sessão. O navegador, mesmo chamando a
+--    API direto, não consegue impor casa nem totem nem abrir pedido:
+--    - `record_questionnaire_result(termo, casa, totem, emitido_em, assinatura)`: grava o
+--      resultado conclusivo e fecha um pedido aberto;
+--    - `request_house_analysis(termo, eixos, respostas, emitido_em, assinatura)`: abre (ou
+--      renova, no máximo uma vez por hora) o pedido e apaga o resultado anterior;
+--    - `resolve_house_analysis(pedido, casa, totem)`: só a coordenação nacional, nunca sobre si
+--      mesma e só sobre pessoa ativa; grava o resultado, apaga as respostas e audita.
+--    Os pedidos abertos expiram em 30 dias (`app.analysis_max_age()`): as respostas deixam de
+--    ser lidas na hora e são apagadas na próxima chamada de qualquer função acima.
+--    Bloquear ou suspender a pessoa também fecha o pedido e apaga as respostas.
 -- 4. Um gatilho em `house_members` fecha o pedido aberto quando a pessoa aceita uma casa
 --    (escolha própria): as respostas não ficam sem motivo.
 -- 5. `audit_log`: `house_analysis_requested` e `house_analysis_resolved` (sem respostas).
@@ -25,6 +31,55 @@
 --
 -- Códigos de erro: 42501 sem permissão; P0002 casa indisponível ou pedido inexistente/fechado;
 -- 22023 entrada inválida; 54000 pedido com respostas grandes demais.
+
+-- ---------------------------------------------------------------------------------------
+-- 0. Chave de assinatura (só servidor + banco) e prazo dos pedidos
+-- ---------------------------------------------------------------------------------------
+create table app.server_secrets (
+  name text primary key,
+  value text not null
+);
+
+comment on table app.server_secrets is
+  'Segredos que o app e o banco compartilham (hoje: questionnaire_signing_key, ADR 0014). Sem grant nem política: só funções security definer leem. Instalada por quem opera (docs/OPERACAO.md).';
+
+alter table app.server_secrets enable row level security;
+revoke all on app.server_secrets from public, anon, authenticated;
+
+-- Confere a assinatura HMAC-SHA256 (hex) que o servidor do app põe no resultado. Falha fechado:
+-- sem chave instalada, sem assinatura, assinatura errada ou emitida há mais de 5 minutos.
+create or replace function app.verify_server_signature(payload text, issued_at bigint, signature text)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  signing_key text;
+  age_seconds bigint := extract(epoch from now())::bigint - issued_at;
+begin
+  select s.value into signing_key from app.server_secrets as s where s.name = 'questionnaire_signing_key';
+  if signing_key is null or signature is null or issued_at is null
+     or age_seconds not between -30 and 300
+     or signature <> encode(extensions.hmac(convert_to(payload, 'utf8'), convert_to(signing_key, 'utf8'), 'sha256'), 'hex') then
+    raise exception 'resultado sem assinatura válida do servidor' using errcode = 'insufficient_privilege';
+  end if;
+end;
+$$;
+
+revoke execute on function app.verify_server_signature(text, bigint, text) from public, anon, authenticated;
+
+-- Prazo máximo de um pedido aberto: depois dele as respostas não são mais lidas nem guardadas.
+create or replace function app.analysis_max_age()
+returns interval
+language sql
+immutable
+set search_path = ''
+as $$ select interval '30 days' $$;
+
+revoke execute on function app.analysis_max_age() from public, anon;
+grant execute on function app.analysis_max_age() to authenticated;
 
 -- ---------------------------------------------------------------------------------------
 -- 1. Leitura: a pessoa e a coordenação nacional
@@ -67,7 +122,7 @@ create table public.questionnaire_results (
 comment on table public.questionnaire_results is
   'Casa sugerida e totem do questionário (ADR 0014). O totem é interno: só a pessoa e a coordenação nacional leem. Nunca as respostas.';
 comment on column public.questionnaire_results.source is
-  'questionnaire (pontuação no aparelho) ou analysis (decidido pela coordenação nacional num pedido de análise).';
+  'questionnaire (pontuação no servidor do app) ou analysis (decidido pela coordenação nacional num pedido de análise).';
 
 create index questionnaire_results_house_key_idx on public.questionnaire_results (house_key);
 create index questionnaire_results_term_version_idx on public.questionnaire_results (term_version);
@@ -97,7 +152,7 @@ create table public.house_analysis_requests (
   status text not null default 'open'
     constraint house_analysis_requests_status_check check (status in ('open', 'resolved')),
   resolution text
-    constraint house_analysis_requests_resolution_check check (resolution in ('coordination', 'self')),
+    constraint house_analysis_requests_resolution_check check (resolution in ('coordination', 'self', 'inactive', 'expired')),
   created_at timestamptz not null default now(),
   resolved_at timestamptz,
   resolved_by uuid references public.profiles (id) on delete set null,
@@ -114,7 +169,7 @@ comment on table public.house_analysis_requests is
 comment on column public.house_analysis_requests.answers is
   'Respostas do questionário (item → a, b ou both), só com o pedido aberto; nulas depois de resolvido.';
 comment on column public.house_analysis_requests.resolution is
-  'coordination (a coordenação nacional decidiu) ou self (a pessoa aceitou uma casa ou refez o questionário).';
+  'coordination (a coordenação nacional decidiu), self (a pessoa aceitou uma casa ou refez o questionário), inactive (a pessoa foi bloqueada ou suspensa) ou expired (passou o prazo).';
 
 create unique index house_analysis_requests_one_open
   on public.house_analysis_requests (profile_id) where status = 'open';
@@ -128,7 +183,10 @@ grant select on public.house_analysis_requests to authenticated;
 
 create policy house_analysis_requests_select on public.house_analysis_requests
   for select to authenticated
-  using (app.can_read_questionnaire_data(profile_id));
+  using (
+    app.can_read_questionnaire_data(profile_id)
+    and (status = 'resolved' or created_at > now() - app.analysis_max_age())
+  );
 
 -- ---------------------------------------------------------------------------------------
 -- 4. audit_log
@@ -144,7 +202,8 @@ alter table public.audit_log add constraint audit_log_event_check check (event i
   'house_analysis_requested', 'house_analysis_resolved'
 ));
 
--- A coordenação nacional lê os eventos da fila (sem respostas); a pessoa os lê pelo export.
+-- Os eventos da fila só a coordenação nacional lê (o gestor territorial não, nem pelo alvo); a
+-- pessoa os lê pelo export.
 create or replace function app.can_read_audit(event text, target uuid, actor uuid default null, house text default null)
 returns boolean
 language sql
@@ -156,7 +215,11 @@ as $$
     and (
       (event = 'allowlist_imported' and app.manages_root())
       or (event in ('house_analysis_requested', 'house_analysis_resolved') and app.manages_root())
-      or (target is not null and app.manages_member(target))
+      or (
+        target is not null
+        and event not in ('house_analysis_requested', 'house_analysis_resolved')
+        and app.manages_member(target)
+      )
       or (
         event in ('house_accepted', 'questionnaire_consented')
         and actor is not null
@@ -213,8 +276,24 @@ $$;
 
 revoke execute on function app.close_open_analysis(uuid, text) from public, anon, authenticated;
 
--- Resultado conclusivo, gravado pela própria pessoa (a pontuação roda no aparelho).
-create or replace function public.record_questionnaire_result(p_term_version text, p_house_key text, p_totem text)
+-- Apaga as respostas dos pedidos que passaram do prazo. Roda no começo das funções abaixo.
+create or replace function app.purge_expired_analysis()
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.house_analysis_requests
+  set status = 'resolved', answers = null, resolved_at = now(), resolution = 'expired'
+  where status = 'open' and created_at <= now() - app.analysis_max_age();
+$$;
+
+revoke execute on function app.purge_expired_analysis() from public, anon, authenticated;
+
+-- Resultado conclusivo, calculado e assinado pelo servidor do app para a pessoa da sessão.
+create or replace function public.record_questionnaire_result(
+  p_term_version text, p_house_key text, p_totem text, p_issued_at bigint, p_signature text
+)
 returns void
 language plpgsql
 security definer
@@ -223,6 +302,10 @@ as $$
 declare
   caller uuid := app.lock_active_caller();
 begin
+  perform app.verify_server_signature(
+    format('result|%s|%s|%s|%s|%s', caller, p_term_version, p_house_key, p_totem, p_issued_at),
+    p_issued_at, p_signature);
+  perform app.purge_expired_analysis();
   if p_totem is null or p_totem !~ '^[A-Z]{2}$' then
     raise exception 'totem inválido' using errcode = 'invalid_parameter_value';
   end if;
@@ -246,11 +329,14 @@ begin
 end;
 $$;
 
-comment on function public.record_questionnaire_result(text, text, text) is
-  'Quem chama grava a casa sugerida e o totem do seu questionário conclusivo (ADR 0014).';
+comment on function public.record_questionnaire_result(text, text, text, bigint, text) is
+  'Grava a casa sugerida e o totem da pessoa da sessão, só com a assinatura do servidor do app (ADR 0014).';
 
--- Resultado inconclusivo: abre o pedido de análise (ou renova o aberto) com as respostas.
-create or replace function public.request_house_analysis(p_term_version text, p_tied_axes text[], p_answers jsonb)
+-- Resultado inconclusivo: o servidor do app pontua, assina e abre o pedido com as respostas
+-- completas. Renovar o pedido aberto só depois de 1 hora (54000 antes disso).
+create or replace function public.request_house_analysis(
+  p_term_version text, p_tied_axes text[], p_answers jsonb, p_issued_at bigint, p_signature text
+)
 returns uuid
 language plpgsql
 security definer
@@ -259,13 +345,20 @@ as $$
 declare
   caller uuid := app.lock_active_caller();
   request_id uuid;
+  open_since timestamptz;
+  answer_count integer;
 begin
+  if p_answers is null or jsonb_typeof(p_answers) <> 'object' then
+    raise exception 'respostas inválidas' using errcode = 'invalid_parameter_value';
+  end if;
+  select count(*)::integer into answer_count from jsonb_object_keys(p_answers);
+  perform app.verify_server_signature(
+    format('analysis|%s|%s|%s|%s|%s', caller, p_term_version, array_to_string(p_tied_axes, ','), p_issued_at, answer_count),
+    p_issued_at, p_signature);
+  perform app.purge_expired_analysis();
   if p_tied_axes is null or cardinality(p_tied_axes) not between 1 and 4
      or not (p_tied_axes <@ array['house1', 'house2', 'totem1', 'totem2']) then
     raise exception 'eixos inválidos' using errcode = 'invalid_parameter_value';
-  end if;
-  if p_answers is null or jsonb_typeof(p_answers) <> 'object' then
-    raise exception 'respostas inválidas' using errcode = 'invalid_parameter_value';
   end if;
   if octet_length(p_answers::text) > 4096 then
     raise exception 'respostas grandes demais' using errcode = 'program_limit_exceeded';
@@ -281,6 +374,12 @@ begin
     where c.profile_id = caller and c.term_version = p_term_version
   ) then
     raise exception 'o questionário exige o termo desta versão aceito' using errcode = 'invalid_parameter_value';
+  end if;
+
+  select q.created_at into open_since
+  from public.house_analysis_requests as q where q.profile_id = caller and q.status = 'open';
+  if open_since is not null and open_since > now() - interval '1 hour' then
+    raise exception 'pedido renovado há pouco; tente mais tarde' using errcode = 'program_limit_exceeded';
   end if;
 
   update public.house_analysis_requests
@@ -302,8 +401,8 @@ begin
 end;
 $$;
 
-comment on function public.request_house_analysis(text, text[], jsonb) is
-  'Quem chama abre um pedido de análise do seu resultado inconclusivo, com as respostas (apagadas ao resolver). ADR 0014.';
+comment on function public.request_house_analysis(text, text[], jsonb, bigint, text) is
+  'Abre o pedido de análise da pessoa da sessão, só com a assinatura do servidor do app; as respostas são apagadas ao resolver (ADR 0014).';
 
 -- A coordenação nacional decide a casa e o totem; as respostas são apagadas.
 create or replace function public.resolve_house_analysis(p_request_id uuid, p_house_key text, p_totem text)
@@ -320,6 +419,7 @@ begin
   if caller is null or not app.manages_root() then
     raise exception 'só a coordenação nacional resolve pedidos de análise' using errcode = 'insufficient_privilege';
   end if;
+  perform app.purge_expired_analysis();
   if p_totem is null or p_totem !~ '^[A-Z]{2}$' then
     raise exception 'totem inválido' using errcode = 'invalid_parameter_value';
   end if;
@@ -327,11 +427,26 @@ begin
     raise exception 'casa indisponível' using errcode = 'no_data_found';
   end if;
 
-  select q.profile_id, q.term_version into person, version
+  select q.profile_id into person
+  from public.house_analysis_requests as q
+  where q.id = p_request_id and q.status = 'open';
+  if person is null then
+    raise exception 'pedido inexistente ou já resolvido' using errcode = 'no_data_found';
+  end if;
+  if person = caller then
+    raise exception 'a coordenação não resolve o próprio pedido' using errcode = 'insufficient_privilege';
+  end if;
+  -- Trava o perfil antes do pedido, na mesma ordem de app.lock_active_caller (a pessoa refazendo o
+  -- questionário não corre com a resolução), e só resolve para quem está ativo.
+  perform 1 from public.profiles as p where p.id = person for update;
+  if not app.is_active_profile(person) then
+    raise exception 'só pedidos de quem está ativo' using errcode = 'insufficient_privilege';
+  end if;
+  select q.term_version into version
   from public.house_analysis_requests as q
   where q.id = p_request_id and q.status = 'open'
   for update;
-  if person is null then
+  if version is null then
     raise exception 'pedido inexistente ou já resolvido' using errcode = 'no_data_found';
   end if;
 
@@ -353,11 +468,11 @@ $$;
 comment on function public.resolve_house_analysis(uuid, text, text) is
   'A coordenação nacional resolve o pedido: grava a casa e o totem, apaga as respostas e audita (ADR 0014).';
 
-revoke execute on function public.record_questionnaire_result(text, text, text) from public, anon;
-revoke execute on function public.request_house_analysis(text, text[], jsonb) from public, anon;
+revoke execute on function public.record_questionnaire_result(text, text, text, bigint, text) from public, anon;
+revoke execute on function public.request_house_analysis(text, text[], jsonb, bigint, text) from public, anon;
 revoke execute on function public.resolve_house_analysis(uuid, text, text) from public, anon;
-grant execute on function public.record_questionnaire_result(text, text, text) to authenticated;
-grant execute on function public.request_house_analysis(text, text[], jsonb) to authenticated;
+grant execute on function public.record_questionnaire_result(text, text, text, bigint, text) to authenticated;
+grant execute on function public.request_house_analysis(text, text[], jsonb, bigint, text) to authenticated;
 grant execute on function public.resolve_house_analysis(uuid, text, text) to authenticated;
 
 -- ---------------------------------------------------------------------------------------
@@ -382,6 +497,27 @@ revoke execute on function app.tg_house_members_close_analysis() from public, an
 create trigger house_members_close_analysis
   after insert on public.house_members
   for each row execute function app.tg_house_members_close_analysis();
+
+-- Bloquear ou suspender a pessoa fecha o pedido aberto e apaga as respostas.
+create or replace function app.tg_profiles_close_analysis()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.access_status <> 'active' or new.status <> 'active' then
+    perform app.close_open_analysis(new.id, 'inactive');
+  end if;
+  return null;
+end;
+$$;
+
+revoke execute on function app.tg_profiles_close_analysis() from public, anon, authenticated;
+
+create trigger profiles_close_analysis
+  after update of access_status, status on public.profiles
+  for each row execute function app.tg_profiles_close_analysis();
 
 -- ---------------------------------------------------------------------------------------
 -- 7. export_own_data (redefinida inteira; a anterior é a de 20261120010000_accept_consent.sql)

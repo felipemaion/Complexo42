@@ -1,7 +1,7 @@
 {
   "version": "exemplo-2",
   "consentTermVersion": "termo-exemplo-1",
-  "consentTerm": "[EXEMPLO] Termo fictício, só para desenvolvimento. Este questionário ajuda a sugerir uma casa. As respostas são calculadas no seu aparelho e só a casa sugerida e um código interno são guardados. Se o resultado não for conclusivo, as suas respostas são enviadas à coordenação nacional para análise e apagadas assim que ela decidir. Você pode recusar e escolher a casa diretamente.",
+  "consentTerm": "[EXEMPLO] Termo fictício, só para desenvolvimento. Este questionário ajuda a sugerir uma casa. As respostas são calculadas no servidor e só a casa sugerida e um código interno são guardados. Se o resultado não for conclusivo, as suas respostas ficam guardadas para a coordenação nacional analisar e são apagadas assim que ela decidir. Você pode recusar e escolher a casa diretamente.",
   "items": [
     {
       "id": "q01",

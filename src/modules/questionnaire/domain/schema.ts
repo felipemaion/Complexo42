@@ -2,8 +2,8 @@ import { z } from "zod";
 
 /*
  * Formato do questionário das casas (ADR 0014, #172; antes ADR 0008 §2.1, #91). Este arquivo é
- * puro: roda no servidor (validação na subida) e no navegador (a pontuação acontece no
- * dispositivo).
+ * puro. Roda só no servidor (validação na subida e pontuação); ao navegador vai apenas
+ * `PublicQuestionnaire`, sem a chave.
  *
  * Quatro eixos, cada um com a sua lista de itens (o config diz quais itens contam para qual
  * eixo, não a ordem de apresentação). Em todo item a alternativa "a" marca o polo "a" do eixo
@@ -134,4 +134,14 @@ export function parseQuestionnaire(raw: unknown, houseIds: readonly string[]): R
     .map((poles) => `houseByPoles.${poles}`);
   if (unknown.length > 0) throw new QuestionnaireConfigError(unknown);
   return Object.freeze(result.data);
+}
+
+/**
+ * O que vai para o navegador: o termo e as perguntas, nunca a chave (eixos, itens de desempate e
+ * mapa das casas). A pontuação roda só no servidor (ADR 0014 §1).
+ */
+export type PublicQuestionnaire = Pick<QuestionnaireConfig, "version" | "consentTermVersion" | "consentTerm" | "items">;
+
+export function toPublicQuestionnaire(config: QuestionnaireConfig): PublicQuestionnaire {
+  return { version: config.version, consentTermVersion: config.consentTermVersion, consentTerm: config.consentTerm, items: config.items };
 }
