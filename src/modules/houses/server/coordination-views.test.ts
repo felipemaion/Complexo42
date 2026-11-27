@@ -307,9 +307,22 @@ describe("listCases e openCase (fila de análise)", () => {
       profiles: { data: [{ id: U1, display_name_enc: encName(U1, "Ana") }] },
     });
     const out = await listCases(client, deps);
-    expect(out.rows).toEqual([{ requestId: REQ, profileId: U1, name: "Ana", kind: "full", tiedAxes: ["house2", "totem1"], createdAt: "2026-11-27T09:00:00Z" }]);
+    expect(out.rows).toEqual([{ requestId: REQ, profileId: U1, name: "Ana", kind: "full", tiedAxes: ["house2", "totem1"], legacyKey: false, createdAt: "2026-11-27T09:00:00Z" }]);
     expect(out.unreadable).toBe(1);
     expect(out.truncated).toBe(false);
+  });
+
+  it("caso de chave antiga: aparece na fila marcado e abre sem notas, gráfico nem respostas, registrando o acesso", async () => {
+    const oldEnc = (id: string) => `enc[house_analysis_requests.answers_enc.${id}](${JSON.stringify({ q01: -3, q02: 2, q27: 1, q28: -1 })})`;
+    const row = requestRow(U1, { answers_enc: oldEnc(U1) });
+    const names = { profiles: { data: [{ id: U1, display_name_enc: encName(U1, "Ana") }] } };
+    const listed = await listCases(fake({ house_analysis_requests: { data: [row] }, ...names }).client, deps);
+    expect(listed.rows).toMatchObject([{ requestId: REQ, legacyKey: true }]);
+    expect(listed.unreadable).toBe(0);
+    const { client, rpcCalls } = fake({ house_analysis_requests: { data: row }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } });
+    const out = await openCase(client, REQ, deps);
+    expect(out).toMatchObject({ status: "ok", requestId: REQ, legacyKey: true, scores: null, chart: [], answers: {} });
+    expect(rpcCalls).toEqual([{ fn: "log_questionnaire_view", args: { p_target: U1 } }]);
   });
 
   it("abrir o caso busca SÓ esse pedido aberto (não decifra a fila inteira)", async () => {
@@ -329,6 +342,7 @@ describe("listCases e openCase (fila de análise)", () => {
     expect(out.status).toBe("ok");
     if (out.status !== "ok") return;
     expect(out).toMatchObject({ requestId: REQ, profileId: U1, name: "Ana", tiedAxes: ["house2", "totem1"] });
+    expect(out.legacyKey).toBe(false);
     expect(out.answers).toEqual(allA);
     expect(out.scores).toEqual({ house1: -100, house2: -100, totem1: -100, totem2: -100 });
     expect(out.chart).toHaveLength(4);
@@ -367,9 +381,9 @@ describe("listCases e openCase (fila de análise)", () => {
     expect(await openCase(refused.client, REQ, deps)).toEqual({ status: "not_found" });
   });
 
-  it("respostas que não pontuam (escala antiga ou incompletas): unreadable", async () => {
-    const old = fake({ house_analysis_requests: { data: requestRow(U1, { answers_enc: encAnswers(U1, { q01: -3 }) }) } });
-    expect(await openCase(old.client, REQ, deps)).toEqual({ status: "unreadable" });
+  it("respostas que não são inteiros da escala (formato errado): unreadable", async () => {
+    const bad = fake({ house_analysis_requests: { data: requestRow(U1, { answers_enc: encAnswers(U1, { q01: "a" }) }) } });
+    expect(await openCase(bad.client, REQ, deps)).toEqual({ status: "unreadable" });
   });
 });
 

@@ -101,15 +101,9 @@ describe("fluxo da escolha da casa", () => {
       expect(step).toEqual({ kind: "presentation", houseId: "casa-x", method: "questionnaire", chart, byPoles });
     });
 
-    it("o servidor abriu o pedido de análise: segue para a análise, sem casa atribuída", () => {
-      const submitting = run(answerAll);
-      expect(nextFlow(submitting, { type: "analysis_requested" }, ctx).step).toEqual({ kind: "analysis" });
-    });
-
     it("respostas do servidor fora do envio não mudam nada", () => {
       const asking = run([]);
       expect(nextFlow(asking, { type: "result_recorded", houseId: "casa-x", chart }, ctx)).toBe(asking);
-      expect(nextFlow(asking, { type: "analysis_requested" }, ctx)).toBe(asking);
     });
 
     it("falha ao enviar volta à última pergunta, mantendo as respostas e guardando o motivo da recusa (#199)", () => {
@@ -133,12 +127,6 @@ describe("fluxo da escolha da casa", () => {
     it("durante o envio, voltar não faz nada", () => {
       const submitting = run(answerAll);
       expect(nextFlow(submitting, { type: "back" }, ctx)).toBe(submitting);
-    });
-
-    it("da análise, voltar leva à última pergunta; escolher a casa direto descarta as respostas", () => {
-      const analysis = nextFlow(run(answerAll), { type: "analysis_requested" }, ctx);
-      expect(nextFlow(analysis, { type: "back" }, ctx).step).toEqual({ kind: "question", index: 2 });
-      expect(nextFlow(analysis, { type: "choose_other" }, ctx)).toEqual({ step: { kind: "activities" }, answers: {} });
     });
   });
 

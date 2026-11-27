@@ -126,9 +126,6 @@ const valid = {
     acceptButton: "t",
     chooseOtherButton: "t",
     submitting: "t",
-    analysisTitle: "t",
-    analysisMessage: "t",
-    analysisChooseButton: "t",
     inviteMessage: "t",
     acceptedTitle: "t",
     homeLink: "t",
@@ -157,7 +154,7 @@ const valid = {
       chartTitle: "t", chartCurrentHouse: "t", totemPending: "t", totemUndecided: "t", noScores: "t", columnChosen: "t", chosenNone: "t", differsMark: "t", changedByCoordination: "{date}", otherHouseFilter: "t", chosenLabel: "t", chosenDateLabel: "t", changeHouseTitle: "t", changeHouseLabel: "t", changeHouseButton: "t", changedNotice: "t", unreadableOne: "t", backLink: "t",
     },
     queue: {
-      title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", kindTotem: "t", openLink: "t",
+      title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", kindTotem: "t", legacyKey: "t", legacyKeyNotice: "t", openLink: "t",
       truncated: "{count}", unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t", chartCurrentHouse: "t",
       resolveTitle: "t", totemOnlyNotice: "{house}", houseLabel: "t", totemLabel: "t", totemOption: "{label}{description}",
       resolveButton: "t", resolvedNotice: "t", unreadableOne: "t", backLink: "t",
