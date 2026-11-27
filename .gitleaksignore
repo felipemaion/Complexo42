@@ -3,3 +3,6 @@
 4416fe2d790b63b8888dec6deaaa8f7c53fa538a:playwright.config.ts:generic-api-key:65
 4416fe2d790b63b8888dec6deaaa8f7c53fa538a:supabase/seed.sql:generic-api-key:65
 797eaacaa27cdc714c7e30daf34459ec8692336b:supabase/tests/questionnaire_results.test.sql:generic-api-key:341
+
+# Fixture de teste de senha, não é segredo (branch do #247, commit 6a90e78). O agente do #247 vai trocá-la por valor de baixa entropia.
+6a90e78695f7de790e909c52f07072fdbadceade:src/server/auth/password-flows.test.ts:generic-api-key:162
