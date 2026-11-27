@@ -32,6 +32,10 @@ const center = { x: size / 2, y: size / 2 };
 const radius = 120;
 const labelRadius = radius + 26;
 const zoneLabelRadius = radius * 0.74;
+// Caixa do nome da casa: largura estimada pelo número de letras (fonte de 13px em negrito).
+const labelCharWidth = 7.6;
+const labelPadX = 7;
+const labelHeight = 22;
 const gridSteps = [0.25, 0.5, 0.75, 1] as const;
 // Zona da casa da pessoa mais forte que as outras (como no protótipo aprovado).
 const currentZoneOpacity = 0.3;
@@ -56,9 +60,6 @@ export function SpiderChart({ axes, title, houses }: Readonly<Props>) {
           return (
             <g key={zone.polesKey} data-testid="house-zone" data-house={zone.houseId}>
               <path d={zone.path} style={{ fill: colorOf(house.color) }} fillOpacity={isCurrent ? currentZoneOpacity : otherZoneOpacity} />
-              <text x={zone.label.x} y={zone.label.y} textAnchor="middle" dominantBaseline="middle" fontSize={13} fontWeight={700} fill="currentColor">
-                {house.name}
-              </text>
             </g>
           );
         })}
@@ -101,6 +102,28 @@ export function SpiderChart({ axes, title, houses }: Readonly<Props>) {
         {spokes.map((spoke, index) => {
           const point = spokePoint(index, count, Math.max(3, (radius * spoke.intensity) / 100), center);
           return <circle key={`dot-${spoke.side}-${spoke.axis}`} cx={point.x} cy={point.y} r={4} fill={spoke.side === "a" ? "var(--color-primary)" : "var(--color-secondary)"} />;
+        })}
+        {/* Nomes das casas por último, por cima de tudo: o retângulo opaco (cor do fundo, borda na cor da casa) impede que as linhas passem pela palavra. */}
+        {zones.map((zone) => {
+          const house = houseById.get(zone.houseId);
+          if (!house) return null;
+          const width = house.name.length * labelCharWidth + 2 * labelPadX;
+          return (
+            <g key={`label-${zone.polesKey}`} data-testid="house-zone-label">
+              <rect
+                x={zone.label.x - width / 2}
+                y={zone.label.y - labelHeight / 2}
+                width={width}
+                height={labelHeight}
+                rx={labelHeight / 3}
+                style={{ fill: "Canvas", stroke: colorOf(house.color) }}
+                strokeWidth={1}
+              />
+              <text x={zone.label.x} y={zone.label.y} textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700} fill="currentColor">
+                {house.name}
+              </text>
+            </g>
+          );
         })}
       </svg>
       {houses && (

@@ -5,8 +5,12 @@ import { parseInstanceConfig } from "./schema";
 // Fundo da página em cada tema (white e o escuro do `color-scheme: light dark`) para o contraste.
 const lightBackground = "#ffffff";
 const darkBackground = "#111111";
-/** WCAG 1.4.11: elementos gráficos precisam de pelo menos 3:1 contra o fundo. */
-const minGraphicContrast = 3;
+/**
+ * Contraste mínimo da cor da casa contra o fundo. A cor oficial de Alexandria (amarelo, #c99a06) tem
+ * 2,6:1 no claro, abaixo dos 3:1 do WCAG 1.4.11; o que importa nunca depende só da cor: o nome da casa
+ * é texto na cor do tema, dentro de um retângulo com fundo opaco.
+ */
+const minGraphicContrast = 2.5;
 
 function luminance(hex: string): number {
   const [red, green, blue] = [1, 3, 5].map((start) => {
