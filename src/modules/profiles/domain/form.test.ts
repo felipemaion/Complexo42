@@ -3,7 +3,7 @@ import { consentNotYetGiven, parseProfileForm } from "./form";
 
 const SP = 3550308;
 const SE_DISTRICT = 355030878;
-const valid = { displayName: "  Ana   Souza ", whatsapp: "(11) 91234-5678", municipalityCode: String(SP), district: String(SE_DISTRICT) };
+const valid = { displayName: "  Ana   Souza ", whatsapp: "(11) 91234-5678", municipalityCode: String(SP), district: String(SE_DISTRICT), neighborhood: " Vila  Exemplo " };
 
 function fieldsOf(raw: unknown): string[] {
   const result = parseProfileForm(raw);
@@ -15,15 +15,38 @@ describe("parseProfileForm", () => {
   it("formulário válido vira os dados do perfil e do contato (E.164)", () => {
     expect(parseProfileForm(valid)).toEqual({
       ok: true,
-      profile: { displayName: "Ana Souza", municipalityCode: SP, districtCode: SE_DISTRICT, consentVersion: consentNotYetGiven },
+      profile: { displayName: "Ana Souza", municipalityCode: SP, districtCode: SE_DISTRICT, neighborhood: "Vila Exemplo", consentVersion: consentNotYetGiven },
       contact: { whatsapp: "+5511912345678", socialLinks: [] },
       keepSocialLinks: true,
+      keepNeighborhood: false,
     });
   });
 
   it("distrito é opcional", () => {
     const result = parseProfileForm({ ...valid, district: "" });
     expect(result.ok && result.profile.districtCode).toBeNull();
+  });
+
+  it("bairro é opcional e vai normalizado", () => {
+    const blank = parseProfileForm({ ...valid, neighborhood: "  " });
+    expect(blank.ok && blank.profile.neighborhood).toBeNull();
+    const curly = parseProfileForm({ ...valid, neighborhood: "Jardim d’Abril" });
+    expect(curly.ok && curly.profile.neighborhood).toBe("Jardim d'Abril");
+  });
+
+  it("sem o campo do bairro no envio (formulário antigo), mantém o guardado; vazio enviado apaga", () => {
+    const withoutNeighborhood = { ...valid, neighborhood: undefined };
+    const kept = parseProfileForm(withoutNeighborhood);
+    expect(kept.ok && [kept.keepNeighborhood, kept.profile.neighborhood]).toEqual([true, null]);
+    const cleared = parseProfileForm({ ...valid, neighborhood: "" });
+    expect(cleared.ok && [cleared.keepNeighborhood, cleared.profile.neighborhood]).toEqual([false, null]);
+  });
+
+  it("bairro com rua, número, símbolo ou fora de 2 a 60 caracteres é recusado", () => {
+    for (const bad of ["V", "x".repeat(61), "Rua A, 12", "Vila <b>", "-Vila", "Vila\u0007"]) {
+      expect(fieldsOf({ ...valid, neighborhood: bad })).toEqual(["neighborhood"]);
+    }
+    expect(parseProfileForm({ ...valid, neighborhood: "x".repeat(60) }).ok).toBe(true);
   });
 
   it("distrito que não é um código IBGE de 9 dígitos é recusado", () => {
@@ -49,7 +72,7 @@ describe("parseProfileForm", () => {
   });
 
   it("entrada que não é texto, ou longa demais, é recusada", () => {
-    const all = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"];
+    const all = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"];
     expect(fieldsOf(null)).toEqual(all);
     expect(fieldsOf({ ...valid, displayName: 42 })).toEqual(all);
     expect(fieldsOf({ ...valid, displayName: "a".repeat(201) })).toEqual(all);

@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 6;
+export const exportFormatVersion = 7;
 
 const timestamp = z.string().min(1);
 
@@ -34,6 +34,7 @@ export const ownDataRowsSchema = z.object({
       state_code: z.string(),
       district_code: z.number().int().nullable(),
       district_name: z.string().nullable(),
+      neighborhood_enc: z.string().nullable(),
       status: z.string(),
       access_status: z.string(),
       consent_version: z.string(),
@@ -149,6 +150,7 @@ export type OwnDataExport = {
     nome: string | null;
     municipio: { codigoIbge: number; nome: string | null; uf: string };
     distrito: { codigoIbge: number; nome: string | null } | null;
+    bairro: string | null;
     situacaoDaConta: string;
     liberacaoDeAcesso: string;
     termoDeConsentimento: { versao: string | null; aceitoEm: string | null };
@@ -288,6 +290,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       nome: await open(p.display_name_enc, "profiles", "display_name_enc"),
       municipio: { codigoIbge: p.municipality_code, nome: p.municipality_name, uf: p.state_code },
       distrito: p.district_code === null ? null : { codigoIbge: p.district_code, nome: p.district_name },
+      bairro: await open(p.neighborhood_enc, "profiles", "neighborhood_enc"),
       situacaoDaConta: p.status,
       liberacaoDeAcesso: p.access_status,
       // `none` = ainda sem aceite (o perfil nasce assim; só o aceite, #11, avança).

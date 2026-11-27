@@ -10,6 +10,8 @@ import { normalizeSocialLink, socialLinkInputMaxLength, socialLinkMaxLength } fr
 export const profileLimits = {
   displayNameMin: 2,
   displayNameMax: 80,
+  neighborhoodMin: 2,
+  neighborhoodMax: 60,
   socialLinksMax: 5,
   socialLinkMaxLength,
 } as const;
@@ -49,12 +51,23 @@ const httpsUrl = z
     return href;
   });
 
+/** Bairro: letras, números, espaço, hífen, apóstrofo e ponto; começa por letra ou número. */
+const NEIGHBORHOOD_CHARS = /^[\p{L}\p{N}][\p{L}\p{N} '.-]*$/u;
+const neighborhoodSchema = z
+  .string()
+  // Apóstrofo tipográfico (’) vira o simples: o mesmo bairro não pode ter duas grafias.
+  .transform((value) => value.replaceAll("\u2019", "'"))
+  .pipe(shortText(profileLimits.neighborhoodMin, profileLimits.neighborhoodMax))
+  .refine((value) => NEIGHBORHOOD_CHARS.test(value), "só letras, números, espaço, hífen, apóstrofo e ponto");
+
 export const profileInputSchema = z.strictObject({
   displayName: shortText(profileLimits.displayNameMin, profileLimits.displayNameMax),
   /** Código IBGE de 7 dígitos; a existência do município é conferida pela FK no banco. */
   municipalityCode: z.number().int().min(1_000_000).max(9_999_999),
   /** Código IBGE de 9 dígitos; que o distrito é do município, o banco confere. */
   districtCode: z.number().int().min(100_000_000).max(999_999_999).nullable().default(null),
+  /** Texto livre e opcional: dado pessoal, gravado só cifrado (ADR 0003). */
+  neighborhood: neighborhoodSchema.nullable().default(null),
   consentVersion: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/, "versão do termo inválida"),
 });
 

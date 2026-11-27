@@ -223,6 +223,8 @@ ele não tenha preferência.
 16. **Localização:** município + bairro está bom? Para a capital, sugestão: **subprefeitura ou
     distrito** (lista fechada de 96 distritos) em vez de bairro livre. Evita a "maçaroca" de
     grafias diferentes e permite agrupar. Na Grande SP, município basta?
+    *Decidido em 2026-11-27 (#175, #179): município e distrito em lista oficial do IBGE, e bairro
+    livre **opcional e cifrado**; sem busca por bairro.*
 17. **Idade mínima:** podem existir alunos **menores de 18 anos**? Se sim, a LGPD (art. 14)
     exige consentimento dos pais. Sugestão: **só maiores de 18** no piloto, com uma caixa de
     declaração.

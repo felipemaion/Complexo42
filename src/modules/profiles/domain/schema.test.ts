@@ -17,7 +17,7 @@ function fieldsOf(parse: () => unknown): string[] {
 describe("parseProfileInput", () => {
   it("aceita um perfil válido e normaliza espaços do nome", () => {
     const parsed = parseProfileInput({ ...profile, displayName: "  Ana   Souza ", districtCode: 355030878 });
-    expect(parsed).toEqual({ displayName: "Ana Souza", municipalityCode: 3550308, districtCode: 355030878, consentVersion: "v1" });
+    expect(parsed).toEqual({ displayName: "Ana Souza", municipalityCode: 3550308, districtCode: 355030878, neighborhood: null, consentVersion: "v1" });
   });
 
   it("distrito é opcional", () => {

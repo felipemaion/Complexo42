@@ -24,6 +24,7 @@ const rows: OwnDataRows = {
     state_code: "SP",
     district_code: 355030878,
     district_name: "Sé",
+    neighborhood_enc: "enc:bairro",
     status: "active",
     access_status: "active",
     consent_version: "v1",
@@ -87,6 +88,7 @@ const rows: OwnDataRows = {
 
 const plain: Record<string, string> = {
   "enc:nome": "Maria Aparecida",
+  "enc:bairro": "Vila Exemplo",
   "enc:zap": "+5511987654321",
   "enc:redes": JSON.stringify(["https://exemplo.org/maria"]),
   "enc:quemviu": "Joana Coordena",
@@ -120,12 +122,13 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 6, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 7, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
         municipio: { codigoIbge: 3550308, nome: "São Paulo", uf: "SP" },
         distrito: { codigoIbge: 355030878, nome: "Sé" },
+        bairro: "Vila Exemplo",
         situacaoDaConta: "active",
         liberacaoDeAcesso: "active",
         termoDeConsentimento: { versao: "v1", aceitoEm: "2026-11-19T12:00:00+00:00" },
@@ -188,6 +191,7 @@ describe("buildOwnDataExport", () => {
     expect(seen).toEqual(
       expect.arrayContaining([
         { table: "profiles", column: "display_name_enc", rowId: USER },
+        { table: "profiles", column: "neighborhood_enc", rowId: USER },
         { table: "profile_contacts", column: "whatsapp_enc", rowId: USER },
         { table: "profile_contacts", column: "social_links_enc", rowId: USER },
         // O nome de quem viu o contato é da linha dela (#119).
@@ -197,7 +201,7 @@ describe("buildOwnDataExport", () => {
         { table: "house_analysis_requests", column: "answers_enc", rowId: USER },
       ]),
     );
-    expect(seen).toHaveLength(6);
+    expect(seen).toHaveLength(7);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {

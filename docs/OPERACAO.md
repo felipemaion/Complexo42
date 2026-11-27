@@ -697,7 +697,7 @@ Testes: `deploy/migra.test.sh` (25 asserções, dublê de `docker`) e
 verdade — é ele que prova que o DDL e a linha de controle caem juntos
 quando uma migration falha; pula limpo sem Docker).
 
-### Mudança de coluna: janela de deploy e expand/contract
+### Mudança de coluna ou de função: janela de deploy e expand/contract
 
 O `migra.sh` aplica as migrations **antes** de o app novo subir. Migration que
 renomeia, troca o tipo ou apaga uma coluna que o app em execução usa deixa o
@@ -705,7 +705,11 @@ app antigo quebrado (salvar e ler) até a troca, por segundos.
 
 - **Hoje, aceito:** ainda não há app em produção. A #175 (`profiles.district`
   vira `district_code`) faz exatamente isso, de uma vez, e a migration aborta
-  (em vez de perder dado) se algum nome de distrito não virou código.
+  (em vez de perder dado) se algum nome de distrito não virou código. A #179
+  (bairro cifrado) muda a **assinatura** de `save_own_profile` (parâmetro novo, função
+  antiga apagada) e a forma do `export_own_data`: o app antigo também quebra
+  ao salvar o perfil até a troca. Vale para toda mudança de assinatura de função
+  que o app chama, não só para colunas.
 - **Com app em produção, use expand/contract** em releases separados: (1)
   *expand*: migration que **só acrescenta** (coluna nova, função nova com outra
   assinatura), com o app lendo as duas e gravando a nova; (2) migrar os dados;

@@ -110,6 +110,12 @@ export const instanceConfigSchema = z.strictObject({
     districtHint: text,
     /** Opção vazia do distrito (ele é opcional). */
     districtNone: text,
+    /** Bairro (#179): texto livre, opcional. */
+    neighborhoodLabel: text,
+    neighborhoodHint: text,
+    /** Bairro guardado que não abriu: aviso de que continua guardado e o botão para trocá-lo. */
+    neighborhoodUnreadable: text,
+    replaceNeighborhood: text,
     /** Redes sociais (#17): grupo do formulário, cada caixa ("Link 1"...) e os botões. */
     socialLinksLabel: text,
     socialLinksHint: text,
@@ -135,6 +141,7 @@ export const instanceConfigSchema = z.strictObject({
       whatsapp: text,
       municipalityCode: text,
       district: text,
+      neighborhood: text,
       socialLinks: text,
     }),
     /** WhatsApp já usado em outro cadastro (não diz de quem). */

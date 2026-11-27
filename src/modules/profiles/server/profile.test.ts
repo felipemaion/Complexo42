@@ -17,7 +17,14 @@ const SE_DISTRICT = 355030878;
 const NAME = "Maria Aparecida";
 const PHONE_TYPED = "(11) 98765-4321";
 const PHONE = "+5511987654321";
-const form = { displayName: NAME, whatsapp: PHONE_TYPED, municipalityCode: String(SP), district: String(SE_DISTRICT) };
+const NEIGHBORHOOD = "Vila Exemplo";
+const form = {
+  displayName: NAME,
+  whatsapp: PHONE_TYPED,
+  municipalityCode: String(SP),
+  district: String(SE_DISTRICT),
+  neighborhood: NEIGHBORHOOD,
+};
 
 function deps(): { deps: ProfileDeps; lines: string[] } {
   const lines: string[] = [];
@@ -69,7 +76,8 @@ function fakeClient(
   return { client: client as unknown as ProfileDbClient, calls, reads, orders };
 }
 
-const leaks = (text: string) => [NAME, "98765", "4321", PHONE].filter((secret) => text.includes(secret));
+// Fragmentos longos: "4321" curto aparece por acaso no ciphertext/HMAC aleatório (teste instável).
+const leaks = (text: string) => [NAME, "98765-4321", "987654321", PHONE].filter((secret) => text.includes(secret));
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -101,6 +109,51 @@ describe("saveOwnProfile", () => {
     expect(lines).toEqual([]);
   });
 
+  it("cifra o bairro com o AAD da coluna e do id da pessoa; em branco vai nulo", async () => {
+    const { client, calls } = fakeClient();
+    const { deps: d } = deps();
+    await saveOwnProfile(client, USER, { ...form, neighborhood: "  Vila   Exemplo " }, d);
+    const sent = calls[0]!.args.p_neighborhood_enc as string;
+    expect(sent).not.toContain("Vila");
+    expect(await d.decrypt(sent, { table: "profiles", column: "neighborhood_enc", rowId: USER })).toBe(NEIGHBORHOOD);
+    await expect(d.decrypt(sent, { table: "profiles", column: "display_name_enc", rowId: USER })).rejects.toThrow();
+    await saveOwnProfile(client, USER, { ...form, neighborhood: "  " }, d);
+    expect(calls[1]!.args.p_neighborhood_enc).toBeNull();
+  });
+
+  describe("bairro guardado (#179): envio sem o campo não o apaga", () => {
+    const withoutNeighborhood = { ...form, neighborhood: undefined };
+    const storedBairro = "v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB";
+
+    it("formulário antigo ou valor que não abriu: repassa o cifrado guardado, sem abrir nem recifrar", async () => {
+      const { client, calls, reads } = fakeClient({ row: { neighborhood_enc: storedBairro, social_links_enc: null } });
+      const { deps: d } = deps();
+      const encrypt = vi.spyOn(d, "encrypt");
+      expect(await saveOwnProfile(client, USER, withoutNeighborhood, d)).toEqual({ status: "saved" });
+      expect(calls[0]!.args.p_neighborhood_enc).toBe(storedBairro);
+      expect(reads.some((read) => read.table === "profiles" && read.columns === "neighborhood_enc")).toBe(true);
+      expect(encrypt.mock.calls.map(([, ctx]) => ctx.column)).not.toContain("neighborhood_enc");
+    });
+
+    it("sem bairro guardado, vai nulo", async () => {
+      const { client, calls } = fakeClient({ row: { neighborhood_enc: null, social_links_enc: null } });
+      await saveOwnProfile(client, USER, withoutNeighborhood, deps().deps);
+      expect(calls[0]!.args.p_neighborhood_enc).toBeNull();
+    });
+
+    it("com o campo enviado vazio, o bairro é apagado de propósito", async () => {
+      const { client, calls } = fakeClient({ row: { neighborhood_enc: storedBairro, social_links_enc: null } });
+      await saveOwnProfile(client, USER, { ...form, neighborhood: "" }, deps().deps);
+      expect(calls[0]!.args.p_neighborhood_enc).toBeNull();
+    });
+
+    it("erro ao ler o guardado: falha, sem chamar o banco de escrita", async () => {
+      const { client, calls } = fakeClient({ readError: { code: "42501" } });
+      expect(await saveOwnProfile(client, USER, withoutNeighborhood, deps().deps)).toEqual({ status: "failed" });
+      expect(calls).toEqual([]);
+    });
+  });
+
   it("entrada inválida: não cifra nem chama o banco, e devolve só os nomes dos campos", async () => {
     const { client, calls } = fakeClient();
     const { deps: d, lines } = deps();
@@ -110,6 +163,7 @@ describe("saveOwnProfile", () => {
       [{ ...form, whatsapp: "(11) 3456-7890" }, ["whatsapp"]],
       [{ ...form, municipalityCode: "abc" }, ["municipalityCode"]],
       [{ ...form, district: "Centro" }, ["district"]],
+      [{ ...form, neighborhood: "Rua A, 12" }, ["neighborhood"]],
       [{}, ["displayName", "whatsapp", "municipalityCode"]],
     ] as const) {
       const result = await saveOwnProfile(client, USER, raw, d);
@@ -211,6 +265,7 @@ describe("loadOwnProfile", () => {
       municipality_code: SP,
       state_code: "SP",
       district_code: SE_DISTRICT,
+      neighborhood_enc: await d.encrypt(NEIGHBORHOOD, { table: "profiles", column: "neighborhood_enc", rowId: USER }),
       profile_contacts: { whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }) },
     };
     const { client, reads } = fakeClient({ row });
@@ -220,23 +275,46 @@ describe("loadOwnProfile", () => {
       municipalityCode: SP,
       stateCode: "SP",
       districtCode: SE_DISTRICT,
+      neighborhood: NEIGHBORHOOD,
+      neighborhoodUnreadable: false,
       socialLinks: [],
       socialLinksUnreadable: false,
     });
     expect(reads[0]).toMatchObject({ table: "profiles", eq: ["id", USER] });
   });
 
+  it("bairro que não decifra: campo vazio, neighborhoodUnreadable, log sem o valor", async () => {
+    const { deps: d, lines } = deps();
+    const copied = await d.encrypt(NEIGHBORHOOD, { table: "profiles", column: "neighborhood_enc", rowId: "outra" });
+    const row = {
+      display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
+      municipality_code: SP,
+      state_code: "SP",
+      district_code: null,
+      neighborhood_enc: copied,
+      profile_contacts: null,
+    };
+    expect(await loadOwnProfile(fakeClient({ row }).client, USER, d)).toMatchObject({
+      neighborhood: "",
+      neighborhoodUnreadable: true,
+    });
+    expect(lines.filter((line) => line.includes("neighborhood_enc"))).toHaveLength(1);
+    expect(lines.join("")).not.toContain(copied);
+  });
+
   it("sem perfil devolve null; valor que não decifra vira campo vazio, sem logar o valor", async () => {
     const { deps: d, lines } = deps();
     expect(await loadOwnProfile(fakeClient().client, USER, d)).toBeNull();
     const copied = await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: "outra" });
-    const row = { display_name_enc: copied, municipality_code: SP, state_code: "SP", district_code: null, profile_contacts: null };
+    const row = { display_name_enc: copied, municipality_code: SP, state_code: "SP", district_code: null, neighborhood_enc: null, profile_contacts: null };
     expect(await loadOwnProfile(fakeClient({ row }).client, USER, d)).toEqual({
       displayName: "",
       whatsapp: "",
       municipalityCode: SP,
       stateCode: "SP",
       districtCode: null,
+      neighborhood: "",
+      neighborhoodUnreadable: false,
       socialLinks: [],
       socialLinksUnreadable: false,
     });
@@ -286,6 +364,7 @@ describe("redes sociais (#17)", () => {
       municipality_code: SP,
       state_code: "SP",
       district_code: SE_DISTRICT,
+      neighborhood_enc: null,
       profile_contacts: {
         whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }),
         social_links_enc: stored,
@@ -351,6 +430,7 @@ describe("redes sociais (#17)", () => {
         municipality_code: SP,
         state_code: "SP",
         district_code: SE_DISTRICT,
+        neighborhood_enc: null,
         profile_contacts: {
           whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }),
           social_links_enc: social,

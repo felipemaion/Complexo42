@@ -79,6 +79,11 @@ export const instance = parseInstanceConfig({
     districtLabel: "Seu distrito",
     districtHint: "Aparece só nas cidades com mais de um distrito. Se não souber, pode deixar em branco.",
     districtNone: "Não sei ou prefiro não dizer",
+    neighborhoodLabel: "Seu bairro (se quiser)",
+    neighborhoodHint: "Só o nome do bairro. Não informe rua nem número. Pode deixar em branco.",
+    neighborhoodUnreadable:
+      "Não conseguimos abrir o seu bairro agora. Ele continua guardado: salvar os outros dados não o apaga.",
+    replaceNeighborhood: "Trocar o bairro guardado",
     socialLinksLabel: "Suas redes sociais (se quiser)",
     socialLinksHint: "Até 5 links, como instagram.com/seunome. Pode deixar em branco.",
     socialLinkLabel: "Link",
@@ -98,6 +103,7 @@ export const instance = parseInstanceConfig({
       whatsapp: "Confira o WhatsApp: DDD e celular com 9 dígitos, como (11) 91234-5678.",
       municipalityCode: "Escolha a sua cidade na lista.",
       district: "Escolha o distrito na lista ou deixe em branco.",
+      neighborhood: "Confira o bairro: de 2 a 60 caracteres, só letras, números, espaço, hífen, apóstrofo e ponto. Ou deixe em branco.",
       socialLinks:
         "Confira os links: cada um precisa ser um endereço que começa com https://, como https://instagram.com/seunome, sem repetir.",
     },
