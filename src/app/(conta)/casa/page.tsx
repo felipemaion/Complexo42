@@ -34,6 +34,10 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
             firstStepsTitle={text.firstStepsTitle}
             videosTitle={text.videosTitle}
           />
+          {/* Casa definida: o próximo passo é o perfil (a página inicial leva a ele), ADR 0017. */}
+          <Link href="/inicio" className="rounded-xl bg-[var(--color-primary)] px-5 py-3 text-center text-lg font-semibold text-white" data-testid="continue-link">
+            {text.continueLink}
+          </Link>
           {lockNotice ? (
             <p className="text-lg font-semibold" data-testid="house-lock-notice">
               {lockNotice}

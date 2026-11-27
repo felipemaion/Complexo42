@@ -133,6 +133,7 @@ const valid = {
     consentLockNotice: "t",
     lockedUntilNotice: "{date}",
     changeHouseLink: "t",
+    continueLink: "t",
     errors: {
       unavailable: "t",
       already_accepted: "t",

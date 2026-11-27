@@ -6,7 +6,7 @@ import type { Page } from "@playwright/test";
  * seguinte.
  */
 export async function acceptTermIfAsked(page: Page): Promise<void> {
-  await page.waitForURL(/\/(termo|perfil)(\?.*)?$/);
+  await page.waitForURL(/\/(termo|perfil|casa)(\?.*)?$/);
   if (new URL(page.url()).pathname !== "/termo") return;
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Continuar" }).click();

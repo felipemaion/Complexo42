@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
 import { chooseCity } from "./choose-city";
+import { giveHouse } from "./give-house";
 
 // Redes sociais (#17). Sem Supabase (o CI): só a proteção da rota. Com o Supabase local, o fluxo
 // real: a pessoa se cadastra pondo links, um `javascript:` é recusado só naquela caixa, o banco
@@ -91,6 +92,7 @@ test.describe("redes sociais com o Supabase local", () => {
       body: JSON.stringify({ access_status: "active", status: "active" }),
     });
     expect(res.ok).toBe(true);
+    await giveHouse(admin, profileId); // casa antes de tudo (ADR 0017)
   });
 
   test("a página inicial mostra os links como texto, com rel seguro", async ({ baseURL }) => {

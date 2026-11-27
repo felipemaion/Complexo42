@@ -263,6 +263,8 @@ export const instanceConfigSchema = z.strictObject({
     consentLockNotice: text,
     lockedUntilNotice: text.refine((v) => v.includes("{date}"), "use {date}"),
     changeHouseLink: text,
+    /** Depois da casa aceita: o próximo passo é o perfil (via /inicio), ADR 0017. */
+    continueLink: text,
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,

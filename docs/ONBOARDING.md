@@ -91,7 +91,7 @@ fictícios**.
 para `SUPABASE_ANON_KEY` no `.env.local`, rode `npm run dev` e abra
 http://127.0.0.1:3000/entrar (use `127.0.0.1`, não `localhost`: é o endereço liberado no
 `supabase/config.toml`). O link mágico não sai para a internet: cai no Mailpit local
-(endereço em `npx supabase status`). O login com Google fica desligado no local; para
+(endereço em `npx supabase status`). **Ordem de entrada de quem está na lista de autorizados** (ADR 0017): link mágico, termo geral, `/casa` (termo do questionário, questionário, casa aceita ou escolhida) e só então `/perfil` e o resto; por URL direta, qualquer outra rota volta a `/casa`. Para testar uma tela protegida com uma conta criada pela chave de serviço, dê a ela a casa (vínculo aceito em `house_members`), como `e2e/give-house.ts`. O login com Google fica desligado no local; para
 testá-lo, veja o comentário `[auth.external.google]` no `supabase/config.toml`.
 
 ## Passo 4 — Configure sua IA (10 min)

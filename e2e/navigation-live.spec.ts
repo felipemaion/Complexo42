@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { giveHouse } from "./give-house";
 
 // Navegação de volta das páginas logadas (#205). Sem Supabase (o CI) não há o que abrir: todas
 // exigem sessão. Com o Supabase local, pessoa ativa e gestora da raiz abrem cada página por link
@@ -47,6 +48,7 @@ test.describe("navegação com o Supabase local", () => {
       }),
     });
     expect(created.status).toBe(201);
+    await giveHouse(admin, user.id);
     const consent = await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
     expect(consent.status).toBe(201);
     const [unit] = await (await admin("/rest/v1/units?parent_id=is.null&select=id")).json();
