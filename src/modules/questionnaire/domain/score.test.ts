@@ -75,6 +75,12 @@ describe("scoreQuestionnaire", () => {
     expect(scoreQuestionnaire(config, withAnswers({ h1a: 1, h1b: -3, h1c: 1 }))).toMatchObject({ houseId: "casa-1" });
   });
 
+  it("soma +1 vai para o polo b e soma -1 para o polo a (o menor desequilíbrio possível decide)", () => {
+    // 5 - 3 - 1 = +1 → b; -5 + 3 + 1 = -1 → a.
+    expect(scoreQuestionnaire(config, withAnswers({ h1a: 5, h1b: -3, h1c: -1 }))).toMatchObject({ houseId: "casa-3", scores: { house1: 7 } });
+    expect(scoreQuestionnaire(config, withAnswers({ h1a: -5, h1b: 3, h1c: 1 }))).toMatchObject({ houseId: "casa-1", scores: { house1: -7 } });
+  });
+
   describe("notas dos eixos (média normalizada para -100..100)", () => {
     it("tudo no extremo dá -100 (muito a) e 100 (muito b)", () => {
       expect(scoreQuestionnaire(config, answersFor({ h1: -5, h2: 5, t1: -5, t2: 5 })).scores).toEqual({

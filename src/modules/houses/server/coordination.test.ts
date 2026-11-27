@@ -122,8 +122,8 @@ describe("listOpenAnalysisRequests", () => {
 
   it("decifra as respostas de cada pedido aberto", async () => {
     const { client, filters } = fake({ from: { data: [good(U1, { q1: -3, q2: 3 })] } });
-    expect(await listOpenAnalysisRequests(client, crypto)).toEqual({
-      requests: [{ requestId: REQ, profileId: U1, kind: "full", tiedAxes: ["house1"], answers: { q1: -3, q2: 3 }, createdAt: "t" }],
+    expect(await listOpenAnalysisRequests(client, crypto, questionnaire)).toEqual({
+      requests: [{ requestId: REQ, profileId: U1, kind: "full", tiedAxes: ["house1"], answers: { q1: -3, q2: 3 }, legacyKey: true, createdAt: "t" }],
       unreadable: 0,
       truncated: false,
     });
@@ -131,19 +131,27 @@ describe("listOpenAnalysisRequests", () => {
     expect(filters).toContainEqual(["limit", 201]);
   });
 
+  it("pedido com a chave atual não é 'chave antiga'; o de outra chave (itens e escala antigos) é", async () => {
+    const current = good(U1, Object.fromEntries(questionnaire.items.map((item) => [item.id, -5])));
+    const old = good(U2, { q01: -3, q02: 2, q27: 1, q28: -1 });
+    const out = await listOpenAnalysisRequests(fake({ from: { data: [current, old] } }).client, crypto, questionnaire);
+    expect(out.requests.map((r) => r.legacyKey)).toEqual([false, true]);
+    expect(out.unreadable).toBe(0);
+  });
+
   it("pedido de totem (#197) traz o tipo e só os eixos do totem", async () => {
     const totemRequest = { ...good(U1, { q1: -3 }), kind: "totem", tied_axes: ["totem2"] };
-    const out = await listOpenAnalysisRequests(fake({ from: { data: [totemRequest] } }).client, crypto);
+    const out = await listOpenAnalysisRequests(fake({ from: { data: [totemRequest] } }).client, crypto, questionnaire);
     expect(out.requests[0]).toMatchObject({ kind: "totem", tiedAxes: ["totem2"] });
   });
 
   it("sem pedidos visíveis: lista vazia", async () => {
-    expect(await listOpenAnalysisRequests(fake().client, crypto)).toEqual({ requests: [], unreadable: 0, truncated: false });
+    expect(await listOpenAnalysisRequests(fake().client, crypto, questionnaire)).toEqual({ requests: [], unreadable: 0, truncated: false });
   });
 
   it("mais pedidos que a página: devolve só a página e avisa que truncou", async () => {
     const many = Array.from({ length: 201 }, (_, index) => good(`00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, { q1: -3 }));
-    const out = await listOpenAnalysisRequests(fake({ from: { data: many } }).client, crypto);
+    const out = await listOpenAnalysisRequests(fake({ from: { data: many } }).client, crypto, questionnaire);
     expect(out.requests).toHaveLength(200);
     expect(out.truncated).toBe(true);
   });
@@ -159,7 +167,7 @@ describe("listOpenAnalysisRequests", () => {
       good(U2, { q2: 1 }),
     ];
     const reported: string[] = [];
-    const out = await listOpenAnalysisRequests(fake({ from: { data: rows } }).client, crypto, (c) => reported.push(c));
+    const out = await listOpenAnalysisRequests(fake({ from: { data: rows } }).client, crypto, questionnaire, (c) => reported.push(c));
     expect(out.requests.map((r) => r.answers)).toEqual([{ q1: -3 }, { q2: 1 }]);
     expect(out.unreadable).toBe(4);
     expect(reported).toEqual(["answers_enc", "answers_enc", "answers_enc", "row"]);
@@ -216,11 +224,33 @@ describe("resolveAnalysis", () => {
     expect(await resolveAnalysis(fake().client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, deps)).toEqual({ ok: false, error: "not_found" });
   });
 
-  it("respostas do pedido que não decifram ou não pontuam (escala antiga): falha sem chamar o banco", async () => {
+  it("pedido de chave antiga: resolve com casa e totem escolhidos, sem recalcular notas (notas nulas na assinatura)", async () => {
+    const oldAnswers = { q01: -3, q02: 2, q27: 1, q28: -1 };
+    const row = { profile_id: U1, answers_enc: `enc[house_analysis_requests.answers_enc.${U1}](${JSON.stringify(oldAnswers)})` };
+    const { client, rpcCalls } = fake({ from: { data: row } });
+    expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-b", totem: "XV" }, deps)).toEqual({ ok: true });
+    const totemEnc = `enc[questionnaire_results.totem_enc.${U1}](XV)`;
+    expect(rpcCalls).toEqual([
+      {
+        fn: "resolve_house_analysis",
+        args: {
+          p_request_id: REQ,
+          p_house_key: "casa-b",
+          p_totem_enc: totemEnc,
+          p_scores_enc: null,
+          p_answers_hash: `hash(${row.answers_enc})`,
+          p_issued_at: 1000,
+          p_signature: `sig(resolve|${U2}|${REQ}|casa-b|${totemEnc}||hash(${row.answers_enc})|1000)`,
+        },
+      },
+    ]);
+  });
+
+  it("respostas do pedido que não decifram ou não são inteiros da escala: falha sem chamar o banco", async () => {
     for (const answersEnc of [
       `enc[house_analysis_requests.answers_enc.${U2}](${JSON.stringify(answers)})`, // cifradas para outra pessoa
-      `enc[house_analysis_requests.answers_enc.${U1}]({"q01":"a"})`, // escala antiga
-      `enc[house_analysis_requests.answers_enc.${U1}]({"q01":-3})`, // incompletas
+      `enc[house_analysis_requests.answers_enc.${U1}]({"q01":"a"})`, // não é número
+      `enc[house_analysis_requests.answers_enc.${U1}](nao-json)`,
     ]) {
       const { client, rpcCalls } = fake({ from: { data: { profile_id: U1, answers_enc: answersEnc } } });
       expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, deps)).toEqual({ ok: false, error: "failed" });
