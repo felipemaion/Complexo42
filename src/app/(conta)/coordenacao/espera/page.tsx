@@ -37,12 +37,13 @@ export default async function WaitlistQueuePage({ searchParams }: Props) {
   const text = instance.coordination;
   const date = new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "America/Sao_Paulo" });
   const entries = page.entries.map((entry) => {
-    const city = cities.get(entry.municipalityCode);
+    const city = entry.municipalityCode === null ? undefined : cities.get(entry.municipalityCode);
     return {
       profileId: entry.profileId,
-      displayName: entry.displayName ?? text.waitlist.unknownName,
+      // Perfil incompleto (ADR 0017): sem nome nem lugar; a pessoa aparece mesmo assim e não se libera sem identificá-la.
+      displayName: entry.displayName ?? (entry.stateCode === null ? text.waitlist.incompleteProfile : text.waitlist.unknownName),
       isIdentified: entry.displayName !== null,
-      place: city ? fillText(text.waitlist.place, { city, state: entry.stateCode }) : entry.stateCode,
+      place: entry.stateCode === null ? text.waitlist.incompleteProfile : city ? fillText(text.waitlist.place, { city, state: entry.stateCode }) : entry.stateCode,
       since: date.format(new Date(entry.createdAt)),
     };
   });

@@ -68,6 +68,8 @@ insert into public.profiles (id, display_name_enc, municipality_code, consent_ve
 select id, pg_temp.enc(name),
        case when name in ('mg_mgr', 'wait_mg') then 3106200 else 3550308 end, 'v1'
 from people where name <> 'noprof';
+-- Membro de verdade exige o termo vigente aceito (is_active_member, revisão do #227): quem tem perfil aceitou o termo.
+insert into public.consent_acceptances (user_id, version) select id, 'v1' from public.profiles on conflict do nothing;
 update public.profiles set access_status = 'active', status = 'active'
 where id in (select id from people where name in ('root_mgr', 'sp_mgr', 'mg_mgr', 'sp_mon', 'tech', 'member'));
 update public.profiles set access_status = 'waitlisted'
@@ -286,8 +288,8 @@ select pg_temp.login('wait_mg');
 select is(public.resolve_access(pg_temp.h('a@x.org')), 'waitlisted',
   'quem está na espera não sai dela pelo login, nem com HMAC da lista');
 select pg_temp.login('noprof');
-select is(public.resolve_access(pg_temp.h('a@x.org')), null,
-  'sem perfil, devolve nulo e não decide nada');
+select is(public.resolve_access(pg_temp.h('a@x.org')), 'active',
+  'sem perfil e com HMAC na lista: liberado, e a linha incompleta nasce (ADR 0017; quem está fora da lista fica sem linha, em profile_incomplete.test.sql)');
 
 reset role;
 select results_eq(
@@ -298,9 +300,10 @@ select results_eq(
             ('pend_out', 'waitlisted', 'pending'), ('wait_mg', 'waitlisted', 'pending') $$,
   'resolve_access só mudou o perfil de quem chamou, e só a partir de pending'
 );
-select is_empty(
-  $$ select 1 from public.profiles where id = pg_temp.person('noprof') $$,
-  'resolve_access não cria perfil'
+select is(
+  (select (display_name_enc is null and profile_completed_at is null and access_status = 'active') from public.profiles where id = pg_temp.person('noprof')),
+  true,
+  'resolve_access cria só a linha incompleta de quem está na lista'
 );
 select results_eq(
   $$ select profile_id, email_hmac from public.access_waitlist_hmac $$,

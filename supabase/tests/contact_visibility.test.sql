@@ -112,6 +112,8 @@ insert into public.municipalities (code, name, state_code) values (3304557, 'Rio
 on conflict (code) do nothing;
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
 select id, pg_temp.enc('Nome' || name), 3304557, 'v1' from people where name <> 'noprof';
+-- Membro de verdade exige o termo vigente aceito (is_active_member, revisão do #227): quem tem perfil aceitou o termo.
+insert into public.consent_acceptances (user_id, version) select id, 'v1' from public.profiles on conflict do nothing;
 update public.profiles set access_status = 'active', status = 'active';
 update public.profiles set access_status = 'blocked' where id = pg_temp.person('blk');
 update public.profiles set status = 'suspended' where id = pg_temp.person('susp');
