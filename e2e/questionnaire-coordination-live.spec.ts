@@ -229,3 +229,46 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   await stateContext.close();
   await rootContext.close();
 });
+
+test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troca fica no audit_log (ADR 0016)", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const root = await createPerson("raiz-troca");
+  await makeManager(root.id, "br");
+  const person = await createPerson("troca");
+  // A pessoa responde na tela e aceita a casa sugerida: a trava de 4 meses nasce no banco.
+  const personContext = await browser.newContext();
+  const personPage = await personContext.newPage();
+  await signIn(personPage, person.email);
+  await personPage.goto("/casa");
+  await personPage.getByRole("button", { name: "Aceito e quero responder" }).click();
+  for (const item of questionnaire.items) {
+    await personPage.getByTestId(`scale-${allA[item.id]}`).click();
+    await personPage.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
+  }
+  await personPage.getByRole("button", { name: "Aceitar" }).click();
+  await expect(personPage.getByTestId("house-lock-notice")).toBeVisible();
+  await personContext.close();
+  const [before] = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key,locked_until`)).json()) as {
+    house_key: string;
+    locked_until: string;
+  }[];
+  expect(new Date(before!.locked_until).getTime()).toBeGreaterThan(Date.now() + 100 * 24 * 3600 * 1000);
+
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await signIn(page, root.email);
+  await page.goto(`/coordenacao/casas/resultados/${person.id}`);
+  const target = before!.house_key === "atenas" ? { id: "alexandria", name: "Alexandria" } : { id: "atenas", name: "Atenas" };
+  await page.getByLabel("Nova casa").selectOption({ label: target.name });
+  await page.getByRole("button", { name: "Trocar a casa" }).click();
+  await expect(page.getByText("Casa trocada.")).toBeVisible();
+  await context.close();
+
+  const open = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key,locked_until`)).json()) as {
+    house_key: string;
+    locked_until: string;
+  }[];
+  expect(open).toEqual([{ house_key: target.id, locked_until: before!.locked_until }]);
+  const audit = await (await admin(`/rest/v1/audit_log?event=eq.house_changed&target_id=eq.${person.id}&select=actor_id,reason,house_key`)).json();
+  expect(audit).toEqual([{ actor_id: root.id, reason: "coordination", house_key: target.id }]);
+});

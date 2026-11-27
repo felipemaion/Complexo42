@@ -11,6 +11,8 @@ export type HouseErrorCode =
   | "not_active"
   | "stale_consent"
   | "removed_by_coordination"
+  | "house_locked"
+  | "house_conflict"
   | "rate_limited"
   | "failed";
 

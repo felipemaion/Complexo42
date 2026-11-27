@@ -68,6 +68,7 @@ export const ownDataRowsSchema = z.object({
       joined_at: timestamp,
       accepted_at: timestamp.nullable(),
       left_at: timestamp.nullable(),
+      locked_until: timestamp.nullable(),
     }),
   ),
   /** Aceites do termo do questionário (versão e data; nunca as respostas). */
@@ -348,6 +349,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       entrouEm: h.joined_at,
       aceitaEm: h.accepted_at,
       saiuEm: h.left_at,
+      trocaLiberadaEm: h.locked_until,
     })),
     resultadoDoQuestionario: rows.questionnaire_result && {
       casaSugerida: houseName(rows.questionnaire_result.house_key) ?? rows.questionnaire_result.house_key,

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HouseClient, HouseQuery } from "../types";
 import { parseQuestionnaire } from "@/modules/questionnaire";
-import { acceptHouse, readAcceptedHouse, recordConsent, submitQuestionnaire } from "./houses";
+import { acceptHouse, readAcceptedHouse, readHouseLock, recordConsent, submitQuestionnaire } from "./houses";
 
 const houseIds = ["casa-a", "casa-b"];
 
@@ -77,6 +77,8 @@ describe("acceptHouse", () => {
       ["23505", "already_accepted"],
       ["C7601", "failed"], // a região não é mais exigida (ADR 0011)
       ["C7602", "removed_by_coordination"],
+      ["C7603", "house_locked"], // trava de 4 meses para trocar de casa
+      ["C7604", "house_conflict"], // troca concorrente
       ["22023", "failed"],
       [undefined, "failed"],
     ];
@@ -334,5 +336,19 @@ describe("submitQuestionnaire", () => {
       const { client } = refusingClient("22023", {});
       expect(await submitQuestionnaire(client, { answers: conclusive }, ctx)).toEqual({ ok: false, error: "stale_consent" });
     });
+  });
+});
+
+describe("readHouseLock", () => {
+  it("lê só a trava do vínculo aberto e aceito da própria pessoa", async () => {
+    const { client, filters } = fakeClient({ data: { locked_until: "2027-03-27T15:00:00+00:00" } });
+    expect(await readHouseLock(client, "u1")).toBe("2027-03-27T15:00:00+00:00");
+    expect(filters).toContainEqual(["from", "house_members", "locked_until"]);
+    expect(filters).toContainEqual(["eq", "profile_id", "u1"]);
+    expect(filters).toContainEqual(["is", "left_at", null]);
+  });
+
+  it("sem casa aceita, devolve nulo", async () => {
+    expect(await readHouseLock(fakeClient().client, "u1")).toBeNull();
   });
 });

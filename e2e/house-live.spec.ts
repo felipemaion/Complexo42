@@ -116,6 +116,8 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   const requests = recordRequests(page);
 
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
+  // Trava de 4 meses (ADR 0016): o aviso aparece antes do aceite, junto ao botão, fora do termo.
+  await expect(page.getByTestId("consent-lock-notice")).toContainText("4 meses");
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   // A chave (eixos, desempates, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
   const html = await page.content();
@@ -306,6 +308,12 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await expect(page.getByTestId("house-name")).toHaveText("Alexandria");
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  // Casa definida: a pessoa vê a data a partir da qual poderá trocar (4 meses; ADR 0016) e ainda não vê o link de troca.
+  await expect(page.getByTestId("house-lock-notice")).toContainText(/\d{2}\/\d{2}\/\d{4}/);
+  await expect(page.getByTestId("change-house-link")).toHaveCount(0);
+  await page.goto("/inicio");
+  await expect(page.getByTestId("house-lock-notice")).toBeVisible();
+  await page.goto("/casa");
 
   expect(actionBodies(requests)).toEqual([[{ houseId: "alexandria", joinMethod: "self" }]]);
   expect(await houseRows(member.id)).toEqual([

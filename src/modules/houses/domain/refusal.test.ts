@@ -8,6 +8,8 @@ const texts: RefusalTexts = {
     not_active: "complete o cadastro",
     stale_consent: "termo novo",
     removed_by_coordination: "tirada",
+    house_locked: "trava",
+    house_conflict: "conflito",
     rate_limited: "espere um pouco",
     failed: "não foi possível",
   },

@@ -264,6 +264,9 @@ export const instanceConfigSchema = z.strictObject({
     inviteMessage: text,
     /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
     rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
+    consentLockNotice: text,
+    lockedUntilNotice: text.refine((v) => v.includes("{date}"), "use {date}"),
+    changeHouseLink: text,
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,
@@ -275,6 +278,8 @@ export const instanceConfigSchema = z.strictObject({
       stale_consent: text,
       /** A coordenação encerrou a casa da pessoa: a volta é com ela. */
       removed_by_coordination: text,
+      house_locked: text,
+      house_conflict: text,
       /** Pedido de análise renovado há pouco (no máximo um por hora). */
       rate_limited: text,
       failed: text,
@@ -312,6 +317,10 @@ export const instanceConfigSchema = z.strictObject({
       /** Destaque da casa na legenda do gráfico (#201). */
       chartCurrentHouse: text,
       noScores: text,
+      changeHouseTitle: text,
+      changeHouseLabel: text,
+      changeHouseButton: text,
+      changedNotice: text,
       unreadableOne: text,
       backLink: text,
     }),

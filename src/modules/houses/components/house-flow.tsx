@@ -13,7 +13,7 @@ import type { InstanceConfig } from "@/modules/instance";
 import { IntensityScale } from "@/modules/questionnaire/components/intensity-scale";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import type { PublicQuestionnaire } from "@/modules/questionnaire";
-import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent } from "../domain/flow";
+import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "../domain/flow";
 import { refusalMessage } from "../domain/refusal";
 import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
@@ -23,15 +23,17 @@ type Props = {
   houses: readonly HouseView[];
   questionnaire: PublicQuestionnaire;
   text: InstanceConfig["houseSelection"];
+  /** Troca de casa depois do prazo (ADR 0016): começa na lista de atividades, sem refazer o questionário. */
+  startAtActivities?: boolean;
 };
 
 const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
 const primary =
   "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
 
-export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
+export function HouseFlow({ houses, questionnaire, text, startAtActivities = false }: Readonly<Props>) {
   const router = useRouter();
-  const [state, setState] = useState(initialFlow);
+  const [state, setState] = useState<FlowState>(() => (startAtActivities ? { step: { kind: "activities" }, answers: {} } : initialFlow));
   const [error, setError] = useState<HouseErrorCode | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -76,8 +78,10 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const acceptHouse = (houseId: string, joinMethod: "self" | "questionnaire") =>
     startTransition(async () => {
       const result = await acceptHouseAction({ houseId, joinMethod });
-      if (result.ok) router.refresh();
-      else setError(result.error);
+      if (result.ok) {
+        router.replace("/casa");
+        router.refresh();
+      } else setError(result.error);
     });
 
   const back = (
@@ -118,6 +122,10 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
           <h2 className="text-2xl font-bold">{text.consentTitle}</h2>
           <p className="whitespace-pre-line text-lg" data-testid="consent-term">
             {questionnaire.consentTerm}
+          </p>
+          {/* O aviso é texto da tela (config), junto ao botão; o termo vem da config privada e não muda. */}
+          <p className="rounded-xl border-2 border-current p-4 text-lg font-semibold" data-testid="consent-lock-notice">
+            {text.consentLockNotice}
           </p>
           <button type="button" className={primary} onClick={acceptConsent} disabled={pending}>
             {text.consentAccept}
