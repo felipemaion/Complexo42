@@ -123,15 +123,27 @@ questionário falha (fechado).
 docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c "select app.purge_expired_analysis()"
 ```
-A versão do termo do arquivo do questionário também precisa estar em
-`app.questionnaire_term_versions`.
 
-**O totem e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `answers_enc`,
+**Checklist de deploy do questionário (a cada JSON novo).** Antes de publicar um arquivo com
+`consentTermVersion` novo, cadastre a versão no banco. **Sem isso o aceite do termo falha fechado**
+(o banco recusa a versão desconhecida, e ninguém consegue responder). Troque `<versao>` pelo valor
+exato de `consentTermVersion` do arquivo (só letras, números, ponto, hífen e sublinhado, até 32):
+
+```bash
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  -c "insert into app.questionnaire_term_versions (version) values ('<versao>') on conflict do nothing"
+```
+
+1. cadastrar a versão do termo (acima); 2. instalar o arquivo em `QUESTIONNAIRE_PATH`; 3. reiniciar
+o app (ele valida o arquivo na subida e recusa subir com um inválido).
+
+**O totem, as notas dos eixos e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `scores_enc`, `answers_enc`,
 AES-256-GCM, ADR 0003 e ADR 0014 §5): o Postgres nunca recebe nem devolve esses valores em claro,
 então o log do Postgres e o `pg_stat_statements` não os expõem. Verificações:
-- `FIELD_ENCRYPTION_KEY` é a mesma do app que grava e lê (perdê-la perde totem e respostas, como
-  o nome e o contato). A **rotação** de chaves (ADR 0003 §5) recifra também `totem_enc` e
-  `answers_enc`.
+- `FIELD_ENCRYPTION_KEY` é a mesma do app que grava e lê (perdê-la perde totem, notas e respostas, como
+  o nome e o contato). A **rotação** de chaves (ADR 0003 §5) recifra também `totem_enc`,
+  `scores_enc` e `answers_enc`.
 - O backup (#84) é cifrado e contém essas tabelas (já cifradas): vale a mesma retenção dos demais dados.
 - **Delegação:** quem concede, revoga e o que cada gestor vê: `questionnaire_data_grants` e os
   eventos `questionnaire_access_granted/revoked` no `audit_log` (leitura só da coordenação nacional).

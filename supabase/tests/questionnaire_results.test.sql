@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(198);
+select plan(201);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -97,9 +97,14 @@ create function pg_temp.analyze(p_term text, p_axes text[], p_answers text) retu
 $$;
 
 -- Resolução assinada pelo servidor para a pessoa da sessão (a coordenação nacional).
+-- Hash (SHA-256 hex) das respostas cifradas que o servidor leu do pedido; definer porque quem
+-- resolve nem sempre enxerga o pedido pela RLS (o servidor leu antes, com o escopo certo).
+create function pg_temp.req_hash(p_req uuid) returns text language sql stable security definer as $$
+  select encode(extensions.digest(convert_to((select answers_enc from public.house_analysis_requests where id = p_req), 'utf8'), 'sha256'), 'hex')
+$$;
 create function pg_temp.resolve_raw(p_req uuid, p_house text, p_totem_value text, p_age_s bigint default 0) returns void language sql as $$
-  select public.resolve_house_analysis(p_req, p_house, p_totem_value, pg_temp.enc('SC'), pg_temp.now_s() - p_age_s,
-    pg_temp.sig(format('resolve|%s|%s|%s|%s|%s|%s', (select auth.uid()), p_req, p_house, p_totem_value, pg_temp.enc('SC'), pg_temp.now_s() - p_age_s)))
+  select public.resolve_house_analysis(p_req, p_house, p_totem_value, pg_temp.enc('SC'), pg_temp.req_hash(p_req), pg_temp.now_s() - p_age_s,
+    pg_temp.sig(format('resolve|%s|%s|%s|%s|%s|%s|%s', (select auth.uid()), p_req, p_house, p_totem_value, pg_temp.enc('SC'), pg_temp.req_hash(p_req), pg_temp.now_s() - p_age_s)))
 $$;
 create function pg_temp.resolve(p_req uuid, p_house text, p_totem text) returns void language sql as $$
   select pg_temp.resolve_raw(p_req, p_house, pg_temp.enc(p_totem))
@@ -280,25 +285,38 @@ select throws_ok($$ select pg_temp.resolve((select id from request_ids), 'casa-o
 select throws_ok($$ select pg_temp.resolve(gen_random_uuid(), 'casa-t1', 'AB') $$, 'P0002', null,
   'pedido inexistente é recusado');
 -- A resolução também é assinada pelo servidor: a coordenação, pela API direta, não grava valor qualquer.
-select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s(), 'assinatura-qualquer') $$, '42501', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s(), 'assinatura-qualquer') $$, '42501', null,
   'resolução sem assinatura válida do servidor é recusada (valor com formato de cifrado, mas gravado direto)');
-select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s(), null) $$, '42501', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s(), null) $$, '42501', null,
   'resolução sem assinatura nenhuma é recusada');
-select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s(),
-    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('AB'), pg_temp.enc('SC'), pg_temp.now_s()))) $$, '42501', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('AB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s()))) $$, '42501', null,
   'a assinatura cobre o totem cifrado (trocar o valor invalida)');
-select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s(),
-    pg_temp.sig(format('resolve|%s|%s|casa-t1|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s()))) $$, '42501', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t1|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s()))) $$, '42501', null,
   'a assinatura cobre a casa');
-select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s(),
-    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s', pg_temp.person('sp_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s()))) $$, '42501', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('sp_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s()))) $$, '42501', null,
   'a assinatura é de quem resolve (assinada para outra pessoa não vale)');
-select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('OUTRAS'), pg_temp.now_s(),
-    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.now_s()))) $$, '42501', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('OUTRAS'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from request_ids)), pg_temp.now_s()))) $$, '42501', null,
   'a assinatura da resolução cobre as notas cifradas');
-select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), '{"house1": 1}', pg_temp.now_s(),
-    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), '{"house1": 1}', pg_temp.now_s()))) $$, '22023', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), '{"house1": 1}', pg_temp.req_hash((select id from request_ids)), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), '{"house1": 1}', pg_temp.req_hash((select id from request_ids)), pg_temp.now_s()))) $$, '22023', null,
   'notas em texto puro na resolução são recusadas, mesmo assinadas');
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), repeat('0', 64), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), repeat('0', 64), pg_temp.now_s()))) $$, '40001', null,
+  'hash das respostas que não é o do pedido (assinado): recusado, as notas não valem para outras respostas');
+create temp table seen_hash (h text not null);
+insert into seen_hash select pg_temp.req_hash((select id from request_ids));
+grant select on seen_hash to authenticated;
+reset role;
+update public.house_analysis_requests set answers_enc = pg_temp.enc('TROCADAS') where id = (select id from request_ids);
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), (select h from seen_hash), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), (select h from seen_hash), pg_temp.now_s()))) $$, '40001', null,
+  'respostas trocadas no meio (a pessoa renovou o pedido depois da leitura): a resolução é recusada');
 select throws_ok($$ select pg_temp.resolve_raw((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), 600) $$, '42501', null,
   'resolução assinada há mais de 5 minutos é recusada');
 select lives_ok($$ select pg_temp.resolve((select id from request_ids), 'casa-t2', 'BB') $$,
@@ -496,6 +514,8 @@ select is((select r -> 'answers_enc' from jsonb_array_elements(public.export_own
 select pg_temp.login('p3');
 select is((public.export_own_data() -> 'questionnaire_result' ->> 'totem_enc'), pg_temp.enc('AA'), 'o export traz o totem (cifrado) da própria pessoa');
 select is((public.export_own_data() -> 'questionnaire_result' ->> 'scores_enc'), pg_temp.enc('SC'), '... e as notas dos eixos (cifradas)');
+select ok((public.export_own_data() -> 'profile') ? 'neighborhood_enc',
+  'o export segue trazendo o bairro (neighborhood_enc) do perfil, junto das notas');
 
 -- Totem e respostas só existem cifrados: nenhuma coluna em texto puro (ADR 0003).
 select columns_are('public', 'questionnaire_results',
@@ -689,7 +709,7 @@ select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who =
   'delegado NÃO resolve o próprio pedido');
 select throws_ok($$ select pg_temp.resolve_raw((select id from deleg_req where who = 'p1'), 'casa-t1', pg_temp.enc('AB'), 600) $$, '42501', null,
   'delegado também precisa da assinatura do servidor (vencida é recusada)');
-select throws_ok($$ select public.resolve_house_analysis((select id from deleg_req where who = 'p1'), 'casa-t1', pg_temp.enc('AB'), pg_temp.enc('SC'), pg_temp.now_s(), 'x') $$, '42501', null,
+select throws_ok($$ select public.resolve_house_analysis((select id from deleg_req where who = 'p1'), 'casa-t1', pg_temp.enc('AB'), pg_temp.enc('SC'), pg_temp.req_hash((select id from deleg_req where who = 'p1')), pg_temp.now_s(), 'x') $$, '42501', null,
   'delegado, pela API direta e sem assinatura, NÃO resolve');
 reset role;
 update public.profiles set status = 'suspended' where id = pg_temp.person('p3');

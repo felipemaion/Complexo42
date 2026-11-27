@@ -93,8 +93,8 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
   prazo). Depois do prazo as respostas deixam de ser lidas na hora (a política de leitura
   esconde) e são apagadas na chamada seguinte de qualquer uma das funções do pedido. A linha do
   pedido fica, sem as respostas.
-- A resolução também é **assinada pelo servidor** (casa, totem cifrado, pedido e quem resolve), como o
-  resultado: a coordenação não grava um valor qualquer pela API direta.
+- A resolução também é **assinada pelo servidor** (casa, totem e notas cifrados, o hash das respostas
+  lidas, pedido e quem resolve), como o resultado; se o pedido mudou desde a leitura, é recusada: a coordenação não grava um valor qualquer pela API direta.
 - Resolve a coordenação nacional **ou quem ela delegou** (§4), este só sobre pedido de pessoa do
   escopo dele. Sempre só pedido de **pessoa ativa** e nunca o **próprio**.
 - Abrir e resolver o pedido geram `house_analysis_requested` e `house_analysis_resolved` no
@@ -151,7 +151,7 @@ coordenação lê pelo servidor, que consulta com o JWT dela (a RLS decide quem 
 banco nunca recebe nem devolve o valor em claro, o log do Postgres e o `pg_stat_statements` não
 expõem esses dados; ficam as chaves (`FIELD_ENCRYPTION_KEY`, `QUESTIONNAIRE_SIGNING_KEY`) e o
 backup cifrado como único ponto de cuidado. A exclusão da conta apaga tudo em cascata. "Baixar
-meus dados" decifra e entrega o totem e as respostas (formato 5).
+meus dados" decifra e entrega o totem, as notas dos eixos e as respostas (formato 8).
 
 ## Alternativas consideradas
 

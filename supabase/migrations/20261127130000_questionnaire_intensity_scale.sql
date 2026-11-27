@@ -8,7 +8,9 @@
 -- 1. `scores_enc` (nulo só nos resultados antigos, de antes da escala).
 -- 2. Pedidos abertos com respostas na escala antiga (a, b, both) não servem mais: são fechados como
 --    expirados e a pessoa refaz o questionário.
--- 3. `record_questionnaire_result` e `resolve_house_analysis` recebem `p_scores_enc` (assinado).
+-- 3. `record_questionnaire_result` e `resolve_house_analysis` recebem `p_scores_enc` (assinado);
+--    a resolução também assina o hash das respostas que o servidor leu e o banco confere que o
+--    pedido ainda tem essas respostas (as notas não vêm de respostas trocadas no meio).
 -- 4. `export_own_data` devolve `scores_enc` (o servidor decifra).
 
 alter table public.questionnaire_results
@@ -71,7 +73,8 @@ comment on function public.record_questionnaire_result(text, text, text, text, b
 
 
 create or replace function public.resolve_house_analysis(
-  p_request_id uuid, p_house_key text, p_totem_enc text, p_scores_enc text, p_issued_at bigint, p_signature text
+  p_request_id uuid, p_house_key text, p_totem_enc text, p_scores_enc text, p_answers_hash text,
+  p_issued_at bigint, p_signature text
 )
 returns void
 language plpgsql
@@ -83,6 +86,7 @@ declare
   is_national boolean;
   person uuid;
   version text;
+  current_hash text;
 begin
   is_national := caller is not null and app.manages_root();
   if caller is null or not (is_national or app.holds_questionnaire_grant()) then
@@ -91,7 +95,7 @@ begin
   -- O servidor do app cifra o totem e assina a resolução (pedido, casa, totem cifrado): sem isso,
   -- quem resolve, pela API direta, gravaria qualquer valor com o formato de cifrado.
   perform app.verify_server_signature(
-    format('resolve|%s|%s|%s|%s|%s|%s', caller, p_request_id, p_house_key, p_totem_enc, p_scores_enc, p_issued_at),
+    format('resolve|%s|%s|%s|%s|%s|%s|%s', caller, p_request_id, p_house_key, p_totem_enc, p_scores_enc, p_answers_hash, p_issued_at),
     p_issued_at, p_signature);
   perform app.purge_expired_analysis();
   if p_totem_enc is null or not app.is_encrypted_value(p_totem_enc, 256)
@@ -127,12 +131,18 @@ begin
   if not app.is_active_profile(person) then
     raise exception 'só pedidos de quem está ativo' using errcode = 'insufficient_privilege';
   end if;
-  select q.term_version into version
+  select q.term_version, encode(extensions.digest(convert_to(q.answers_enc, 'utf8'), 'sha256'), 'hex')
+  into version, current_hash
   from public.house_analysis_requests as q
   where q.id = p_request_id and q.status = 'open'
   for update;
   if version is null then
     raise exception 'pedido inexistente ou já resolvido' using errcode = 'no_data_found';
+  end if;
+  -- As notas foram refeitas pelo servidor a partir das respostas que ele LEU; se a pessoa as trocou
+  -- no meio (renovou o pedido), a resolução não grava notas de respostas que já não valem.
+  if p_answers_hash is distinct from current_hash then
+    raise exception 'o pedido mudou desde a leitura; leia de novo' using errcode = 'serialization_failure';
   end if;
 
   update public.house_analysis_requests
@@ -150,15 +160,15 @@ begin
 end;
 $$;
 
-comment on function public.resolve_house_analysis(uuid, text, text, text, bigint, text) is
+comment on function public.resolve_house_analysis(uuid, text, text, text, text, bigint, text) is
   'Resolve o pedido, assinado pelo servidor do app: grava a casa, o totem e as notas (cifrados pelo servidor), apaga as respostas e audita. Só a coordenação nacional ou um delegado com concessão sobre a pessoa; nunca o próprio pedido (ADR 0014).';
 
 revoke execute on function public.record_questionnaire_result(text, text, text, text, bigint, text) from public, anon;
-revoke execute on function public.resolve_house_analysis(uuid, text, text, text, bigint, text) from public, anon;
+revoke execute on function public.resolve_house_analysis(uuid, text, text, text, text, bigint, text) from public, anon;
 grant execute on function public.record_questionnaire_result(text, text, text, text, bigint, text) to authenticated;
-grant execute on function public.resolve_house_analysis(uuid, text, text, text, bigint, text) to authenticated;
+grant execute on function public.resolve_house_analysis(uuid, text, text, text, text, bigint, text) to authenticated;
 
--- "Baixar meus dados" (redefinida inteira; a anterior é a de 20261127100200_profile_district_code.sql).
+-- "Baixar meus dados" (redefinida inteira; a anterior é a de 20261127120000_profile_neighborhood.sql).
 create or replace function public.export_own_data()
 returns jsonb
 language plpgsql
@@ -197,6 +207,7 @@ begin
         'state_code', p.state_code,
         'district_code', p.district_code,
         'district_name', d.name,
+        'neighborhood_enc', p.neighborhood_enc,
         'status', p.status,
         'access_status', p.access_status,
         'consent_version', p.consent_version,

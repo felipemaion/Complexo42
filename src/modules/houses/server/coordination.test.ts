@@ -138,7 +138,7 @@ describe("listOpenAnalysisRequests", () => {
 
 describe("resolveAnalysis", () => {
   const houseIds = ["casa-a", "casa-b"];
-  const signing = { userId: U2, nowSeconds: 1000, sign: (m: string) => `sig(${m})` };
+  const signing = { userId: U2, nowSeconds: 1000, sign: (m: string) => `sig(${m})`, sha256Hex: (v: string) => `hash(${v})` };
   const deps = { houseIds, questionnaire, crypto, signing };
   // Respostas completas do exemplo (itens q01..), todas "muito a": notas -100 nos quatro eixos.
   const answers = Object.fromEntries(questionnaire.items.map((item) => [item.id, -3]));
@@ -158,8 +158,9 @@ describe("resolveAnalysis", () => {
           p_house_key: "casa-b",
           p_totem_enc: totemEnc,
           p_scores_enc: scoresEnc,
+          p_answers_hash: `hash(${requestRow.answers_enc})`,
           p_issued_at: 1000,
-          p_signature: `sig(resolve|${U2}|${REQ}|casa-b|${totemEnc}|${scoresEnc}|1000)`,
+          p_signature: `sig(resolve|${U2}|${REQ}|casa-b|${totemEnc}|${scoresEnc}|hash(${requestRow.answers_enc})|1000)`,
         },
       },
     ]);
@@ -194,6 +195,11 @@ describe("resolveAnalysis", () => {
       expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, deps)).toEqual({ ok: false, error: "failed" });
       expect(rpcCalls).toEqual([]);
     }
+  });
+
+  it("o pedido mudou entre a leitura e a resolução (hash das respostas não confere): changed, para ler de novo", async () => {
+    const { client } = fake({ from: { data: requestRow }, rpc: { error: { code: "40001" } } });
+    expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-a", totem: "XV" }, deps)).toEqual({ ok: false, error: "changed" });
   });
 
   it("quem não é da coordenação nacional (nem delegado no escopo): o banco recusa", async () => {

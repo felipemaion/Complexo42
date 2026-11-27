@@ -10,7 +10,6 @@ import {
   answerValues,
   axisKeys,
   chartAxes,
-  QuestionnaireAnswerError,
   scoreQuestionnaire,
   type AxisScores,
   type ChartAxis,
@@ -24,12 +23,13 @@ export type CoordinationCrypto = {
   encrypt(plaintext: string, context: CipherContext): Promise<string>;
 };
 
-export type CoordinationError = "forbidden" | "invalid" | "not_found" | "exists" | "failed";
+export type CoordinationError = "forbidden" | "invalid" | "not_found" | "exists" | "changed" | "failed";
 const errorByCode: Record<string, CoordinationError> = {
   "42501": "forbidden",
   "22023": "invalid",
   P0002: "not_found",
   "23505": "exists",
+  "40001": "changed", // o pedido mudou entre a leitura e a resolução: ler de novo
 };
 function errorOf(error: unknown): CoordinationError {
   const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
@@ -183,7 +183,7 @@ class UnreadableRow extends Error {
 }
 
 /** Quem assina a resolução: o servidor, para a pessoa da sessão (nunca vinda do navegador). */
-export type ResolveSigning = { userId: string; nowSeconds: number; sign(message: string): string };
+export type ResolveSigning = { userId: string; nowSeconds: number; sign(message: string): string; sha256Hex(value: string): string };
 
 export type CoordinationResult = { ok: true } | { ok: false; error: CoordinationError };
 
@@ -224,13 +224,17 @@ export async function resolveAnalysis(client: HouseClient, input: unknown, deps:
   const totemEnc = await crypto.encrypt(parsed.data.totem, totemContext(request.profile_id));
   const scoresEnc = await crypto.encrypt(JSON.stringify(scores), scoresContext(request.profile_id));
   // O banco só aceita a resolução assinada pelo servidor (pedido, casa, totem e notas cifrados, para quem resolve).
-  const { userId, nowSeconds, sign } = signing;
-  const signature = sign(`resolve|${userId}|${parsed.data.requestId}|${parsed.data.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}`);
+  // A assinatura também cobre o hash das respostas cifradas que acabamos de ler: o banco confere que o
+  // pedido ainda as tem (se a pessoa o renovou no meio, a resolução é recusada em vez de gravar notas velhas).
+  const { userId, nowSeconds, sign, sha256Hex } = signing;
+  const answersHash = sha256Hex(request.answers_enc);
+  const signature = sign(`resolve|${userId}|${parsed.data.requestId}|${parsed.data.houseId}|${totemEnc}|${scoresEnc}|${answersHash}|${nowSeconds}`);
   const { error } = await client.rpc("resolve_house_analysis", {
     p_request_id: parsed.data.requestId,
     p_house_key: parsed.data.houseId,
     p_totem_enc: totemEnc,
     p_scores_enc: scoresEnc,
+    p_answers_hash: answersHash,
     p_issued_at: nowSeconds,
     p_signature: signature,
   });
@@ -246,8 +250,8 @@ async function scoresOfRequest(
   try {
     const plain = await crypto.decrypt(request.answers_enc, answersContext(request.profile_id));
     return scoreQuestionnaire(questionnaire, answersJson.parse(JSON.parse(plain))).scores;
-  } catch (error) {
-    if (error instanceof QuestionnaireAnswerError) return null;
+  } catch {
+    // Não decifra, não é JSON ou não pontua (ex.: escala antiga): sem notas, e nunca o motivo.
     return null;
   }
 }
