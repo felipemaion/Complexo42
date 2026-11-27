@@ -210,9 +210,6 @@ export const instanceConfigSchema = z.strictObject({
   houseSelection: z.strictObject({
     title: text,
     /** Pergunta inicial: "Você sabe o que quer fazer?". */
-    knowsQuestion: text,
-    knowsYes: text,
-    knowsNo: text,
     activitiesTitle: text,
     consentTitle: text,
     consentAccept: text,

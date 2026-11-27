@@ -170,9 +170,6 @@ export const instance = parseInstanceConfig({
   // Escolha da casa (#76): "Você sabe o que quer fazer?" → lista de atividades ou questionário.
   houseSelection: {
     title: "Sua casa de formação",
-    knowsQuestion: "Você sabe o que quer fazer?",
-    knowsYes: "Sim, já sei",
-    knowsNo: "Ainda não",
     activitiesTitle: "O que você quer fazer?",
     consentTitle: "Antes do questionário",
     consentAccept: "Aceito e quero responder",

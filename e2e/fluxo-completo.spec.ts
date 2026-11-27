@@ -156,7 +156,7 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   // Casa (#76/#135): sabe qual quer, conhece e aceita.
   await page.getByRole("link", { name: "Escolher sua casa" }).click();
   await expect(page).toHaveURL(`${baseURL}/casa`);
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
   await expect(page.getByTestId("house-name")).toHaveText("Atenas");
   await page.getByRole("button", { name: "Aceitar" }).click();

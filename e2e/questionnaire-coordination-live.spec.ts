@@ -78,7 +78,6 @@ async function answerQuestionnaire(browser: Browser, person: { email: string }, 
   const page = await context.newPage();
   await signIn(page, person.email);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   for (const item of questionnaire.items) {
     await page.getByTestId(`scale-${answers[item.id]}`).click();

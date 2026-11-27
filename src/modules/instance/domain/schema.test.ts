@@ -104,9 +104,6 @@ const valid = {
   },
   houseSelection: {
     title: "t",
-    knowsQuestion: "t",
-    knowsYes: "t",
-    knowsNo: "t",
     activitiesTitle: "t",
     consentTitle: "t",
     consentAccept: "t",

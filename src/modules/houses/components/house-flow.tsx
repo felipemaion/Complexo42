@@ -88,19 +88,6 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
 
   let body: React.ReactNode;
   switch (step.kind) {
-    case "ask":
-      body = (
-        <>
-          <h2 className="text-2xl font-bold">{text.knowsQuestion}</h2>
-          <button type="button" className={big} onClick={() => dispatch({ type: "knows", value: true })}>
-            {text.knowsYes}
-          </button>
-          <button type="button" className={big} onClick={() => dispatch({ type: "knows", value: false })}>
-            {text.knowsNo}
-          </button>
-        </>
-      );
-      break;
     case "activities":
       body = (
         <>

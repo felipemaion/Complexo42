@@ -3,9 +3,8 @@ import type { Answer, Answers, ChartAxis } from "@/modules/questionnaire";
 /*
  * Fluxo da escolha da casa (#76, ADR 0008 §2 e §2.1). Puro: a tela só despacha eventos.
  *
- *   ask ─ sim ─▶ activities ─ atividade ─▶ presentation (self)
- *    └─ não ─▶ consent ─ recusa ─▶ activities
- *                 └─ aceita ─▶ question 1..N ─ última ─▶ submit ─ casa ─▶ presentation (questionnaire)
+ *   consent ─ recusa ─▶ activities ─ atividade ─▶ presentation (self)
+ *      └─ aceita ─▶ question 1..N ─ última ─▶ submit ─ casa ─▶ presentation (questionnaire)
  *                              (marcar um círculo e "próxima": resposta obrigatória, nenhuma de início)
  *                                                          └─ análise ─▶ analysis ─▶ activities
  *
@@ -18,8 +17,8 @@ import type { Answer, Answers, ChartAxis } from "@/modules/questionnaire";
 export type JoinMethod = "self" | "questionnaire";
 
 export type Step =
-  | { kind: "ask" }
   | { kind: "activities" }
+  /** O começo (#193): o termo do questionário; quem o recusa escolhe a casa direto. */
   | { kind: "consent" }
   | { kind: "question"; index: number }
   /** Depois da última pergunta: as respostas vão ao servidor, que pontua e grava o resultado. */
@@ -32,7 +31,6 @@ export type Step =
 export type FlowState = { step: Step; answers: Answers };
 
 export type FlowEvent =
-  | { type: "knows"; value: boolean }
   | { type: "consent_accepted" }
   | { type: "consent_declined" }
   /** Marca a intensidade da pergunta atual; só `next` avança. */
@@ -50,7 +48,7 @@ export type FlowContext = {
   itemIds: readonly string[];
 };
 
-export const initialFlow: FlowState = { step: { kind: "ask" }, answers: {} };
+export const initialFlow: FlowState = { step: { kind: "consent" }, answers: {} };
 
 function at(step: Step, answers: Answers): FlowState {
   return { step, answers };
@@ -64,8 +62,7 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
   if (event.type === "back") {
     switch (step.kind) {
       case "activities":
-      case "consent":
-        return at({ kind: "ask" }, answers);
+        return at({ kind: "consent" }, answers);
       case "question":
         return at(step.index === 0 ? { kind: "consent" } : { kind: "question", index: step.index - 1 }, answers);
       case "analysis":
@@ -78,9 +75,6 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
   }
 
   switch (step.kind) {
-    case "ask":
-      if (event.type !== "knows") return state;
-      return at(event.value ? { kind: "activities" } : { kind: "consent" }, answers);
     case "consent":
       if (event.type === "consent_declined") return at({ kind: "activities" }, {});
       if (event.type === "consent_accepted") return at({ kind: "question", index: 0 }, answers);
