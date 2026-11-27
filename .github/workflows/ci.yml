@@ -234,3 +234,28 @@ jobs:
             exit 1
           fi
           echo "ok: nenhum pedido de privilegio no compose do Supabase"
+
+      # O link do e-mail do GoTrue e API_EXTERNAL_URL + MAILER_URLPATHS_*. Se a
+      # base voltar a ser a raiz do site, o magic link sai apontando para o app
+      # em vez do Auth e o login inteiro para -- e NENHUM teste quebra, porque o
+      # e-mail so e montado com o GoTrue de verdade rodando. Por isso a trava
+      # mora aqui. Custou um ciclo de teste de ponta a ponta em 2026-11-27.
+      - name: O link de e-mail do GoTrue aponta para o Auth, não para o app
+        run: |
+          linha=$(grep -nE '^[[:space:]]*API_EXTERNAL_URL:' deploy/docker-compose.supabase.yml || true)
+          if [ -z "$linha" ]; then
+            echo "ERRO: API_EXTERNAL_URL desapareceu do compose do Supabase"
+            exit 1
+          fi
+          if ! printf '%s\n' "$linha" | grep -q '/auth/v1[[:space:]]*$'; then
+            echo "ERRO: API_EXTERNAL_URL precisa terminar em /auth/v1. Esta assim:"
+            printf '%s\n' "$linha"
+            exit 1
+          fi
+          # Os MAILER_URLPATHS_* sao concatenados a essa base. Com /auth/v1 ja
+          # na base, defini-los e o jeito de produzir /auth/v1/auth/v1/verify.
+          if grep -nE '^[[:space:]]*(GOTRUE_)?MAILER_URLPATHS_' deploy/docker-compose.supabase.yml; then
+            echo "ERRO: MAILER_URLPATHS_* definido junto com a base /auth/v1 -- caminho dobrado"
+            exit 1
+          fi
+          echo "ok: $linha"

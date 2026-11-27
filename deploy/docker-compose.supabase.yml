@@ -82,7 +82,23 @@ services:
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${AUTH_ADMIN_PASSWORD:?obrigatorio}@db:5432/postgres
       # Sem API_EXTERNAL_URL o GoTrue morre no boot: "required key
       # API_EXTERNAL_URL missing value". A chave NAO tem o prefixo GOTRUE_.
-      API_EXTERNAL_URL: ${SITE_URL:?obrigatorio}
+      #
+      # O SUFIXO /auth/v1 NAO E ENFEITE. O GoTrue monta o link do e-mail como
+      # API_EXTERNAL_URL + MAILER_URLPATHS_CONFIRMATION (default `/verify`), e o
+      # endpoint vive atras do proxy sob /auth/v1. Com a raiz do site aqui, o
+      # e-mail sai apontando para {site}/verify, que cai no APP em vez do Auth:
+      # o middleware trata como pagina protegida, redireciona para o login
+      # LEVANDO O TOKEN NA QUERY STRING, e o token nunca e consumido.
+      # Medido no staging em 2026-11-27, com o mesmo token invalido nos dois:
+      #   /verify          -> 307 /entrar?next=%2Fverify%3Ftoken%3D...
+      #   /auth/v1/verify  -> 303 #error=access_denied&error_code=otp_expired
+      # O segundo e o endpoint certo respondendo certo. Vale igual para o
+      # /callback do OAuth, que o GoTrue monta da mesma base.
+      #
+      # Se um dia for preciso mexer nos MAILER_URLPATHS_*, lembrar que eles sao
+      # CONCATENADOS a esta base: com /auth/v1 aqui, o caminho continua
+      # `/verify`. Poe-los como `/auth/v1/verify` daria /auth/v1/auth/v1/verify.
+      API_EXTERNAL_URL: ${SITE_URL:?obrigatorio}/auth/v1
       GOTRUE_SITE_URL: ${SITE_URL:?obrigatorio}
       GOTRUE_URI_ALLOW_LIST: ${URI_ALLOW_LIST:?obrigatorio}
       GOTRUE_JWT_SECRET: ${JWT_SECRET:?obrigatorio}
