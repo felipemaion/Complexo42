@@ -256,6 +256,42 @@ begin
       join public.unit_types as t on t.id = u.type_id
       where r.profile_id = caller
     ), '[]'::jsonb),
+    'questionnaire_result', (
+      select jsonb_build_object(
+        'house_key', r.house_key,
+        'totem_enc', r.totem_enc,
+        'term_version', r.term_version,
+        'source', r.source,
+        'created_at', r.created_at
+      )
+      from public.questionnaire_results as r
+      where r.profile_id = caller
+    ),
+    'house_analysis_requests', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'status', q.status,
+        'resolution', q.resolution,
+        'term_version', q.term_version,
+        'tied_axes', q.tied_axes,
+        'answers_enc', q.answers_enc,
+        'created_at', q.created_at,
+        'resolved_at', q.resolved_at
+      ) order by q.created_at, q.id)
+      from public.house_analysis_requests as q
+      where q.profile_id = caller
+    ), '[]'::jsonb),
+    'questionnaire_access_grants', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'unit_name', u.name,
+        'unit_type', t.label,
+        'granted_at', g.granted_at,
+        'revoked_at', g.revoked_at
+      ) order by g.granted_at, g.id)
+      from public.questionnaire_data_grants as g
+      join public.units as u on u.id = g.unit_id
+      join public.unit_types as t on t.id = u.type_id
+      where g.grantee_id = caller
+    ), '[]'::jsonb),
     'audit_events', coalesce((
       select jsonb_agg(jsonb_build_object(
         'event', a.event,
