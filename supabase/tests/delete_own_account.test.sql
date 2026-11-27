@@ -137,8 +137,8 @@ select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 update public.unit_members set left_at = now() where profile_id = '00000000-0000-0000-0000-0000000000a2';
 -- A e B na casa (ADR 0011); A encerrou a casa de B (`ended_by` = A).
 insert into public.house_members (profile_id, house_key, join_method, accepted_at) values
-  ('00000000-0000-0000-0000-0000000000a1', 'casa-exemplo-1', 'self', now()),
-  ('00000000-0000-0000-0000-0000000000a2', 'casa-exemplo-2', 'self', now());
+  ('00000000-0000-0000-0000-0000000000a1', 'esparta', 'self', now()),
+  ('00000000-0000-0000-0000-0000000000a2', 'atenas', 'self', now());
 update public.house_members set left_at = now() where profile_id = '00000000-0000-0000-0000-0000000000a2';
 -- Auditoria antiga sobre A e sobre B.
 insert into public.audit_log (actor_id, event, target_id, reason) values
@@ -339,7 +339,7 @@ select throws_ok($$ select public.export_own_data() $$, '42501', null,
   'JWT de conta apagada NÃO exporta (nem grava data_exported)');
 select throws_ok($$ select public.save_own_profile(pg_temp.enc('Nova'), 3550308, null, pg_temp.enc('Zap'), repeat('c', 64), null) $$,
   '42501', null, 'JWT de conta apagada NÃO recria o perfil (o aceite do termo foi apagado junto)');
-select throws_ok($$ select public.accept_house('casa-exemplo-1', 'self', null) $$, '42501', null,
+select throws_ok($$ select public.accept_house('esparta', 'self', null) $$, '42501', null,
   'JWT de conta apagada NÃO escolhe casa');
 select throws_ok($$ select public.record_questionnaire_consent((select version from app.questionnaire_term_versions limit 1)) $$,
   '42501', null, 'JWT de conta apagada NÃO aceita o termo do questionário');

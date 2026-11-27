@@ -33,7 +33,7 @@ select set_eq(
 );
 select set_eq(
   $$ select key from public.houses where active $$,
-  array['casa-exemplo-1', 'casa-exemplo-2', 'casa-exemplo-3', 'casa-exemplo-4'],
+  array['esparta', 'atenas', 'alexandria', 'siracusa'],
   'o seed cria as quatro casas nacionais, ativas (ADR 0011)'
 );
 select ok(

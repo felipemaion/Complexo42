@@ -122,8 +122,10 @@ substituídas pelas abaixo.
     de quanto tempo? Hoje, depois de aceitar, só a coordenação troca.
 83. ✅ *(decisão do gestor, 2026-11-27)* **Quem resolve a fila de análise** (resultado inconclusivo): a
     coordenação nacional e quem ela delegar, no escopo dele. [?] Em quanto tempo? E o que fazer com quem não quer esperar (hoje pode escolher a casa direto)?
-84. [?] **Ids reais das casas:** a ligação das casas 1 a 4 aos polos usa os ids de `config/instance.ts`;
-    falta a config real da instância para fechar o mapa do arquivo privado.
+84. ✅ *(stakeholder, 26/11; aplicado na #193)* **Ids reais das casas:** `esparta`, `atenas`, `alexandria` e
+    `siracusa`. Eixo 1: polo a = Esparta/Atenas, polo b = Alexandria/Siracusa. Eixo 2: polo a =
+    Esparta/Alexandria, polo b = Atenas/Siracusa. Logo aa = Esparta, ab = Atenas, ba = Alexandria, bb =
+    Siracusa. Descrições e atividades das casas seguem `[PREENCHER]`.
 
 ## Núcleos (decisão do gestor de 2026-11-24, aceita em 2026-11-27, ADR 0013)
 
@@ -143,8 +145,12 @@ pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos 
 93. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
 94. [?] **Nomes oficiais das quatro dimensões e dos polos** do questionário, e o **nome dos quatro
     totens**. Hoje, provisórios no arquivo privado: Convívio (Expansivo/Reservado), Decisão
-    (Razão/Coração), Percepção (P·Prático/A·Abstrato) e Ritmo (R·Regrado/A·Adaptável). O exemplo
-    público usa nomes genéricos.
+    (Razão/Coração), Percepção (P·Prático/A·Abstrato) e Ritmo (R·Regrado/A·Adaptável). Totens
+    (provisórios, aprovados pelo gestor, só para a coordenação e os delegados): PR = Executor (Prático e
+    Regrado), PA = Realizador (Prático e Adaptável), AR = Estrategista (Abstrato e Regrado), AA =
+    Explorador (Abstrato e Adaptável). O exemplo público usa nomes genéricos.
+95. [?] **Significado das letras e perfil de cada casa:** falta o stakeholder dizer o que significam P, A
+    e R (Prático, Abstrato, Regrado?) e **qual perfil de cada casa corresponde a cada totem**.
 
 ## Novas perguntas (após as definições)
 

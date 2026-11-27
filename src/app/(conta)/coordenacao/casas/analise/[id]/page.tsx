@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { instance } from "@config/instance";
 import { openCase, requireCoordinationScreen } from "@/modules/houses";
-import { answerSentence } from "@/modules/questionnaire";
+import { answerSentence, totemCodes, totemLabel } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { resolveCaseAction } from "../actions";
 import { errorText as lookupErrorText, fill, shortDate } from "../../format";
@@ -41,17 +41,14 @@ export default async function CasePage({
   const errorText = lookupErrorText(text.errors, errorCode);
   const { axes } = deps.questionnaire;
   const axisName = (key: string) => (key in axes ? axes[key as keyof typeof axes].label : key);
-  // Os quatro totens possíveis: letra do polo do eixo 3 + letra do polo do eixo 4.
-  const totems = (["a", "b"] as const).flatMap((first) =>
-    (["a", "b"] as const).map((second) => ({
-      code: axes.totem1.letters[first] + axes.totem2.letters[second],
-      label: fill(text.queue.totemOption, {
-        first: axes.totem1.poleLabels[first],
-        second: axes.totem2.poleLabels[second],
-        code: axes.totem1.letters[first] + axes.totem2.letters[second],
-      }),
-    })),
-  );
+  // Os quatro totens possíveis, com o nome e a descrição do mapa totemLabels do questionário.
+  const totems = totemCodes(deps.questionnaire).map((code) => ({
+    code,
+    label: fill(text.queue.totemOption, {
+      label: totemLabel(deps.questionnaire, code),
+      description: deps.questionnaire.totemLabels[code]?.description ?? "",
+    }),
+  }));
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
       <h1 className="text-3xl font-bold">{fill(text.queue.caseTitle, { name: opened.name ?? text.noName })}</h1>

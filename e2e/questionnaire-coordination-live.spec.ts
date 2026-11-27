@@ -78,7 +78,6 @@ async function answerQuestionnaire(browser: Browser, person: { email: string }, 
   const page = await context.newPage();
   await signIn(page, person.email);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   for (const item of questionnaire.items) {
     await page.getByTestId(`scale-${answers[item.id]}`).click();
@@ -155,7 +154,7 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   // Abrir: gráfico completo (4 eixos, 8 raios, com os nomes da config) e totem; o acesso é registrado.
   expect(await viewedEvents(first.id)).toEqual([]);
   await page.locator(`a[href="/coordenacao/casas/resultados/${first.id}"]`).click();
-  await expect(page.getByTestId("result-totem")).toHaveText(/^[A-Z]{2}$/);
+  await expect(page.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
   await expect(page.getByTestId("spider-chart").locator("svg text")).toHaveCount(8);
   for (const axis of Object.values(questionnaire.axes)) {
     for (const label of [axis.poleLabels.a, axis.poleLabels.b]) await expect(page.getByTestId("spider-chart").locator("svg text", { hasText: label })).toHaveCount(1);

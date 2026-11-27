@@ -4,7 +4,6 @@ import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent
 const ctx: FlowContext = { itemIds: ["q1", "q2", "q3"] };
 const chart = [{ key: "house1", label: "D1", poleA: "a1", poleB: "b1", score: -40 }] as const;
 const answerAll: FlowEvent[] = [
-  { type: "knows", value: false },
   { type: "consent_accepted" },
   { type: "answer", value: -3 },
   { type: "next" },
@@ -19,17 +18,21 @@ function run(events: FlowEvent[], from: FlowState = initialFlow): FlowState {
 }
 
 describe("fluxo da escolha da casa", () => {
-  it("sim → lista de atividades → apresentação da casa escolhida (self)", () => {
-    expect(run([{ type: "knows", value: true }]).step).toEqual({ kind: "activities" });
-    expect(run([{ type: "knows", value: true }, { type: "activity_chosen", houseId: "casa-b" }]).step).toEqual({
+  it("começa direto no termo do questionário: não há pergunta inicial (#193)", () => {
+    expect(initialFlow).toEqual({ step: { kind: "consent" }, answers: {} });
+  });
+
+  it("recusar o termo → lista de atividades → apresentação da casa escolhida (self)", () => {
+    expect(run([{ type: "consent_declined" }]).step).toEqual({ kind: "activities" });
+    expect(run([{ type: "consent_declined" }, { type: "activity_chosen", houseId: "casa-b" }]).step).toEqual({
       kind: "presentation",
       houseId: "casa-b",
       method: "self",
     });
   });
 
-  it("não → termo → uma pergunta por vez → casa sugerida (questionnaire)", () => {
-    const events: FlowEvent[] = [{ type: "knows", value: false }];
+  it("termo aceito → uma pergunta por vez → casa sugerida (questionnaire)", () => {
+    const events: FlowEvent[] = [];
     expect(run(events).step).toEqual({ kind: "consent" });
     events.push({ type: "consent_accepted" });
     expect(run(events).step).toEqual({ kind: "question", index: 0 });
@@ -48,7 +51,7 @@ describe("fluxo da escolha da casa", () => {
   });
 
   describe("a escala de intensidade (#183)", () => {
-    const asking = run([{ type: "knows", value: false }, { type: "consent_accepted" }]);
+    const asking = run([{ type: "consent_accepted" }]);
 
     it("nenhum círculo vem marcado: a pergunta começa sem resposta", () => {
       expect(asking.answers).toEqual({});
@@ -98,7 +101,7 @@ describe("fluxo da escolha da casa", () => {
     });
 
     it("respostas do servidor fora do envio não mudam nada", () => {
-      const asking = run([{ type: "knows", value: false }]);
+      const asking = run([]);
       expect(nextFlow(asking, { type: "result_recorded", houseId: "casa-x", chart }, ctx)).toBe(asking);
       expect(nextFlow(asking, { type: "analysis_requested" }, ctx)).toBe(asking);
     });
@@ -121,17 +124,23 @@ describe("fluxo da escolha da casa", () => {
     });
   });
 
+  it("da lista de atividades, voltar leva ao termo (de onde se pode aceitar e responder)", () => {
+    const activities = run([{ type: "consent_declined" }]);
+    expect(nextFlow(activities, { type: "back" }, ctx).step).toEqual({ kind: "consent" });
+  });
+
   it("recusar o termo leva à escolha direta, sem respostas", () => {
-    const state = run([{ type: "knows", value: false }, { type: "consent_declined" }]);
+    const state = run([{ type: "consent_declined" }]);
     expect(state).toEqual({ step: { kind: "activities" }, answers: {} });
   });
 
-  it("voltar: pergunta anterior mantendo a resposta; da 1ª, ao termo; do termo, à pergunta inicial", () => {
-    const q2 = run([{ type: "knows", value: false }, { type: "consent_accepted" }, { type: "answer", value: -3 }, { type: "next" }]);
+  it("voltar: pergunta anterior mantendo a resposta; da 1ª, ao termo; o termo é o começo (não há para onde voltar)", () => {
+    const q2 = run([{ type: "consent_accepted" }, { type: "answer", value: -3 }, { type: "next" }]);
     const back = nextFlow(q2, { type: "back" }, ctx);
     expect(back).toEqual({ step: { kind: "question", index: 0 }, answers: { q1: -3 } });
     expect(nextFlow(back, { type: "back" }, ctx).step).toEqual({ kind: "consent" });
-    expect(run([{ type: "back" }, { type: "back" }], back).step).toEqual({ kind: "ask" });
+    const atTerm = nextFlow(back, { type: "back" }, ctx);
+    expect(nextFlow(atTerm, { type: "back" }, ctx)).toBe(atTerm);
     // Responder de novo troca a resposta.
     expect(nextFlow(back, { type: "answer", value: 2 }, ctx).answers).toEqual({ q1: 2 });
   });
@@ -139,7 +148,7 @@ describe("fluxo da escolha da casa", () => {
   it("voltar da casa sugerida volta à última pergunta; da casa escolhida, à lista", () => {
     const answered = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-sugerida", chart }, ctx);
     expect(nextFlow(answered, { type: "back" }, ctx).step).toEqual({ kind: "question", index: 2 });
-    const chosen = run([{ type: "knows", value: true }, { type: "activity_chosen", houseId: "x" }]);
+    const chosen = run([{ type: "consent_declined" }, { type: "activity_chosen", houseId: "x" }]);
     expect(nextFlow(chosen, { type: "back" }, ctx).step).toEqual({ kind: "activities" });
   });
 
@@ -158,7 +167,7 @@ describe("fluxo da escolha da casa", () => {
     expect(nextFlow(initialFlow, { type: "answer", value: -1 }, ctx)).toBe(initialFlow);
     expect(nextFlow(initialFlow, { type: "next" }, ctx)).toBe(initialFlow);
     expect(nextFlow(initialFlow, { type: "back" }, ctx)).toBe(initialFlow);
-    const activities = run([{ type: "knows", value: true }]);
+    const activities = run([{ type: "consent_declined" }]);
     expect(nextFlow(activities, { type: "consent_accepted" }, ctx)).toBe(activities);
   });
 });

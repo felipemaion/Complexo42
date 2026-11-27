@@ -104,9 +104,6 @@ const valid = {
   },
   houseSelection: {
     title: "t",
-    knowsQuestion: "t",
-    knowsYes: "t",
-    knowsNo: "t",
     activitiesTitle: "t",
     consentTitle: "t",
     consentAccept: "t",
@@ -151,7 +148,7 @@ const valid = {
     queue: {
       title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", openLink: "t",
       truncated: "{count}", unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t",
-      resolveTitle: "t", houseLabel: "t", totemLabel: "t", totemOption: "{first}{second}{code}",
+      resolveTitle: "t", houseLabel: "t", totemLabel: "t", totemOption: "{label}{description}",
       resolveButton: "t", resolvedNotice: "t", unreadableOne: "t", backLink: "t",
     },
     delegations: {

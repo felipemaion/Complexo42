@@ -1532,7 +1532,7 @@ select set_eq(
 );
 select set_eq(
   $$ select key from public.houses $$,
-  array['casa-exemplo-1', 'casa-exemplo-2', 'casa-exemplo-3', 'casa-exemplo-4',
+  array['esparta', 'atenas', 'alexandria', 'siracusa',
         'casa-t1', 'casa-t2', 'casa-off'],
   'quem está ativo lê as chaves das casas (sem dado pessoal)'
 );

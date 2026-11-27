@@ -77,10 +77,10 @@ select throws_ok($$ select public.export_own_data() $$, '42501', null,
 -- outra casa direto. Os eventos de B não podem ir para o arquivo de A.
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000a2');
-select public.accept_house('casa-exemplo-2', 'self', null);
+select public.accept_house('atenas', 'self', null);
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 select public.record_questionnaire_consent('termo-exemplo-1');
-select public.accept_house('casa-exemplo-1', 'questionnaire', 'termo-exemplo-1');
+select public.accept_house('esparta', 'questionnaire', 'termo-exemplo-1');
 
 -- ---------------------------------------------------------------------------------------
 -- A exporta
@@ -138,13 +138,13 @@ select is(
                     order by e->>'event')
    from out_a, jsonb_array_elements(d->'audit_events') as e
    where e->>'event' in ('house_accepted', 'questionnaire_consented')),
-  '[{"e": "house_accepted", "t": "termo-exemplo-1", "h": "casa-exemplo-1"},
+  '[{"e": "house_accepted", "t": "termo-exemplo-1", "h": "esparta"},
     {"e": "questionnaire_consented", "t": "termo-exemplo-1", "h": null}]'::jsonb,
   'os eventos de casa trazem a versão do termo e a casa (#132)'
 );
 select is(
   (select jsonb_agg(h - 'joined_at' - 'accepted_at') from out_a, jsonb_array_elements(d->'house_memberships') as h),
-  '[{"house_key": "casa-exemplo-1", "join_method": "questionnaire", "consent_version": "termo-exemplo-1", "left_at": null}]'::jsonb,
+  '[{"house_key": "esparta", "join_method": "questionnaire", "consent_version": "termo-exemplo-1", "left_at": null}]'::jsonb,
   'o vínculo de casa de A vai no arquivo, com a forma e a versão do termo'
 );
 select ok(
@@ -167,7 +167,7 @@ select is(
   'o aceite do termo do questionário de A vai no arquivo'
 );
 select ok(
-  (select d::text not like '%casa-exemplo-2%' from out_a),
+  (select d::text not like '%atenas%' from out_a),
   'a casa de B não aparece no arquivo de A'
 );
 select ok(

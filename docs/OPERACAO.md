@@ -79,7 +79,9 @@ sed -n '/^insert into public.houses (key) values/,/;$/p' supabase/seed.sql \
       exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
 ```
 
-Casa que **saiu** da config não é apagada (tem vínculos e histórico): desative-a, e ela deixa de
+Trocar a **chave** de uma casa (como em 2026-11, de `casa-exemplo-N` para os ids reais) é por
+migration (`app.rename_house_key`): ela leva junto vínculos, papéis, resultados e o log de auditoria
+sem apagar nada. Casa que **saiu** da config não é apagada (tem vínculos e histórico): desative-a, e ela deixa de
 aceitar entradas e coordenadores novos (quem já está nela continua):
 
 ```bash

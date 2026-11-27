@@ -170,9 +170,6 @@ export const instance = parseInstanceConfig({
   // Escolha da casa (#76): "Você sabe o que quer fazer?" → lista de atividades ou questionário.
   houseSelection: {
     title: "Sua casa de formação",
-    knowsQuestion: "Você sabe o que quer fazer?",
-    knowsYes: "Sim, já sei",
-    knowsNo: "Ainda não",
     activitiesTitle: "O que você quer fazer?",
     consentTitle: "Antes do questionário",
     consentAccept: "Aceito e quero responder",
@@ -254,7 +251,7 @@ export const instance = parseInstanceConfig({
       resolveTitle: "Resolver o caso",
       houseLabel: "Casa",
       totemLabel: "Totem",
-      totemOption: "{first} + {second} ({code})",
+      totemOption: "{label} — {description}",
       resolveButton: "Resolver",
       resolvedNotice: "Caso resolvido. A pessoa já pode aceitar a casa.",
       unreadableOne: "As respostas deste caso não puderam ser lidas.",
@@ -397,8 +394,8 @@ export const instance = parseInstanceConfig({
   // (tests/house-units.test.ts).
   houses: [
     {
-      id: "casa-exemplo-1",
-      name: "Casa Exemplo Um",
+      id: "esparta",
+      name: "Esparta",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 1A", "[PREENCHER] Atividade exemplo 1B"],
       firstSteps: {
@@ -407,8 +404,8 @@ export const instance = parseInstanceConfig({
       },
     },
     {
-      id: "casa-exemplo-2",
-      name: "Casa Exemplo Dois",
+      id: "atenas",
+      name: "Atenas",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 2A", "[PREENCHER] Atividade exemplo 2B"],
       firstSteps: {
@@ -417,8 +414,8 @@ export const instance = parseInstanceConfig({
       },
     },
     {
-      id: "casa-exemplo-3",
-      name: "Casa Exemplo Três",
+      id: "alexandria",
+      name: "Alexandria",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 3A"],
       firstSteps: {
@@ -427,8 +424,8 @@ export const instance = parseInstanceConfig({
       },
     },
     {
-      id: "casa-exemplo-4",
-      name: "Casa Exemplo Quatro",
+      id: "siracusa",
+      name: "Siracusa",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 4A"],
       firstSteps: {

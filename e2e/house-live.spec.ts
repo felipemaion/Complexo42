@@ -112,7 +112,6 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await expect(page).toHaveURL(/\/casa$/);
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   // A chave (eixos, desempates, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
@@ -235,7 +234,7 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Ainda não" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Aceito e quero responder" })).toHaveCount(0);
 });
 
 test("resultado inconclusivo: pedido de análise com as respostas, sem casa; escolher direto apaga as respostas", async ({ page }) => {
@@ -244,7 +243,6 @@ test("resultado inconclusivo: pedido de análise com as respostas, sem casa; esc
   await page.goto("/casa");
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   // Notas 0 nos eixos 2, 3 e 4 (sem desempate no exemplo): eixo 2 com -2, -1 e 3; eixos 3 e 4 com -3 e 3.
   // O eixo 1 fica conclusivo (tudo "muito a"). Resultado inconclusivo.
@@ -293,19 +291,19 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await page.goto("/casa");
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
   await expect(page.getByText("Conheça a casa")).toBeVisible();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Dois");
+  await expect(page.getByTestId("house-name")).toHaveText("Atenas");
   await page.getByRole("button", { name: "Escolher outra casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 3A" }).click();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Três");
+  await expect(page.getByTestId("house-name")).toHaveText("Alexandria");
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-3", joinMethod: "self" }]]);
+  expect(actionBodies(requests)).toEqual([[{ houseId: "alexandria", joinMethod: "self" }]]);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-3" },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "alexandria" },
   ]);
   expect(await consents(member.id)).toEqual([]);
   await expectNoStorage(page);
@@ -317,14 +315,13 @@ test("recusar o termo leva à escolha direta e não grava aceite", async ({ page
   await page.goto("/casa");
   const requests = recordRequests(page);
 
-  await page.getByRole("button", { name: "Ainda não" }).click();
   await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await expect(page.getByRole("heading", { name: "O que você quer fazer?" })).toBeVisible();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-1", joinMethod: "self" }]]);
+  expect(actionBodies(requests)).toEqual([[{ houseId: "esparta", joinMethod: "self" }]]);
   expect(await consents(member.id)).toEqual([]);
   expect((await houseRows(member.id))[0]?.join_method).toBe("self");
 });
@@ -335,7 +332,7 @@ test("quem ainda não está ativo vê o motivo e nada é gravado", async ({ page
   // Suspensa depois do login: o banco recusa a escolha (accept_house exige perfil ativo).
   await admin(`/rest/v1/profiles?id=eq.${member.id}`, { method: "PATCH", body: JSON.stringify({ status: "suspended" }) });
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toHaveText("Complete o seu cadastro antes de escolher a casa.");
@@ -346,13 +343,13 @@ test("quem ainda está só no estado (sem região) escolhe a casa (ADR 0011)", a
   const member = await createMember("e", false);
   await signIn(page, member.email);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-1" },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "esparta" },
   ]);
 });
 
@@ -360,7 +357,7 @@ test("tirada da casa pela coordenação, a pessoa vê o motivo e não volta sozi
   const member = await createMember("x");
   await signIn(page, member.email);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
@@ -371,7 +368,7 @@ test("tirada da casa pela coordenação, a pessoa vê o motivo e não volta sozi
   });
   expect(ended.ok).toBe(true);
   await page.goto("/casa");
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toHaveText(/A coordenação tirou você da sua casa/);
