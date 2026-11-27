@@ -50,3 +50,35 @@ export function AppLogoHero({ name }: Readonly<{ name: string }>) {
     />
   );
 }
+
+/**
+ * Bloco da casa: escudo grande e centralizado (140 px no celular, 180 px a partir de `sm`; largura e altura
+ * no HTML, sem salto de layout) e o nome abaixo, centralizado. Sem quadradinho de cor.
+ */
+export function HouseHero({ houseId, name, headingId }: Readonly<{ houseId: string; name: string; headingId?: string }>) {
+  return (
+    <div className="flex flex-col items-center gap-3 text-center">
+      <ShieldPicture
+        assets={shieldAssets(houseId)}
+        alt={name}
+        size={180}
+        eager
+        testId="house-shield"
+        fluid={{ className: "size-[140px] sm:size-[180px]", sizes: "(min-width: 640px) 180px, 140px" }}
+      />
+      <h2 id={headingId} className="text-3xl font-bold uppercase tracking-wide" data-testid="house-name">
+        {name}
+      </h2>
+    </div>
+  );
+}
+
+/** A casa com o escudo ao lado do nome (listas e resultado da coordenação: casa sugerida e casa escolhida). */
+export function HouseWithShield({ houseId, name, size = 32 }: Readonly<{ houseId: string; name: string; size?: number }>) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <HouseShield houseId={houseId} name={name} size={size} />
+      {name}
+    </span>
+  );
+}

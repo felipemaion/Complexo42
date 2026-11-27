@@ -3,7 +3,7 @@ import Link from "next/link";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
 import { choseOtherHouse, listResults, requireCoordinationScreen } from "@/modules/houses";
-import { HouseShield } from "@/modules/houses/components/house-shield";
+import { HouseWithShield } from "@/modules/houses/components/house-shield";
 import { fill, houseName, shortDate } from "../format";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.results.title };
@@ -67,9 +67,9 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
             {rows.map((row) => (
               <tr key={row.profileId} className="border-t border-current/30" data-testid="result-row">
                 <td className="py-2">{row.name ?? text.noName}</td>
-                <td className="py-2"><span className="inline-flex items-center gap-2"><HouseShield houseId={row.houseId} name={houseName(row.houseId)} size={24} />{houseName(row.houseId)}</span></td>
+                <td className="py-2"><HouseWithShield houseId={row.houseId} name={houseName(row.houseId)} size={24} /></td>
                 <td className={choseOtherHouse(row) ? "py-2 font-bold underline decoration-2" : "py-2"} data-testid="result-chosen" data-differs={choseOtherHouse(row) ? "true" : "false"}>
-                  {row.chosenHouseId ? <span className="inline-flex items-center gap-2"><HouseShield houseId={row.chosenHouseId} name={houseName(row.chosenHouseId)} size={24} />{houseName(row.chosenHouseId)}</span> : text.results.chosenNone}
+                  {row.chosenHouseId ? <HouseWithShield houseId={row.chosenHouseId} name={houseName(row.chosenHouseId)} size={24} /> : text.results.chosenNone}
                   {choseOtherHouse(row) && <span className="block text-base font-normal">{text.results.differsMark}</span>}
                   {row.changedByCoordinationAt && (
                     <span className="block text-base font-normal">{fill(text.results.changedByCoordination, { date: shortDate(row.changedByCoordinationAt) })}</span>
