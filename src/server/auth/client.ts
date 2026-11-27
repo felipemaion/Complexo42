@@ -37,6 +37,19 @@ export function createAuthClient({ url, anonKey, cookies, secure, headers }: Aut
 
 export type AuthClient = ReturnType<typeof createAuthClient>;
 
+/**
+ * Cookies de sessão para EXPIRAR no navegador (sessão vencida): o cookie inteiro ou em pedaços (`.0`, `.1`...).
+ * O verificador do login em andamento (`-code-verifier`) e os cookies de fora ficam em paz.
+ */
+export function expiredAuthCookies(names: Iterable<string>, secure: boolean): CookieToSet[] {
+  const sessionCookie = new RegExp(`^${AUTH_COOKIE_NAME}(\\.\\d+)?$`);
+  const out: CookieToSet[] = [];
+  for (const name of names) {
+    if (sessionCookie.test(name)) out.push({ name, value: "", options: { maxAge: 0, path: "/", httpOnly: true, secure, sameSite: "lax" } });
+  }
+  return out;
+}
+
 export function hasAuthCookie(names: Iterable<string>): boolean {
   for (const name of names) if (name.startsWith(AUTH_COOKIE_NAME)) return true;
   return false;

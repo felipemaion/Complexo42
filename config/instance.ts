@@ -64,6 +64,7 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível entrar. Tente de novo.",
       blocked: "Seu acesso está bloqueado. Fale com a coordenação.",
       legacy_link: "Esse link de entrada é antigo ou já foi usado. Peça um novo link e entre de novo.",
+      session_expired: "Sua sessão expirou, entre de novo.",
     },
   },
   // E-mails de login em português (#238): o app serve os templates ao GoTrue pela rede interna

@@ -28,7 +28,7 @@ const valid = {
     confirmTitle: "t",
     confirmMessage: "t",
     confirmButton: "t",
-    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t", legacy_link: "t" },
+    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t", legacy_link: "t", session_expired: "t" },
   },
   emails: {
     expires: "t",

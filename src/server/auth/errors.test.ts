@@ -1,5 +1,5 @@
-import { isExpiredSession, describe, expect, it } from "vitest";
-import { classifyAuthError, parseAuthErrorCode } from "./errors";
+import { describe, expect, it } from "vitest";
+import { classifyAuthError, isExpiredSession, parseAuthErrorCode } from "./errors";
 
 describe("erros do login (#9)", () => {
   it("só aceita códigos conhecidos vindos da URL", () => {
