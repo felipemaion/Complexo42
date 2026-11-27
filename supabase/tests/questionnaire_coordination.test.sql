@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(34);
+select plan(45);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp', 'br.mg');
@@ -18,7 +18,9 @@ insert into people values
   ('mg_mgr',   '00000000-0000-0000-0000-0000000000a3', 'mg.mgr@exemplo.org'),   -- gestor de MG, sem delegação
   ('p_sp',     '00000000-0000-0000-0000-0000000000a4', 'p.sp@exemplo.org'),     -- pessoa ativa em SP
   ('p_mg',     '00000000-0000-0000-0000-0000000000a5', 'p.mg@exemplo.org'),     -- pessoa ativa em MG
-  ('plain',    '00000000-0000-0000-0000-0000000000a6', 'plain@exemplo.org');    -- pessoa comum
+  ('plain',    '00000000-0000-0000-0000-0000000000a6', 'plain@exemplo.org'),    -- pessoa comum
+  ('p_sp2',    '00000000-0000-0000-0000-0000000000a7', 'p.sp2@exemplo.org'),    -- SP, casa trocada pela coordenação
+  ('p_none',   '00000000-0000-0000-0000-0000000000a8', 'p.none@exemplo.org');   -- SP, sem casa aceita
 insert into auth.users (id, email) select id, email from people;
 
 create function pg_temp.person(p_name text) returns uuid language sql stable as $$ select id from people where name = p_name $$;
@@ -65,6 +67,60 @@ grant select, insert on grants to authenticated;
 insert into grants select public.grant_questionnaire_access(pg_temp.person('sp_mgr'), pg_temp.unit('br.sp'));
 select is(pg_temp.access_of('sp_mgr'), '{"national": false, "delegate": true}'::jsonb, 'com concessão: delegado (não nacional)');
 select is(pg_temp.access_of('mg_mgr'), '{"national": false, "delegate": false}'::jsonb, 'a concessão de SP não vale para o gestor de MG');
+
+-- ---------------------------------------------------------------------------------------
+-- Casa sugerida × casa escolhida: `coordination_chosen_houses` (mesmo alcance das telas de resultado)
+-- ---------------------------------------------------------------------------------------
+reset role;
+insert into public.houses (key, active) values ('casa-x', true), ('casa-y', true) on conflict (key) do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values
+  (pg_temp.person('p_sp'), 'casa-x', 'self', now()),
+  (pg_temp.person('p_sp2'), 'casa-x', 'self', now());
+set local role anon;
+select throws_ok($$ select * from public.coordination_chosen_houses(array[pg_temp.person('p_sp')]) $$, '42501', null, 'anônimo NÃO lê a casa escolhida');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select public.coordination_set_house(pg_temp.person('p_sp2'), 'casa-y') $$, 'a nacional troca a casa de p_sp2');
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('p_sp'), pg_temp.person('p_sp2'), pg_temp.person('p_none')])),
+  3, 'a nacional lê as três pessoas (também a sem casa)'
+);
+select is(
+  (select house_key from public.coordination_chosen_houses(array[pg_temp.person('p_sp')])), 'casa-x',
+  'a casa escolhida é a do vínculo aberto'
+);
+select is(
+  (select house_key from public.coordination_chosen_houses(array[pg_temp.person('p_none')])), null,
+  'sem casa aceita, a casa escolhida é vazia'
+);
+select ok(
+  (select chosen_at is not null and changed_by_coordination_at is not null and house_key = 'casa-y'
+   from public.coordination_chosen_houses(array[pg_temp.person('p_sp2')])),
+  'a troca feita pela coordenação aparece, com a casa nova e a data'
+);
+select is(
+  (select changed_by_coordination_at from public.coordination_chosen_houses(array[pg_temp.person('p_sp')])), null,
+  'sem troca pela coordenação, o campo é vazio'
+);
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('root_mgr')])), 0,
+  'ninguém lê a própria linha por esta função'
+);
+select pg_temp.login('sp_mgr');
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('p_sp'), pg_temp.person('p_mg')])), 1,
+  'o delegado lê só quem está no escopo da concessão'
+);
+select pg_temp.login('mg_mgr');
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('p_sp')])), 0,
+  'gestor sem delegação não lê a casa escolhida'
+);
+select pg_temp.login('plain');
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('p_sp')])), 0,
+  'pessoa comum não lê a casa escolhida de ninguém'
+);
 
 -- Só o papel de gestor revogado, com a concessão viva: perde.
 reset role;
