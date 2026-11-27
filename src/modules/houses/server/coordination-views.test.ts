@@ -6,6 +6,7 @@ import type { CipherContext, HouseClient, HouseQuery } from "../types";
 import type { CoordinationCrypto } from "./coordination";
 import {
   canSeeResults,
+  choseOtherHouse,
   listCases,
   listDelegationCandidates,
   listDelegations,
@@ -114,20 +115,44 @@ describe("listResults", () => {
       created_at: "2026-11-27T10:00:00Z",
     }));
 
-  it("lista só nome, casa e data (nada de totem nem nota), do mais novo ao mais antigo", async () => {
-    const { client, log } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } });
+  // Casa escolhida (vínculo aberto) lida pela função do banco: U1 escolheu a sugerida; U2 escolheu outra, por troca da coordenação.
+  const chosen = [
+    { profile_id: U1, house_key: HOUSE_A, chosen_at: "2026-11-27T11:00:00Z", changed_by_coordination_at: null },
+    { profile_id: U2, house_key: HOUSE_A, chosen_at: "2026-11-27T12:00:00Z", changed_by_coordination_at: "2026-11-27T12:00:00Z" },
+  ];
+
+  it("lista nome, casa sugerida, casa escolhida e datas (nada de totem nem nota), do mais novo ao mais antigo", async () => {
+    const { client, log, rpcCalls } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: chosen } });
     const out = await listResults(client, deps, VIEWER, {});
     expect(out).toEqual({
       rows: [
-        { profileId: U1, name: "Ana Teste", houseId: HOUSE_A, createdAt: "2026-11-27T10:00:00Z" },
-        { profileId: U2, name: "Beto Teste", houseId: HOUSE_B, createdAt: "2026-11-26T10:00:00Z" },
+        { profileId: U1, name: "Ana Teste", houseId: HOUSE_A, createdAt: "2026-11-27T10:00:00Z", chosenHouseId: HOUSE_A, chosenAt: "2026-11-27T11:00:00Z", changedByCoordinationAt: null },
+        { profileId: U2, name: "Beto Teste", houseId: HOUSE_B, createdAt: "2026-11-26T10:00:00Z", chosenHouseId: HOUSE_A, chosenAt: "2026-11-27T12:00:00Z", changedByCoordinationAt: "2026-11-27T12:00:00Z" },
       ],
       truncated: false,
     });
+    expect(rpcCalls).toEqual([{ fn: "coordination_chosen_houses", args: { p_profiles: [U1, U2] } }]);
     expect(log).toContainEqual(["order", "created_at", { ascending: false }]);
     // O totem e as notas nem são pedidos ao banco: só o detalhe (que registra o acesso) os lê.
     const columns = log.filter((e) => e[0] === "from" && e[1] === "questionnaire_results").map((e) => String(e[2]));
     expect(columns).toEqual(["profile_id,house_key,created_at"]);
+  });
+
+  it("quem ainda não aceitou casa fica com a casa escolhida vazia", async () => {
+    const { client } = fake({ questionnaire_results: { data: [resultRows[0]] }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: [{ profile_id: U1, house_key: null, chosen_at: null, changed_by_coordination_at: null }] } });
+    const out = await listResults(client, deps, VIEWER, {});
+    expect(out.rows[0]).toMatchObject({ chosenHouseId: null, chosenAt: null, changedByCoordinationAt: null });
+  });
+
+  it("filtro \"escolheu outra casa\": só quem tem casa escolhida diferente da sugerida", async () => {
+    const { client } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: chosen } });
+    const out = await listResults(client, deps, VIEWER, { otherHouse: true });
+    expect(out.rows.map((row) => row.profileId)).toEqual([U2]);
+  });
+
+  it("erro ao ler a casa escolhida: a tela falha (erro visível), sem mostrar a coluna vazia como se fosse verdade", async () => {
+    const { client } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_chosen_houses: { error: { code: "42501", message: "detalhe interno" } } });
+    await expect(listResults(client, deps, VIEWER, {})).rejects.toThrow("results_read_failed");
   });
 
   it("não lista a própria pessoa (quem vê não abre o próprio resultado por aqui)", async () => {
@@ -199,14 +224,19 @@ describe("openResult (abrir o resultado de uma pessoa registra o acesso)", () =>
   };
 
   it("lê o resultado, registra a visualização (ator e alvo, sem conteúdo) e devolve o gráfico completo", async () => {
-    const { client, log, rpcCalls } = fake({ questionnaire_results: { data: resultRow }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } });
+    const { client, log, rpcCalls } = fake({ questionnaire_results: { data: resultRow }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } }, { coordination_chosen_houses: { data: [{ profile_id: U1, house_key: HOUSE_B, chosen_at: "2026-11-27T11:00:00Z", changed_by_coordination_at: null }] } });
     const out = await openResult(client, U1, deps);
     expect(out.status).toBe("ok");
     if (out.status !== "ok") return;
     expect(out.name).toBe("Ana");
+    // A casa sugerida (do resultado) e a escolhida (vínculo aberto), com a data da escolha.
+    expect(out.choice).toEqual({ houseId: HOUSE_B, chosenAt: "2026-11-27T11:00:00Z", changedByCoordinationAt: null });
     expect(out.result).toMatchObject({ houseId: HOUSE_A, totem: "XV", scores });
     expect(out.result.chart?.map((axis) => axis.key)).toEqual(["house1", "house2", "totem1", "totem2"]);
-    expect(rpcCalls).toEqual([{ fn: "log_questionnaire_view", args: { p_target: U1 } }]);
+    expect(rpcCalls).toEqual([
+      { fn: "log_questionnaire_view", args: { p_target: U1 } },
+      { fn: "coordination_chosen_houses", args: { p_profiles: [U1] } },
+    ]);
     // Lê antes de registrar: quem não tem resultado visível não gera evento.
     expect(log.findIndex((e) => e[0] === "from" && e[1] === "questionnaire_results")).toBeLessThan(log.findIndex((e) => e[0] === "rpc"));
   });
@@ -353,5 +383,14 @@ describe("delegações", () => {
     await expect(listDelegations(fake({ questionnaire_data_grants: { error: { code: "XX", message: "segredo" } } }).client, deps)).rejects.toThrow(
       "delegations_read_failed:failed",
     );
+  });
+});
+
+describe("choseOtherHouse", () => {
+  const row = { houseId: HOUSE_A, chosenHouseId: HOUSE_A as string | null };
+  it("só é verdadeiro com casa escolhida diferente da sugerida", () => {
+    expect(choseOtherHouse(row)).toBe(false);
+    expect(choseOtherHouse({ ...row, chosenHouseId: HOUSE_B })).toBe(true);
+    expect(choseOtherHouse({ ...row, chosenHouseId: null })).toBe(false);
   });
 });
