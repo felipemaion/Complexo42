@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(14);
+select plan(15);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -82,6 +82,19 @@ select throws_ok($$ select * from pg_temp.scores('casa-t1') $$, '42501', null, '
 reset role;
 select is(has_function_privilege('anon', 'public.house_member_scores_enc(text, bigint, text)', 'execute'), false, 'anon não executa');
 select is(has_function_privilege('authenticated', 'public.house_member_scores_enc(text, bigint, text)', 'execute'), true, 'authenticated executa (só vale com a assinatura do servidor)');
+
+-- Teto de linhas (5000): uma casa enorme não devolve tudo; o corte é documentado.
+reset role;
+insert into auth.users (id) select ('00000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid from generate_series(100001, 105100) as i;
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version, status, access_status)
+select ('00000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid, pg_temp.enc('n'), 3550308, 'v1', 'active', 'active' from generate_series(100001, 105100) as i;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select ('00000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid, 'casa-t2', 'self', now() from generate_series(100001, 105100) as i;
+insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, scores_enc, source)
+select ('00000000-0000-0000-0000-' || lpad(i::text, 12, '0'))::uuid, 'termo-1', 'casa-t2', pg_temp.enc('totem'), pg_temp.enc('scores'), 'questionnaire' from generate_series(100001, 105100) as i;
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000b8');
+select is((select count(*)::int from pg_temp.scores('casa-t2')), 5000, 'casa com mais de 5000 membros devolve no máximo 5000 linhas (teto documentado)');
 
 select * from finish();
 rollback;

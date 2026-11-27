@@ -160,11 +160,12 @@ describe("fluxo da escolha da casa", () => {
 
   describe("escolher outra casa depois do questionário: comparar as casas (#240)", () => {
     const byPoles = { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" } as const;
-    const answered = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-a", chart, byPoles }, ctx);
+    const answered = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-a", chart, byPoles, compareToken: "tok" }, ctx);
 
     it("leva à comparação das casas, com a sugerida e as respostas guardadas (a comparação as usa no servidor)", () => {
       const compare = nextFlow(answered, { type: "choose_other" }, ctx);
-      expect(compare.step).toEqual({ kind: "compare", suggestedId: "casa-a", chart, byPoles });
+      expect(compare.step).toEqual({ kind: "compare", suggestedId: "casa-a", chart, byPoles, compareToken: "tok" });
+      // O token (selado pelo servidor ao pontuar) é o que a comparação usa: as respostas não vão de novo.
       expect(compare.answers).toEqual(answered.answers);
     });
 
@@ -182,13 +183,13 @@ describe("fluxo da escolha da casa", () => {
         answers: {},
       });
       const suggested = nextFlow(nextFlow(answered, { type: "choose_other" }, ctx), { type: "house_selected", houseId: "casa-a" }, ctx);
-      expect(nextFlow(suggested, { type: "house_confirmed" }, ctx).step).toEqual({ kind: "presentation", houseId: "casa-a", method: "questionnaire", chart, byPoles });
+      expect(nextFlow(suggested, { type: "house_confirmed" }, ctx).step).toEqual({ kind: "presentation", houseId: "casa-a", method: "questionnaire", chart, byPoles, compareToken: "tok" });
     });
 
     it("sem casa selecionada, confirmar não faz nada; voltar leva à casa sugerida", () => {
       const compare = nextFlow(answered, { type: "choose_other" }, ctx);
       expect(nextFlow(compare, { type: "house_confirmed" }, ctx)).toBe(compare);
-      expect(nextFlow(compare, { type: "back" }, ctx).step).toEqual({ kind: "presentation", houseId: "casa-a", method: "questionnaire", chart, byPoles });
+      expect(nextFlow(compare, { type: "back" }, ctx).step).toEqual({ kind: "presentation", houseId: "casa-a", method: "questionnaire", chart, byPoles, compareToken: "tok" });
     });
   });
 

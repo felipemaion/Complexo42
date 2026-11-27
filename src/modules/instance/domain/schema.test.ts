@@ -264,6 +264,14 @@ function fieldsOf(raw: unknown): string[] {
 }
 
 describe("parseInstanceConfig", () => {
+  it("piso de privacidade do perfil médio (#240): no mínimo 10 membros e cache de no mínimo 10 minutos; o exemplo valido tem o piso", () => {
+    const hs = valid.houseSelection;
+    expect(fieldsOf({ ...valid, houseSelection: { ...hs, minAverageMembers: 9 } })).toEqual(["houseSelection.minAverageMembers"]);
+    expect(fieldsOf({ ...valid, houseSelection: { ...hs, minAverageMembers: 1 } })).toEqual(["houseSelection.minAverageMembers"]);
+    expect(fieldsOf({ ...valid, houseSelection: { ...hs, averageCacheSeconds: 599 } })).toEqual(["houseSelection.averageCacheSeconds"]);
+    expect(() => parseInstanceConfig({ ...valid, houseSelection: { ...hs, minAverageMembers: 10, averageCacheSeconds: 600 } })).not.toThrow();
+  });
+
   it("aceita uma configuração válida e preenche os vídeos ausentes", () => {
     const config = parseInstanceConfig(valid);
     expect(config.houses[1]?.firstSteps.videoUrls).toEqual([]);
