@@ -234,6 +234,7 @@ confere "$CONFIG" "o arquivo de configuracao" || exit 2
 # env_reset do sudo o ambiente nem chega aqui; o `unset` e o que garante que
 # continue assim se alguem afrouxar o sudoers.
 unset PROJECT_DIR ENV_FILE COMPOSE_APP APP_PROJETO REDE_PROXY ALVO_SAUDE MIGRA
+unset DB_CONTAINER DB_USER DB_NOME
 unset INFRA_DIR MANIFESTO IMAGEM ESPERA_SMOKE SMOKE_IMAGEM TRAVA REGISTRO
 # shellcheck source=/dev/null
 . "$CONFIG"
@@ -247,6 +248,11 @@ unset INFRA_DIR MANIFESTO IMAGEM ESPERA_SMOKE SMOKE_IMAGEM TRAVA REGISTRO
 : "${REDE_PROXY:?falta REDE_PROXY na configuracao}"
 : "${ALVO_SAUDE:?falta ALVO_SAUDE na configuracao}"
 : "${MIGRA:?falta MIGRA na configuracao}"
+# O que o migra.sh precisa. Exigido AQUI, com o resto da configuracao, e nao la
+# dentro: la ele so e exigido na etapa 3/5, DEPOIS do pull e da sincronia da
+# infra -- o deploy faz trabalho, muda arquivos no servidor e so entao descobre
+# que falta uma linha de configuracao. Falhar na partida custa nada.
+: "${DB_CONTAINER:?falta DB_CONTAINER na configuracao (container do banco do ambiente)}"
 # Onde vivem os arquivos de infra no servidor, e o manifesto do que o deploy
 # gravou neles.
 #
@@ -579,7 +585,17 @@ fi
 
 # 3/5 ANTES do up: migration quebrada não pode conviver com app novo.
 log "3/5 migrations"
-if ! APP_IMAGEM="$IMAGEM_ALVO" "$MIGRA"; then
+# As DB_* vao EXPLICITAS para o filho. `. "$CONFIG"` cria variavel de SHELL,
+# nao de ambiente: sem isto, `DB_CONTAINER=...` na configuracao simplesmente nao
+# chega ao migra.sh, e so um `export` no arquivo de config faria chegar. Medido
+# em 2026-11-27 -- e armadilha cara, porque o sintoma ("falta DB_CONTAINER")
+# aponta para a config, que esta correta. Passar explicito tira a pegadinha da
+# mao de quem escreve a configuracao.
+if ! APP_IMAGEM="$IMAGEM_ALVO" \
+     DB_CONTAINER="$DB_CONTAINER" \
+     DB_USER="${DB_USER:-supabase_admin}" \
+     DB_NOME="${DB_NOME:-postgres}" \
+     "$MIGRA"; then
   log "ERRO: migrations falharam -- app NAO foi trocado"
   registra migrations_falharam "$(decorrido)"; exit 1
 fi
