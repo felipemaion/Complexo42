@@ -128,9 +128,47 @@ services:
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
       GOTRUE_JWT_ADMIN_ROLES: service_role
       GOTRUE_JWT_AUD: authenticated
+      # Sessao longa (~30 dias) SEM alongar o token de acesso. A tentacao e
+      # subir o JWT_EXP; isso so aumenta a janela de um token vazado, porque
+      # quem mantem a sessao viva e o refresh token, nao o de acesso.
+      #
+      # O REUSE_INTERVAL nao e detalhe: com rotacao ligada e intervalo zero,
+      # duas abas renovando ao mesmo tempo derrubam a sessao -- a segunda
+      # apresenta um refresh token ja rotacionado e o GoTrue trata como roubo.
+      # Dez segundos cobrem a corrida sem abrir janela de replay.
+      #
+      # TIMEBOX e teto DURO: 30 dias e login de novo, com ou sem atividade.
+      # INACTIVITY_TIMEOUT fica de fora de proposito -- com ele, "30 dias
+      # renovando sozinha" deixa de valer para quem usa esporadicamente, que e
+      # o usuario tipico aqui. Aperto para depois, com numero escolhido de
+      # proposito. SESSIONS_SINGLE_PER_USER tambem fora: derrubaria o celular
+      # ao entrar no computador.
+      GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED: "true"
+      GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL: "10"
+      GOTRUE_SESSIONS_TIMEBOX: 720h
       # Cadastro aberto só depois de #87 e #26. Até lá, convite pelo gestor.
       GOTRUE_DISABLE_SIGNUP: "true"
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      # Login com Google. As credenciais vem do secrets/env do ambiente --
+      # nada de id, segredo ou host aqui.
+      #
+      # Ligar exige TRES coisas: GOOGLE_ENABLED=true e as duas credenciais. Com
+      # ENABLED=true e credencial vazia o GoTrue RECUSA a configuracao na
+      # partida ("missing OAuth client ID") e o auth NAO SOBE. Falha fechada e
+      # visivel na hora, que e o jeito certo de errar isso.
+      #
+      # O REDIRECT_URI e OBRIGATORIO para provedor EMBUTIDO -- a base
+      # API_EXTERNAL_URL nao serve a ele (ver o comentario dela acima; ela vale
+      # para OAuth `custom:` e SAML). Este valor e exatamente o que precisa
+      # estar cadastrado no Google Cloud em "Authorized redirect URIs", SEM
+      # barra final: o Google casa a string inteira.
+      #
+      # CLIENT_ID e LISTA no GoTrue (conf: `ClientID []string`): aceita varios
+      # separados por virgula, para cliente web e mobile no mesmo projeto.
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED:-false}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${SITE_URL:?obrigatorio}/auth/v1/callback
       GOTRUE_MAILER_AUTOCONFIRM: "false"
       # Porta 25 bloqueada no servidor: e-mail só por relay (ver OPERACAO.md).
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-}

@@ -87,6 +87,14 @@ trap 'rm -f "$TMP"' EXIT
   echo "SITE_URL=$SITE"
   echo "URI_ALLOW_LIST=$SITE/**"
   # Turnstile (#116): vêm do painel da Cloudflare, não daqui (docs/OPERACAO.md).
+  # Google (login social): vêm do Google Cloud, não daqui. Ficam vazias e o
+  # GOOGLE_ENABLED fica false, então o provedor nasce DESLIGADO -- ligar com
+  # credencial vazia impede o auth de subir. Estavam no servidor do staging
+  # desde 19/11 sem passar por aqui nem pela documentação, e foi assim que a
+  # #81 descobriu DB_CONTAINER: variável que só existe no servidor.
+  echo "GOOGLE_ENABLED=false"
+  echo "GOOGLE_CLIENT_ID="
+  echo "GOOGLE_CLIENT_SECRET="
   echo "TURNSTILE_SITE_KEY="
   echo "TURNSTILE_SECRET_KEY="
   echo "SMTP_HOST="

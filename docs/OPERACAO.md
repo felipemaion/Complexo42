@@ -232,6 +232,60 @@ dez chaves, ancoradas; (2) o teste da rota confere o 200 e o conteúdo; (3) **no
 o ASSUNTO do e-mail recebido com o configurado** (por exemplo "Seu link de entrada" para o link de entrada): assunto
 em inglês (ou o padrão do GoTrue) significa que o template não foi buscado. Depois de mudar o compose, recrie só o
 `auth`; mudar o texto de um template só exige redeploy do app (o GoTrue busca de novo, com cache curto).
+## Login com Google (#?)
+
+As credenciais vêm do Google Cloud, num cliente OAuth tipo **Web application**, e
+moram no `secrets/env` do ambiente — nunca no repositório.
+
+```sh
+GOOGLE_ENABLED=true
+GOOGLE_CLIENT_ID=<do Google Cloud>
+GOOGLE_CLIENT_SECRET=<do Google Cloud>
+```
+
+**O redirect a cadastrar no Google é `<SITE_URL>/auth/v1/callback`, sem barra
+final** — o Google casa a string inteira. Esse mesmo valor é o que o compose
+monta em `GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI`, a partir do `SITE_URL`. Não
+precisa de "Authorized JavaScript origins": o fluxo é server-side.
+
+> **O redirect é obrigatório para provedor embutido.** O `API_EXTERNAL_URL`
+> **não** serve a ele — aquela base vale para OAuth `custom:` e SAML. Com
+> `GOOGLE_ENABLED=true` e credencial ou redirect vazios, o GoTrue recusa a
+> configuração na partida e **o `auth` não sobe**. Falha fechada e imediata, que
+> é o jeito certo de errar isso.
+
+O `GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID` é **lista** no GoTrue: aceita vários ids
+separados por vírgula, para cliente web e mobile no mesmo projeto.
+
+Ligar ou desligar é mexer no `secrets/env` e **recriar o `auth`** — a sincronia
+do deploy não recria container (ver "A sincronia da infra").
+
+## Sessão longa (~30 dias)
+
+A sessão dura 30 dias renovando sozinha, **sem** alongar o token de acesso:
+
+| Chave | Valor | Por quê |
+|---|---|---|
+| `GOTRUE_JWT_EXP` | `3600` | token de acesso curto. Subir isso só aumenta a janela de um token vazado — quem mantém a sessão viva é o refresh token |
+| `GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED` | `true` | cada refresh invalida o anterior |
+| `GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL` | `10` (s) | **não é detalhe**: com rotação e intervalo zero, duas abas renovando ao mesmo tempo derrubam a sessão, porque a segunda apresenta um token já rotacionado e o GoTrue trata como roubo |
+| `GOTRUE_SESSIONS_TIMEBOX` | `720h` | teto duro de 30 dias: depois disso, login de novo, com ou sem atividade |
+
+**Duas chaves ficaram de fora de propósito**, e o CI recusa se aparecerem:
+`GOTRUE_SESSIONS_INACTIVITY_TIMEOUT` faria "30 dias renovando sozinha" deixar de
+valer para quem usa esporadicamente, que é o usuário típico aqui;
+`GOTRUE_SESSIONS_SINGLE_PER_USER` derrubaria o celular ao entrar no computador.
+Ambas são apertos defensáveis — mas com número escolhido de propósito, em PR
+próprio.
+
+**O cookie do app não é o limitante.** O `@supabase/ssr` usa
+`maxAge: 400 * 24 * 60 * 60` por padrão (o teto que o Chrome impõe) e
+`src/server/auth/client.ts` não sobrescreve. Quem governa a duração é o GoTrue.
+
+> **Os 30 dias não são testáveis em CI**: é prazo de calendário. O que se verifica
+> é que o `auth` aceitou o `720h` (se o formato estiver errado o container **não
+> sobe**), que o `exp` do JWT é de 1 h, que um refresh devolve token novo **com o
+> refresh rotacionado**, e que a linha de `auth.sessions` registra o timebox.
 
 ## O que está exposto
 

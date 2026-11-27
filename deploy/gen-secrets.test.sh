@@ -139,5 +139,12 @@ UB=$(grep -m1 '^URI_ALLOW_LIST=' "$ENVB" | cut -d= -f2-)
 checa "barra final some do SITE_URL" "$SB" "https://exemplo.invalid"
 checa "e o URI_ALLOW_LIST nao fica com //" "$UB" "https://exemplo.invalid/**"
 
+# Google: nasce DESLIGADO e com credencial vazia. Ligar com credencial vazia
+# impede o auth de subir, entao o padrao tem de ser false.
+checa "GOOGLE_ENABLED nasce false" "$(val GOOGLE_ENABLED)" "false"
+for k in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET; do
+  grep -qx "$k=" "$ENVF" && ok "$k nasce vazia" || falha "$k deveria nascer vazia"
+done
+
 echo
 [ "$FALHAS" -eq 0 ] && { echo "TODOS OS TESTES PASSARAM"; exit 0; } || { echo "$FALHAS teste(s) falharam"; exit 1; }
