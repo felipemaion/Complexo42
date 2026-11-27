@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(245);
+select plan(252);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -359,6 +359,45 @@ select throws_ok($$ insert into public.house_analysis_requests (profile_id, term
                      values (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('x')),
                             (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('x')) $$, '23505', null,
   'a tabela NÃO aceita dois pedidos abertos da mesma pessoa');
+set local role authenticated;
+
+-- ---------------------------------------------------------------------------------------
+-- Pedido de chave antiga (#220): resolução sem notas
+-- ---------------------------------------------------------------------------------------
+create function pg_temp.resolve_noscores(p_req uuid, p_house text, p_totem text) returns void language sql as $$
+  select public.resolve_house_analysis(p_req, p_house, pg_temp.enc(p_totem), null, pg_temp.req_hash(p_req), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|%s|%s|%s|%s|%s', (select auth.uid()), p_req, p_house, pg_temp.enc(p_totem), null::text, pg_temp.req_hash(p_req), pg_temp.now_s())))
+$$;
+select pg_temp.login('p2');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house2'], 'respAntiga') $$, 'p2 tem um pedido aberto (chave antiga)');
+select pg_temp.login('root_mgr');
+select throws_ok($$ select public.resolve_house_analysis(pg_temp.open_request_of('p2'), 'casa-t2', pg_temp.enc('BB'), 'notas-em-texto-puro', pg_temp.req_hash(pg_temp.open_request_of('p2')), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), pg_temp.open_request_of('p2'), pg_temp.enc('BB'), 'notas-em-texto-puro', pg_temp.req_hash(pg_temp.open_request_of('p2')), pg_temp.now_s()))) $$, '22023', null,
+  'notas que não são cifradas continuam recusadas, mesmo assinadas');
+select lives_ok($$ select pg_temp.resolve_noscores(pg_temp.open_request_of('p2'), 'casa-t2', 'BB') $$,
+  'a coordenação nacional resolve o pedido de chave antiga sem notas');
+select results_eq($$ select house_key, totem_enc, scores_enc is null, source from public.questionnaire_results where profile_id = pg_temp.person('p2') $$,
+  $$ values ('casa-t2'::text, pg_temp.enc('BB'), true, 'analysis'::text) $$,
+  'sem notas: casa e totem gravados, scores_enc nulo, origem analysis');
+select is((select count(*)::int from public.audit_log where event = 'house_analysis_resolved' and target_id = pg_temp.person('p2')), 1,
+  '... e a resolução é auditada');
+-- Pedido de totem de chave antiga: resolver sem notas NÃO apaga as notas que o resultado já tem.
+reset role;
+insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, totem_state, scores_enc, source)
+values (pg_temp.person('p3'), 'termo-1', 'casa-t1', null, 'pending', pg_temp.enc('SC'), 'questionnaire')
+on conflict (profile_id) do update set house_key = excluded.house_key, totem_enc = null, totem_state = 'pending', scores_enc = excluded.scores_enc;
+insert into public.house_analysis_requests (profile_id, term_version, kind, tied_axes, answers_enc)
+values (pg_temp.person('p3'), 'termo-1', 'totem', array['totem1'], pg_temp.enc('respTotemAntiga'));
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select pg_temp.resolve_noscores(pg_temp.open_request_of('p3'), 'casa-t1', 'AB') $$,
+  'a coordenação nacional resolve o pedido de totem de chave antiga sem notas');
+select results_eq($$ select totem_enc, scores_enc from public.questionnaire_results where profile_id = pg_temp.person('p3') $$,
+  $$ values (pg_temp.enc('AB'), pg_temp.enc('SC')) $$,
+  'pedido de totem sem notas: o totem entra e as notas que o resultado já tinha ficam');
+reset role;
+delete from public.questionnaire_results where profile_id in (pg_temp.person('p2'), pg_temp.person('p3'));
+delete from public.house_analysis_requests where profile_id in (pg_temp.person('p2'), pg_temp.person('p3'));
 set local role authenticated;
 
 -- ---------------------------------------------------------------------------------------

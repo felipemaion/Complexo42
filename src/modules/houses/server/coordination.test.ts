@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { instance } from "@config/instance";
 import example from "@config/questionnaire.example.json";
-import { parseQuestionnaire } from "@/modules/questionnaire";
+import { parseQuestionnaire, QuestionnaireAnswerError, scoreQuestionnaire } from "@/modules/questionnaire";
 import type { CipherContext, HouseClient, HouseQuery } from "../types";
 import {
   changeHouse,
@@ -319,5 +319,63 @@ describe("changeHouse", () => {
     expect(await changeHouse(forbidden.client, { profileId, houseId: ids[0] }, ids)).toEqual({ ok: false, error: "forbidden" });
     const gone = fake({ rpc: { error: { code: "P0002", message: "detalhe interno" } } });
     expect(await changeHouse(gone.client, { profileId, houseId: ids[0] }, ids)).toEqual({ ok: false, error: "not_found" });
+  });
+});
+
+describe("pedido da chave antiga, com fixture realista (28 respostas q01..q28 em -3..3)", () => {
+  // Como o app antigo gravava: 28 itens, escala -3..3 (sem 4 e 5), e a chave atual tem 26 itens (7, 7, 7 e 5 por eixo).
+  const oldAnswers = Object.fromEntries(
+    [-3, 2, -1, 1, 3, -2, -3, 1, 2, -1, 3, -2, 1, -3, 2, -1, -2, 3, 1, -1, -3, 2, 3, -2, 1, -1, 2, -3].map((value, index) => [`q${String(index + 1).padStart(2, "0")}`, value]),
+  );
+  const ids = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, index) => `q${String(from + index).padStart(2, "0")}`);
+  const axis = (label: string, itemIds: string[]) => ({ label, poleLabels: { a: `${label}-a`, b: `${label}-b` }, itemIds });
+  const current = parseQuestionnaire(
+    {
+      version: "chave-26",
+      consentTermVersion: "termo-26",
+      consentTerm: "t",
+      items: ids(1, 26).map((id) => ({ id, text: "x", a: { text: "x" }, b: { text: "x" } })),
+      axes: {
+        house1: axis("D1", ["q01", "q05", "q09", "q13", "q17", "q23", "q25"]),
+        house2: axis("D2", ["q03", "q07", "q11", "q15", "q19", "q21", "q26"]),
+        totem1: { ...axis("D3", ["q02", "q06", "q10", "q14", "q18", "q22", "q24"]), letters: { a: "X", b: "Y" } },
+        totem2: { ...axis("D4", ["q04", "q08", "q12", "q16", "q20"]), letters: { a: "V", b: "W" } },
+      },
+      houseByPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
+      totemLabels: { XV: { name: "t1", description: "d" }, XW: { name: "t2", description: "d" }, YV: { name: "t3", description: "d" }, YW: { name: "t4", description: "d" } },
+    },
+    ["casa-a", "casa-b", "casa-c", "casa-d"],
+  );
+  const row = {
+    id: REQ,
+    profile_id: U1,
+    kind: "full",
+    tied_axes: ["house1"],
+    answers_enc: `enc[house_analysis_requests.answers_enc.${U1}](${JSON.stringify(oldAnswers)})`,
+    created_at: "t",
+  };
+
+  it("a chave atual nunca pontua essas respostas (itens q27 e q28 que não existem mais)", () => {
+    expect(Object.keys(oldAnswers)).toHaveLength(28);
+    try {
+      scoreQuestionnaire(current, oldAnswers as never);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(QuestionnaireAnswerError);
+      expect(error).toMatchObject({ code: "unknown_item", itemIds: ["q27", "q28"] });
+    }
+    // Mesmo só com os 26 itens atuais: os valores -2 e 2 não existem mais na escala 1-3-5.
+    const onlyCurrent = Object.fromEntries(Object.entries(oldAnswers).filter(([id]) => Number(id.slice(1)) <= 26));
+    expect(() => scoreQuestionnaire(current, onlyCurrent as never)).toThrow(QuestionnaireAnswerError);
+  });
+
+  it("na fila vira chave antiga (legível, não ilegível) e resolve sem notas", async () => {
+    const out = await listOpenAnalysisRequests(fake({ from: { data: [row] } }).client, crypto, current);
+    expect(out.unreadable).toBe(0);
+    expect(out.requests).toMatchObject([{ requestId: REQ, legacyKey: true }]);
+    const { client, rpcCalls } = fake({ from: { data: { profile_id: U1, answers_enc: row.answers_enc } } });
+    const signing = { userId: U2, nowSeconds: 1000, sign: (m: string) => `sig(${m})`, sha256Hex: (v: string) => `hash(${v})` };
+    expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-b", totem: "XV" }, { houseIds: ["casa-a", "casa-b"], questionnaire: current, crypto, signing })).toEqual({ ok: true });
+    expect(rpcCalls[0]?.args.p_scores_enc).toBeNull();
   });
 });
