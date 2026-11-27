@@ -75,6 +75,9 @@ export const instanceConfigSchema = z.strictObject({
     signedInMessage: text,
     /** Rótulo antes do e-mail mascarado de quem está logado (ex.: "Conectado como"). */
     connectedAs: text,
+    navLabel: text,
+    navHome: text,
+    navBack: text,
     /** Página intermediária do link mágico: o login só acontece no clique (POST). */
     confirmTitle: text,
     confirmMessage: text,
