@@ -146,8 +146,14 @@ describe("confirmMagicLink (#9): POST do botão Entrar", () => {
     expect(auth.verifyOtp).toHaveBeenCalledWith({ token_hash: HASH, type });
   });
 
+  it("link de recuperação (ADR 0018) entra e leva à página da senha", async () => {
+    const auth = fakeAuth();
+    expect(await confirmMagicLink(auth, { token_hash: HASH, type: "recovery" })).toEqual({ ok: true, next: "/senha", userId: user.id });
+    expect(auth.verifyOtp).toHaveBeenCalledWith({ token_hash: HASH, type: "recovery" });
+  });
+
   it.each([
-    [{ token_hash: HASH, type: "recovery" }],
+    [{ token_hash: HASH, type: "invite" }],
     [{ token_hash: "curto", type: "email" }],
     [{ token_hash: "x".repeat(300), type: "email" }],
     [{ token_hash: "<script>abc", type: "email" }],

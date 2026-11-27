@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import { states } from "@config/states";
 import { formatBrazilianWhatsapp, listDistricts, listMunicipalitiesByState, loadOwnProfile, ProfileForm } from "@/modules/profiles";
+import { usesGoogleSignIn } from "@/server/auth/password-flows";
 import { requireUserClient } from "@/server/auth/session";
+import { setPasswordAction } from "../senha/actions";
+import { PasswordForm } from "../senha/password-form";
 import { saveProfileAction } from "./actions";
 import { loadDistrictsAction, loadMunicipalitiesAction } from "./localities-actions";
 
@@ -18,6 +21,9 @@ export default async function ProfilePage() {
     ? await Promise.all([listMunicipalitiesByState(client, own.stateCode), listDistricts(client, own.municipalityCode)])
     : [[], []];
   const text = instance.profile;
+  // Senha opcional (ADR 0018): só para quem não entra pelo Google; a troca e a remoção ficam em /senha.
+  const { data: authUser } = await client.auth.getUser();
+  const offerPassword = !usesGoogleSignIn(authUser.user);
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
       <h1 className="text-3xl font-bold">{text.title}</h1>
@@ -42,6 +48,14 @@ export default async function ProfilePage() {
         socialLinksUnreadable={own?.socialLinksUnreadable ?? false}
         text={text}
       />
+      {offerPassword && (
+        <section aria-labelledby="criar-senha" className="flex flex-col gap-3 border-t border-neutral-300 pt-6">
+          <h2 id="criar-senha" className="text-2xl font-semibold">
+            {instance.password.sectionTitle}
+          </h2>
+          <PasswordForm saveAction={setPasswordAction} text={instance.password} idPrefix="perfil-senha" />
+        </section>
+      )}
     </main>
   );
 }

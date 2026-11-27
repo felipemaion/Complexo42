@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuthConfig } from "./config";
 import { confirmMagicLink, requestMagicLink, startGoogleSignIn } from "./flows";
+import { requestPasswordRecovery, signInWithPassword } from "./password-flows";
 import { LOGIN_PATH } from "./routes";
 import { accessRedirect, clearAuthCookies, requestAuthClient } from "./session";
 import { getTurnstileConfig, TURNSTILE_FIELD, verifyTurnstile } from "./turnstile";
@@ -31,6 +32,42 @@ export async function sendMagicLink(formData: FormData): Promise<never> {
   const verifyHuman = () => verifyTurnstile(formData.get(TURNSTILE_FIELD), { secretKey: getTurnstileConfig().secretKey, remoteIp });
   const result = await requestMagicLink(auth, { email: formData.get("email"), siteUrl: config.siteUrl, verifyHuman });
   redirect(loginWith(result.ok ? "enviado=1" : `erro=${result.error}`));
+}
+
+/** Entrar com e-mail e senha (ADR 0018). Mesma resposta para qualquer falha; o acesso passa pelo portão de sempre. */
+export async function signInWithPasswordAction(formData: FormData): Promise<never> {
+  const config = getAuthConfig();
+  if (!config) redirect(loginWith("erro=unavailable"));
+  const client = await requestAuthClient(config);
+  const remoteIp = config.trustCfConnectingIp ? (await headers()).get("cf-connecting-ip") : null;
+  const verifyHuman = () => verifyTurnstile(formData.get(TURNSTILE_FIELD), { secretKey: getTurnstileConfig().secretKey, remoteIp });
+  const result = await signInWithPassword(client.auth, { email: formData.get("email"), password: formData.get("password"), next: formData.get("next"), verifyHuman });
+  if (!result.ok) redirect(loginWith(`erro=${result.error}`));
+  redirect((await accessRedirect(client, result.userId)) ?? result.next);
+}
+
+/** "Esqueci a senha": o link leva a /senha, onde a pessoa cria a nova. Resposta neutra, como a do link de entrada. */
+export async function sendPasswordRecoveryAction(formData: FormData): Promise<never> {
+  const config = getAuthConfig();
+  if (!config) redirect(loginWith("enviado=2"));
+  const auth = (await requestAuthClient(config)).auth;
+  const remoteIp = config.trustCfConnectingIp ? (await headers()).get("cf-connecting-ip") : null;
+  const verifyHuman = () => verifyTurnstile(formData.get(TURNSTILE_FIELD), { secretKey: getTurnstileConfig().secretKey, remoteIp });
+  const result = await requestPasswordRecovery(auth, { email: formData.get("email"), siteUrl: config.siteUrl, verifyHuman });
+  redirect(loginWith(result.ok ? "enviado=2" : `erro=${result.error}`));
+}
+
+/**
+ * Um formulário só em /entrar (um Turnstile só, #116) com três botões: cada um manda o seu
+ * `intent`. O despacho é aqui (uma ação só no formulário) e não em `formAction` por botão: o
+ * resultado não depende de como o navegador trata o `formAction` de cada botão. Sem intent
+ * conhecido, vale o link por e-mail, que não faz nada além de mandar o e-mail.
+ */
+export async function submitLoginForm(formData: FormData): Promise<never> {
+  const intent = formData.get("intent");
+  if (intent === "password") return signInWithPasswordAction(formData);
+  if (intent === "recover") return sendPasswordRecoveryAction(formData);
+  return sendMagicLink(formData);
 }
 
 /** POST do botão "Entrar" da página do link mágico: só aqui o token é gasto. */

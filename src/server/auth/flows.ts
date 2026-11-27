@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { log } from "@/server/log";
 import { classifyAuthError, type AuthApiError, type AuthErrorCode } from "./errors";
-import { CALLBACK_PATH, safeNextPath } from "./routes";
+import { CALLBACK_PATH, PASSWORD_PATH, safeNextPath } from "./routes";
 
 type UserResult = Promise<{ data: { user: { id: string } | null }; error: AuthApiError }>;
 
@@ -25,8 +25,9 @@ export type AuthApi = {
 export type FlowResult<T = object> = ({ ok: true } & T) | { ok: false; error: AuthErrorCode };
 
 // Tipos de link que o GoTrue manda por e-mail (supabase/templates/): o mesmo modelo serve ao
-// link de quem já tem conta (magiclink) e ao primeiro acesso (signup/confirmação).
-export const otpTypes = ["email", "magiclink", "signup"] as const;
+// link de quem já tem conta (magiclink), ao primeiro acesso (signup/confirmação) e à
+// recuperação de senha (recovery, ADR 0018), que termina na página da senha.
+export const otpTypes = ["email", "magiclink", "signup", "recovery"] as const;
 export type OtpType = (typeof otpTypes)[number];
 
 const emailSchema = z.string().trim().toLowerCase().max(254).pipe(z.email());
@@ -37,7 +38,7 @@ export const magicLinkParamsSchema = z.object({
   type: z.enum(otpTypes),
 });
 
-function callbackUrl(siteUrl: string, next?: string): string {
+export function callbackUrl(siteUrl: string, next?: string): string {
   const url = new URL(CALLBACK_PATH, siteUrl);
   if (next) url.searchParams.set("next", safeNextPath(next));
   return url.toString();
@@ -110,5 +111,5 @@ export async function confirmMagicLink(auth: AuthApi, raw: { token_hash: unknown
     return { ok: false, error: error ? classifyAuthError(error) : "failed" };
   }
   log.info("auth_signed_in", { method: "token_hash" });
-  return { ok: true, next: safeNextPath(null), userId: data.user.id };
+  return { ok: true, next: params.data.type === "recovery" ? PASSWORD_PATH : safeNextPath(null), userId: data.user.id };
 }
