@@ -23,7 +23,7 @@ vi.mock("next/navigation", () => ({
 
 const { saveProfileAction } = await import("./actions");
 
-const fields = { displayName: "Maria Aparecida", whatsapp: "(11) 98765-4321", municipalityCode: "3550308", district: "" };
+const fields = { displayName: "Maria Aparecida", whatsapp: "(11) 98765-4321", stateCode: "SP", municipalityCode: "3550308", district: "" };
 const values = { ...fields, socialLinks: [] };
 function formData() {
   const data = new FormData();

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { chooseCity } from "./choose-city";
 
 // Termo de consentimento (#11). Sem Supabase (o CI sem banco): só a proteção da rota. Com o
 // Supabase local, o fluxo real: quem não aceitou cai no termo (também ao tentar abrir outra
@@ -69,7 +70,7 @@ test.describe("termo com o Supabase local", () => {
     expect(await (await admin(`/rest/v1/consent_acceptances?user_id=eq.${link.id}&select=version`)).json()).toEqual([{ version: "v1" }]);
     await page.getByLabel("Seu nome").fill("Pessoa do Termo");
     await page.getByLabel("Seu WhatsApp, com DDD").fill(`11 9${String(run).slice(-8)}`);
-    await page.getByLabel("Sua cidade").selectOption({ label: "Osasco" });
+    await chooseCity(page, "Osasco");
     await page.getByRole("button", { name: "Salvar meus dados" }).click();
     await page.waitForURL((url) => url.pathname !== "/perfil");
 

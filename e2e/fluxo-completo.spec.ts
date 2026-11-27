@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
+import { chooseCity } from "./choose-city";
 
 // Fluxo completo do cadastro (#21), de ponta a ponta, contra o Supabase local com o Mailpit (o
 // job "E2E com banco" do CI sobe os dois). Uma pessoa nova percorre tudo pela interface:
@@ -140,8 +141,8 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   await expect(page.getByTestId("connected-as")).toHaveText("Conectado como fl***@e***.org");
   await page.getByLabel("Seu nome").fill(person.name);
   await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);
-  await page.getByLabel("Sua cidade").selectOption({ label: "São Paulo" });
-  await page.getByLabel("Seu distrito").selectOption("Sé");
+  await chooseCity(page, "São Paulo");
+  await page.getByLabel("Seu distrito").selectOption({ label: "Sé" });
   await page.getByRole("button", { name: "Salvar meus dados" }).click();
   await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
   await expect(page.getByRole("main").getByRole("status")).toBeVisible();
@@ -209,7 +210,7 @@ test("pessoa fora da lista: espera até o gestor importar o e-mail dela", async 
   await expect(page).toHaveURL(`${baseURL}/perfil`);
   await page.getByLabel("Seu nome").fill(person.name);
   await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);
-  await page.getByLabel("Sua cidade").selectOption({ label: "Osasco" });
+  await chooseCity(page, "Osasco");
   await page.getByRole("button", { name: "Salvar meus dados" }).click();
   await expect(page).toHaveURL(`${baseURL}/espera`);
   await expect(page.locator("body")).not.toContainText(person.name);

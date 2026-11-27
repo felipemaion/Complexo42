@@ -94,8 +94,18 @@ export const instanceConfigSchema = z.strictObject({
     nameHint: text,
     whatsappLabel: text,
     whatsappHint: text,
+    /** Localização em três passos (#175): estado, cidade (com busca) e distrito. */
+    stateLabel: text,
+    statePlaceholder: text,
+    municipalitySearchLabel: text,
+    municipalitySearchHint: text,
+    /** A busca não achou cidade nenhuma no estado. */
+    municipalityNoMatch: text,
     municipalityLabel: text,
     municipalityPlaceholder: text,
+    /** Aviso enquanto a lista carrega, e se a carga falhar. */
+    localitiesLoading: text,
+    localitiesFailed: text,
     districtLabel: text,
     districtHint: text,
     /** Opção vazia do distrito (ele é opcional). */

@@ -23,8 +23,8 @@ insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a1'),
   ('00000000-0000-0000-0000-0000000000a2'),
   ('00000000-0000-0000-0000-0000000000a3');
-insert into public.profiles (id, display_name_enc, municipality_code, district, consent_version) values
-  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('NomeA'), 3550308, 'Sé', 'v1'),
+insert into public.profiles (id, display_name_enc, municipality_code, district_code, consent_version) values
+  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('NomeA'), 3550308, 355030878, 'v1'),
   ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('NomeB'), 3550308, null, 'v1');
 update public.profiles set access_status = 'active', status = 'active'
 where id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2');
@@ -93,10 +93,10 @@ select is((select d->'profile'->>'display_name_enc' from out_a), pg_temp.enc('No
   'nome (ainda cifrado) de A');
 select is(
   (select (d->'profile'->>'municipality_name') || '/' || (d->'profile'->>'state_code') || '/'
-          || (d->'profile'->>'district') || '/' || (d->'profile'->>'consent_version')
+          || (d->'profile'->>'district_code') || '/' || (d->'profile'->>'district_name') || '/' || (d->'profile'->>'consent_version')
           || '/' || (d->'profile'->>'access_status') from out_a),
-  'São Paulo/SP/Sé/v1/active',
-  'município, UF, distrito, versão do termo e liberação de A'
+  'São Paulo/SP/355030878/Sé/v1/active',
+  'município, UF, distrito (código e nome), versão do termo e liberação de A'
 );
 select ok((select d->'profile' ? 'consent_at' and d->'profile' ? 'created_at' from out_a),
   'data do termo e do cadastro presentes');

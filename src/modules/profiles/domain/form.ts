@@ -12,9 +12,6 @@ import type { ProfileContactInput, ProfileInput } from "../types";
 export const profileFormFields = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"] as const;
 export type ProfileFormField = (typeof profileFormFields)[number];
 
-/** Distritos aceitos para o município (ou `undefined`: o município não tem escolha de distrito). */
-export type DistrictCatalog = (municipalityCode: number) => readonly string[] | undefined;
-
 /**
  * Versão do termo de quem ainda não aceitou. É o que `save_own_profile` grava na criação; o
  * formulário não envia versão nenhuma ao banco (só a função do aceite, #11, a avança).
@@ -76,7 +73,7 @@ function checkSocialLinks(entries: readonly string[]): { links: string[]; bad: n
 }
 
 /** Lê os campos de um FormData (ou objeto) sem nunca devolver o valor em erro (R11). */
-export function parseProfileForm(raw: unknown, districtsFor: DistrictCatalog): ParsedProfileForm {
+export function parseProfileForm(raw: unknown): ParsedProfileForm {
   const form = formSchema.safeParse(raw);
   if (!form.success) return { ok: false, fields: [...profileFormFields] };
   const { displayName, whatsapp, municipalityCode, district, socialLinks } = form.data;
@@ -85,22 +82,22 @@ export function parseProfileForm(raw: unknown, districtsFor: DistrictCatalog): P
   const code = /^\d{7}$/.test(municipalityCode?.trim() ?? "") ? Number(municipalityCode) : null;
   if (code === null) invalid.add("municipalityCode");
 
-  // Distrito só para município com lista; fora dela, o valor enviado é descartado.
-  const allowed = code === null ? undefined : districtsFor(code);
+  // Aqui só o formato do código do distrito. Que ele é do município (e que município de um
+  // distrito só o descarta), quem decide é `save_own_profile`: o catálogo mora no banco.
   const chosen = district?.trim() || null;
-  if (allowed && chosen !== null && !allowed.includes(chosen)) invalid.add("district");
+  if (chosen !== null && !/^\d{9}$/.test(chosen)) invalid.add("district");
 
   const profile = profileInputSchema.safeParse({
     displayName: displayName ?? "",
     municipalityCode: code ?? 0,
-    district: allowed ? chosen : null,
+    districtCode: chosen === null ? null : Number(chosen),
     consentVersion: consentNotYetGiven,
   });
   if (!profile.success) {
     for (const issue of profile.error.issues) {
       const name = issue.path[0];
-      if (name === "displayName" || name === "district") invalid.add(name);
-      else if (name === "municipalityCode") invalid.add("municipalityCode");
+      if (name === "displayName" || name === "municipalityCode") invalid.add(name);
+      else if (name === "districtCode") invalid.add("district");
     }
   }
 

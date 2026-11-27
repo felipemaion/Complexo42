@@ -118,7 +118,6 @@ insert into auth.users (id) select id from people;
 
 -- Perfis (#10). Todos num município de teste sem unidade de estado, para o trigger de entrada
 -- no estado não criar vínculos além dos desta matriz. Só `active` aparece para terceiros.
-insert into public.municipalities (code, name, state_code) values (3304557, 'Rio de Janeiro', 'RJ');
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
 select id, 'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3304557, 'v1' from people;
 update public.profiles set access_status = 'active', status = 'active'
@@ -1307,7 +1306,7 @@ select is_empty(
 -- Escrita de perfil e contato só por `save_own_profile` (#12): sem grant direto, e a função
 -- não recebe o id do alvo (grava só a linha de quem chama).
 select throws_ok(
-  $$ update public.profiles set district = 'Centro' where id = pg_temp.person('stu_a') $$,
+  $$ update public.profiles set district_code = 330455705 where id = pg_temp.person('stu_a') $$,
   '42501', 'permission denied for table profiles',
   'coordenador NÃO edita perfil de membro direto pela API'
 );
@@ -1320,7 +1319,7 @@ select throws_ok(
 select lives_ok(
   $$ select public.save_own_profile(
        p_display_name_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
-       p_municipality_code => 3304557, p_district => 'Centro',
+       p_municipality_code => 3304557, p_district_code => null,
        p_whatsapp_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
        p_whatsapp_hmac => repeat('d', 64)) $$,
   'coordenador grava pela função: só alcança o próprio perfil'
@@ -1421,17 +1420,17 @@ select lives_ok(
 
 reset role;
 select results_eq(
-  $$ select district, (select social_links_enc from public.profile_contacts
-                       where profile_id = pg_temp.person('stu_a'))
+  $$ select district_code, (select social_links_enc from public.profile_contacts
+                            where profile_id = pg_temp.person('stu_a'))
      from public.profiles where id = pg_temp.person('stu_a') $$,
-  $$ values (null::text, null::text) $$,
+  $$ values (null::integer, null::text) $$,
   'perfil e contato do membro não foram alterados pelo coordenador'
 );
 select results_eq(
-  $$ select p.id, p.district, c.whatsapp_hmac
+  $$ select p.id, c.whatsapp_hmac
      from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id
-     where p.district = 'Centro' or c.whatsapp_hmac = repeat('d', 64) $$,
-  $$ select pg_temp.person('team_a_mon'), 'Centro', repeat('d', 64) $$,
+     where c.whatsapp_hmac = repeat('d', 64) $$,
+  $$ select pg_temp.person('team_a_mon'), repeat('d', 64) $$,
   'a gravação do coordenador pela função caiu só na linha dele'
 );
 select is_empty(

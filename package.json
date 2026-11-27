@@ -21,6 +21,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
+    "db:gen-localities": "node scripts/generate-localities-sql.mjs",
     "db:seed-profiles": "node --conditions=react-server --experimental-strip-types --import ./scripts/ts-resolve.mjs --env-file=.env.local scripts/seed-fake-profiles.mjs"
   },
   "dependencies": {

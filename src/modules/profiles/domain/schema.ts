@@ -10,8 +10,6 @@ import { normalizeSocialLink, socialLinkInputMaxLength, socialLinkMaxLength } fr
 export const profileLimits = {
   displayNameMin: 2,
   displayNameMax: 80,
-  districtMin: 2,
-  districtMax: 60,
   socialLinksMax: 5,
   socialLinkMaxLength,
 } as const;
@@ -55,7 +53,8 @@ export const profileInputSchema = z.strictObject({
   displayName: shortText(profileLimits.displayNameMin, profileLimits.displayNameMax),
   /** Código IBGE de 7 dígitos; a existência do município é conferida pela FK no banco. */
   municipalityCode: z.number().int().min(1_000_000).max(9_999_999),
-  district: shortText(profileLimits.districtMin, profileLimits.districtMax).nullable().default(null),
+  /** Código IBGE de 9 dígitos; que o distrito é do município, o banco confere. */
+  districtCode: z.number().int().min(100_000_000).max(999_999_999).nullable().default(null),
   consentVersion: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/, "versão do termo inválida"),
 });
 

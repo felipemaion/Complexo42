@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { decryptWith, encryptWith, whatsappBlindIndexWith, type FieldContext } from "@/server/crypto/field";
 import { importKeyring } from "@/server/crypto/keys";
 import { createLogger } from "@/server/log";
-import { hasOwnProfile, listMunicipalities, loadOwnProfile, saveOwnProfile, type ProfileDeps } from "./profile";
+import { hasOwnProfile, listDistricts, listMunicipalitiesByState, loadOwnProfile, saveOwnProfile, type ProfileDeps } from "./profile";
 import type { ProfileDbClient } from "../types";
 
 const key = () => crypto.getRandomValues(new Uint8Array(32));
@@ -13,11 +13,11 @@ const keyring = importKeyring({ fieldKeys: new Map([[1, key()]]), currentVersion
 
 const USER = "0b6f2d4e-3c1a-4f8e-9d2b-7a5c6e1f0a93";
 const SP = 3550308;
+const SE_DISTRICT = 355030878;
 const NAME = "Maria Aparecida";
 const PHONE_TYPED = "(11) 98765-4321";
 const PHONE = "+5511987654321";
-const form = { displayName: NAME, whatsapp: PHONE_TYPED, municipalityCode: String(SP), district: "Sé" };
-const districtsFor = (code: number) => (code === SP ? ["Sé"] : undefined);
+const form = { displayName: NAME, whatsapp: PHONE_TYPED, municipalityCode: String(SP), district: String(SE_DISTRICT) };
 
 function deps(): { deps: ProfileDeps; lines: string[] } {
   const lines: string[] = [];
@@ -38,7 +38,8 @@ function fakeClient(
   opts: { rpcData?: unknown; rpcError?: unknown; row?: unknown; rows?: unknown; readError?: unknown } = {},
 ) {
   const calls: Call[] = [];
-  const reads: { table: string; columns: string; eq?: [string, string] }[] = [];
+  const orders: { column: string; limit: number }[] = [];
+  const reads: { table: string; columns: string; eq?: [string, string | number] }[] = [];
   const client = {
     rpc: async (fn: string, args: Record<string, unknown>) => {
       calls.push({ fn, args });
@@ -48,20 +49,24 @@ function fakeClient(
     },
     from: (table: string) => ({
       select: (columns: string) => ({
-        eq: (column: string, value: string) => ({
-          maybeSingle: async () => {
-            reads.push({ table, columns, eq: [column, value] });
-            return { data: opts.row ?? null, error: opts.readError ?? null };
-          },
-        }),
-        order: async () => {
-          reads.push({ table, columns });
-          return { data: opts.rows ?? [], error: opts.readError ?? null };
+        // `.eq(...)` pode terminar a consulta (listas) ou seguir para `.maybeSingle()` (uma linha).
+        eq: (column: string, value: string | number) => {
+          reads.push({ table, columns, eq: [column, value] });
+          const result = { data: opts.rows ?? [], error: opts.readError ?? null };
+          return {
+            maybeSingle: async () => ({ data: opts.row ?? null, error: opts.readError ?? null }),
+            order: (orderColumn: string) => ({
+              limit: async (max: number) => {
+                orders.push({ column: orderColumn, limit: max });
+                return result;
+              },
+            }),
+          };
         },
       }),
     }),
   };
-  return { client: client as unknown as ProfileDbClient, calls, reads };
+  return { client: client as unknown as ProfileDbClient, calls, reads, orders };
 }
 
 const leaks = (text: string) => [NAME, "98765", "4321", PHONE].filter((secret) => text.includes(secret));
@@ -72,13 +77,13 @@ describe("saveOwnProfile", () => {
   it("cifra com AAD do id da pessoa, calcula o HMAC no servidor e chama save_own_profile", async () => {
     const { client, calls } = fakeClient();
     const { deps: d, lines } = deps();
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "saved" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "saved" });
     expect(calls).toHaveLength(1);
     const { fn, args } = calls[0]!;
     expect(fn).toBe("save_own_profile");
     expect(args).toMatchObject({
       p_municipality_code: SP,
-      p_district: "Sé",
+      p_district_code: SE_DISTRICT,
       p_social_links_enc: null,
       p_whatsapp_hmac: await whatsappBlindIndexWith(await keyring, PHONE),
     });
@@ -107,7 +112,7 @@ describe("saveOwnProfile", () => {
       [{ ...form, district: "Centro" }, ["district"]],
       [{}, ["displayName", "whatsapp", "municipalityCode"]],
     ] as const) {
-      const result = await saveOwnProfile(client, USER, raw, districtsFor, d);
+      const result = await saveOwnProfile(client, USER, raw, d);
       expect(result).toEqual({ status: "invalid", fields });
     }
     expect(calls).toEqual([]);
@@ -118,14 +123,14 @@ describe("saveOwnProfile", () => {
   it("WhatsApp de outro cadastro (a função devolve duplicate_whatsapp): aviso, sem dizer de quem é", async () => {
     const { client } = fakeClient({ rpcData: "duplicate_whatsapp" });
     const { deps: d, lines } = deps();
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "duplicate_whatsapp" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "duplicate_whatsapp" });
     expect(lines).toEqual([]);
   });
 
   it("limite de tentativas (PT429, #127): too_many_attempts, logado só o código", async () => {
     const { client } = fakeClient({ rpcError: { code: "PT429", message: "too_many_attempts", details: PHONE } });
     const { deps: d, lines } = deps();
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "too_many_attempts" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "too_many_attempts" });
     expect(lines).toHaveLength(1);
     // Exatamente estes campos: nem a mensagem nem o DETAIL do banco entram no log.
     const { ts, ...entry } = JSON.parse(lines[0]!) as Record<string, unknown>;
@@ -138,14 +143,19 @@ describe("saveOwnProfile", () => {
     for (const rpcData of [null, "", "ok", { status: "saved" }]) {
       const { client } = fakeClient({ rpcData });
       const { deps: d, lines } = deps();
-      expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "failed" });
+      expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "failed" });
       expect(JSON.parse(lines[0]!)).toMatchObject({ event: "profile_save_failed", reason: "unexpected_result" });
     }
   });
 
+  it("distrito que não é do município (PT422) volta como campo inválido", async () => {
+    const { client } = fakeClient({ rpcError: { code: "PT422", message: "district_mismatch" } });
+    expect(await saveOwnProfile(client, USER, form, deps().deps)).toEqual({ status: "invalid", fields: ["district"] });
+  });
+
   it("município que o banco não conhece (23503) volta como campo inválido", async () => {
     const { client } = fakeClient({ rpcError: { code: "23503", message: "município desconhecido" } });
-    expect(await saveOwnProfile(client, USER, form, districtsFor, deps().deps)).toEqual({
+    expect(await saveOwnProfile(client, USER, form, deps().deps)).toEqual({
       status: "invalid",
       fields: ["municipalityCode"],
     });
@@ -154,7 +164,7 @@ describe("saveOwnProfile", () => {
   it("sem permissão (bloqueado ou suspenso, 42501): forbidden, logado só o código", async () => {
     const { client } = fakeClient({ rpcError: { code: "42501", message: `sem permissão ${NAME}` } });
     const { deps: d, lines } = deps();
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "forbidden" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "forbidden" });
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0]!)).toMatchObject({ event: "profile_save_denied", reason: "42501" });
     expect(leaks(lines.join("\n"))).toEqual([]);
@@ -166,7 +176,7 @@ describe("saveOwnProfile", () => {
     const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const consoleLog = vi.spyOn(console, "log");
     const consoleError = vi.spyOn(console, "error");
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "failed" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "failed" });
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0]!)).toMatchObject({ event: "profile_save_failed", reason: "XX000" });
     expect(leaks(lines.join("\n"))).toEqual([]);
@@ -181,14 +191,14 @@ describe("saveOwnProfile", () => {
     d.encrypt = async () => {
       throw Object.assign(new Error(`não cifrou ${NAME}`), { code: "invalid_key" });
     };
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "failed" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "failed" });
     expect(calls).toEqual([]);
     expect(leaks(lines.join("\n"))).toEqual([]);
   });
 
   it("id de usuário que não é uuid é recusado antes de tudo", async () => {
     const { client, calls } = fakeClient();
-    await expect(saveOwnProfile(client, "x.y", form, districtsFor, deps().deps)).rejects.toThrow();
+    await expect(saveOwnProfile(client, "x.y", form, deps().deps)).rejects.toThrow();
     expect(calls).toEqual([]);
   });
 });
@@ -199,7 +209,8 @@ describe("loadOwnProfile", () => {
     const row = {
       display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
       municipality_code: SP,
-      district: "Sé",
+      state_code: "SP",
+      district_code: SE_DISTRICT,
       profile_contacts: { whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }) },
     };
     const { client, reads } = fakeClient({ row });
@@ -207,7 +218,8 @@ describe("loadOwnProfile", () => {
       displayName: NAME,
       whatsapp: PHONE,
       municipalityCode: SP,
-      district: "Sé",
+      stateCode: "SP",
+      districtCode: SE_DISTRICT,
       socialLinks: [],
       socialLinksUnreadable: false,
     });
@@ -218,12 +230,13 @@ describe("loadOwnProfile", () => {
     const { deps: d, lines } = deps();
     expect(await loadOwnProfile(fakeClient().client, USER, d)).toBeNull();
     const copied = await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: "outra" });
-    const row = { display_name_enc: copied, municipality_code: SP, district: null, profile_contacts: null };
+    const row = { display_name_enc: copied, municipality_code: SP, state_code: "SP", district_code: null, profile_contacts: null };
     expect(await loadOwnProfile(fakeClient({ row }).client, USER, d)).toEqual({
       displayName: "",
       whatsapp: "",
       municipalityCode: SP,
-      district: null,
+      stateCode: "SP",
+      districtCode: null,
       socialLinks: [],
       socialLinksUnreadable: false,
     });
@@ -245,7 +258,7 @@ describe("redes sociais (#17)", () => {
     const { client, calls, reads } = fakeClient();
     const { deps: d, lines } = deps();
     const typed = { ...form, socialLinks: ["  instagram.com/maria ", "", "HTTPS://WWW.YouTube.com/@maria"] };
-    expect(await saveOwnProfile(client, USER, typed, districtsFor, d)).toEqual({ status: "saved" });
+    expect(await saveOwnProfile(client, USER, typed, d)).toEqual({ status: "saved" });
     const enc = calls[0]!.args.p_social_links_enc as string;
     expect(enc).not.toContain("instagram");
     expect(JSON.parse(await d.decrypt(enc, SOCIAL))).toEqual(LINKS);
@@ -259,7 +272,7 @@ describe("redes sociais (#17)", () => {
 
   it("todas as caixas vazias (a pessoa tirou os links): grava null", async () => {
     const { client, calls } = fakeClient({ row: { social_links_enc: "v1.antigo" } });
-    expect(await saveOwnProfile(client, USER, { ...form, socialLinks: ["", " "] }, districtsFor, deps().deps)).toEqual({
+    expect(await saveOwnProfile(client, USER, { ...form, socialLinks: ["", " "] }, deps().deps)).toEqual({
       status: "saved",
     });
     expect(calls[0]!.args.p_social_links_enc).toBeNull();
@@ -271,7 +284,8 @@ describe("redes sociais (#17)", () => {
     const row = {
       display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
       municipality_code: SP,
-      district: "Sé",
+      state_code: "SP",
+      district_code: SE_DISTRICT,
       profile_contacts: {
         whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }),
         social_links_enc: stored,
@@ -283,7 +297,7 @@ describe("redes sociais (#17)", () => {
     // Muda só o nome e envia o resto como o formulário recebeu.
     const { client, calls } = fakeClient();
     const edited = { ...form, displayName: "Maria A. Souza", socialLinks: own!.socialLinks };
-    expect(await saveOwnProfile(client, USER, edited, districtsFor, d)).toEqual({ status: "saved" });
+    expect(await saveOwnProfile(client, USER, edited, d)).toEqual({ status: "saved" });
     expect(JSON.parse(await d.decrypt(calls[0]!.args.p_social_links_enc as string, SOCIAL))).toEqual(LINKS);
   });
 
@@ -291,7 +305,7 @@ describe("redes sociais (#17)", () => {
     const { deps: d } = deps();
     const stored = await d.encrypt(JSON.stringify(LINKS), SOCIAL);
     const { client, calls, reads } = fakeClient({ row: { social_links_enc: stored } });
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "saved" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "saved" });
     expect(reads).toEqual([{ table: "profile_contacts", columns: "social_links_enc", eq: ["profile_id", USER] }]);
     expect(calls[0]!.args.p_social_links_enc).toBe(stored);
   });
@@ -299,7 +313,7 @@ describe("redes sociais (#17)", () => {
   it("envio sem os links e erro ao ler o guardado: failed, sem gravar (não apaga por engano)", async () => {
     const { client, calls } = fakeClient({ readError: { code: "XX000", message: "x" } });
     const { deps: d, lines } = deps();
-    expect(await saveOwnProfile(client, USER, form, districtsFor, d)).toEqual({ status: "failed" });
+    expect(await saveOwnProfile(client, USER, form, d)).toEqual({ status: "failed" });
     expect(calls).toEqual([]);
     expect(JSON.parse(lines[0]!)).toMatchObject({ event: "profile_save_failed", reason: "XX000" });
   });
@@ -309,7 +323,7 @@ describe("redes sociais (#17)", () => {
     const { deps: d, lines } = deps();
     const encrypt = vi.spyOn(d, "encrypt");
     const raw = { ...form, socialLinks: ["https://instagram.com/maria", "javascript:alert(1)"] };
-    expect(await saveOwnProfile(client, USER, raw, districtsFor, d)).toEqual({
+    expect(await saveOwnProfile(client, USER, raw, d)).toEqual({
       status: "invalid",
       fields: ["socialLinks"],
       badLinks: [1],
@@ -322,7 +336,7 @@ describe("redes sociais (#17)", () => {
   it("6 links: recusado", async () => {
     const six = Array.from({ length: 6 }, (_, i) => `https://rede.example/p${i}`);
     const { client, calls } = fakeClient();
-    expect(await saveOwnProfile(client, USER, { ...form, socialLinks: six }, districtsFor, deps().deps)).toEqual({
+    expect(await saveOwnProfile(client, USER, { ...form, socialLinks: six }, deps().deps)).toEqual({
       status: "invalid",
       fields: ["socialLinks"],
     });
@@ -335,7 +349,8 @@ describe("redes sociais (#17)", () => {
       return {
         display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
         municipality_code: SP,
-        district: "Sé",
+        state_code: "SP",
+        district_code: SE_DISTRICT,
         profile_contacts: {
           whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }),
           social_links_enc: social,
@@ -372,7 +387,7 @@ describe("redes sociais (#17)", () => {
       // Sem o campo escondido, o envio chega sem `socialLinks` (ver actions.ts).
       const { client, calls } = fakeClient({ row: { social_links_enc: stored } });
       const onlyName = { ...form, displayName: "Maria A. Souza" };
-      expect(await saveOwnProfile(client, USER, onlyName, districtsFor, d)).toEqual({ status: "saved" });
+      expect(await saveOwnProfile(client, USER, onlyName, d)).toEqual({ status: "saved" });
       expect(calls[0]!.args.p_social_links_enc).toBe(stored);
     });
   });
@@ -384,16 +399,45 @@ describe("hasOwnProfile e listMunicipalities", () => {
     expect(await hasOwnProfile(fakeClient().client, USER)).toBe(false);
   });
 
-  it("lista os municípios em ordem alfabética do português", async () => {
+  it("lista os municípios da UF em ordem alfabética do português", async () => {
     const rows = [
       { code: 3550308, name: "São Paulo" },
       { code: 3503901, name: "Arujá" },
       { code: 3515004, name: "Embu das Artes" },
     ];
-    expect((await listMunicipalities(fakeClient({ rows }).client)).map((m) => m.name)).toEqual([
-      "Arujá",
-      "Embu das Artes",
-      "São Paulo",
-    ]);
+    const { client, reads, orders } = fakeClient({ rows });
+    expect((await listMunicipalitiesByState(client, "SP")).map((m) => m.name)).toEqual(["Arujá", "Embu das Artes", "São Paulo"]);
+    expect(reads[0]).toMatchObject({ table: "municipalities", eq: ["state_code", "SP"] });
+    expect(orders).toEqual([{ column: "name", limit: 1000 }]);
+  });
+
+  it("recusa UF fora do formato antes de consultar o banco", async () => {
+    const { client, reads } = fakeClient();
+    await expect(listMunicipalitiesByState(client, "sp; drop")).rejects.toThrow();
+    expect(reads).toEqual([]);
+  });
+
+  it("erro de leitura sobe, em vez de lista vazia", async () => {
+    const { client } = fakeClient({ readError: { code: "42501" } });
+    await expect(listMunicipalitiesByState(client, "SP")).rejects.toThrow("municipalities_read_failed:42501");
+    await expect(listDistricts(client, SP)).rejects.toThrow("districts_read_failed:42501");
+  });
+});
+
+describe("listDistricts", () => {
+  it("lista os distritos do município em ordem alfabética do português", async () => {
+    const rows = [
+      { code: 355030883, name: "Vila Mariana" },
+      { code: 355030801, name: "Água Rasa" },
+      { code: 355030802, name: "Alto de Pinheiros" },
+    ];
+    const { client, reads, orders } = fakeClient({ rows });
+    expect((await listDistricts(client, SP)).map((d) => d.name)).toEqual(["Água Rasa", "Alto de Pinheiros", "Vila Mariana"]);
+    expect(reads[0]).toMatchObject({ table: "districts", eq: ["municipality_code", SP] });
+    expect(orders).toEqual([{ column: "name", limit: 1000 }]);
+  });
+
+  it("recusa código de município fora do formato", async () => {
+    await expect(listDistricts(fakeClient().client, 12)).rejects.toThrow();
   });
 });
