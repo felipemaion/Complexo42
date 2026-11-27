@@ -3,10 +3,11 @@ import { createAuthClient, expiredAuthCookies, hasAuthCookie, type CookieToSet }
 import { getAuthConfig } from "@/server/auth/config";
 import { isExpiredSession } from "@/server/auth/errors";
 import { decideRoute, isPublicPath, LOGIN_PATH, needsNoStore } from "@/server/auth/routes";
+import { buildCsp, cspHeaderName, newNonce, NONCE_HEADER } from "@/server/csp";
 
 // Proxy (antigo middleware, Next 16) do login (#9): renova a sessão no cookie e manda quem não
 // entrou para /entrar. É a checagem otimista; cada página protegida confere de novo
-// (requireUser, com o access_status) e o banco confere pela RLS.
+// (requireUser, com o access_status) e o banco confere pela RLS. Também põe a CSP com nonce (#152).
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const config = getAuthConfig();
   const pending: CookieToSet[] = [];
@@ -47,8 +48,24 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (sessionExpired && decision.action === "redirect" && !isPublicPath(path) && path !== LOGIN_PATH) {
     decision = { action: "redirect", to: `${LOGIN_PATH}?erro=session_expired&next=${encodeURIComponent(path)}` };
   }
+  // CSP (#152): nonce novo por requisição. Vai no cabeçalho da requisição repassada à página (o Next lê
+  // dali o nonce) e no da resposta (o navegador aplica). O redirecionamento também leva, por garantia.
+  const nonce = newNonce();
+  const cspName = cspHeaderName(process.env.CSP_REPORT_ONLY === "1");
+  const csp = buildCsp({
+    nonce,
+    isDev: process.env.NODE_ENV === "development",
+    isHttps: (process.env.SITE_URL ?? "").startsWith("https:"),
+  });
+  // Cópia feita depois do setAll acima: já leva os cookies renovados da sessão.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(NONCE_HEADER, nonce);
+  requestHeaders.set(cspName, csp);
   const response =
-    decision.action === "redirect" ? NextResponse.redirect(new URL(decision.to, request.url)) : NextResponse.next({ request });
+    decision.action === "redirect"
+      ? NextResponse.redirect(new URL(decision.to, request.url))
+      : NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set(cspName, csp);
   for (const { name, value, options } of pending) response.cookies.set(name, value, options);
   for (const [name, value] of Object.entries(extraHeaders)) response.headers.set(name, value);
   // L3: login e respostas que gravam cookie nunca em cache compartilhado.
