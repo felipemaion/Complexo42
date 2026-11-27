@@ -590,6 +590,11 @@ REDE_PROXY=<rede externa do proxy>
 ALVO_SAUDE=http://<alias do app>:3000/api/healthz
 MIGRA=<caminho do aplicador de migrations>
 SMOKE_IMAGEM=curlimages/curl@sha256:<digest>
+# O container do banco DESTE ambiente, que o migra.sh usa. Sem ele o deploy
+# recusa na partida -- de propósito: antes ele só falhava na etapa 3/5, depois
+# de já ter feito o pull e sincronizado a infra.
+DB_CONTAINER=<nome do container do Postgres do ambiente>
+# Opcionais, com padrão: DB_USER=supabase_admin, DB_NOME=postgres
 # Onde o deploy grava a infra, e onde guarda o manifesto do que gravou.
 # O manifesto fica num diretório SÓ DO ROOT -- ver a seção da sincronia.
 INFRA_DIR=<diretório de infra do ambiente>        # padrão: PROJECT_DIR
@@ -598,6 +603,14 @@ MANIFESTO=/etc/complexo42/infra-<projeto>.manifesto
 
 O diretório do manifesto (`/etc/complexo42/`) precisa ser **do root e não
 gravável por outros** — o deploy confere isso e aborta se não for.
+
+> ⚠️ **Não é preciso `export` neste arquivo.** O `deploy.sh` lê a configuração com
+> `.` (source), o que cria variáveis de **shell**, não de ambiente — e o `migra.sh`
+> roda como **processo filho**. As variáveis que ele precisa (`DB_CONTAINER`,
+> `DB_USER`, `DB_NOME`) são passadas **explicitamente** na chamada, justamente para
+> que quem escreve a configuração não precise saber disso. Medido em 2026-11-27: sem
+> a passagem explícita, `DB_CONTAINER=...` no arquivo simplesmente não chega, e o
+> sintoma ("falta DB_CONTAINER") aponta para a configuração, que está correta.
 
 `authorized_keys` do usuário de deploy — **uma chave por ambiente**:
 

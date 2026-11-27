@@ -13,7 +13,16 @@ BASE=$(mktemp -d); trap 'rm -rf "$BASE"' EXIT
 mkdir -p "$BASE/bin" "$BASE/deploy/data/logs" "$BASE/manifesto"
 printf 'COMPOSE_PROJECT_NAME=complexo42stg\n' > "$BASE/deploy/env"   # o do SUPABASE: a armadilha
 printf 'services: {app: {}}\n' > "$BASE/deploy/compose.yml"
-printf '#!/bin/sh\nexit 0\n' > "$BASE/migra.sh"; chmod +x "$BASE/migra.sh"
+# O duble registra o AMBIENTE que recebeu: e a unica forma de provar que as
+# DB_* chegaram ao processo filho. `. "$CONFIG"` cria variavel de SHELL, e sem
+# passagem explicita nada da configuracao atravessa.
+cat > "$BASE/migra.sh" << 'MIGRA'
+#!/bin/sh
+printf 'DB_CONTAINER=[%s] DB_USER=[%s] DB_NOME=[%s] APP_IMAGEM=[%s]\n' \
+  "${DB_CONTAINER:-}" "${DB_USER:-}" "${DB_NOME:-}" "${APP_IMAGEM:-}" > "$STUB_MIGRA"
+exit 0
+MIGRA
+chmod +x "$BASE/migra.sh"
 
 cat > "$BASE/bin/docker" << 'DUBLE'
 #!/usr/bin/env bash
@@ -40,6 +49,7 @@ printf '#!/bin/sh\nexit 0\n' > "$BASE/bin/sleep"
 chmod +x "$BASE/bin"/*
 ANT=ghcr.io/felipemaion/complexo42@sha256:$(printf '9%.0s' $(seq 1 64))
 export PATH="$BASE/bin:$PATH" STUB_CHAMADAS="$BASE/chamadas" STUB_CONTA="$BASE/conta" ANTERIOR_PADRAO="$ANT"
+export STUB_MIGRA="$BASE/migra-recebeu"
 
 escreve_config() {
   cat > "$BASE/deploy.conf" << CFG
@@ -50,6 +60,7 @@ APP_PROJETO=complexo42stg-app
 REDE_PROXY=proxy
 ALVO_SAUDE=http://app:3000/api/healthz
 MIGRA=$BASE/migra.sh
+DB_CONTAINER=complexo42stg-db-1
 SMOKE_IMAGEM=curlimages/curl@sha256:abc
 ESPERA_SMOKE=3
 TRAVA=$BASE/deploy.lock
@@ -101,7 +112,7 @@ bash "$SCRIPT" "$DIG" > /dev/null 2>&1; [ $? = 2 ] && r=0 || r=1; verifica "exig
 roda "$DIG" extra; [ $? = 2 ] && r=0 || r=1; verifica "recusa argumento a mais" $r
 bash "$SCRIPT" --config "$BASE/naoexiste" "$DIG" > /dev/null 2>&1; [ $? = 2 ] && r=0 || r=1
 verifica "recusa config inexistente" $r
-for v in PROJECT_DIR ENV_FILE COMPOSE_APP APP_PROJETO REDE_PROXY ALVO_SAUDE MIGRA SMOKE_IMAGEM; do
+for v in PROJECT_DIR ENV_FILE COMPOSE_APP APP_PROJETO REDE_PROXY ALVO_SAUDE MIGRA SMOKE_IMAGEM DB_CONTAINER; do
   escreve_config "$v"; roda "$DIG"; [ $? -ne 0 ] && r=0 || r=1
   verifica "recusa config sem $v" $r
 done
@@ -135,6 +146,15 @@ for f in docker-compose.supabase.yml kong.yml initdb/01-extensions.sql initdb/02
   [ -f "$SRV/$f" ] && r=0 || r=1; verifica "gravou $f no servidor" $r; done
 [ "$(wc -l < "$MANIF" | tr -d ' ')" = 4 ] && r=0 || r=1
 verifica "e o manifesto lista os quatro" $r
+# O migra.sh roda como FILHO: variavel sourceada da config nao atravessa
+# sozinha. Sem passagem explicita isto vem vazio, e o deploy so descobre na
+# etapa 3/5 -- depois do pull e da sincronia da infra.
+grep -q 'DB_CONTAINER=\[complexo42stg-db-1\]' "$STUB_MIGRA" && r=0 || r=1
+verifica "o migra.sh RECEBE o DB_CONTAINER da config" $r
+grep -q 'DB_USER=\[supabase_admin\] DB_NOME=\[postgres\]' "$STUB_MIGRA" && r=0 || r=1
+verifica "e os padroes de DB_USER e DB_NOME" $r
+grep -q "APP_IMAGEM=\[ghcr.io/felipemaion/complexo42@$DIG\]" "$STUB_MIGRA" && r=0 || r=1
+verifica "e a imagem que o deploy pediu" $r
 
 echo "== o que o deploy aceita gravar como root"
 # A lista e FIXA no script: a imagem e fonte de conteudo, nao de caminho.
