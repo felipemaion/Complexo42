@@ -263,6 +263,29 @@ export const instanceConfigSchema = z.strictObject({
     videosTitle: text,
     acceptButton: text,
     chooseOtherButton: text,
+    /** Comparação ao escolher outra casa (#240): mínimo de membros para o perfil médio e prazo do cache em memória. */
+    // Piso de privacidade: o perfil médio só aparece com 10 membros ou mais, e o servidor guarda o agregado por 10 minutos ou mais.
+    minAverageMembers: z.number().int().min(10),
+    averageCacheSeconds: z.number().int().min(600),
+    compare: z.strictObject({
+      title: text,
+      intro: text,
+      suggestedBadge: text,
+      selectedBadge: text,
+      yourProfileLabel: text,
+      chartTitle: text,
+      averageLabel: text,
+      averageNote: text,
+      fewMembers: text,
+      averageUnavailable: text,
+      expectTitle: text,
+      expectIntro: text,
+      expectNone: text,
+      expectUnavailable: text,
+      loading: text,
+      confirmButton: text,
+      backButton: text,
+    }),
     /** Enquanto o resultado é enviado ao servidor, logo depois da última pergunta. */
     submitting: text,
     /** Tela de quem já aceitou a casa. */

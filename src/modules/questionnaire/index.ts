@@ -7,6 +7,7 @@ export {
 } from "./domain/schema";
 export { chartAxes, chartSpokes, crossOrder, houseZones, spokePoint } from "./domain/chart";
 export { answerSentence, intensitySentence, toDisplaySentence } from "./domain/sentence";
+export { houseExpectations, missingExpectations, type HouseExpectation } from "./domain/expectations";
 export { totemCodes, totemLabel } from "./domain/totem";
 export { answerValues, QuestionnaireAnswerError, scoreQuestionnaire } from "./domain/score";
 export { loadQuestionnaire } from "./server/load";

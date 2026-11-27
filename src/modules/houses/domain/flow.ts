@@ -26,7 +26,13 @@ export type Step =
    * `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário;
    * `byPoles`: o mapa das casas para as zonas coloridas do gráfico (#201).
    */
-  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles };
+  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string }
+  /**
+   * "Escolher outra casa" depois do questionário (#240): as quatro casas, a sugerida em destaque; `selectedId` é a casa que a
+   * pessoa está comparando (ainda sem confirmar). As respostas ficam no estado: a comparação (o que se espera, o perfil
+   * médio) é calculada no servidor, que tem a chave.
+   */
+  | { kind: "compare"; suggestedId: string; selectedId?: string; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string };
 
 /** `refusal`: por que o último envio das respostas foi recusado; some na próxima ação da pessoa (#199). */
 export type FlowState = { step: Step; answers: Answers; refusal?: Refusal };
@@ -37,11 +43,16 @@ export type FlowEvent =
   /** Marca a intensidade da pergunta atual; só `next` avança. */
   | { type: "answer"; value: Answer }
   | { type: "next" }
-  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[]; byPoles?: HouseByPoles }
+  /** `compareToken`: as respostas seladas pelo servidor (cifradas para a pessoa), para a comparação de casas. */
+  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string }
   /** O servidor recusou o envio; `error` (e o tempo restante, no limite) aparece na tela. */
   | ({ type: "submit_failed" } & Refusal)
   | { type: "activity_chosen"; houseId: string }
   | { type: "choose_other" }
+  /** Na comparação: seleciona (só destaca) uma das casas. */
+  | { type: "house_selected"; houseId: string }
+  /** Na comparação: confirma a casa selecionada (segue para a apresentação, onde se aceita). */
+  | { type: "house_confirmed" }
   | { type: "back" };
 
 /** O que o fluxo precisa do questionário: a ordem dos itens (a pontuação é do servidor). */
@@ -66,6 +77,8 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
         return at({ kind: "consent" }, answers);
       case "question":
         return at(step.index === 0 ? { kind: "consent" } : { kind: "question", index: step.index - 1 }, answers);
+      case "compare":
+        return at({ kind: "presentation", houseId: step.suggestedId, method: "questionnaire", ...(step.chart && { chart: step.chart }), ...(step.byPoles && { byPoles: step.byPoles }), ...(step.compareToken && { compareToken: step.compareToken }) }, answers);
       case "presentation":
         return at(step.method === "questionnaire" ? { kind: "question", index: last } : { kind: "activities" }, answers);
       default:
@@ -93,8 +106,20 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
       return at({ kind: "presentation", houseId: event.houseId, method: "self" }, answers);
     case "presentation":
       if (event.type !== "choose_other") return state;
+      // Depois do questionário, escolher outra casa abre a comparação (as respostas ficam para ela); vindo da lista, volta à lista.
+      if (step.method === "questionnaire") {
+        return at({ kind: "compare", suggestedId: step.houseId, ...(step.chart && { chart: step.chart }), ...(step.byPoles && { byPoles: step.byPoles }), ...(step.compareToken && { compareToken: step.compareToken }) }, answers);
+      }
       // Quem troca a sugestão não precisa mais das respostas: descarta.
       return at({ kind: "activities" }, {});
+    case "compare":
+      if (event.type === "house_selected") return at({ ...step, selectedId: event.houseId }, answers);
+      if (event.type !== "house_confirmed" || step.selectedId === undefined) return state;
+      // Confirmar a própria casa sugerida mantém a entrada pelo questionário; outra casa é escolha direta (self).
+      if (step.selectedId === step.suggestedId) {
+        return at({ kind: "presentation", houseId: step.selectedId, method: "questionnaire", ...(step.chart && { chart: step.chart }), ...(step.byPoles && { byPoles: step.byPoles }), ...(step.compareToken && { compareToken: step.compareToken }) }, answers);
+      }
+      return at({ kind: "presentation", houseId: step.selectedId, method: "self" }, {});
   }
 }
 
@@ -102,8 +127,8 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
 function afterSubmit(state: FlowState, event: FlowEvent, lastIndex: number): FlowState {
   const { answers } = state;
   if (event.type === "result_recorded") {
-    const { houseId, chart, byPoles } = event;
-    return at({ kind: "presentation", houseId, method: "questionnaire", chart, ...(byPoles && { byPoles }) }, answers);
+    const { houseId, chart, byPoles, compareToken } = event;
+    return at({ kind: "presentation", houseId, method: "questionnaire", chart, ...(byPoles && { byPoles }), ...(compareToken && { compareToken }) }, answers);
   }
   if (event.type === "submit_failed") {
     const { error, retryAfterSeconds } = event;

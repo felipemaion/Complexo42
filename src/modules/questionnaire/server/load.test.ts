@@ -30,6 +30,18 @@ describe("loadQuestionnaire", () => {
     expect(read).toHaveBeenCalledWith("/srv/q.json");
   });
 
+  it("item dos eixos da casa sem expectativa a/b: falha na carga citando só o id do item (fail closed)", () => {
+    const broken = structuredClone(example) as { items: { id: string; expectation?: unknown }[] };
+    const first = broken.items.find((item) => item.expectation !== undefined)!;
+    delete first.expectation;
+    const read = () => JSON.stringify(broken);
+    expect(fieldsOf(() => loadQuestionnaire("/srv/q.json", read, houseIds))).toEqual([`items.${first.id}.expectation`]);
+  });
+
+  it("o exemplo público traz expectativa em todos os itens dos eixos da casa", () => {
+    expect(() => loadQuestionnaire(undefined, vi.fn(), houseIds)).not.toThrow();
+  });
+
   it("arquivo ilegível falha citando a variável", () => {
     const read = () => {
       throw new Error("ENOENT");

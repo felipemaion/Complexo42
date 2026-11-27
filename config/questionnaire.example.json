@@ -11,6 +11,10 @@
       },
       "b": {
         "text": "ficar em casa com um livro ou uma série"
+      },
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o jeito do polo a no item q01.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o jeito do polo b no item q01."
       }
     },
     {
@@ -21,6 +25,10 @@
       },
       "b": {
         "text": "olha a foto da caixa e vai deduzindo"
+      },
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o jeito do polo a no item q02.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o jeito do polo b no item q02."
       }
     },
     {
@@ -51,6 +59,10 @@
       },
       "b": {
         "text": "conversando com alguém"
+      },
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o jeito do polo a no item q05.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o jeito do polo b no item q05."
       }
     },
     {
@@ -61,6 +73,10 @@
       },
       "b": {
         "text": "mede cada ingrediente com cuidado"
+      },
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o jeito do polo a no item q06.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o jeito do polo b no item q06."
       }
     },
     {
@@ -91,6 +107,10 @@
       },
       "b": {
         "text": "no que está por trás do que foi dito"
+      },
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o jeito do polo a no item q09.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o jeito do polo b no item q09."
       }
     },
     {
@@ -101,6 +121,10 @@
       },
       "b": {
         "text": "começa logo para tirar da frente"
+      },
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o jeito do polo a no item q10.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o jeito do polo b no item q10."
       }
     },
     {
