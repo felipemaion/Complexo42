@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
 import { chooseCity } from "./choose-city";
+import { giveHouse } from "./give-house";
 
 // "Excluir minha conta" (#18). Sem Supabase (job "E2E" do CI): a página exige sessão e a despedida é
 // pública. Com o Supabase local, o fluxo real: duas pessoas se cadastram, uma exclui a conta
@@ -68,6 +69,7 @@ test.describe("exclusão com o Supabase local", () => {
     if (release) {
       const res = await admin(`/rest/v1/profiles?id=eq.${link.id}`, { method: "PATCH", body: JSON.stringify({ access_status: "active", status: "active" }) });
       expect(res.ok).toBe(true);
+      await giveHouse(admin, link.id); // casa antes de tudo (ADR 0017)
     }
     return page;
   }

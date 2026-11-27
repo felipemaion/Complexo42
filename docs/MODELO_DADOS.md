@@ -182,7 +182,7 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 - **O titular** cria e edita só o próprio perfil e o próprio contato, e **só pela função
   `public.save_own_profile`** (#12), que o servidor chama com os valores já cifrados e o HMAC
   calculado no servidor. `profiles` e `profile_contacts` não têm grant de INSERT/UPDATE para a
-  API. A função grava `display_name_enc`, `municipality_code`, `district_code`, `neighborhood_enc` e o contato. Distrito que não é do município volta como erro `PT422`; município com um distrito só grava distrito nulo. Ela não
+  API. Quem está liberado (`access_status = active`) só salva o perfil depois de aceitar uma casa (`house_required`, 42501; ADR 0017); quem ainda não está liberado (espera, sem linha) segue como antes. A função grava `display_name_enc`, `municipality_code`, `district_code`, `neighborhood_enc` e o contato. Distrito que não é do município volta como erro `PT422`; município com um distrito só grava distrito nulo. Ela não
   recebe a versão do termo: cria o perfil com `consent_version = 'none'` e nunca a altera (só a
   função do aceite, #11, avança a versão, derivada no servidor). Perfil `blocked` ou com conta `suspended` não edita (mas lê o
   próprio). WhatsApp repetido volta como o retorno `duplicate_whatsapp`, sem dizer de quem é

@@ -203,6 +203,7 @@ export const instance = parseInstanceConfig({
     consentLockNotice: "Depois que a sua casa for definida, só você poderá trocá-la depois de 4 meses. A coordenação pode trocar antes, se for preciso.",
     lockedUntilNotice: "Você poderá trocar de casa a partir de {date}.",
     changeHouseLink: "Trocar de casa",
+    continueLink: "Continuar",
     errors: {
       unavailable: "Esta casa não está disponível no momento. Fale com a coordenação.",
       already_accepted: "Você já aceitou uma casa. Para trocar, fale com a coordenação.",

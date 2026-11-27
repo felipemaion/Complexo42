@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { chooseCity } from "./choose-city";
+import { giveHouse } from "./give-house";
 
 // Termo de consentimento (#11). Sem Supabase (o CI sem banco): só a proteção da rota. Com o
 // Supabase local, o fluxo real: quem não aceitou cai no termo (também ao tentar abrir outra
@@ -81,6 +82,7 @@ test.describe("termo com o Supabase local", () => {
 
     // Liberada, como a coordenação faria (fora da lista, o cadastro cai na espera).
     await admin(`/rest/v1/profiles?id=eq.${link.id}`, { method: "PATCH", body: JSON.stringify({ access_status: "active", status: "active" }) });
+    await giveHouse(admin, link.id); // casa antes de tudo (ADR 0017)
 
     // Termo aceito: a página do termo não é mais obstáculo.
     await page.goto("/termo");

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { giveHouse } from "./give-house";
 
 // Tela /espera (#195) contra um Supabase local: quem espera vê a espera e pode sair (volta ao
 // login, para trocar de conta); quem já está ativo e abre /espera é levado para dentro.
@@ -32,6 +33,7 @@ async function createPerson(tag: string, accessStatus: "active" | "waitlisted"):
     }),
   });
   expect(res.status).toBe(201);
+  if (accessStatus === "active") await giveHouse(admin, user.id);
   if (accessStatus === "active") {
     await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
   }

@@ -70,7 +70,8 @@ async function signIn(page: Page, email: string): Promise<void> {
   const hashed = link.hashed_token ?? link.properties?.hashed_token;
   await page.goto(`/auth/confirmar?token_hash=${hashed}&type=email`);
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/inicio$/);
+  // Quem ainda não tem casa cai em /casa (ADR 0017); quem já tem, em /inicio.
+  await expect(page).toHaveURL(/\/(inicio|casa)$/);
 }
 
 type HouseRow = { join_method: string; accepted_at: string | null; consent_version: string | null; house_key: string };
@@ -108,7 +109,7 @@ test.describe.configure({ mode: "serial" });
 test("não sabe → termo → questionário → casa sugerida → aceitar: o servidor pontua e o navegador não manda casa nem totem", async ({ page }) => {
   const member = await createMember("q");
   await signIn(page, member.email);
-  await page.getByRole("link", { name: "Escolher sua casa" }).click();
+  await page.goto("/casa");
   await expect(page).toHaveURL(/\/casa$/);
   // O HTML e o payload RSC de /casa, antes de responder, não trazem a chave nem o mapa das casas (ADR 0014 §1).
   const pageSource = await (await page.request.get("/casa")).text();

@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
 import { chooseCity } from "./choose-city";
+import { giveHouse } from "./give-house";
 
 // Telas da coordenação (#26, ADR 0008 §1): lista de autorizados e fila de espera. Sem Supabase
 // (o CI): só a proteção das rotas. Com o Supabase local, o fluxo real: pessoas se cadastram e
@@ -85,6 +86,7 @@ test.describe("coordenação com o Supabase local", () => {
       }),
     });
     expect(profile.status).toBe(201);
+    await giveHouse(admin, user.id);
     // Já aceitou o termo vigente (#11): sem a linha, o portão manda a pessoa para /termo.
     const consent = await admin("/rest/v1/consent_acceptances", {
       method: "POST",
@@ -144,9 +146,9 @@ test.describe("coordenação com o Supabase local", () => {
     await expect(page.locator("body")).not.toContainText("fulano");
 
     expect(await accessStatus(person.id)).toBe("active");
-    // A pessoa liberada entra sem passar pela espera.
+    // A pessoa liberada entra sem passar pela espera, e cai na casa: o primeiro passo de tudo (ADR 0017).
     await person.page.goto("/inicio");
-    await expect(person.page).toHaveURL(`${baseURL}/inicio`);
+    await expect(person.page).toHaveURL(`${baseURL}/casa`);
   });
 
   test("liberar e bloquear à mão, sempre com confirmação", async ({ browser, baseURL }) => {

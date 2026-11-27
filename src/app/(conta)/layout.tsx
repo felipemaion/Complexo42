@@ -3,19 +3,22 @@ import { AppLogo } from "@/modules/houses/components/house-shield";
 import { AccountNav } from "@/modules/navigation";
 import { signOut } from "@/server/auth/actions";
 import { HOME_PATH } from "@/server/auth/routes";
-import { requireUser } from "@/server/auth/session";
+import { pendingHouseRedirect, requireUserBeforeHouse } from "@/server/auth/session";
 
 // Moldura das páginas autenticadas (#9). Toda página aqui dentro passa por requireUser
 // (sessão + access_status). O cabeçalho leva ao início e à página-mãe (#205) e mostra em qual conta a pessoa está, com o e-mail
 // mascarado (M1): quem foi logado na conta de outra pessoa percebe na hora.
 export default async function AccountLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const user = await requireUser();
+  // A casa é conferida por cada página (requireUser): a tela da casa também mora aqui (ADR 0017).
+  const user = await requireUserBeforeHouse();
+  // Sem casa a pessoa só vê a tela da casa: o menu (Início, Voltar) não leva a lugar nenhum (ADR 0017).
+  const hasHouse = (await pendingHouseRedirect()) === null;
   const text = instance.auth;
   return (
     <>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-300 px-6 py-3">
         <AppLogo name={instance.name} size={40} />
-        <AccountNav homePath={HOME_PATH} labels={{ nav: text.navLabel, home: text.navHome, back: text.navBack }} />
+        {hasHouse && <AccountNav homePath={HOME_PATH} labels={{ nav: text.navLabel, home: text.navHome, back: text.navBack }} />}
         <p className="text-base" data-testid="connected-as">
           {text.connectedAs} <strong>{user.maskedEmail}</strong>
         </p>

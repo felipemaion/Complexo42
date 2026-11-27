@@ -10,6 +10,7 @@ import { AUTH_COOKIE_NAME, createAuthClient, hasAuthCookie, type AuthClient } fr
 import { getAuthConfig, type AuthConfig } from "./config";
 import { consentRedirect } from "./consent";
 import { onFirstLogin } from "./first-login";
+import { houseRedirect } from "./house-gate";
 import { maskEmail } from "./mask";
 import { LOGIN_PATH, SIGNOUT_PATH, WAITLIST_PATH, waitlistPageTarget } from "./routes";
 
@@ -87,11 +88,10 @@ export async function requireAccessUserClient(): Promise<{ user: CurrentUser; cl
 }
 
 /**
- * Para toda página autenticada (o proxy já redireciona; isto é a segunda barreira): o portão de
- * acesso de `requireAccessUser` e, depois dele, o termo de consentimento (#11): quem não aceitou
- * a versão atual vai para a tela do termo.
+ * Sessão + acesso + termo (#11), SEM a casa: só a tela da casa e as ações da escolha da casa usam esta
+ * (ADR 0017), senão ninguém chegaria a elas. Quem não aceitou a versão atual do termo vai para a tela do termo.
  */
-export const requireUser = cache(async (): Promise<CurrentUser> => {
+export const requireUserBeforeHouse = cache(async (): Promise<CurrentUser> => {
   const user = await requireAccessUser();
   const session = await getSession();
   if (!session) redirect(LOGIN_PATH);
@@ -101,11 +101,38 @@ export const requireUser = cache(async (): Promise<CurrentUser> => {
 });
 
 /**
+ * Para toda página autenticada (o proxy já redireciona; isto é a segunda barreira): o portão de
+ * acesso de `requireAccessUser`, o termo de consentimento (#11) e, por último, a casa (ADR 0017): quem ainda
+ * não tem a casa aceita vai para /casa, o próximo passo, antes do perfil e do resto da plataforma.
+ */
+export const requireUser = cache(async (): Promise<CurrentUser> => {
+  const user = await requireUserBeforeHouse();
+  const pending = await pendingHouseRedirect();
+  if (pending) redirect(pending);
+  return user;
+});
+
+/** Para onde a casa manda a pessoa (null: tem casa), uma vez por requisição; só depois de `requireUserBeforeHouse`. */
+export const pendingHouseRedirect = cache(async (): Promise<string | null> => {
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  return houseRedirect(session.client, session.user.id);
+});
+
+/**
  * Igual a `requireUser`, mas devolve também o cliente do Supabase com o JWT da pessoa (R14),
  * para as páginas e server actions que leem ou gravam dados dela. Nunca `service_role`.
  */
 export async function requireUserClient(): Promise<{ user: CurrentUser; client: AuthClient }> {
   const user = await requireUser();
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  return { user, client: session.client };
+}
+
+/** Como `requireUserClient`, sem a casa: para as ações da escolha da casa (ADR 0017). */
+export async function requireUserClientBeforeHouse(): Promise<{ user: CurrentUser; client: AuthClient }> {
+  const user = await requireUserBeforeHouse();
   const session = await getSession();
   if (!session) redirect(LOGIN_PATH);
   return { user, client: session.client };
