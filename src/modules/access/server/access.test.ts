@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { emailBlindIndexWith } from "@/server/crypto/field";
 import { importKeyring } from "@/server/crypto/keys";
 import { log } from "@/server/log";
-import { decideAccess, importAllowlist, listWaitlist, resolveAccessAfterSignIn, setMemberBlock } from "./access";
+import { addAllowlistEmail, decideAccess, importAllowlist, listWaitlist, resolveAccessAfterSignIn, setMemberBlock } from "./access";
 import { AccessError, type AccessClient, type SessionUser } from "../types";
 
 const key = () => crypto.getRandomValues(new Uint8Array(32));
@@ -244,5 +244,36 @@ describe("setMemberBlock", () => {
     // @ts-expect-error motivo fora da lista fechada
     await expect(setMemberBlock(client, { email: "pessoa@exemplo.org", action: "block", reason: "texto livre" })).rejects.toThrow();
     expect(calls).toEqual([]);
+  });
+});
+
+describe("addAllowlistEmail (autorizar um e-mail à mão)", () => {
+  it("é o mesmo RPC do import: 1 HMAC, origem manual e motivo manual; nunca o e-mail", async () => {
+    const { client, calls } = fakeClient({ received: 1, promoted: 0, added: 1 });
+    const result = await addAllowlistEmail(client, "  Maria@Exemplo.org ", blindIndex);
+    expect(result).toEqual({ added: true });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.fn).toBe("import_allowlist");
+    expect(calls[0]?.args).toEqual({ p_email_hmacs: [await blindIndex("maria@exemplo.org")], p_source: "manual", p_reason: "manual" });
+    expect(JSON.stringify(calls)).not.toMatch(/maria|@/i);
+  });
+
+  it("e-mail que já estava na lista: added = false (resposta neutra, sem dizer nada da conta)", async () => {
+    const { client } = fakeClient({ received: 1, promoted: 1, added: 0 });
+    expect(await addAllowlistEmail(client, "a@x.org", blindIndex)).toEqual({ added: false });
+  });
+
+  it("e-mail inválido não chega ao banco", async () => {
+    const { client, calls } = fakeClient({ received: 1, promoted: 0, added: 1 });
+    for (const bad of ["", "   ", "sem-arroba", "a@", "@x.org", "a b@x.org", `${"a".repeat(250)}@x.org`]) {
+      await expect(addAllowlistEmail(client, bad, blindIndex), bad).rejects.toMatchObject({ code: "invalid_email" });
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("quem não é gestor: forbidden; resposta fora do formato é recusada", async () => {
+    const forbidden = fakeClient(null, { dbError: { code: "42501", message: "a@x.org" } });
+    await expect(addAllowlistEmail(forbidden.client, "a@x.org", blindIndex)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(addAllowlistEmail(fakeClient({ received: 1, promoted: 0 }).client, "a@x.org", blindIndex)).rejects.toThrow();
   });
 });
