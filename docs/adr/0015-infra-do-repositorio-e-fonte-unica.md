@@ -1,6 +1,6 @@
 # ADR 0015: Os arquivos de infraestrutura do repositório são a fonte única
 
-- **Status:** Proposto
+- **Status:** Aceito (pelo gestor, em 2026-11-27)
 - **Data:** 2026-11-27
 - **Relacionado:** ADR 0009 §3 (imagem, CI e deploy), #81 (pipeline), #95 (senha por papel),
   #9 (limites de taxa do login)
@@ -88,9 +88,26 @@ que precisa de mensagem clara e de uma saída documentada para o operador.
 **Não resolve sozinho:** o `initdb/`. Ele só roda em volume vazio, então sincronizar o arquivo
 não muda um banco que já existe. A decisão deixa isso explícito em vez de fingir que cobre.
 
-## Como fica o caso que originou isto
+## O caso que originou isto, já corrigido à mão
 
-O staging precisa, nesta ordem: as duas senhas novas (`AUTHENTICATOR_PASSWORD`,
-`AUTH_ADMIN_PASSWORD`) no `secrets/env`; os dois arquivos atualizados a partir da `main`; e o
-volume recriado, para o `02-roles.sh` novo dar a cada papel a senha dele. **A ordem importa** —
-o compose da `main` exige as duas variáveis, e sem elas o `up` falha.
+Feito no staging em 2026-11-27, com autorização do gestor, **em três passos cuja ordem é
+obrigatória**:
+
+1. as duas senhas novas (`AUTHENTICATOR_PASSWORD`, `AUTH_ADMIN_PASSWORD`) geradas **no servidor**
+   e acrescentadas ao `secrets/env`;
+2. `docker-compose.supabase.yml` e `initdb/02-roles.sh` atualizados a partir da `main`,
+   conferindo sha256 antes de valer;
+3. volume do Postgres recriado, para o `02-roles.sh` novo dar a cada papel a senha dele.
+
+Inverter a ordem quebra: o compose da `main` exige as duas variáveis, e sem elas o `up` falha —
+no meio da operação, com o stack já derrubado.
+
+Resultado medido: `postgres` com `login=false`; `rest` conectando como `authenticator` e `auth`
+como `supabase_auth_admin`, **cada um com senha própria**; os `GOTRUE_RATE_LIMIT_*` no ar; e os
+quatro arquivos do `deploy/` conferindo com a `main`.
+
+**É esta sequência que a decisão existe para não precisar repetir à mão.** Três passos, ordem
+rígida, verificação em cada um — executada por alguém que precisa lembrar de tudo isso, num
+servidor onde o erro só aparece depois. O item 6 da decisão continua valendo: a recriação do
+volume segue manual, porque automatizá-la seria automatizar perda de dados. O que o deploy passa
+a cobrir são os passos 2 e a detecção de que ele é necessário.
