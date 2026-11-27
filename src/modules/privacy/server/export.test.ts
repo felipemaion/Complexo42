@@ -31,6 +31,7 @@ async function dbRows() {
       access_status: "active",
       consent_version: "none",
       consent_at: null,
+      profile_completed_at: "2026-11-19T12:00:00+00:00",
       created_at: "2026-11-19T11:00:00+00:00",
       updated_at: "2026-11-19T11:00:00+00:00",
     },

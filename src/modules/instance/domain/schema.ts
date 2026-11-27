@@ -438,6 +438,7 @@ export const instanceConfigSchema = z.strictObject({
       cancelButton: text,
       /** No lugar do nome que não pôde ser lido. */
       unknownName: text,
+      incompleteProfile: text,
       /** Aviso na linha de nome ilegível: "Liberar" fica desabilitado. */
       unknownNameNote: text,
       nextPage: text,

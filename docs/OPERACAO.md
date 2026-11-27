@@ -140,6 +140,12 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
 1. cadastrar a versão do termo (acima); 2. instalar o arquivo em `QUESTIONNAIRE_PATH`; 3. reiniciar
 o app (ele valida o arquivo na subida e recusa subir com um inválido).
 
+**Trocar a versão do termo geral (`config/consent.ts` + `app.current_consent_version()`).** Quem não aceitou a
+versão vigente deixa de valer como membro (`app.is_active_member()` exige o aceite): perde o acesso a dados de
+outras pessoas, unidades, coordenação e delegação até aceitar de novo em `/termo`. Nada é apagado. **Comunique a
+troca antes** e, antes de publicar, conte quem ficaria sem aceite:
+`select count(*) from public.profiles p where not exists (select 1 from public.consent_acceptances c where c.user_id = p.id and c.version = '<versao nova>')`.
+
 **O totem, as notas dos eixos e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `scores_enc`, `answers_enc`,
 AES-256-GCM, ADR 0003 e ADR 0014 §5): o Postgres nunca recebe nem devolve esses valores em claro,
 então o log do Postgres e o `pg_stat_statements` não os expõem. Verificações:
@@ -183,6 +189,14 @@ Desligue o Studio ao terminar: ele é o serviço mais pesado do conjunto.
 A porta 25 é bloqueada no servidor, então o GoTrue só envia por relay SMTP
 externo. Enquanto o cadastro estiver fechado (`GOTRUE_DISABLE_SIGNUP=true`,
 até #87 e #26), as variáveis `SMTP_*` ficam vazias e nenhum e-mail sai.
+
+**O link do e-mail sai de `API_EXTERNAL_URL`, não de `SITE_URL`.** O GoTrue
+concatena `API_EXTERNAL_URL` com `MAILER_URLPATHS_CONFIRMATION` (default
+`/verify`), e o Auth está publicado sob `/auth/v1`. Por isso o compose põe
+`${SITE_URL}/auth/v1` ali, e **não** a raiz do site: com a raiz, o e-mail sai
+apontando para o app, o middleware redireciona para o login levando o token na
+query string, e o login nunca acontece. É uma falha que nenhum teste pega — só
+aparece com o GoTrue de verdade montando o e-mail —, então o CI trava a linha.
 
 ## O que está exposto
 
@@ -642,6 +656,14 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 
 O compose do Supabase, o `kong.yml` e o `initdb/` **viajam na imagem** e o
 deploy os sincroniza no servidor. A imagem é a fonte; o servidor é cópia.
+
+> **Sincronizar o arquivo não reinicia o Supabase.** O deploy faz `up -d` no
+> projeto **do app**; o projeto do Supabase é outro. Mudar
+> `docker-compose.supabase.yml` num PR deixa o arquivo novo no servidor com os
+> containers antigos rodando a configuração antiga — o deploy passa **verde** e
+> o comportamento não muda. Aplicar exige `up -d` no projeto do Supabase, à
+> mão, pelo dono do servidor. Vale para qualquer variável de ambiente do
+> `auth`, `rest` ou `kong`.
 
 **Quais arquivos — e a lista está no `deploy.sh`, não na imagem.** São
 exatamente quatro: `docker-compose.supabase.yml`, `kong.yml`,

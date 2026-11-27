@@ -30,7 +30,6 @@ export {
 export { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./domain/whatsapp";
 export { filterMunicipalities, hasDistrictChoice } from "./domain/localities";
 export {
-  hasOwnProfile,
   listDistricts,
   listMunicipalitiesByState,
   loadOwnProfile,

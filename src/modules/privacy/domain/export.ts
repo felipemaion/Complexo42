@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 8;
+export const exportFormatVersion = 9;
 
 const timestamp = z.string().min(1);
 
@@ -28,17 +28,19 @@ const timestamp = z.string().min(1);
 export const ownDataRowsSchema = z.object({
   profile: z
     .object({
-      display_name_enc: z.string(),
-      municipality_code: z.number().int(),
+      display_name_enc: z.string().nullable(),
+      municipality_code: z.number().int().nullable(),
       municipality_name: z.string().nullable(),
-      state_code: z.string(),
+      state_code: z.string().nullable(),
       district_code: z.number().int().nullable(),
       district_name: z.string().nullable(),
       neighborhood_enc: z.string().nullable(),
       status: z.string(),
       access_status: z.string(),
-      consent_version: z.string(),
+      consent_version: z.string().nullable(),
       consent_at: timestamp.nullable(),
+      /** Nulo = perfil incompleto (ADR 0017). */
+      profile_completed_at: timestamp.nullable(),
       created_at: timestamp,
       updated_at: timestamp,
     })
@@ -153,8 +155,10 @@ export type OwnDataExport = {
   sobre: { formato: number; geradoEm: string; descricao: string };
   conta: { emailDeLogin: string | null };
   perfil: {
+    /** Nulo se o perfil ainda está incompleto (ADR 0017). */
     nome: string | null;
-    municipio: { codigoIbge: number; nome: string | null; uf: string };
+    municipio: { codigoIbge: number; nome: string | null; uf: string } | null;
+    perfilCompletoEm: string | null;
     distrito: { codigoIbge: number; nome: string | null } | null;
     bairro: string | null;
     situacaoDaConta: string;
@@ -316,16 +320,17 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     sobre: { formato: exportFormatVersion, geradoEm: input.generatedAt.toISOString(), descricao: input.description },
     conta: { emailDeLogin: input.loginEmail },
     perfil: p && {
-      nome: await open(p.display_name_enc, "profiles", "display_name_enc"),
-      municipio: { codigoIbge: p.municipality_code, nome: p.municipality_name, uf: p.state_code },
+      nome: p.display_name_enc === null ? null : await open(p.display_name_enc, "profiles", "display_name_enc"),
+      municipio: p.municipality_code === null || p.state_code === null ? null : { codigoIbge: p.municipality_code, nome: p.municipality_name, uf: p.state_code },
+      perfilCompletoEm: p.profile_completed_at,
       distrito: p.district_code === null ? null : { codigoIbge: p.district_code, nome: p.district_name },
       bairro: await open(p.neighborhood_enc, "profiles", "neighborhood_enc"),
       situacaoDaConta: p.status,
       liberacaoDeAcesso: p.access_status,
       // `none` = ainda sem aceite (o perfil nasce assim; só o aceite, #11, avança).
       termoDeConsentimento: {
-        versao: p.consent_version === "none" ? null : p.consent_version,
-        aceitoEm: p.consent_version === "none" ? null : p.consent_at,
+        versao: p.consent_version === "none" || p.consent_version === null ? null : p.consent_version,
+        aceitoEm: p.consent_version === "none" || p.consent_version === null ? null : p.consent_at,
       },
       criadoEm: p.created_at,
       atualizadoEm: p.updated_at,

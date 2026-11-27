@@ -325,6 +325,13 @@ describe("listCases e openCase (fila de análise)", () => {
     expect(rpcCalls).toEqual([{ fn: "log_questionnaire_view", args: { p_target: U1 } }]);
   });
 
+  it("pessoa de perfil incompleto (ADR 0017, sem nome): a fila a lista com nome nulo, sem quebrar", async () => {
+    const { client } = fake({ house_analysis_requests: { data: [requestRow(U1)] }, profiles: { data: [{ id: U1, display_name_enc: null }] } });
+    const out = await listCases(client, deps);
+    expect(out.rows).toMatchObject([{ requestId: REQ, profileId: U1, name: null }]);
+    expect(out.unreadable).toBe(0);
+  });
+
   it("abrir o caso busca SÓ esse pedido aberto (não decifra a fila inteira)", async () => {
     const { client, log } = fake({ house_analysis_requests: { data: requestRow(U1) }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } });
     await openCase(client, REQ, deps);

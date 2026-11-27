@@ -30,8 +30,8 @@ export async function readCoordinationMenu(client: CoordinationClient, userId: s
 const municipalityRows = z.array(z.object({ code: z.number().int(), name: z.string() }));
 
 /** Nome das cidades da página da fila (só os códigos dela). Falha: mapa vazio, só a UF aparece. */
-export async function municipalityNames(client: CoordinationClient, codes: readonly number[]): Promise<Map<number, string>> {
-  const unique = [...new Set(codes)];
+export async function municipalityNames(client: CoordinationClient, codes: readonly (number | null)[]): Promise<Map<number, string>> {
+  const unique = [...new Set(codes.filter((code): code is number => code !== null))];
   if (unique.length === 0) return new Map();
   const { data, error } = await client.from("municipalities").select("code, name").in("code", unique);
   const rows = error ? null : municipalityRows.safeParse(data);
