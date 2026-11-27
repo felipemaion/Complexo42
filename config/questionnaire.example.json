@@ -1,7 +1,7 @@
 {
-  "version": "exemplo-4",
+  "version": "exemplo-5",
   "consentTermVersion": "termo-exemplo-1",
-  "consentTerm": "[EXEMPLO] Termo fictício, só para desenvolvimento. Este questionário ajuda a sugerir uma casa. Cada resposta é uma intensidade entre as duas alternativas; as respostas são calculadas no servidor e só a casa sugerida, um código interno e as notas por eixo são guardados (cifrados). Se o resultado não for conclusivo, as suas respostas ficam guardadas para a coordenação nacional analisar e são apagadas assim que ela decidir. Você pode recusar e escolher a casa diretamente.",
+  "consentTerm": "[EXEMPLO] Termo fictício, só para desenvolvimento. Este questionário ajuda a sugerir uma casa. Cada resposta é uma intensidade entre as duas alternativas; as respostas são calculadas no servidor e só a casa sugerida, um código interno e as notas por eixo são guardados (cifrados). Você pode recusar e escolher a casa diretamente.",
   "items": [
     {
       "id": "q01",
@@ -102,6 +102,26 @@
       "b": {
         "text": "começa logo para tirar da frente"
       }
+    },
+    {
+      "id": "q11",
+      "text": "Ao contar uma história, você:",
+      "a": {
+        "text": "fica nos fatos como aconteceram"
+      },
+      "b": {
+        "text": "dá a sua interpretação do que significam"
+      }
+    },
+    {
+      "id": "q12",
+      "text": "Para um fim de semana, você:",
+      "a": {
+        "text": "faz um plano com horários"
+      },
+      "b": {
+        "text": "vê o que aparece"
+      }
     }
   ],
   "axes": {
@@ -115,10 +135,6 @@
         "q01",
         "q05",
         "q09"
-      ],
-      "tieBreakItems": [
-        "q01",
-        "q05"
       ]
     },
     "house2": {
@@ -131,8 +147,7 @@
         "q02",
         "q06",
         "q10"
-      ],
-      "tieBreakItems": []
+      ]
     },
     "totem1": {
       "label": "Dimensão 3",
@@ -142,9 +157,9 @@
       },
       "itemIds": [
         "q03",
-        "q07"
+        "q07",
+        "q11"
       ],
-      "tieBreakItems": [],
       "letters": {
         "a": "X",
         "b": "Y"
@@ -158,9 +173,9 @@
       },
       "itemIds": [
         "q04",
-        "q08"
+        "q08",
+        "q12"
       ],
-      "tieBreakItems": [],
       "letters": {
         "a": "V",
         "b": "W"

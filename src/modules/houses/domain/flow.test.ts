@@ -62,12 +62,12 @@ describe("fluxo da escolha da casa", () => {
     });
 
     it("marcar um círculo guarda a intensidade e fica na mesma pergunta", () => {
-      const marked = nextFlow(asking, { type: "answer", value: -2 }, ctx);
-      expect(marked).toEqual({ step: { kind: "question", index: 0 }, answers: { q1: -2 } });
+      const marked = nextFlow(asking, { type: "answer", value: -3 }, ctx);
+      expect(marked).toEqual({ step: { kind: "question", index: 0 }, answers: { q1: -3 } });
     });
 
     it("trocar o círculo troca a resposta", () => {
-      const first = nextFlow(asking, { type: "answer", value: -2 }, ctx);
+      const first = nextFlow(asking, { type: "answer", value: -3 }, ctx);
       expect(nextFlow(first, { type: "answer", value: 3 }, ctx).answers).toEqual({ q1: 3 });
     });
 
@@ -160,7 +160,7 @@ describe("fluxo da escolha da casa", () => {
     const atTerm = nextFlow(back, { type: "back" }, ctx);
     expect(nextFlow(atTerm, { type: "back" }, ctx)).toBe(atTerm);
     // Responder de novo troca a resposta.
-    expect(nextFlow(back, { type: "answer", value: 2 }, ctx).answers).toEqual({ q1: 2 });
+    expect(nextFlow(back, { type: "answer", value: 3 }, ctx).answers).toEqual({ q1: 3 });
   });
 
   it("voltar da casa sugerida volta à última pergunta; da casa escolhida, à lista", () => {

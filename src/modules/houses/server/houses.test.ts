@@ -136,8 +136,8 @@ describe("readAcceptedHouse", () => {
 });
 
 describe("submitQuestionnaire", () => {
-  // Chave de teste: dois itens por eixo; a letra de cada polo do totem vem do config.
-  const items = ["h1a", "h1b", "h2a", "h2b", "t1a", "t1b", "t2a", "t2b"].map((id) => ({ id, text: "x", a: { text: "x" }, b: { text: "x" } }));
+  // Chave de teste: três itens por eixo (ímpar, sem empate); a letra de cada polo do totem vem do config.
+  const items = ["h1a", "h1b", "h1c", "h2a", "h2b", "h2c", "t1a", "t1b", "t1c", "t2a", "t2b", "t2c"].map((id) => ({ id, text: "x", a: { text: "x" }, b: { text: "x" } }));
   const questionnaire = parseQuestionnaire(
     {
       version: "v",
@@ -145,10 +145,10 @@ describe("submitQuestionnaire", () => {
       consentTerm: "t",
       items,
       axes: {
-        house1: { label: "D1", poleLabels: { a: "a1", b: "b1" }, itemIds: ["h1a", "h1b"], tieBreakItems: ["h1a"] },
-        house2: { label: "D2", poleLabels: { a: "a2", b: "b2" }, itemIds: ["h2a", "h2b"] },
-        totem1: { label: "D3", poleLabels: { a: "a3", b: "b3" }, itemIds: ["t1a", "t1b"], letters: { a: "X", b: "Y" } },
-        totem2: { label: "D4", poleLabels: { a: "a4", b: "b4" }, itemIds: ["t2a", "t2b"], letters: { a: "V", b: "W" } },
+        house1: { label: "D1", poleLabels: { a: "a1", b: "b1" }, itemIds: ["h1a", "h1b", "h1c"] },
+        house2: { label: "D2", poleLabels: { a: "a2", b: "b2" }, itemIds: ["h2a", "h2b", "h2c"] },
+        totem1: { label: "D3", poleLabels: { a: "a3", b: "b3" }, itemIds: ["t1a", "t1b", "t1c"], letters: { a: "X", b: "Y" } },
+        totem2: { label: "D4", poleLabels: { a: "a4", b: "b4" }, itemIds: ["t2a", "t2b", "t2c"], letters: { a: "V", b: "W" } },
       },
       houseByPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
       totemLabels: { XV: { name: "t1", description: "d" }, XW: { name: "t2", description: "d" }, YV: { name: "t3", description: "d" }, YW: { name: "t4", description: "d" } },
@@ -165,13 +165,11 @@ describe("submitQuestionnaire", () => {
     encrypt: async (plaintext: string, context: { table: string; column: string; rowId: string }) =>
       `enc[${context.table}.${context.column}.${context.rowId}](${plaintext})`,
   };
-  const all = (value: -3 | -2 | -1 | 1 | 2 | 3) => Object.fromEntries(items.map((i) => [i.id, value]));
+  const all = (value: -5 | -3 | -1 | 1 | 3 | 5) => Object.fromEntries(items.map((i) => [i.id, value]));
 
   const encScores = (scores: object) => `enc[questionnaire_results.scores_enc.u-1](${JSON.stringify(scores)})`;
-  const conclusive = { ...all(-3), h2a: 3, h2b: 3, t1a: 3, t1b: 3 };
+  const conclusive = { ...all(-5), h2a: 5, h2b: 5, h2c: 5, t1a: 5, t1b: 5, t1c: 5 };
   const conclusiveScores = { house1: -100, house2: 100, totem1: 100, totem2: -100 };
-  // Eixo 2 empatado (-1 e +1), sem desempate: resultado inconclusivo.
-  const tied = { ...all(-3), h2a: -1, h2b: 1 };
 
   it("resultado conclusivo: o servidor pontua e manda ao banco casa, totem e notas cifrados e assinados (para a pessoa da sessão)", async () => {
     const { client, calls } = fakeClient();
@@ -193,10 +191,9 @@ describe("submitQuestionnaire", () => {
     ]);
   });
 
-  it("nem totem, nem notas, nem respostas em texto puro vão ao banco: só os valores cifrados", async () => {
+  it("nem totem, nem notas em texto puro vão ao banco: só os valores cifrados", async () => {
     const { client, calls } = fakeClient();
     await submitQuestionnaire(client, { answers: conclusive }, ctx);
-    await submitQuestionnaire(client, { answers: tied }, ctx);
     for (const call of calls) expect(Object.keys(call.args).filter((k) => ["p_totem", "p_scores", "p_answers"].includes(k))).toEqual([]);
   });
 
@@ -216,54 +213,6 @@ describe("submitQuestionnaire", () => {
     expect(JSON.stringify(outcome)).not.toMatch(/YV|totem|D3|D4|a3|b4/);
   });
 
-  it("resultado inconclusivo: abre o pedido de análise com as respostas completas, cifradas e assinadas; sem perfil para o navegador", async () => {
-    const { client, calls } = fakeClient();
-    expect(await submitQuestionnaire(client, { answers: tied }, ctx)).toEqual({ ok: true, outcome: "analysis" });
-    const answersEnc = `enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(tied)})`;
-    expect(calls).toEqual([
-      {
-        fn: "request_house_analysis",
-        args: {
-          p_term_version: "termo-1",
-          p_tied_axes: ["house2"],
-          p_answers_enc: answersEnc,
-          p_issued_at: 1000,
-          p_signature: `sig(analysis|u-1|termo-1|house2|${answersEnc}|1000)`,
-        },
-      },
-    ]);
-  });
-
-  it("empate só no totem (#197): a casa sai e o banco recebe, numa chamada só, o resultado sem totem e o pedido de totem, assinados", async () => {
-    const { client, calls } = fakeClient();
-    // Eixos da casa definidos (casa-b) e eixo 3 empatado (-1 e +1), sem desempate.
-    const totemTied = { ...all(-3), h2a: 3, h2b: 3, t1a: -1, t1b: 1 };
-    const outcome = await submitQuestionnaire(client, { answers: totemTied }, ctx);
-    expect(outcome).toMatchObject({ ok: true, outcome: "recorded", houseId: "casa-b" });
-    // I2 (#202): também com o totem pendente a pessoa vê as zonas (o mapa das casas) e o gráfico dos eixos da casa.
-    expect(outcome).toMatchObject({
-      byPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
-      chart: [{ key: "house1" }, { key: "house2" }],
-    });
-    expect(JSON.stringify(outcome)).not.toMatch(/totem|D3|D4/);
-    const scores = encScores({ house1: -100, house2: 100, totem1: 0, totem2: -100 });
-    const answersEnc = `enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(totemTied)})`;
-    expect(calls).toEqual([
-      {
-        fn: "record_totem_pending",
-        args: {
-          p_term_version: "termo-1",
-          p_house_key: "casa-b",
-          p_scores_enc: scores,
-          p_tied_axes: ["totem1"],
-          p_answers_enc: answersEnc,
-          p_issued_at: 1000,
-          p_signature: `sig(totem_pending|u-1|termo-1|casa-b|${scores}|totem1|${answersEnc}|1000)`,
-        },
-      },
-    ]);
-  });
-
   it("recusa, sem chamar o banco nem assinar, respostas incompletas, itens inventados, valores fora da escala e campos a mais", async () => {
     const { client, calls } = fakeClient();
     const incomplete: Record<string, number> = all(-3);
@@ -273,7 +222,8 @@ describe("submitQuestionnaire", () => {
       { answers: incomplete },
       { answers: { ...all(-3), zz: -1 } },
       { answers: { ...all(-3), h1a: 0 } },
-      { answers: { ...all(-3), h1a: 4 } },
+      { answers: { ...all(-3), h1a: 2 } },
+      { answers: { ...all(-3), h1a: 6 } },
       { answers: { ...all(-3), h1a: 1.5 } },
       { answers: { ...all(-3), h1a: "a" } },
       { answers: { ...all(-3), h1a: "talvez" } },
@@ -296,7 +246,7 @@ describe("submitQuestionnaire", () => {
 
   it("traduz o erro do banco: sem permissão, e pedido renovado há pouco", async () => {
     expect(await submitQuestionnaire(fakeClient({ error: { code: "42501" } }).client, { answers: all(-3) }, ctx)).toEqual({ ok: false, error: "not_active" });
-    expect(await submitQuestionnaire(fakeClient({ error: { code: "54000" } }).client, { answers: tied }, ctx)).toEqual({
+    expect(await submitQuestionnaire(fakeClient({ error: { code: "54000" } }).client, { answers: conclusive }, ctx)).toEqual({
       ok: false,
       error: "rate_limited",
     });
@@ -313,7 +263,7 @@ describe("submitQuestionnaire", () => {
     it("limite de renovação: devolve quantos segundos faltam (1 hora depois da abertura do pedido aberto)", async () => {
       // ctx.nowSeconds = 1000 (1970-01-01T00:16:40Z); o pedido foi aberto em 1970-01-01T00:00:00Z.
       const { client, filters } = refusingClient("54000", { data: { created_at: "1970-01-01T00:00:00Z" } });
-      expect(await submitQuestionnaire(client, { answers: tied }, ctx)).toEqual({ ok: false, error: "rate_limited", retryAfterSeconds: 3600 - 1000 });
+      expect(await submitQuestionnaire(client, { answers: conclusive }, ctx)).toEqual({ ok: false, error: "rate_limited", retryAfterSeconds: 3600 - 1000 });
       expect(filters).toContainEqual(["from", "house_analysis_requests", "created_at"]);
       expect(filters).toContainEqual(["eq", "profile_id", "u-1"]);
       expect(filters).toContainEqual(["eq", "status", "open"]);
@@ -322,7 +272,7 @@ describe("submitQuestionnaire", () => {
     it("sem pedido legível (ou já passou de 1 hora): recusa sem tempo, nunca com número inventado", async () => {
       for (const request of [{ data: null }, { error: { code: "42501" } }, { data: { created_at: "lixo" } }, { data: { created_at: "1969-12-31T00:00:00Z" } }]) {
         const { client } = refusingClient("54000", request);
-        expect(await submitQuestionnaire(client, { answers: tied }, ctx)).toEqual({ ok: false, error: "rate_limited" });
+        expect(await submitQuestionnaire(client, { answers: conclusive }, ctx)).toEqual({ ok: false, error: "rate_limited" });
       }
     });
 
