@@ -21,6 +21,11 @@
    partir da qual a pessoa poderá trocar; vencido o prazo, `/casa` oferece "Trocar de casa" (escolha
    direta).
 
+5. Na lista e no resultado da coordenação aparecem a casa **sugerida** e a **escolhida** (vínculo aberto;
+   vazia se ainda não aceitou), com destaque quando diferem, a data da escolha e se a troca foi da
+   coordenação; há o filtro "escolheu outra casa". Lido por `coordination_chosen_houses`, com o
+   alcance das telas de resultado; abrir o resultado continua auditado.
+
 ## Como é garantido
 
 No banco, não na interface: `house_members.locked_until` é preenchida por gatilho (e pelas funções) com o

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
-import { listResults, requireCoordinationScreen } from "@/modules/houses";
+import { choseOtherHouse, listResults, requireCoordinationScreen } from "@/modules/houses";
 import { fill, houseName, shortDate } from "../format";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.results.title };
@@ -12,11 +12,13 @@ const field = "min-h-12 rounded-xl border-2 border-current bg-transparent px-3 t
 // Resultados do questionário (#174, ADR 0014): pessoas ativas do escopo de quem vê (nacional: todas;
 // delegado: as da concessão), com casa, totem e data. Quem não tem permissão recebe 404; a RLS decide
 // quem aparece. A lista não traz totem nem nota; abrir uma pessoa (que os mostra) é registrado.
-export default async function ResultsPage({ searchParams }: Readonly<{ searchParams: Promise<{ casa?: string | string[] }> }>) {
+export default async function ResultsPage({ searchParams }: Readonly<{ searchParams: Promise<{ casa?: string | string[]; outra?: string | string[] }> }>) {
   const { client, deps, user } = await requireCoordinationScreen("results");
-  const raw = (await searchParams).casa;
+  const query = await searchParams;
+  const raw = query.casa;
+  const otherHouse = query.outra === "1";
   const houseId = typeof raw === "string" && instance.houses.some((house) => house.id === raw) ? raw : undefined;
-  const { rows, truncated } = await listResults(client, deps, user.id, { houseId });
+  const { rows, truncated } = await listResults(client, deps, user.id, { houseId, otherHouse });
   const text = instance.questionnaireCoordination;
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6 pt-10">
@@ -33,6 +35,10 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
               </option>
             ))}
           </select>
+        </label>
+        <label className="flex min-h-12 items-center gap-2 text-lg font-semibold">
+          <input type="checkbox" name="outra" value="1" defaultChecked={otherHouse} className="size-5" />
+          {text.results.otherHouseFilter}
         </label>
         <button type="submit" className="min-h-12 rounded-xl bg-[var(--color-primary)] px-5 text-lg font-semibold text-white">
           {text.results.filterButton}
@@ -51,6 +57,7 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
             <tr>
               <th className="py-2">{text.results.columnPerson}</th>
               <th className="py-2">{text.results.columnHouse}</th>
+              <th className="py-2">{text.results.columnChosen}</th>
               <th className="py-2">{text.results.columnDate}</th>
               <th className="py-2" />
             </tr>
@@ -60,6 +67,13 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
               <tr key={row.profileId} className="border-t border-current/30" data-testid="result-row">
                 <td className="py-2">{row.name ?? text.noName}</td>
                 <td className="py-2">{houseName(row.houseId)}</td>
+                <td className={choseOtherHouse(row) ? "py-2 font-bold underline decoration-2" : "py-2"} data-testid="result-chosen" data-differs={choseOtherHouse(row) ? "true" : "false"}>
+                  {row.chosenHouseId ? houseName(row.chosenHouseId) : text.results.chosenNone}
+                  {choseOtherHouse(row) && <span className="block text-base font-normal">{text.results.differsMark}</span>}
+                  {row.changedByCoordinationAt && (
+                    <span className="block text-base font-normal">{fill(text.results.changedByCoordination, { date: shortDate(row.changedByCoordinationAt) })}</span>
+                  )}
+                </td>
                 <td className="py-2">{shortDate(row.createdAt)}</td>
                 <td className="py-2 text-right">
                   <Link href={`/coordenacao/casas/resultados/${row.profileId}`} prefetch={false} className="underline">

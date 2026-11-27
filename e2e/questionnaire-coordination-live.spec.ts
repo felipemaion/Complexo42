@@ -262,6 +262,15 @@ test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troc
   await page.getByLabel("Nova casa").selectOption({ label: target.name });
   await page.getByRole("button", { name: "Trocar a casa" }).click();
   await expect(page.getByText("Casa trocada.")).toBeVisible();
+  // Casa sugerida × escolhida: o detalhe e a lista destacam a diferença, com a troca da coordenação e a data.
+  await expect(page.getByTestId("result-chosen")).toHaveAttribute("data-differs", "true");
+  await expect(page.getByTestId("result-chosen")).toContainText("trocada pela coordenação");
+  await page.goto("/coordenacao/casas/resultados?outra=1");
+  const differing = page.getByTestId("result-chosen").filter({ hasText: "trocada pela coordenação" });
+  await expect(differing).toHaveCount(1);
+  await expect(differing).toHaveAttribute("data-differs", "true");
+  await page.goto("/coordenacao/casas/resultados");
+  await expect(page.getByTestId("result-chosen").first()).toBeVisible();
   await context.close();
 
   const open = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key,locked_until`)).json()) as {

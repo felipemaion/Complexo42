@@ -91,8 +91,47 @@ const dbErrorCode = (error: unknown): string => {
 // ---------------------------------------------------------------------------------------
 const resultListRow = z.object({ profile_id: z.string(), house_key: z.string(), created_at: z.string() });
 
-/** Uma pessoa na lista: só nome, casa e data. Totem e notas ficam no detalhe, que registra o acesso. */
-export type ResultRow = { profileId: string; name: string | null; houseId: string; createdAt: string };
+/**
+ * Uma pessoa na lista: nome, casa sugerida (do resultado), casa escolhida (vínculo aberto; nula se ainda
+ * não aceitou), quando e se a troca foi da coordenação. Totem e notas ficam no detalhe, que registra o acesso.
+ */
+export type ResultRow = {
+  profileId: string;
+  name: string | null;
+  houseId: string;
+  createdAt: string;
+  chosenHouseId: string | null;
+  chosenAt: string | null;
+  changedByCoordinationAt: string | null;
+};
+
+/** A casa escolhida é outra que a sugerida (só com casa escolhida). */
+export function choseOtherHouse(row: { houseId: string; chosenHouseId: string | null }): boolean {
+  return row.chosenHouseId !== null && row.chosenHouseId !== row.houseId;
+}
+
+export type HouseChoice = { houseId: string | null; chosenAt: string | null; changedByCoordinationAt: string | null };
+
+const chosenRow = z.object({
+  profile_id: z.string(),
+  house_key: z.string().nullable(),
+  chosen_at: z.string().nullable(),
+  changed_by_coordination_at: z.string().nullable(),
+});
+
+/** A casa escolhida das pessoas pedidas, pela função do banco (mesmo alcance das telas de resultado). */
+async function readChosenHouses(client: HouseClient, ids: readonly string[]): Promise<Map<string, HouseChoice>> {
+  const choices = new Map<string, HouseChoice>();
+  if (ids.length === 0) return choices;
+  const { data, error } = await client.rpc("coordination_chosen_houses", { p_profiles: [...ids] });
+  if (error) throw new Error(`results_read_failed:${dbErrorCode(error)}`);
+  const parsed = z.array(chosenRow).safeParse(data ?? []);
+  if (!parsed.success) throw new Error("results_read_failed:shape");
+  for (const row of parsed.data) {
+    choices.set(row.profile_id, { houseId: row.house_key, chosenAt: row.chosen_at, changedByCoordinationAt: row.changed_by_coordination_at });
+  }
+  return choices;
+}
 
 /** Pessoas por página da lista; passando disso, mostra as mais recentes e avisa (filtre por casa). */
 export const maxResultRows = 200;
@@ -107,7 +146,7 @@ export async function listResults(
   client: HouseClient,
   deps: ViewDeps,
   viewerId: string,
-  filter: { houseId?: string },
+  filter: { houseId?: string; otherHouse?: boolean },
 ): Promise<{ rows: ResultRow[]; truncated: boolean }> {
   let query = client.from("questionnaire_results").select("profile_id,house_key,created_at").neq("profile_id", viewerId);
   if (filter.houseId !== undefined && instance.houses.some((house) => house.id === filter.houseId)) query = query.eq("house_key", filter.houseId);
@@ -116,15 +155,26 @@ export async function listResults(
   const parsed = z.array(resultListRow).safeParse(data ?? []);
   if (!parsed.success) throw new Error("results_read_failed:shape");
   const page = parsed.data.slice(0, maxResultRows);
-  const names = await readNames(client, page.map((row) => row.profile_id), deps.crypto);
-  return {
-    rows: page.map((row) => ({ profileId: row.profile_id, name: names.get(row.profile_id) ?? null, houseId: row.house_key, createdAt: row.created_at })),
-    truncated: parsed.data.length > maxResultRows,
-  };
+  const ids = page.map((row) => row.profile_id);
+  const names = await readNames(client, ids, deps.crypto);
+  const choices = await readChosenHouses(client, ids);
+  const rows = page.map((row) => {
+    const choice = choices.get(row.profile_id);
+    return {
+      profileId: row.profile_id,
+      name: names.get(row.profile_id) ?? null,
+      houseId: row.house_key,
+      createdAt: row.created_at,
+      chosenHouseId: choice?.houseId ?? null,
+      chosenAt: choice?.chosenAt ?? null,
+      changedByCoordinationAt: choice?.changedByCoordinationAt ?? null,
+    };
+  });
+  return { rows: filter.otherHouse ? rows.filter(choseOtherHouse) : rows, truncated: parsed.data.length > maxResultRows };
 }
 
 export type OpenedResult =
-  | { status: "ok"; name: string | null; result: QuestionnaireResultView }
+  | { status: "ok"; name: string | null; result: QuestionnaireResultView; choice: HouseChoice }
   | { status: "not_found" }
   | { status: "unreadable" };
 
@@ -145,7 +195,13 @@ export async function openResult(client: HouseClient, personId: string, deps: Vi
   const logged = await client.rpc("log_questionnaire_view", { p_target: personId });
   if (logged.error) return { status: "not_found" };
   const names = await readNamesOne(client, personId, deps.crypto);
-  return { status: "ok", name: names, result };
+  let choice: HouseChoice;
+  try {
+    choice = (await readChosenHouses(client, [personId])).get(personId) ?? { houseId: null, chosenAt: null, changedByCoordinationAt: null };
+  } catch {
+    return { status: "unreadable" };
+  }
+  return { status: "ok", name: names, result, choice };
 }
 
 async function readNamesOne(client: HouseClient, id: string, crypto: CoordinationCrypto): Promise<string | null> {

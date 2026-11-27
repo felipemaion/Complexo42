@@ -9,7 +9,7 @@ export { canChangeHouse, houseLockNotice } from "./domain/house-lock";
 export { getQuestionnaire } from "./server/questionnaire";
 export { sessionHouseClient } from "./server/session";
 export { requireCoordinationScreen, coordinationViewDeps, readCoordinationLinks } from "./server/coordination-session";
-export { canSeeResults, listCases, listDelegationCandidates, listDelegations, listResults, openCase, openResult } from "./server/coordination-views";
+export { canSeeResults, choseOtherHouse, listCases, listDelegationCandidates, listDelegations, listResults, openCase, openResult } from "./server/coordination-views";
 export { changeHouse, grantQuestionnaireAccess, resolveAnalysis, revokeQuestionnaireAccess } from "./server/coordination";
 export type { CaseRow, CandidateRow, DelegationRow, ResultRow } from "./server/coordination-views";
 export { readOwnHouseCard, type OwnHouseCard } from "./server/own-house";

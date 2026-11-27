@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { instance } from "@config/instance";
-import { openResult, requireCoordinationScreen } from "@/modules/houses";
+import { choseOtherHouse, openResult, requireCoordinationScreen } from "@/modules/houses";
 import { crossOrder, totemLabel } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { changeHouseAction } from "../actions";
@@ -36,7 +36,8 @@ export default async function ResultPage({
       </main>
     );
   }
-  const { result, name } = opened;
+  const { result, name, choice } = opened;
+  const differs = choseOtherHouse({ houseId: result.houseId, chosenHouseId: choice.houseId });
   const errorText = lookupErrorText(text.errors, query.erro);
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
@@ -44,6 +45,18 @@ export default async function ResultPage({
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-lg">
         <dt className="font-semibold">{text.results.houseLabel}</dt>
         <dd data-testid="result-house">{houseName(result.houseId)}</dd>
+        <dt className="font-semibold">{text.results.chosenLabel}</dt>
+        <dd data-testid="result-chosen" data-differs={differs ? "true" : "false"} className={differs ? "font-bold underline decoration-2" : undefined}>
+          {choice.houseId ? houseName(choice.houseId) : text.results.chosenNone}
+          {differs && <span className="block font-normal">{text.results.differsMark}</span>}
+          {choice.changedByCoordinationAt && <span className="block font-normal">{fill(text.results.changedByCoordination, { date: shortDate(choice.changedByCoordinationAt) })}</span>}
+        </dd>
+        {choice.chosenAt && (
+          <>
+            <dt className="font-semibold">{text.results.chosenDateLabel}</dt>
+            <dd>{shortDate(choice.chosenAt)}</dd>
+          </>
+        )}
         <dt className="font-semibold">{text.results.totemLabel}</dt>
         <dd data-testid="result-totem">{result.totem !== null ? totemLabel(deps.questionnaire, result.totem) : result.totemState === "undecided" ? text.results.totemUndecided : text.results.totemPending}</dd>
         <dt className="font-semibold">{text.results.dateLabel}</dt>
