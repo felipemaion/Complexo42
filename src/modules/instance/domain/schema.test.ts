@@ -22,6 +22,9 @@ const valid = {
     signedInTitle: "t",
     signedInMessage: "t",
     connectedAs: "t",
+    navLabel: "t",
+    navHome: "t",
+    navBack: "t",
     confirmTitle: "t",
     confirmMessage: "t",
     confirmButton: "t",
@@ -128,6 +131,7 @@ const valid = {
     analysisChooseButton: "t",
     acceptedTitle: "t",
     homeLink: "t",
+    rateLimitedWait: "{minutes}",
     errors: {
       unavailable: "t",
       already_accepted: "t",
@@ -144,12 +148,12 @@ const valid = {
       title: "t", intro: "t", houseFilterLabel: "t", houseFilterAll: "t", filterButton: "t", empty: "t",
       columnPerson: "t", columnHouse: "t", columnDate: "t", openLink: "t",
       truncated: "{count}", detailTitle: "{name}", houseLabel: "t", totemLabel: "t", dateLabel: "t",
-      chartTitle: "t", chartCurrentHouse: "t", noScores: "t", unreadableOne: "t", backLink: "t",
+      chartTitle: "t", chartCurrentHouse: "t", totemPending: "t", totemUndecided: "t", noScores: "t", unreadableOne: "t", backLink: "t",
     },
     queue: {
-      title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", openLink: "t",
+      title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", kindTotem: "t", openLink: "t",
       truncated: "{count}", unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t", chartCurrentHouse: "t",
-      resolveTitle: "t", houseLabel: "t", totemLabel: "t", totemOption: "{label}{description}",
+      resolveTitle: "t", totemOnlyNotice: "{house}", houseLabel: "t", totemLabel: "t", totemOption: "{label}{description}",
       resolveButton: "t", resolvedNotice: "t", unreadableOne: "t", backLink: "t",
     },
     delegations: {

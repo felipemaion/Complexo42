@@ -16,6 +16,7 @@ import {
 import { instance } from "@config/instance";
 import type { HouseClient } from "../types";
 import {
+  type AnalysisKind,
   listOpenAnalysisRequests,
   readOpenAnalysisRequest,
   readQuestionnaireResultOf,
@@ -161,7 +162,7 @@ async function readNamesOne(client: HouseClient, id: string, crypto: Coordinatio
 // ---------------------------------------------------------------------------------------
 // Fila de análise
 // ---------------------------------------------------------------------------------------
-export type CaseRow = { requestId: string; profileId: string; name: string | null; tiedAxes: string[]; createdAt: string };
+export type CaseRow = { requestId: string; profileId: string; name: string | null; kind: AnalysisKind; tiedAxes: string[]; createdAt: string };
 
 /** Casos inconclusivos abertos visíveis a quem chama (nome, data, eixos empatados). Ilegíveis, contados. */
 export async function listCases(client: HouseClient, deps: ViewDeps): Promise<{ rows: CaseRow[]; unreadable: number; truncated: boolean }> {
@@ -172,6 +173,7 @@ export async function listCases(client: HouseClient, deps: ViewDeps): Promise<{ 
       requestId: request.requestId,
       profileId: request.profileId,
       name: names.get(request.profileId) ?? null,
+      kind: request.kind,
       tiedAxes: request.tiedAxes,
       createdAt: request.createdAt,
     }))
@@ -185,6 +187,9 @@ export type OpenedCase =
       requestId: string;
       profileId: string;
       name: string | null;
+      kind: AnalysisKind;
+      /** Em pedido de totem, a casa já definida pelos eixos 1 e 2 (a coordenação decide só o totem). */
+      houseId: string | null;
       tiedAxes: string[];
       createdAt: string;
       answers: Record<string, number>;
@@ -207,6 +212,16 @@ export async function openCase(client: HouseClient, requestId: string, deps: Vie
   } catch {
     return { status: "unreadable" };
   }
+  let houseId: string | null = null;
+  if (found.kind === "totem") {
+    // A casa já saiu: sem o resultado (ilegível ou sumido) o caso não tem como ser resolvido só no totem.
+    try {
+      houseId = (await readQuestionnaireResultOf(client, found.profileId, deps.crypto, deps.questionnaire))?.houseId ?? null;
+    } catch {
+      houseId = null;
+    }
+    if (houseId === null) return { status: "unreadable" };
+  }
   const logged = await client.rpc("log_questionnaire_view", { p_target: found.profileId });
   if (logged.error) return { status: "not_found" };
   return {
@@ -214,6 +229,8 @@ export async function openCase(client: HouseClient, requestId: string, deps: Vie
     requestId: found.requestId,
     profileId: found.profileId,
     name: await readNamesOne(client, found.profileId, deps.crypto),
+    kind: found.kind,
+    houseId,
     tiedAxes: found.tiedAxes,
     createdAt: found.createdAt,
     answers: found.answers,

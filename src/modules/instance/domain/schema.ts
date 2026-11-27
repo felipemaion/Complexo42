@@ -80,6 +80,9 @@ export const instanceConfigSchema = z.strictObject({
     signedInMessage: text,
     /** Rótulo antes do e-mail mascarado de quem está logado (ex.: "Conectado como"). */
     connectedAs: text,
+    navLabel: text,
+    navHome: text,
+    navBack: text,
     /** Página intermediária do link mágico: o login só acontece no clique (POST). */
     confirmTitle: text,
     confirmMessage: text,
@@ -257,6 +260,8 @@ export const instanceConfigSchema = z.strictObject({
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
+    rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,
@@ -298,6 +303,8 @@ export const instanceConfigSchema = z.strictObject({
       detailTitle: text.refine((v) => v.includes("{name}"), "use {name}"),
       houseLabel: text,
       totemLabel: text,
+      totemPending: text,
+      totemUndecided: text,
       dateLabel: text,
       chartTitle: text,
       /** Destaque da casa na legenda do gráfico (#201). */
@@ -313,6 +320,7 @@ export const instanceConfigSchema = z.strictObject({
       columnPerson: text,
       columnDate: text,
       columnAxes: text,
+      kindTotem: text,
       openLink: text,
       truncated: text.refine((v) => v.includes("{count}"), "use {count}"),
       unreadableList: text.refine((v) => v.includes("{count}"), "use {count}"),
@@ -323,6 +331,7 @@ export const instanceConfigSchema = z.strictObject({
       /** Destaque da casa na legenda do gráfico (#201). */
       chartCurrentHouse: text,
       resolveTitle: text,
+      totemOnlyNotice: text.refine((v) => v.includes("{house}"), "use {house}"),
       houseLabel: text,
       totemLabel: text,
       totemOption: text.refine((v) => v.includes("{label}") && v.includes("{description}"), "use {label} e {description}"),

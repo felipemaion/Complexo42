@@ -11,7 +11,7 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 | **Em todo PR** (CI) | Guardrails: gitleaks, campos pessoais proibidos (R4), testes bash de `deploy/` | job `guardrails` |
 | | Lint, tipos, Vitest (unidade e contratos de configuração) e build | job `app` (`npm run check`) |
 | | pgTAP: RLS em toda tabela, matriz de permissões, guardas de privilégio, regras por tabela | job `database` (`supabase test db`) |
-| | Playwright sem banco e com Supabase local (login, perfil, casa, contato, exclusão, fluxo completo) | jobs `e2e` e `e2e-live` |
+| | Playwright sem banco e com Supabase local (login, perfil, casa, contato, navegação, exclusão, fluxo completo) | jobs `e2e` e `e2e-live` |
 | | Imagem Docker: sem `.env`, não-root, `/api/healthz` | job `image` |
 | **Antes do deploy** (staging, #82) | Os mesmos jobs verdes na `main`; `restore-test.sh` (#84) | CI + `deploy/` |
 | **Antes do lançamento** (#39) | Pentest do §4, carga do §5, revisão manual de segurança | staging |

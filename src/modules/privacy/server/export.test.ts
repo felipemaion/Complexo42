@@ -77,6 +77,7 @@ describe("exportOwnData", () => {
       questionnaire_result: {
         house_key: "casa-qualquer",
         totem_enc: await enc("PA", "questionnaire_results", "totem_enc"),
+        totem_state: "decided",
         scores_enc: await enc(JSON.stringify({ house1: -40, house2: 75, totem1: 0, totem2: -100 }), "questionnaire_results", "scores_enc"),
         term_version: "termo-1",
         source: "questionnaire",
