@@ -232,7 +232,7 @@ dez chaves, ancoradas; (2) o teste da rota confere o 200 e o conteúdo; (3) **no
 o ASSUNTO do e-mail recebido com o configurado** (por exemplo "Seu link de entrada" para o link de entrada): assunto
 em inglês (ou o padrão do GoTrue) significa que o template não foi buscado. Depois de mudar o compose, recrie só o
 `auth`; mudar o texto de um template só exige redeploy do app (o GoTrue busca de novo, com cache curto).
-## Login com Google (#?)
+## Login com Google (#87)
 
 As credenciais vêm do Google Cloud, num cliente OAuth tipo **Web application**, e
 moram no `secrets/env` do ambiente — nunca no repositório.
@@ -259,6 +259,28 @@ separados por vírgula, para cliente web e mobile no mesmo projeto.
 
 Ligar ou desligar é mexer no `secrets/env` e **recriar o `auth`** — a sincronia
 do deploy não recria container (ver "A sincronia da infra").
+
+> **Errar aqui derruba o login inteiro, não só o Google.** Com
+> `GOOGLE_ENABLED=true` e `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` ou o
+> redirect vazios, o GoTrue **recusa a configuração na partida e o `auth` não
+> sobe** — e sem `auth` o **link mágico também para**. Por isso, logo depois de
+> recriar:
+>
+> ```bash
+> curl -s -o /dev/null -w '%{http_code}\n' https://<SITE_URL>/auth/v1/health   # espera 200
+> ```
+>
+> Se não vier 200, **reverter na hora** (desligar o `GOOGLE_ENABLED`, recriar o
+> `auth`) e só então investigar. Conferir o **container**, nunca o arquivo:
+>
+> ```bash
+> docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' <auth> | grep GOOGLE
+> ```
+
+**Quem entra pelo Google é só quem já está na allowlist.** O
+`GOTRUE_DISABLE_SIGNUP=true` vale para todos os provedores: uma conta Google que
+não tenha linha em `auth.users` é **recusada**, e nenhum usuário é criado. O
+Google autentica; ele não autoriza. Quem autoriza continua sendo o convite.
 
 ## Sessão longa (~30 dias)
 
