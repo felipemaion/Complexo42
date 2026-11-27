@@ -6,8 +6,8 @@ import { parseInstanceConfig } from "./schema";
 const lightBackground = "#ffffff";
 const darkBackground = "#111111";
 /**
- * Contraste mínimo da cor da casa contra o fundo. A cor oficial amarela da instância (#c99a06) tem
- * 2,6:1 no claro, abaixo dos 3:1 do WCAG 1.4.11; o que importa nunca depende só da cor: o nome da casa
+ * Contraste mínimo da cor da casa contra o fundo. Cores de gráfico podem ficar abaixo dos 3:1 do WCAG 1.4.11
+ * (a terceira casa, roxa, passa de 4,5:1); o que importa nunca depende só da cor: o nome da casa
  * é texto na cor do tema, dentro de um retângulo com fundo opaco.
  */
 const minGraphicContrast = 2.5;
@@ -20,6 +20,15 @@ function luminance(hex: string): number {
     return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   });
   return 0.2126 * red! + 0.7152 * green! + 0.0722 * blue!;
+}
+/** Matiz (0 a 360) de uma cor RGB. */
+function hue(red: number, green: number, blue: number): number {
+  const [r, g, b] = [red, green, blue].map((v) => v / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const delta = max - Math.min(r, g, b);
+  if (delta === 0) return 0;
+  const h = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+  return (h * 60 + 360) % 360;
 }
 function contrast(foreground: string, background: string): number {
   const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
@@ -44,6 +53,29 @@ describe("cores das casas (#201)", () => {
     for (const house of instance.houses) {
       expect(contrast(house.color.light, lightBackground), `${house.id} claro`).toBeGreaterThanOrEqual(minGraphicContrast);
       expect(contrast(house.color.dark, darkBackground), `${house.id} escuro`).toBeGreaterThanOrEqual(minGraphicContrast);
+    }
+  });
+
+  it("a casa roxa (a terceira da lista) tem o tom do escudo e contraste AA (4,5:1) em texto nos dois temas", () => {
+    const purple = instance.houses[2]!;
+    for (const [hex, background, theme] of [
+      [purple.color.light, lightBackground, "claro"],
+      [purple.color.dark, darkBackground, "escuro"],
+    ] as const) {
+      const [red, green, blue] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
+      expect(hue(red!, green!, blue!), `matiz ${theme}`).toBeGreaterThanOrEqual(260);
+      expect(hue(red!, green!, blue!), `matiz ${theme}`).toBeLessThanOrEqual(310);
+      expect(contrast(hex, background), `casa roxa ${theme}`).toBeGreaterThanOrEqual(minTextContrast);
+    }
+  });
+
+  it("nenhuma casa usa amarelo (matiz de 40 a 70 graus)", () => {
+    for (const house of instance.houses) {
+      for (const hex of [house.color.light, house.color.dark]) {
+        const [red, green, blue] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
+        const h = hue(red!, green!, blue!);
+        expect(h < 40 || h > 70, `${house.id} ${hex}`).toBe(true);
+      }
     }
   });
 

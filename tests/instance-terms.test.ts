@@ -16,7 +16,7 @@ describe("guarda de nomes da instância em src/", () => {
   it("inclui os termos fixos e os nomes vindos da configuração", () => {
     expect(terms).toEqual(expect.arrayContaining(["academia", "turma"]));
     for (const house of instance.houses) expect(terms).toContain(normalize(house.name));
-    expect(terms).toContain("organizacao exemplo");
+    expect(terms).toContain("incubadora complexo42");
   });
 
   it("src/ não tem nenhum nome da instância", () => {

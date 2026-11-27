@@ -12,8 +12,8 @@ import { parseInstanceConfig } from "@/modules/instance";
  * Os tipos de unidade e seus rótulos não ficam aqui: vêm de `unit_types.label` no banco (#46).
  */
 export const instance = parseInstanceConfig({
-  name: "Organização Exemplo",
-  shortName: "OrgExemplo",
+  name: "Incubadora Complexo42",
+  shortName: "Incubadora",
   colors: {
     primary: "#1f4e79",
     secondary: "#f2a900",
@@ -449,7 +449,7 @@ export const instance = parseInstanceConfig({
       id: "alexandria",
       name: "Alexandria",
       // Cor do gráfico (#201): clara e escura. Siracusa é provisória (aguarda o stakeholder).
-      color: { light: "#c99a06", dark: "#f2c94c" },
+      color: { light: "#6b2d8f", dark: "#c9a0ee" },
       description: "A Casa dos intelectuais e criadores, lugar de personalidades brilhantes e reflexivas, que vão na fonte de conhecimento e transmitem aos demais.",
       activities: ["[PREENCHER] Atividade exemplo 3A"],
       firstSteps: {

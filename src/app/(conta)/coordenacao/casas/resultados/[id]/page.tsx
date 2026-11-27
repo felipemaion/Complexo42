@@ -5,6 +5,7 @@ import { instance } from "@config/instance";
 import { choseOtherHouse, openResult, requireCoordinationScreen } from "@/modules/houses";
 import { crossOrder, totemLabel } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
+import { HouseShield } from "@/modules/houses/components/house-shield";
 import { changeHouseAction } from "../actions";
 import { errorText as lookupErrorText, fill, houseName, shortDate } from "../../format";
 
@@ -44,7 +45,7 @@ export default async function ResultPage({
       <h1 className="text-3xl font-bold">{fill(text.results.detailTitle, { name: name ?? text.noName })}</h1>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-lg">
         <dt className="font-semibold">{text.results.houseLabel}</dt>
-        <dd data-testid="result-house">{houseName(result.houseId)}</dd>
+        <dd data-testid="result-house" className="flex items-center gap-2"><HouseShield houseId={result.houseId} name={houseName(result.houseId)} size={32} />{houseName(result.houseId)}</dd>
         <dt className="font-semibold">{text.results.chosenLabel}</dt>
         <dd data-testid="result-chosen" data-differs={differs ? "true" : "false"} className={differs ? "font-bold underline decoration-2" : undefined}>
           {choice.houseId ? houseName(choice.houseId) : text.results.chosenNone}

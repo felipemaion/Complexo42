@@ -82,7 +82,14 @@ depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frent
 raio vale a intensidade do polo (0 a 100). **Zonas das casas** (#201, protótipo aprovado): o quadrante entre os
 polos dos eixos 1 e 2 que formam cada casa é colorido, com o nome da casa dentro, e uma legenda destaca a casa da
 pessoa ("sua casa"). Os quadrantes seguem o `houseByPoles`; a cor de cada casa (clara e escura, `light-dark()`)
-vem de `houses[].color` em `config/instance.ts`, com contraste de 3:1 ou mais nos dois temas. Na visão da
+vem de `houses[].color` em `config/instance.ts`, com contraste de 3:1 ou mais nos dois temas (a casa roxa,
+terceira da lista, tem 4,5:1 ou mais, tirada do tom do próprio escudo; nenhuma casa é amarela: vermelho, azul,
+roxo e verde). Cada casa tem o escudo em `public/casas/<id>-{512,128}.{webp,png}` (quadrado, WebP com PNG de
+reserva, gerado por `scripts/otimizar-escudos.mjs`), mostrado ao lado do nome da casa (início, `/casa`, resultado)
+e pequeno nas listas da coordenação, com o nome como alt, tamanho fixo e `loading=lazy`. O escudo do app
+(`public/casas/app-logo-*`) é o logo do **app**, não de uma casa: favicon, ícone de toque, cabeçalho das telas e
+`/entrar`; ninguém "pertence" a ele. O nome exibido do app vem de `instance.name` ("Incubadora Complexo42") e
+`instance.shortName` ("Incubadora") em `config/instance.ts`, que é o nome do projeto e fica também no exemplo público. Na visão da
 coordenação os raios saem na ordem a1, a3, a2, a4, b1, b3, b2, b4: os eixos da casa em cruz e os do totem nas
 diagonais (`crossOrder`, `houseZones` em `domain/chart.ts`). A pessoa vê 4 raios; a coordenação nacional e os
 delegados veem os 4 eixos (8 raios) e o totem. Os nomes das dimensões e dos polos vêm do config do

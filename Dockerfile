@@ -29,6 +29,8 @@ WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
+# Escudos das casas e logo do app (public/casas): o standalone não copia public/ sozinho.
+COPY --from=build /app/public ./public
 # As migrations viajam NA IMAGEM (#81): o deploy recebe só a tag, e o que
 # aplica o schema tem de ser exatamente o que veio com aquela tag. Mantê-las
 # num checkout do repositório no servidor criaria uma segunda fonte de

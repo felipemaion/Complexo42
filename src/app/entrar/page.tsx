@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AppLogo } from "@/modules/houses/components/house-shield";
 import { instance } from "@config/instance";
 import { sendMagicLink, signInWithGoogle } from "@/server/auth/actions";
 import { parseAuthErrorCode } from "@/server/auth/errors";
@@ -24,6 +25,7 @@ export default async function LoginPage({ searchParams }: Props) {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 p-6">
       <header className="flex flex-col gap-2">
+        <AppLogo name={instance.name} size={96} />
         <h1 className="text-3xl font-bold">{text.title}</h1>
         <p className="text-lg">{text.intro}</p>
       </header>
