@@ -13,6 +13,11 @@ umask 077
 
 DEST=${1:?uso: gen-secrets.sh <arquivo-destino> <site-url> <nome-do-ambiente> [--force]}
 SITE=${2:?falta a SITE_URL do ambiente}
+# Barra final envenena dois consumidores: o compose monta
+# `${SITE_URL}/auth/v1`, e o callback do OAuth no GoTrue e concatenacao de
+# string -- `https://site/` daria `https://site//auth/v1/callback`. O
+# URI_ALLOW_LIST abaixo tem o mesmo problema (`https://site//**`).
+SITE=${SITE%/}
 AMB=${3:?falta o nome do ambiente (ex.: complexo42stg)}
 FORCE=${4:-}
 

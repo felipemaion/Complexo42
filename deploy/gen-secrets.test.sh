@@ -129,5 +129,15 @@ fi
 [ "$(val JWT_SECRET)" != "$(grep -m1 '^JWT_SECRET=' "$TMPD/env2" | cut -d= -f2-)" ] \
   && ok "duas geracoes produzem segredos distintos" || falha "segredo repetido entre geracoes"
 
+# Barra final no SITE_URL: o compose monta `${SITE_URL}/auth/v1` e o callback
+# do OAuth no GoTrue e concatenacao de string, entao `https://site/` daria
+# `https://site//auth/v1/callback`. O URI_ALLOW_LIST tem o mesmo problema.
+ENVB="$TMPD/env-barra"
+"$AQUI/gen-secrets.sh" "$ENVB" "https://exemplo.invalid/" "ambtest" > /dev/null
+SB=$(grep -m1 '^SITE_URL=' "$ENVB" | cut -d= -f2-)
+UB=$(grep -m1 '^URI_ALLOW_LIST=' "$ENVB" | cut -d= -f2-)
+checa "barra final some do SITE_URL" "$SB" "https://exemplo.invalid"
+checa "e o URI_ALLOW_LIST nao fica com //" "$UB" "https://exemplo.invalid/**"
+
 echo
 [ "$FALHAS" -eq 0 ] && { echo "TODOS OS TESTES PASSARAM"; exit 0; } || { echo "$FALHAS teste(s) falharam"; exit 1; }

@@ -235,30 +235,44 @@ jobs:
           fi
           echo "ok: nenhum pedido de privilegio no compose do Supabase"
 
-      # O link do e-mail do GoTrue e API_EXTERNAL_URL + MAILER_URLPATHS_*. Se a
-      # base voltar a ser a raiz do site, o magic link sai apontando para o app
-      # em vez do Auth e o login inteiro para -- e NENHUM teste quebra, porque o
-      # e-mail so e montado com o GoTrue de verdade rodando. Por isso a trava
-      # mora aqui. Custou um ciclo de teste de ponta a ponta em 2026-11-27.
+      # O link do e-mail do GoTrue e API_EXTERNAL_URL.ResolveReference(path),
+      # com `path` vindo dos MAILER_URLPATHS_*. Como o default `/verify` e
+      # ABSOLUTO, ele descarta o caminho da base: sem os quatro explicitos, o
+      # e-mail aponta para o app e o login inteiro para. E NENHUM teste pega --
+      # o link so e montado com o GoTrue de verdade enviando e-mail. Por isso a
+      # trava mora aqui. A versao anterior desta trava checava a coisa errada
+      # (e chegou a PROIBIR os MAILER_URLPATHS_*, que sao o conserto); custou um
+      # deploy e um teste de ponta a ponta em 2026-11-27 descobrir.
       - name: O link de e-mail do GoTrue aponta para o Auth, não para o app
         run: |
-          linha=$(grep -nE '^[[:space:]]*API_EXTERNAL_URL:' deploy/docker-compose.supabase.yml || true)
-          if [ -z "$linha" ]; then
-            echo "ERRO: API_EXTERNAL_URL desapareceu do compose do Supabase"
-            exit 1
+          arq=deploy/docker-compose.supabase.yml
+          falhou=
+
+          # A base serve ao callback do OAuth (concatenacao de string em
+          # internal/api/external.go), nao ao e-mail.
+          base=$(grep -nE '^[[:space:]]*API_EXTERNAL_URL:[[:space:]]*\$\{SITE_URL[^}]*\}/auth/v1[[:space:]]*$' "$arq" || true)
+          if [ -z "$base" ]; then
+            echo "ERRO: esperava API_EXTERNAL_URL: \${SITE_URL...}/auth/v1 (callback do OAuth). Achei:"
+            grep -nE '^[[:space:]]*API_EXTERNAL_URL:' "$arq" || echo "  (a linha nao existe)"
+            falhou=1
+          else
+            echo "ok: $base"
           fi
-          if ! printf '%s\n' "$linha" | grep -q '/auth/v1[[:space:]]*$'; then
-            echo "ERRO: API_EXTERNAL_URL precisa terminar em /auth/v1. Esta assim:"
-            printf '%s\n' "$linha"
-            exit 1
-          fi
-          # Os MAILER_URLPATHS_* sao concatenados a essa base. Com /auth/v1 ja
-          # na base, defini-los e o jeito de produzir /auth/v1/auth/v1/verify.
-          if grep -nE '^[[:space:]]*(GOTRUE_)?MAILER_URLPATHS_' deploy/docker-compose.supabase.yml; then
-            echo "ERRO: MAILER_URLPATHS_* definido junto com a base /auth/v1 -- caminho dobrado"
-            exit 1
-          fi
-          echo "ok: $linha"
+
+          # Os quatro caminhos do e-mail. O magic link reusa o de RECOVERY, e
+          # deixar um de fora quebra um fluxo so, em silencio.
+          for chave in INVITE CONFIRMATION RECOVERY EMAIL_CHANGE; do
+            linha=$(grep -nE "^[[:space:]]*GOTRUE_MAILER_URLPATHS_$chave:[[:space:]]*/auth/v1/verify[[:space:]]*\$" "$arq" || true)
+            if [ -z "$linha" ]; then
+              echo "ERRO: GOTRUE_MAILER_URLPATHS_$chave precisa ser /auth/v1/verify. Achei:"
+              grep -nE "^[[:space:]]*GOTRUE_MAILER_URLPATHS_$chave:" "$arq" || echo "  (a linha nao existe)"
+              falhou=1
+            else
+              echo "ok: $linha"
+            fi
+          done
+
+          [ -z "$falhou" ] || exit 1
 
       # O GoTrue CAI EM SILENCIO no template padrao (em ingles) quando a URL do
       # template nao responde, ou quando a variavel some: o login continua
