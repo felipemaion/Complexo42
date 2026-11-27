@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page, type Request } from "@playwright/test";
-import { instance } from "../config/instance";
 import { scoreQuestionnaire, type Answers } from "../src/modules/questionnaire/domain/score";
 import type { QuestionnaireConfig } from "../src/modules/questionnaire/domain/schema";
 
@@ -273,6 +272,8 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
 
   // Casa do polo oposto nos dois eixos: todas as respostas "muito a" contradizem o que ela espera.
   const opposite = questionnaire.houseByPoles.bb;
+  // O nome da casa é o primeiro texto do cartão (o config/instance não carrega sob o Playwright: usa server-only).
+  const oppositeName = (await page.getByTestId(`compare-house-${opposite}`).innerText()).split("\n")[0]!.trim();
   await page.getByTestId(`compare-house-${opposite}`).click();
   const houseItems = questionnaire.axes.house1.itemIds.length + questionnaire.axes.house2.itemIds.length;
   await expect(page.getByTestId("expectation")).toHaveCount(houseItems);
@@ -290,7 +291,7 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
 
   // Confirmar leva à apresentação da casa (escolha direta); aceitar grava como self.
   await page.getByRole("button", { name: "Escolher esta casa" }).click();
-  await expect(page.getByTestId("house-name")).toHaveText(instance.houses.find((h) => h.id === opposite)!.name);
+  await expect(page.getByTestId("house-name")).toHaveText(oppositeName);
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   expect(await houseRows(member.id)).toEqual([expect.objectContaining({ join_method: "self", house_key: opposite })]);
