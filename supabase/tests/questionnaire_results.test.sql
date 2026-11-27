@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(201);
+select plan(205);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -25,7 +25,8 @@ insert into people values
   ('p3',       '00000000-0000-0000-0000-0000000000f6', 'p3@exemplo.org'),       -- ativa
   ('wait',     '00000000-0000-0000-0000-0000000000f7', 'wait@exemplo.org'),     -- na espera
   ('abc_mgr',  '00000000-0000-0000-0000-0000000000f8', 'abc.mgr@exemplo.org'),  -- gestor da incubadora ABC (delegação)
-  ('sp_mgr2',  '00000000-0000-0000-0000-0000000000f9', 'sp.mgr2@exemplo.org');  -- outro gestor de SP (delegado e gestor na unidade da concessão)
+  ('sp_mgr2',  '00000000-0000-0000-0000-0000000000f9', 'sp.mgr2@exemplo.org'),
+  ('p4',       '00000000-0000-0000-0000-0000000000fa', 'p4@exemplo.org');       -- ativa (resultado conclusivo logo após pedido, #199)  -- outro gestor de SP (delegado e gestor na unidade da concessão)
 insert into auth.users (id, email) select id, email from people;
 
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
@@ -61,7 +62,7 @@ insert into public.role_assignments (profile_id, role, unit_id) values
 
 -- Aceite do termo das pessoas que respondem (a espera também, para provar que é o status que barra).
 insert into public.questionnaire_consents (profile_id, term_version)
-select id, 'termo-1' from people where name in ('p1', 'p2', 'p3', 'wait');
+select id, 'termo-1' from people where name in ('p1', 'p2', 'p3', 'p4', 'wait');
 
 
 -- Assinatura do servidor (ADR 0014): a mesma chave do banco, num temp para o teste assinar como o app.
@@ -843,6 +844,17 @@ select is(jsonb_array_length(public.export_own_data() -> 'questionnaire_access_g
   'o export de quem recebeu traz a concessão (e a revogação)');
 select pg_temp.login('abc_mgr');
 select is(pg_temp.results_seen(), 1, 'a concessão da incubadora segue valendo (outra, não revogada)');
+
+-- ---------------------------------------------------------------------------------------
+-- Resultado conclusivo nunca esbarra no limite da fila (#199)
+-- ---------------------------------------------------------------------------------------
+select pg_temp.login('p4');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house1'], 'respA') $$, 'p4 abre um pedido de análise');
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house1'], 'respB') $$, '54000', null, 'renovar o pedido logo depois bate no limite');
+select lives_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AB') $$,
+  'mas um resultado conclusivo logo depois (dentro de 1 hora) é gravado: o limite é só do pedido de análise');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'), 0,
+  '... e fecha o pedido aberto');
 
 select * from finish();
 rollback;
