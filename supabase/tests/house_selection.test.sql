@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(89);
+select plan(111);
 
 truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 
@@ -76,7 +76,10 @@ insert into people values
   ('p_self',    '00000000-0000-0000-0000-0000000000bc'),  -- equipe A; casa encerrada por ela mesma
   ('coord',     '00000000-0000-0000-0000-0000000000bd'),  -- coordenador da casa X no ABC (equipe A)
   ('coord2',    '00000000-0000-0000-0000-0000000000be'),  -- outro coordenador da casa X; exclui a conta
-  ('p_removed2','00000000-0000-0000-0000-0000000000bf');  -- equipe A; tirada da casa por coord2
+  ('p_removed2','00000000-0000-0000-0000-0000000000bf'),  -- equipe A; tirada da casa por coord2
+  ('p_lock',    '00000000-0000-0000-0000-0000000000c0'),  -- equipe A; trava de 4 meses, troca da própria pessoa
+  ('p_lock2',   '00000000-0000-0000-0000-0000000000c1'),  -- equipe A; casa-w, fora do alcance de coord
+  ('p_lock3',   '00000000-0000-0000-0000-0000000000c2');  -- equipe A; a coordenação troca a casa
 grant select on people to authenticated;
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
 declare
@@ -116,7 +119,8 @@ from (values ('br.sp.abc.team_a', 'p_team'), ('br.sp.zl.team_z', 'p_zl'),
              ('br.sp.abc.team_a', 'p_q'), ('br.sp.abc.team_a', 'p_removed'),
              ('br.sp.abc.team_a', 'p_self'), ('br.sp.abc.team_a', 'p_wait'),
              ('br.sp.abc.team_a', 'p_pend'), ('br.sp.abc.team_a', 'coord'),
-             ('br.sp.abc.team_a', 'p_removed2')) as u(path, name);
+             ('br.sp.abc.team_a', 'p_removed2'), ('br.sp.abc.team_a', 'p_lock'),
+             ('br.sp.abc.team_a', 'p_lock2'), ('br.sp.abc.team_a', 'p_lock3')) as u(path, name);
 insert into public.role_assignments (profile_id, role, unit_id, house_key) values
   (pg_temp.person('coord'), 'house_coordinator', pg_temp.unit('br.sp.abc'), 'casa-x'),
   (pg_temp.person('coord2'), 'house_coordinator', pg_temp.unit('br.sp.abc'), 'casa-x');
@@ -193,8 +197,8 @@ select isnt(public.accept_house('casa-y', 'self', 'termo-1'), null,
 select is(public.accept_house('casa-y', 'self', null),
   (select id from public.house_members where left_at is null),
   'aceitar a mesma casa de novo devolve o mesmo vínculo (clique repetido)');
-select throws_ok($$ select public.accept_house('casa-w', 'self', null) $$, '23505', null,
-  'com a casa já aceita, outra casa é recusada (troca é com a coordenação)');
+select throws_ok($$ select public.accept_house('casa-w', 'self', null) $$, 'C7603', null,
+  'com a casa já aceita e a trava de 4 meses ativa, outra casa é recusada');
 select set_eq(
   $$ select house_key from public.house_members $$,
   array['casa-y'],
@@ -208,8 +212,8 @@ select pg_temp.login('p_team');
 select is(public.accept_house('casa-y', 'self', null),
   (select id from public.house_members where left_at is null),
   'casa desativada depois do aceite: repetir o aceite devolve o mesmo vínculo (idempotente)');
-select throws_ok($$ select public.accept_house('casa-z', 'self', null) $$, '23505', null,
-  'com a casa já aceita, outra casa (mesmo inexistente) é recusada como troca');
+select throws_ok($$ select public.accept_house('casa-z', 'self', null) $$, 'C7603', null,
+  'com a trava ativa, outra casa (mesmo inexistente) é recusada como troca');
 reset role;
 update public.houses set active = true where key = 'casa-y';
 set local role authenticated;
@@ -578,6 +582,100 @@ select ok(
   and has_column_privilege('authenticated', 'public.house_members', 'left_at', 'update'),
   'aceite, casa, versão e quem encerrou só pelas funções e triggers; a coordenação só encerra'
 );
+
+-- ---------------------------------------------------------------------------------------
+-- Trava de 4 meses para trocar de casa (a pessoa) e troca pela coordenação (a qualquer momento)
+-- ---------------------------------------------------------------------------------------
+select has_column('public', 'house_members', 'locked_until', 'house_members guarda até quando a casa está travada');
+
+select pg_temp.login('p_lock');
+select isnt(public.accept_house('casa-x', 'self', null), null, 'p_lock define a casa X');
+select ok(
+  (select locked_until between now() + interval '4 months' - interval '1 minute'
+                           and now() + interval '4 months' + interval '1 minute'
+   from public.house_members where profile_id = pg_temp.person('p_lock') and left_at is null),
+  'a trava vai até 4 meses depois (hora do servidor)'
+);
+select throws_ok($$ select public.accept_house('casa-y', 'self', null) $$, 'C7603', null,
+  'dentro dos 4 meses a pessoa não troca de casa');
+select is(public.accept_house('casa-x', 'self', null),
+  (select id from public.house_members where profile_id = pg_temp.person('p_lock') and left_at is null),
+  'repetir a mesma casa continua devolvendo o vínculo, mesmo travada');
+select throws_ok(
+  $$ update public.house_members set locked_until = now() where profile_id = pg_temp.person('p_lock') $$,
+  '42501', null, 'a pessoa não altera a trava direto na tabela'
+);
+select throws_ok(
+  $$ select public.coordination_set_house(pg_temp.person('p_lock'), 'casa-y') $$,
+  '42501', null, 'a pessoa não troca a própria casa pela função da coordenação'
+);
+
+-- Passados os 4 meses (relógio do banco; aqui a trava é antecipada pelo dono).
+reset role;
+update public.house_members set locked_until = now() - interval '1 day'
+where profile_id = pg_temp.person('p_lock') and left_at is null;
+set local role authenticated;
+select pg_temp.login('p_lock');
+select isnt(public.accept_house('casa-y', 'self', null), null, 'passada a trava, a pessoa troca para a casa Y');
+select is(
+  (select array_agg(house_key order by house_key) from public.house_members
+   where profile_id = pg_temp.person('p_lock') and left_at is null),
+  array['casa-y'], 'um só vínculo aberto, na casa nova'
+);
+select is(
+  (select ended_by from public.house_members
+   where profile_id = pg_temp.person('p_lock') and house_key = 'casa-x'),
+  pg_temp.person('p_lock'), 'o vínculo antigo foi encerrado pela própria pessoa'
+);
+select is(
+  (select count(*)::int from public.audit_log
+   where event = 'house_changed' and actor_id = pg_temp.person('p_lock')
+     and target_id = pg_temp.person('p_lock') and house_key = 'casa-y' and reason = 'self'),
+  1, 'a troca vai para o audit_log, com quem trocou'
+);
+select ok(
+  (select locked_until > now() + interval '4 months' - interval '1 minute'
+   from public.house_members where profile_id = pg_temp.person('p_lock') and left_at is null),
+  'depois da troca a trava recomeça'
+);
+select throws_ok($$ select public.accept_house('casa-x', 'self', null) $$, 'C7603', null,
+  'nova troca logo em seguida é recusada');
+
+-- A coordenação troca a qualquer momento, mesmo dentro da trava, só com alcance sobre a pessoa.
+select pg_temp.login('p_lock2');
+select isnt(public.accept_house('casa-w', 'self', null), null, 'p_lock2 define a casa W');
+select pg_temp.login('p_lock3');
+select isnt(public.accept_house('casa-x', 'self', null), null, 'p_lock3 define a casa X');
+select pg_temp.login('coord');
+select throws_ok(
+  $$ select public.coordination_set_house(pg_temp.person('p_lock2'), 'casa-y') $$,
+  '42501', null, 'sem alcance sobre a pessoa, a coordenação não troca a casa'
+);
+select throws_ok(
+  $$ select public.coordination_set_house(pg_temp.person('p_lock3'), 'casa-off') $$,
+  'P0002', null, 'a casa nova precisa existir e estar ativa'
+);
+select isnt(public.coordination_set_house(pg_temp.person('p_lock3'), 'casa-y'), null,
+  'a coordenação com alcance troca a casa dentro da trava');
+select is(
+  (select house_key from public.house_members where profile_id = pg_temp.person('p_lock3') and left_at is null),
+  'casa-y', 'a pessoa passa a estar na casa nova'
+);
+select is(
+  (select count(*)::int from public.audit_log
+   where event = 'house_changed' and actor_id = pg_temp.person('coord')
+     and target_id = pg_temp.person('p_lock3') and house_key = 'casa-y' and reason = 'coordination'),
+  1, 'a troca da coordenação vai para o audit_log, com quem trocou'
+);
+select ok(
+  (select locked_until between now() + interval '4 months' - interval '1 minute'
+                           and now() + interval '4 months' + interval '1 minute'
+   from public.house_members where profile_id = pg_temp.person('p_lock3') and left_at is null),
+  'a troca da coordenação mantém a trava original'
+);
+select pg_temp.login('p_lock3');
+select throws_ok($$ select public.accept_house('casa-x', 'self', null) $$, 'C7603', null,
+  'depois da troca pela coordenação a pessoa continua travada (não vira "removida")');
 
 select * from finish();
 rollback;
