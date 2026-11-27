@@ -1,10 +1,9 @@
 export {
-  axes,
-  defaultTieBreak,
+  axisKeys,
   parseQuestionnaire,
   QuestionnaireConfigError,
   questionnaireSchema,
-  temperaments,
+  toPublicQuestionnaire,
 } from "./domain/schema";
 export { QuestionnaireAnswerError, scoreQuestionnaire } from "./domain/score";
 export { loadQuestionnaire } from "./server/load";
@@ -15,8 +14,8 @@ export type {
   Axis,
   Pole,
   QuestionnaireConfig,
+  PublicQuestionnaire,
   QuestionnaireItem,
   QuestionnaireResult,
   ReadText,
-  Temperament,
 } from "./types";

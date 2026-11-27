@@ -33,11 +33,12 @@ describe("respostas do questionário só no aparelho", () => {
     for (const file of files) expect([file, findForbidden(readFileSync(join(CLIENT_DIR, file), "utf8"))]).toEqual([file, []]);
   });
 
-  it("as únicas chamadas ao servidor levam a casa e a forma de entrada, ou a versão do termo", () => {
+  it("as únicas chamadas ao servidor levam as respostas (para o servidor pontuar), a casa com a forma de entrada ou a versão do termo; nunca casa nem totem do resultado", () => {
     const flow = readFileSync(join(CLIENT_DIR, "house-flow.tsx"), "utf8");
     const calls = [...flow.matchAll(/await (\w+Action)\(([^)]*)\)/g)].map((m) => `${m[1]}(${m[2]})`);
     expect(calls).toEqual([
       "recordConsentAction({ termVersion: questionnaire.consentTermVersion })",
+      "submitAnswersAction({ answers })",
       "acceptHouseAction({ houseId, joinMethod })",
     ]);
   });
@@ -45,5 +46,14 @@ describe("respostas do questionário só no aparelho", () => {
   it("a guarda acusa um componente que grava as respostas (prova de que funciona)", () => {
     expect(findForbidden("localStorage.setItem('r', JSON.stringify(answers));")).not.toEqual([]);
     expect(findForbidden("// localStorage citado em comentário")).toEqual([]);
+  });
+});
+
+describe("a chave do questionário não chega ao navegador (ADR 0014 §1)", () => {
+  it("os componentes não importam a pontuação nem o config completo", () => {
+    for (const file of readdirSync(CLIENT_DIR).filter((f) => f.endsWith(".tsx"))) {
+      const source = readFileSync(join(CLIENT_DIR, file), "utf8");
+      expect(source, file).not.toMatch(/scoreQuestionnaire|QuestionnaireConfig|houseByPoles|tieBreakItems/);
+    }
   });
 });

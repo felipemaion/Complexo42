@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { Answers } from "@/modules/questionnaire";
 import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "./flow";
 
-const suggested: Answers[] = [];
-const ctx: FlowContext = {
-  itemIds: ["q1", "q2", "q3"],
-  suggest: (answers) => {
-    suggested.push(answers);
-    return "casa-sugerida";
-  },
-};
+const ctx: FlowContext = { itemIds: ["q1", "q2", "q3"] };
+const answerAll: FlowEvent[] = [
+  { type: "knows", value: false },
+  { type: "consent_accepted" },
+  { type: "answer", value: "a" },
+  { type: "answer", value: "both" },
+  { type: "answer", value: "b" },
+];
 
 function run(events: FlowEvent[], from: FlowState = initialFlow): FlowState {
   return events.reduce((state, event) => nextFlow(state, event, ctx), from);
@@ -34,8 +33,52 @@ describe("fluxo da escolha da casa", () => {
     expect(run(events).step).toEqual({ kind: "question", index: 2 });
     events.push({ type: "answer", value: "b" });
     const end = run(events);
-    expect(end.step).toEqual({ kind: "presentation", houseId: "casa-sugerida", method: "questionnaire" });
-    expect(suggested.at(-1)).toEqual({ q1: "a", q2: "both", q3: "b" });
+    expect(end.step).toEqual({ kind: "submit" });
+    expect(end.answers).toEqual({ q1: "a", q2: "both", q3: "b" });
+    expect(nextFlow(end, { type: "result_recorded", houseId: "casa-sugerida" }, ctx).step).toEqual({
+      kind: "presentation",
+      houseId: "casa-sugerida",
+      method: "questionnaire",
+    });
+  });
+
+  describe("depois da última pergunta (ADR 0014)", () => {
+    it("o servidor devolve a casa: segue para a apresentação da casa sugerida", () => {
+      const submitting = run(answerAll);
+      expect(nextFlow(submitting, { type: "result_recorded", houseId: "casa-x" }, ctx).step).toEqual({
+        kind: "presentation",
+        houseId: "casa-x",
+        method: "questionnaire",
+      });
+    });
+
+    it("o servidor abriu o pedido de análise: segue para a análise, sem casa atribuída", () => {
+      const submitting = run(answerAll);
+      expect(nextFlow(submitting, { type: "analysis_requested" }, ctx).step).toEqual({ kind: "analysis" });
+    });
+
+    it("respostas do servidor fora do envio não mudam nada", () => {
+      const asking = run([{ type: "knows", value: false }]);
+      expect(nextFlow(asking, { type: "result_recorded", houseId: "casa-x" }, ctx)).toBe(asking);
+      expect(nextFlow(asking, { type: "analysis_requested" }, ctx)).toBe(asking);
+    });
+
+    it("falha ao enviar volta à última pergunta, mantendo as respostas", () => {
+      const submitting = run(answerAll);
+      const failed = nextFlow(submitting, { type: "submit_failed" }, ctx);
+      expect(failed).toEqual({ step: { kind: "question", index: 2 }, answers: { q1: "a", q2: "both", q3: "b" } });
+    });
+
+    it("durante o envio, voltar não faz nada", () => {
+      const submitting = run(answerAll);
+      expect(nextFlow(submitting, { type: "back" }, ctx)).toBe(submitting);
+    });
+
+    it("da análise, voltar leva à última pergunta; escolher a casa direto descarta as respostas", () => {
+      const analysis = nextFlow(run(answerAll), { type: "analysis_requested" }, ctx);
+      expect(nextFlow(analysis, { type: "back" }, ctx).step).toEqual({ kind: "question", index: 2 });
+      expect(nextFlow(analysis, { type: "choose_other" }, ctx)).toEqual({ step: { kind: "activities" }, answers: {} });
+    });
   });
 
   it("recusar o termo leva à escolha direta, sem respostas", () => {
@@ -54,26 +97,14 @@ describe("fluxo da escolha da casa", () => {
   });
 
   it("voltar da casa sugerida volta à última pergunta; da casa escolhida, à lista", () => {
-    const answered = run([
-      { type: "knows", value: false },
-      { type: "consent_accepted" },
-      { type: "answer", value: "a" },
-      { type: "answer", value: "a" },
-      { type: "answer", value: "a" },
-    ]);
+    const answered = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-sugerida" }, ctx);
     expect(nextFlow(answered, { type: "back" }, ctx).step).toEqual({ kind: "question", index: 2 });
     const chosen = run([{ type: "knows", value: true }, { type: "activity_chosen", houseId: "x" }]);
     expect(nextFlow(chosen, { type: "back" }, ctx).step).toEqual({ kind: "activities" });
   });
 
   it("escolher outra casa leva à lista e descarta as respostas", () => {
-    const answered = run([
-      { type: "knows", value: false },
-      { type: "consent_accepted" },
-      { type: "answer", value: "a" },
-      { type: "answer", value: "b" },
-      { type: "answer", value: "both" },
-    ]);
+    const answered = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-sugerida" }, ctx);
     const other = nextFlow(answered, { type: "choose_other" }, ctx);
     expect(other).toEqual({ step: { kind: "activities" }, answers: {} });
     expect(nextFlow(other, { type: "activity_chosen", houseId: "casa-c" }, ctx).step).toEqual({

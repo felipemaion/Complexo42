@@ -2,7 +2,10 @@
 // `server-only`: o build do Next falha se um Client Component importar este módulo.
 import "server-only";
 import { decryptWith, emailBlindIndexWith, encryptWith, reencryptWith, whatsappBlindIndexWith, type FieldContext } from "./field";
+import { getEnv } from "../env";
+import { FieldCryptoError } from "./errors";
 import { getKeyring } from "./keys";
+import { signMessage } from "./result-signature";
 
 export { FieldCryptoError, type FieldCryptoErrorCode } from "./errors";
 export { keyVersionOf, normalizeE164, normalizeEmail, type FieldContext } from "./field";
@@ -31,3 +34,11 @@ export async function whatsappBlindIndex(whatsappE164: string): Promise<string> 
 export async function emailBlindIndex(email: string): Promise<string> {
   return emailBlindIndexWith(await getKeyring(), email);
 }
+
+/** Assina o resultado do questionário para o banco conferir (ADR 0014 §1). Falha fechado sem a chave. */
+export function signQuestionnaireMessage(message: string): string {
+  const key = getEnv().QUESTIONNAIRE_SIGNING_KEY;
+  if (!key) throw new FieldCryptoError("missing_key");
+  return signMessage(key, message);
+}
+

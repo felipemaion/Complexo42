@@ -1,5 +1,8 @@
 export type { FlowContext, FlowEvent, FlowState, JoinMethod, Step } from "./domain/flow";
 
+/** Onde o valor cifrado mora (AAD da decifragem, ADR 0003 §3). */
+export type CipherContext = { table: string; column: string; rowId: string };
+
 /** Motivo de recusa mostrado na tela (texto em `houseSelection.errors` da config). */
 export type HouseErrorCode =
   | "unavailable"
@@ -7,9 +10,19 @@ export type HouseErrorCode =
   | "not_active"
   | "stale_consent"
   | "removed_by_coordination"
+  | "rate_limited"
   | "failed";
 
 export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCode };
+
+/**
+ * Resposta ao envio das respostas do questionário (ADR 0014): a casa sugerida (nunca o totem) ou
+ * a abertura do pedido de análise, quando o resultado foi inconclusivo.
+ */
+export type SubmitAnswersResult =
+  | { ok: true; outcome: "recorded"; houseId: string }
+  | { ok: true; outcome: "analysis" }
+  | { ok: false; error: HouseErrorCode };
 
 /**
  * O subconjunto do cliente do Supabase que este módulo usa: **o cliente do servidor com o JWT

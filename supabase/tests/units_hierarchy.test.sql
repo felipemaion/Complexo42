@@ -6,7 +6,7 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(44);
 
-truncate public.role_assignments, public.unit_members, public.house_members, public.units;
+truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 
 -- Este arquivo não troca de papel (roda todo como dono do banco), então a busca pode ser
 -- feita na hora: os caminhos mudam quando a árvore é movida. Caminho desconhecido falha

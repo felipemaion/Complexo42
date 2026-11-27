@@ -4,7 +4,7 @@
   marcados com [?] ainda dependem de confirmação.
 - **Data:** 2026-11-18
 - **Complementa:** ADR 0002 (permissões), ADR 0005 (hierarquia genérica) e ADR 0007
-  (equipes e avaliação).
+  (equipes e avaliação). O §2.1 foi reescrito pelo ADR 0014.
 
 ## Contexto
 
@@ -73,41 +73,35 @@ território. Daqui continuam valendo:
 - **Uma casa e uma equipe por pessoa ao mesmo tempo.**
 - **A escolha da casa**, com `join_method` (`self` ou `questionnaire`) e `accepted_at`. Sem
   aceite, o vínculo não conta.
-- **O questionário**, enviado pelo stakeholder em 2026-11-18 (detalhes no §2.1). A plataforma
-  guarda **só a casa sugerida**, e não as respostas, que formariam um perfil psicológico
-  desnecessário (coleta mínima, LGPD).
+- **O questionário** (§2.1 e ADR 0014). A plataforma guarda **a casa sugerida e o totem**, e
+  não as respostas, que formariam um perfil psicológico desnecessário (coleta mínima, LGPD).
+  A exceção é o resultado inconclusivo, em que a coordenação nacional precisa das respostas e
+  elas ficam só até o pedido ser resolvido. O totem e as respostas ficam cifrados (ADR 0003).
 - **Os nomes das casas e o texto de "primeiros passos"** (história e objetivos, com links de
   vídeo), que ficam em `config/`. Não há nomes fixos no código (R17).
 
 ### 2.1 Questionário das casas
 
-**Formato recebido:**
-- **26 perguntas** de escolha entre duas alternativas (a/b). A pessoa pode marcar **as duas**
-  quando estiver indecisa.
-- **Quatro eixos** de temperamento, no modelo de Keirsey: extroversão × introversão,
-  sensação × intuição, pensamento × sentimento e julgamento × percepção.
-- **Um termo de consentimento** próprio.
+**A chave, os eixos, o totem, o desempate e o resultado inconclusivo estão no ADR 0014**, que
+substitui o formato de 26 perguntas e quatro eixos de temperamento recebido em 2026-11-18. O
+questionário atual tem 28 perguntas de escolha entre duas alternativas (a/b), com a opção de
+marcar **as duas**, e um termo de consentimento próprio.
 
-A chave de correção e a correspondência entre temperamento e casa ainda vão ser confirmadas
-[?] (PERGUNTAS_STAKEHOLDER 75–79).
-
-**Decisões de implementação:**
-- **A pontuação roda no navegador.** O servidor recebe só a casa sugerida, e as respostas
-  nunca saem do dispositivo: não vão para a rede, para logs nem para o `localStorage`. Não é
-  uma questão de segurança, porque a pessoa pode escolher qualquer casa de qualquer forma.
-- **A pontuação é uma função pura,** configurável e coberta por testes: quais itens contam
-  para cada eixo, qual alternativa corresponde a cada polo, o critério de desempate, o
-  tratamento de "as duas" e a correspondência entre temperamento e casa.
+**Decisões que continuam valendo:**
+- **A pontuação roda no servidor** (ADR 0014 §1), é uma função pura, configurável e coberta por
+  testes. O navegador manda só as respostas, que ficam só em memória (nunca no log nem no
+  `localStorage`); o servidor guarda a casa sugerida e o totem. Só no resultado inconclusivo as
+  respostas são guardadas, para a coordenação nacional (ADR 0014 §3).
 - **Interface:**
-  - uma pergunta por tela, com o progresso visível ("3 de 26") e botões grandes "a", "b" e
+  - uma pergunta por tela, com o progresso visível ("3 de 28") e botões grandes "a", "b" e
     "as duas";
   - o botão de voltar aparece sempre;
   - o resultado mostra a casa sugerida e o botão **"escolher outra casa"**.
 - **O aceite do termo** é registrado com a versão do texto e a data, sem assinatura nem
   e-mail, porque a conta já identifica a pessoa. Quem recusar o termo escolhe a casa
   diretamente (`join_method = self`).
-- **O texto das perguntas e do termo não entra no repositório público** enquanto a licença
-  não for confirmada (pergunta 73).
+- **O texto das perguntas, a chave e o termo não entram no repositório público** enquanto a
+  licença não for confirmada (pergunta 73).
   - Em `config/` fica um **questionário fictício** com o mesmo formato, usado no
     desenvolvimento e nos testes.
   - O questionário real é um arquivo instalado só no servidor (`data/config/`), validado pelo

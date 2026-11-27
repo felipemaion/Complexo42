@@ -40,6 +40,9 @@ async function dbRows() {
     memberships: [],
     house_memberships: [],
     questionnaire_consents: [],
+    questionnaire_result: null,
+    house_analysis_requests: [],
+    questionnaire_access_grants: [],
     consent_acceptances: [],
     roles: [],
     audit_events: [{ event: "data_exported", reason: null, term_version: null, house_key: null, created_at: "2026-11-19T12:00:00+00:00" }],
@@ -65,6 +68,39 @@ function setup(result: { data?: unknown; error?: unknown }) {
 }
 
 describe("exportOwnData", () => {
+  it("decifra de verdade o totem e as respostas do questionário (AAD da linha da pessoa)", async () => {
+    const base = await dbRows();
+    const rows = {
+      ...base,
+      questionnaire_result: {
+        house_key: "casa-qualquer",
+        totem_enc: await enc("PA", "questionnaire_results", "totem_enc"),
+        term_version: "termo-1",
+        source: "questionnaire",
+        created_at: "2026-11-19T11:25:00+00:00",
+      },
+      house_analysis_requests: [
+        {
+          status: "open",
+          resolution: null,
+          term_version: "termo-1",
+          tied_axes: ["house1"],
+          answers_enc: await enc(JSON.stringify({ q01: "a", q02: "both" }), "house_analysis_requests", "answers_enc"),
+          created_at: "2026-11-19T11:26:00+00:00",
+          resolved_at: null,
+        },
+      ],
+    };
+    const { client, deps } = setup({ data: rows });
+    const out = await exportOwnData(client, { id: USER, email: EMAIL }, deps);
+    expect(out.status).toBe("ok");
+    if (out.status !== "ok") return;
+    const file = JSON.parse(out.body);
+    expect(file.resultadoDoQuestionario.totem).toBe("PA");
+    expect(file.pedidosDeAnalise[0].respostas).toEqual({ q01: "a", q02: "both" });
+    expect(out.body).not.toContain("totem_enc");
+  });
+
   it("devolve o arquivo decifrado e loga só o código do evento", async () => {
     const { client, deps, lines, calls } = setup({ data: await dbRows() });
     const out = await exportOwnData(client, { id: USER, email: EMAIL }, deps);

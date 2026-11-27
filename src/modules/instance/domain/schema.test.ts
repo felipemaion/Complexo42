@@ -109,6 +109,10 @@ const valid = {
     videosTitle: "t",
     acceptButton: "t",
     chooseOtherButton: "t",
+    submitting: "t",
+    analysisTitle: "t",
+    analysisMessage: "t",
+    analysisChooseButton: "t",
     acceptedTitle: "t",
     homeLink: "t",
     errors: {
@@ -117,6 +121,7 @@ const valid = {
       not_active: "t",
       stale_consent: "t",
       removed_by_coordination: "t",
+      rate_limited: "t",
       failed: "t",
     },
   },

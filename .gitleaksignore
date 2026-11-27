@@ -1,0 +1,5 @@
+# Chave de assinatura de DESENVOLVIMENTO do questionário, no commit 4416fe2 (já trocada por um valor
+# de baixa entropia). Não é segredo: o seed não roda em produção.
+4416fe2d790b63b8888dec6deaaa8f7c53fa538a:playwright.config.ts:generic-api-key:65
+4416fe2d790b63b8888dec6deaaa8f7c53fa538a:supabase/seed.sql:generic-api-key:65
+797eaacaa27cdc714c7e30daf34459ec8692336b:supabase/tests/questionnaire_results.test.sql:generic-api-key:341

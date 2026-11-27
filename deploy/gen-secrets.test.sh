@@ -18,7 +18,7 @@ checa "modo 0600" "$(stat -c %a "$ENVF" 2>/dev/null || stat -f %Lp "$ENVF")" "60
 
 for k in COMPOSE_PROJECT_NAME KONG_ALIAS POSTGRES_PASSWORD AUTHENTICATOR_PASSWORD \
          AUTH_ADMIN_PASSWORD JWT_SECRET ANON_KEY SERVICE_ROLE_KEY \
-         FIELD_ENCRYPTION_KEY BLIND_INDEX_KEY SITE_URL URI_ALLOW_LIST; do
+         FIELD_ENCRYPTION_KEY BLIND_INDEX_KEY QUESTIONNAIRE_SIGNING_KEY SITE_URL URI_ALLOW_LIST; do
   grep -q "^$k=." "$ENVF" && ok "$k presente e nao vazio" || falha "$k ausente ou vazio"
 done
 # Login (#9, L5): retorno liberado só para caminhos do próprio site.

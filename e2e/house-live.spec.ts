@@ -82,6 +82,14 @@ async function consents(profileId: string): Promise<{ term_version: string }[]> 
   return (await admin(`/rest/v1/questionnaire_consents?profile_id=eq.${profileId}&select=term_version`)).json();
 }
 
+async function resultRows(profileId: string): Promise<{ house_key: string; totem_enc: string; source: string }[]> {
+  return (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${profileId}&select=house_key,totem_enc,source`)).json();
+}
+type AnalysisRow = { status: string; resolution: string | null; answers_enc: string | null; tied_axes: string[] };
+async function analysisRows(profileId: string): Promise<AnalysisRow[]> {
+  return (await admin(`/rest/v1/house_analysis_requests?profile_id=eq.${profileId}&select=status,resolution,answers_enc,tied_axes`)).json();
+}
+
 /** Grava toda requisição do navegador. As server actions vão com o cabeçalho `Next-Action`. */
 function recordRequests(page: Page): Request[] {
   const all: Request[] = [];
@@ -97,7 +105,7 @@ async function expectNoStorage(page: Page): Promise<void> {
 
 test.describe.configure({ mode: "serial" });
 
-test("não sabe → termo → questionário → casa sugerida → aceitar: só a casa sai do aparelho", async ({ page }) => {
+test("não sabe → termo → questionário → casa sugerida → aceitar: o servidor pontua e o navegador não manda casa nem totem", async ({ page }) => {
   const member = await createMember("q");
   await signIn(page, member.email);
   await page.getByRole("link", { name: "Escolher sua casa" }).click();
@@ -107,10 +115,14 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: só a
   await page.getByRole("button", { name: "Ainda não" }).click();
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+  // A chave (eixos, desempates, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
+  const html = await page.content();
+  for (const secret of ["tieBreakItems", "houseByPoles", "itemIds", "letters"]) expect(html).not.toContain(secret);
 
   const total = questionnaire.items.length;
   const answers: Record<string, "a" | "b" | "both"> = {};
-  const pick = (i: number) => (["a", "b", "both"] as const)[i % 3]!;
+  // Tudo "a", com "as duas" no 4º item: resultado conclusivo (casa 1 e o totem do exemplo).
+  const pick = (i: number) => (i === 3 ? "both" : "a") as "a" | "both";
   const button = (i: number) => {
     const item = questionnaire.items[i]!;
     const choice = pick(i);
@@ -133,28 +145,36 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: só a
       await expect(button(0)).toHaveAttribute("aria-pressed", "true");
       await button(0).click();
     }
+    // Enquanto a pessoa responde, o navegador não faz requisição nenhuma; a primeira sai ao
+    // concluir a última pergunta (o resultado vai ao servidor).
+    if (i === total - 1) expect(requests.slice(before).map((r) => r.url())).toEqual([]);
     await button(i).click();
     answers[item.id] = pick(i);
   }
-  // Enquanto a pessoa responde, o navegador não faz requisição nenhuma.
-  expect(requests.slice(before).map((r) => r.url())).toEqual([]);
 
-  const expected = scoreQuestionnaire(questionnaire, answers as Answers).houseId;
+  const result = scoreQuestionnaire(questionnaire, answers as Answers);
+  if (result.status !== "ok") throw new Error("o exemplo deveria dar resultado conclusivo");
+  const expected = result.houseId;
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await expect(page.getByRole("button", { name: "Escolher outra casa" })).toBeVisible();
   await expectNoStorage(page);
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  // Só duas chamadas ao servidor: a versão do termo e a casa com a forma de entrada.
+  // Só três chamadas ao servidor: a versão do termo, as respostas (o servidor pontua) e a casa com
+  // a forma de entrada. O navegador nunca manda casa nem totem do resultado.
   expect(actionBodies(requests)).toEqual([
     [{ termVersion: questionnaire.consentTermVersion }],
+    [{ answers }],
     [{ houseId: expected, joinMethod: "questionnaire" }],
   ]);
-  // Nenhuma requisição (URL, cabeçalho ou corpo) leva um id de item ou o texto de uma resposta.
+  // Fora do envio das respostas, nenhuma requisição (URL, cabeçalho ou corpo) leva um id de item
+  // ou o texto de uma resposta; e nenhuma leva o totem.
   const leaks = questionnaire.items.flatMap((item) => [item.id, item.a.text, item.b.text]);
   for (const r of requests) {
     const sent = `${r.url()} ${JSON.stringify(r.headers())} ${r.postData() ?? ""}`;
+    expect(sent).not.toContain(result.totem);
+    if (JSON.stringify(actionBodies([r])) === JSON.stringify([[{ answers }]])) continue;
     for (const leak of leaks) expect(sent, r.url()).not.toContain(leak);
     expect(sent).not.toContain('"both"');
   }
@@ -170,11 +190,57 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: só a
     },
   ]);
   expect(await consents(member.id)).toEqual([{ term_version: questionnaire.consentTermVersion }]);
+  // O totem fica CIFRADO no banco (ADR 0003: v<n>.<iv>.<ct>), nunca em texto puro.
+  const [stored] = await resultRows(member.id);
+  expect(stored).toMatchObject({ house_key: expected, source: "questionnaire" });
+  expect(stored!.totem_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
+  expect(stored!.totem_enc).not.toContain(result.totem);
+  expect(await analysisRows(member.id)).toEqual([]);
+  // O totem é interno: não aparece na tela da casa.
+  await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);
 
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Ainda não" })).toHaveCount(0);
+});
+
+test("resultado inconclusivo: pedido de análise com as respostas, sem casa; escolher direto apaga as respostas", async ({ page }) => {
+  const member = await createMember("i");
+  await signIn(page, member.email);
+  await page.goto("/casa");
+  const requests = recordRequests(page);
+
+  await page.getByRole("button", { name: "Ainda não" }).click();
+  await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+  // "As duas" em tudo empata todos os eixos.
+  for (let i = 0; i < questionnaire.items.length; i++) {
+    await page.getByRole("button", { name: "as duas", exact: true }).click();
+  }
+  await expect(page.getByRole("heading", { name: "Vamos analisar o seu resultado" })).toBeVisible();
+  await expect(page.getByText("Sugerimos esta casa para você")).toHaveCount(0);
+  await expectNoStorage(page);
+
+  // O navegador manda só as respostas; o servidor decide que é inconclusivo. Nenhuma casa foi atribuída.
+  const bodies = actionBodies(requests);
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toEqual([{ answers: Object.fromEntries(questionnaire.items.map((item) => [item.id, "both"])) }]);
+  expect(await houseRows(member.id)).toEqual([]);
+  expect(await resultRows(member.id)).toEqual([]);
+  const [open] = await analysisRows(member.id);
+  expect(open).toMatchObject({ status: "open", resolution: null });
+  // As respostas ficam cifradas no banco, nunca em JSON legível.
+  expect(open!.answers_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
+  expect(open!.answers_enc).not.toContain("both");
+
+  // A pessoa pode escolher a casa direto; o pedido fecha e as respostas somem.
+  await page.getByRole("button", { name: "Escolher a casa direto" }).click();
+  await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  expect(await analysisRows(member.id)).toEqual([
+    { status: "resolved", resolution: "self", answers_enc: null, tied_axes: ["house1", "house2", "totem1", "totem2"] },
+  ]);
 });
 
 test("sabe → atividade → apresentação → escolher outra → aceitar (self), sem termo", async ({ page }) => {

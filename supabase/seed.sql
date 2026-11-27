@@ -57,3 +57,9 @@ on conflict (key) do update set active = true;
 -- é aceita se estiver aqui (ADR 0008 §2.1, #76); na instância real, a do arquivo instalado
 -- entra por migration.
 insert into app.questionnaire_term_versions (version) values ('termo-exemplo-1');
+
+-- Chave de assinatura do resultado do questionário (ADR 0014), SÓ DE DESENVOLVIMENTO: a mesma de
+-- .env.example e do playwright.config.ts. Em produção o seed não roda: a chave é instalada por
+-- quem opera (docs/OPERACAO.md).
+insert into app.server_secrets (name, value)
+values ('questionnaire_signing_key', 'YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=');
