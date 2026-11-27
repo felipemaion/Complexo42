@@ -338,11 +338,11 @@ select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t
     pg_temp.sig(format('result|%s|termo-1|casa-t2|AA|%s', pg_temp.person('p2'), pg_temp.now_s()), '')) $$, '42501', null,
   'chave vazia no banco: falha fechado, mesmo com assinatura feita com a chave vazia');
 reset role;
-update app.server_secrets set value = 'curta-demais-31-caracteres-xxxx' where name = 'questionnaire_signing_key';
+update app.server_secrets set value = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' where name = 'questionnaire_signing_key';
 set local role authenticated;
 select pg_temp.login('p2');
 select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(),
-    pg_temp.sig(format('result|%s|termo-1|casa-t2|AA|%s', pg_temp.person('p2'), pg_temp.now_s()), 'curta-demais-31-caracteres-xxxx')) $$, '42501', null,
+    pg_temp.sig(format('result|%s|termo-1|casa-t2|AA|%s', pg_temp.person('p2'), pg_temp.now_s()), 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')) $$, '42501', null,
   'chave com menos de 32 caracteres: falha fechado');
 reset role;
 delete from app.server_secrets where name = 'questionnaire_signing_key';
