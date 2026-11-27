@@ -273,7 +273,16 @@ services:
       KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml
       KONG_PROXY_LISTEN: 0.0.0.0:8000
       KONG_ADMIN_LISTEN: "off"
-      KONG_PLUGINS: request-transformer,cors,key-auth
+      # O request-termination entrou com o #247: e ele que devolve 404 nas
+      # rotas sensiveis do Auth vindas de fora. SEM ele nesta lista o Kong NAO
+      # SOBE -- recusa o declarativo na partida com "plugin not enabled" -- e
+      # o /auth/v1 inteiro cai, login junto. Aconteceu no staging em
+      # 2026-11-27: 502 por ~4 minutos.
+      #
+      # Esta lista e restritiva de proposito (o padrao do Kong e `bundled`,
+      # com dezenas de plugins). Todo plugin usado no kong.yml tem de estar
+      # aqui, e o CI confere os dois lados.
+      KONG_PLUGINS: request-transformer,cors,key-auth,request-termination
       KONG_LOG_LEVEL: notice
     volumes:
       - ./kong.yml:/etc/kong/kong.yml:ro
