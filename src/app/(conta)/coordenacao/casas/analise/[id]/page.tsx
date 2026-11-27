@@ -68,7 +68,7 @@ export default async function CasePage({
         <SpiderChart
           chart={crossOrder(opened.chart)}
           title={text.queue.chartTitle}
-          houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentLabel: text.queue.chartCurrentHouse }}
+          houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentHouseId: opened.houseId ?? undefined, currentLabel: text.queue.chartCurrentHouse }}
         />
       </section>
       <section className="flex flex-col gap-3" aria-labelledby="case-answers-title">
