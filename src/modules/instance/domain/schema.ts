@@ -251,11 +251,6 @@ export const instanceConfigSchema = z.strictObject({
     chooseOtherButton: text,
     /** Enquanto o resultado é enviado ao servidor, logo depois da última pergunta. */
     submitting: text,
-    /** Resultado inconclusivo (ADR 0014): a coordenação nacional vai analisar. */
-    analysisTitle: text,
-    analysisMessage: text,
-    /** Botão para escolher a casa direto, sem esperar a análise. */
-    analysisChooseButton: text,
     /** Tela de quem já aceitou a casa. */
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
@@ -339,6 +334,8 @@ export const instanceConfigSchema = z.strictObject({
       columnDate: text,
       columnAxes: text,
       kindTotem: text,
+      legacyKey: text,
+      legacyKeyNotice: text,
       openLink: text,
       truncated: text.refine((v) => v.includes("{count}"), "use {count}"),
       unreadableList: text.refine((v) => v.includes("{count}"), "use {count}"),

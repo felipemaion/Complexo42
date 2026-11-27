@@ -106,6 +106,11 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
 > Desde a chave sem empate (#211) as respostas novas sempre dão casa e totem: o app não abre mais pedido de
 > análise nem grava totem pendente. A fila, a resolução e o `totem_state` continuam para os casos já abertos e para
 > a correção pela coordenação. O que segue vale para esses pedidos.
+>
+> **Chave antiga** (#220): pedido aberto cujas respostas não pontuam na chave atual (itens ou escala de outra chave)
+> aparece na fila como "chave antiga" e abre sem respostas, notas nem gráfico; a coordenação escolhe casa e totem e
+> o servidor resolve **sem notas** (`scores_enc` nulo, vazio na assinatura). Respostas que não decifram ou não são
+> inteiros da escala seguem "ilegíveis".
 
 - O servidor abre um **pedido de análise** para a coordenação nacional, com os eixos empatados
   e as **respostas completas**. Há dois tipos: `full` (resultado inconclusivo: a coordenação decide

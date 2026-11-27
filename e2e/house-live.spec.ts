@@ -112,7 +112,7 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await expect(page).toHaveURL(/\/casa$/);
   // O HTML e o payload RSC de /casa, antes de responder, não trazem a chave nem o mapa das casas (ADR 0014 §1).
   const pageSource = await (await page.request.get("/casa")).text();
-  for (const secret of ["houseByPoles", "tieBreak", "itemIds", "letters", "totemLabels"]) expect(pageSource).not.toContain(secret);
+  for (const secret of ["houseByPoles", "itemIds", "letters", "totemLabels"]) expect(pageSource).not.toContain(secret);
   const requests = recordRequests(page);
 
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);

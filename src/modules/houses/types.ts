@@ -20,12 +20,10 @@ export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCod
 
 /**
  * Resposta ao envio das respostas do questionário (ADR 0014): a casa sugerida e o perfil dos eixos
- * da casa (nunca o totem nem as notas dos outros eixos) ou a abertura do pedido de análise,
- * quando o resultado foi inconclusivo.
+ * da casa (nunca o totem nem as notas dos outros eixos).
  */
 export type SubmitAnswersResult =
   | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; byPoles: HouseByPoles }
-  | { ok: true; outcome: "analysis" }
   /** `retryAfterSeconds`: só no limite de renovação do pedido de análise, quando o tempo restante é conhecido. */
   | { ok: false; error: HouseErrorCode; retryAfterSeconds?: number };
 
