@@ -9,10 +9,11 @@ import { DELETE_ACCOUNT_PATH, MY_DATA_PATH } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH } from "@/modules/profiles";
 import { MY_SKILLS_PATH, SEARCH_PATH, SKILLS_CATALOG_PATH } from "@/modules/search";
 import { MAP_PATH } from "@/modules/map";
+import { AccountNav } from "@/modules/navigation";
 import { PRIOR_TEAMS_PATH, ROLES_PATH, TEAMS_PATH } from "@/modules/teams";
 import { BrandMark, SoundToggle } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
-import { PROFILE_PATH } from "@/server/auth/routes";
+import { HOME_PATH, PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 import { log } from "@/server/log";
 import { NavLinks } from "./nav-links";
@@ -21,7 +22,7 @@ import { NavLinks } from "./nav-links";
 // (marca e conta / menu em abas) e rodapé com "Minha conta". Toda página aqui dentro passa por
 // requireUser (sessão + access_status). O e-mail aparece mascarado (M1): quem foi logado na conta
 // de outra pessoa percebe na hora. A coordenação só aparece a quem tem papel (conforto; o banco
-// decide, R15).
+// decide, R15). "Voltar" para a página-mãe e "Início" ficam numa linha embaixo do menu (#205).
 export default async function AccountLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const { user, client } = await requireUserClient();
   const missionClient = await sessionMissionClient();
@@ -82,6 +83,12 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
           </p>
         </div>
         <NavLinks items={items} label={nav.label} />
+        <div className="mx-auto w-full max-w-site px-5 pb-3">
+          <AccountNav
+            homePath={HOME_PATH}
+            labels={{ nav: instance.auth.navLabel, home: instance.auth.navHome, back: instance.auth.navBack }}
+          />
+        </div>
       </header>
       <div className="flex-1">{children}</div>
       <SiteFooter coordinationLinks={isCoordinator ? coordinationLinks : []} hasWaitlist={coordination.waitlist} />

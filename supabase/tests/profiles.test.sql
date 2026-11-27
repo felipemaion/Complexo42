@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(86);
+select plan(104);
 
 -- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
 create function pg_temp.enc(p_tag text) returns text language sql as $$
@@ -31,7 +31,7 @@ select id, 'v1' from auth.users where id in (
   '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000b3',
   '00000000-0000-0000-0000-0000000000b4', '00000000-0000-0000-0000-0000000000b5',
   '00000000-0000-0000-0000-0000000000b6', '00000000-0000-0000-0000-0000000000b7');
-insert into public.municipalities (code, name, state_code) values (3106200, 'Belo Horizonte', 'MG');
+-- Belo Horizonte (3106200) e as demais cidades vêm da base nacional de municípios (#175).
 
 -- ---------------------------------------------------------------------------------------
 -- Municípios
@@ -48,6 +48,16 @@ select results_eq(
   $$ values (3518800, 'Guarulhos'), (3548708, 'São Bernardo do Campo'), (3550308, 'São Paulo') $$,
   'códigos IBGE de 7 dígitos conferem'
 );
+select is(
+  (select count(*)::int from public.municipalities),
+  5571,
+  'os municípios do Brasil inteiro (API do IBGE, 5571 registros) estão carregados'
+);
+select is(
+  (select count(distinct state_code)::int from public.municipalities),
+  27,
+  'as 27 UFs têm município'
+);
 select throws_ok(
   $$ insert into public.municipalities (code, name, state_code) values (3399999, 'Errado', 'SP') $$,
   '23514', null,
@@ -55,10 +65,31 @@ select throws_ok(
 );
 
 -- ---------------------------------------------------------------------------------------
+-- Distritos (#175)
+-- ---------------------------------------------------------------------------------------
+select is((select count(*)::int from public.districts), 10751, 'os distritos do Brasil (IBGE, 10751) estão carregados');
+select is(
+  (select count(*)::int from public.districts where municipality_code = 3550308),
+  96,
+  'a capital paulista tem os 96 distritos'
+);
+select throws_ok(
+  $$ insert into public.districts (code, municipality_code, name) values (355030899, 3304557, 'Errado') $$,
+  '23514', null,
+  'os 7 primeiros dígitos do código do distrito têm de ser o município'
+);
+select ok(
+  has_table_privilege('authenticated', 'public.districts', 'select')
+  and not has_table_privilege('authenticated', 'public.districts', 'insert')
+  and not has_table_privilege('authenticated', 'public.districts', 'update'),
+  'distritos: leitura para quem está logado, escrita só por migration'
+);
+
+-- ---------------------------------------------------------------------------------------
 -- Estrutura: só as colunas da lista fechada (docs/MODELO_DADOS.md)
 -- ---------------------------------------------------------------------------------------
 select columns_are('public', 'profiles', array[
-  'id', 'display_name_enc', 'municipality_code', 'state_code', 'district', 'status',
+  'id', 'display_name_enc', 'municipality_code', 'state_code', 'district_code', 'neighborhood_enc', 'status',
   'access_status', 'consent_version', 'consent_at', 'created_at', 'updated_at'
 ], 'profiles tem exatamente as colunas do modelo de dados');
 select columns_are('public', 'profile_contacts', array[
@@ -110,10 +141,16 @@ select throws_ok(
   'município desconhecido é recusado'
 );
 select throws_ok(
-  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version, district)
-     values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3550308, 'v1', ' x ') $$,
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version, district_code)
+     values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3550308, 'v1', 330455705) $$,
+  '23503', null,
+  'distrito de outro município é recusado (chave estrangeira composta)'
+);
+select throws_ok(
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version, neighborhood_enc)
+     values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3550308, 'v1', 'Vila Exemplo') $$,
   '23514', null,
-  'distrito fora do formato é recusado'
+  'bairro em texto puro é recusado na tabela (só valor cifrado)'
 );
 select throws_ok(
   $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
@@ -173,16 +210,17 @@ select throws_ok(
 -- Chamada como a server action faz: valores já cifrados e HMAC calculado no servidor.
 create function pg_temp.save(
   p_name text, p_whatsapp_hmac text,
-  p_municipality int default 3550308, p_district text default null,
-  p_whatsapp text default null, p_links text default null
+  p_municipality int default 3550308, p_district_code int default null,
+  p_whatsapp text default null, p_links text default null, p_neighborhood text default null
 ) returns text language sql as $$
   select public.save_own_profile(
     p_display_name_enc => p_name,
     p_municipality_code => p_municipality,
-    p_district => p_district,
+    p_district_code => p_district_code,
     p_whatsapp_enc => coalesce(p_whatsapp, pg_temp.enc('wa')),
     p_whatsapp_hmac => p_whatsapp_hmac,
-    p_social_links_enc => p_links
+    p_social_links_enc => p_links,
+    p_neighborhood_enc => p_neighborhood
   )
 $$;
 set local role authenticated;
@@ -216,9 +254,10 @@ select results_eq(
 set local role authenticated;
 select is(
   (select count(*)::int from public.municipalities),
-  40,
+  5571,
   'quem está pendente lê os municípios (escolha no cadastro)'
 );
+select isnt_empty($$ select 1 from public.districts $$, 'quem está pendente lê os distritos (escolha no cadastro)');
 select is_empty(
   $$ select 1 from public.unit_members $$,
   'quem está pendente NÃO lê vínculos, nem o próprio'
@@ -233,7 +272,7 @@ select results_eq(
 select throws_ok(
   $$ select public.save_own_profile(
        p_display_name_enc => pg_temp.enc('b1'), p_municipality_code => 3550308,
-       p_district => null, p_consent_version => 'v1',
+       p_district_code => null, p_consent_version => 'v1',
        p_whatsapp_enc => pg_temp.enc('wa'), p_whatsapp_hmac => repeat('a', 64)) $$,
   '42883', null,
   'chamar a RPC direto NÃO define a versão do termo (o parâmetro não existe)'
@@ -255,17 +294,57 @@ select lives_ok(
   'a pessoa edita o próprio perfil e contato pela função'
 );
 select results_eq(
-  $$ select p.display_name_enc, p.state_code::text, p.district, p.consent_version,
+  $$ select p.display_name_enc, p.state_code::text, p.district_code, p.consent_version,
             c.whatsapp_enc, c.whatsapp_hmac, c.social_links_enc
      from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id $$,
-  $$ values (pg_temp.enc('b1novo'), 'MG', null::text, 'v1',
+  $$ values (pg_temp.enc('b1novo'), 'MG', null::integer, 'v1',
              pg_temp.enc('w1novo'), repeat('9', 64), pg_temp.enc('links')) $$,
   'a edição foi gravada, a UF foi recalculada e a versão do termo NÃO mudou (é do aceite do termo)'
 );
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 330455705) $$,
+  'PT422', 'district_mismatch',
+  'distrito de outro município é recusado pela função'
+);
 select lives_ok(
-  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 'Sé') $$,
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3304557, 330455705) $$,
+  'município com um distrito só: salvar com o distrito dele não dá erro'
+);
+select is(
+  (select district_code from public.profiles), null::integer,
+  'município com um distrito só (a sede): o distrito não é gravado'
+);
+select lives_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 355030878) $$,
   'volta para São Paulo com distrito'
 );
+
+-- Bairro (#179): texto livre = dado pessoal; só cifrado, só pela função, só o dono (ou quem vê o
+-- perfil) o lê.
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 355030878, null, null, 'Vila Exemplo') $$,
+  '22023', 'bairro em formato inválido',
+  'a função recusa bairro em texto puro'
+);
+select lives_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 355030878, null, null, pg_temp.enc('bairro')) $$,
+  'a função grava o bairro cifrado'
+);
+select is(
+  (select neighborhood_enc from public.profiles), pg_temp.enc('bairro'),
+  'o dono lê o próprio bairro (cifrado)'
+);
+select throws_ok(
+  $$ update public.profiles set neighborhood_enc = pg_temp.enc('outro') $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO grava o bairro direto pela API'
+);
+select pg_temp.login('00000000-0000-0000-0000-0000000000b3');
+select is_empty(
+  $$ select 1 from public.profiles where neighborhood_enc is not null $$,
+  'outra pessoa sem escopo NÃO lê o bairro de b1'
+);
+select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
 
 -- WhatsApp de outra pessoa (o HMAC de u2): resposta fixa, sem o HMAC, nada gravado. Desde a
 -- #127 é retorno, e não erro, para o registro da tentativa sobreviver à chamada.
@@ -275,14 +354,14 @@ select is(
   'o mesmo WhatsApp (HMAC) não se cadastra duas vezes: a resposta é só `duplicate_whatsapp`'
 );
 select is(
-  pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 'Sé'),
+  pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 355030878),
   'saved',
   'salvar com o próprio WhatsApp responde `saved`'
 );
 select results_eq(
-  $$ select p.display_name_enc, p.district, c.whatsapp_hmac
+  $$ select p.display_name_enc, p.district_code, c.whatsapp_hmac
      from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id $$,
-  $$ values (pg_temp.enc('b1'), 'Sé', repeat('a', 64)) $$,
+  $$ values (pg_temp.enc('b1'), 355030878, repeat('a', 64)) $$,
   'com o WhatsApp repetido, nem o perfil nem o contato mudaram'
 );
 
@@ -305,8 +384,8 @@ select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), null
   '22023', 'município obrigatório', 'função recusa município nulo');
 select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 1234567) $$,
   '23503', null, 'função recusa município desconhecido');
-select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, ' x ') $$,
-  '23514', null, 'função recusa distrito fora do formato');
+select throws_ok($$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 123456789) $$,
+  'PT422', 'district_mismatch', 'função recusa distrito que não existe');
 
 -- Sem atalho pela API: nada de INSERT/UPDATE direto, nem na própria linha.
 select throws_ok(
@@ -321,7 +400,7 @@ select throws_ok(
   'a pessoa NÃO grava o nome cifrado direto pela API'
 );
 select throws_ok(
-  $$ update public.profiles set district = 'Centro' $$,
+  $$ update public.profiles set district_code = 355030878 $$,
   '42501', 'permission denied for table profiles',
   'a pessoa NÃO grava o distrito direto pela API'
 );
@@ -383,6 +462,7 @@ select is_empty(
   $$ select 1 from public.municipalities $$,
   'quem está na espera NÃO lê municípios'
 );
+select is_empty($$ select 1 from public.districts $$, 'quem está na espera NÃO lê distritos');
 select lives_ok($$ select pg_temp.save(pg_temp.enc('b4'), repeat('d', 64)) $$,
   'quem está na espera completa o próprio cadastro');
 select results_eq(
@@ -517,6 +597,7 @@ select throws_ok(
   '42501', null,
   'visitante anônimo não lê municípios'
 );
+select throws_ok($$ select 1 from public.districts $$, '42501', null, 'visitante anônimo não lê distritos');
 select throws_ok(
   $$ select pg_temp.save(pg_temp.enc('anon'), repeat('2', 64)) $$,
   '42501', null,
@@ -531,14 +612,14 @@ select throws_ok(
 -- Conferência como dono do banco
 reset role;
 select results_eq(
-  $$ select p.id, p.display_name_enc, p.district, c.whatsapp_hmac
+  $$ select p.id, p.display_name_enc, p.district_code, c.whatsapp_hmac
      from public.profiles as p left join public.profile_contacts as c on c.profile_id = p.id
      where p.id in ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000b3',
                     '00000000-0000-0000-0000-0000000000b5')
      order by p.id $$,
-  $$ values ('00000000-0000-0000-0000-0000000000b2'::uuid, pg_temp.enc('b2'), null::text, repeat('b', 64)),
-            ('00000000-0000-0000-0000-0000000000b3'::uuid, pg_temp.enc('b3'), null::text, null::text),
-            ('00000000-0000-0000-0000-0000000000b5'::uuid, pg_temp.enc('b5'), null::text, null::text) $$,
+  $$ values ('00000000-0000-0000-0000-0000000000b2'::uuid, pg_temp.enc('b2'), null::integer, repeat('b', 64)),
+            ('00000000-0000-0000-0000-0000000000b3'::uuid, pg_temp.enc('b3'), null::integer, null::text),
+            ('00000000-0000-0000-0000-0000000000b5'::uuid, pg_temp.enc('b5'), null::integer, null::text) $$,
   'os perfis e contatos de outra pessoa, do bloqueado e do suspenso não foram alterados'
 );
 select ok(
@@ -563,9 +644,9 @@ select is_empty(
 );
 select ok(
   has_function_privilege('authenticated',
-    'public.save_own_profile(text, integer, text, text, text, text)', 'execute')
+    'public.save_own_profile(text, integer, integer, text, text, text, text)', 'execute')
   and not has_function_privilege('anon',
-    'public.save_own_profile(text, integer, text, text, text, text)', 'execute'),
+    'public.save_own_profile(text, integer, integer, text, text, text, text)', 'execute'),
   'a função de gravar perfil é de quem está logado; visitante anônimo não executa'
 );
 

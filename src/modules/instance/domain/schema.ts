@@ -24,6 +24,11 @@ const houseSchema = z.strictObject({
    */
   id: slug.max(63),
   name: text,
+  /**
+   * Cor da casa no gráfico de aranha (#201): uma para o tema claro e outra, mais clara, para o
+   * escuro (CSS `light-dark()`); cada uma com contraste de pelo menos 3:1 sobre o fundo do tema.
+   */
+  color: z.strictObject({ light: hexColor, dark: hexColor }),
   /** Descrição curta exibida na escolha da casa. */
   description: text,
   /**
@@ -67,6 +72,8 @@ export const instanceConfigSchema = z.strictObject({
   waitlist: z.strictObject({
     title: text,
     message: text,
+    /** Botão "Sair" da espera (#195): encerra a sessão para trocar de conta. */
+    signOutButton: text,
   }),
   /** Textos do login (#9). Botões grandes e nada escondido (pedido do stakeholder). */
   auth: z.strictObject({
@@ -83,6 +90,9 @@ export const instanceConfigSchema = z.strictObject({
     signedInMessage: text,
     /** Rótulo antes do e-mail mascarado de quem está logado (ex.: "Conectado como"). */
     connectedAs: text,
+    navLabel: text,
+    navHome: text,
+    navBack: text,
     /** Página intermediária do link mágico: o login só acontece no clique (POST). */
     confirmTitle: text,
     confirmMessage: text,
@@ -104,12 +114,28 @@ export const instanceConfigSchema = z.strictObject({
     nameHint: text,
     whatsappLabel: text,
     whatsappHint: text,
+    /** Localização em três passos (#175): estado, cidade (com busca) e distrito. */
+    stateLabel: text,
+    statePlaceholder: text,
+    municipalitySearchLabel: text,
+    municipalitySearchHint: text,
+    /** A busca não achou cidade nenhuma no estado. */
+    municipalityNoMatch: text,
     municipalityLabel: text,
     municipalityPlaceholder: text,
+    /** Aviso enquanto a lista carrega, e se a carga falhar. */
+    localitiesLoading: text,
+    localitiesFailed: text,
     districtLabel: text,
     districtHint: text,
     /** Opção vazia do distrito (ele é opcional). */
     districtNone: text,
+    /** Bairro (#179): texto livre, opcional. */
+    neighborhoodLabel: text,
+    neighborhoodHint: text,
+    /** Bairro guardado que não abriu: aviso de que continua guardado e o botão para trocá-lo. */
+    neighborhoodUnreadable: text,
+    replaceNeighborhood: text,
     /** Redes sociais (#17): grupo do formulário, cada caixa ("Link 1"...) e os botões. */
     socialLinksLabel: text,
     socialLinksHint: text,
@@ -135,6 +161,7 @@ export const instanceConfigSchema = z.strictObject({
       whatsapp: text,
       municipalityCode: text,
       district: text,
+      neighborhood: text,
       socialLinks: text,
     }),
     /** WhatsApp já usado em outro cadastro (não diz de quem). */
@@ -203,9 +230,6 @@ export const instanceConfigSchema = z.strictObject({
   houseSelection: z.strictObject({
     title: text,
     /** Pergunta inicial: "Você sabe o que quer fazer?". */
-    knowsQuestion: text,
-    knowsYes: text,
-    knowsNo: text,
     activitiesTitle: text,
     consentTitle: text,
     consentAccept: text,
@@ -214,7 +238,18 @@ export const instanceConfigSchema = z.strictObject({
     /** Progresso do questionário, com `{current}` e `{total}` (ex.: "{current} de {total}"). */
     progress: text.refine((v) => v.includes("{current}") && v.includes("{total}"), "use {current} e {total}"),
     /** Botão de quem marca as duas alternativas (indecisão). */
-    bothButton: text,
+    /**
+     * Pergunta da escala de intensidade (leitor de tela) e a intensidade de cada um dos seis círculos,
+     * da ponta "a" à ponta "b". A frase da posição é "intensidade: texto da alternativa".
+     */
+    scaleLegend: text,
+    scaleIntensities: z.tuple([text, text, text, text, text, text]),
+    nextButton: text,
+    finishButton: text,
+    /** Título do gráfico de aranha do perfil (eixos da casa). */
+    chartTitle: text,
+    /** Destaque da casa na legenda do gráfico (#201). */
+    chartCurrentHouse: text,
     backButton: text,
     /** Título do resultado do questionário (a casa sugerida). */
     suggestedTitle: text,
@@ -224,10 +259,21 @@ export const instanceConfigSchema = z.strictObject({
     videosTitle: text,
     acceptButton: text,
     chooseOtherButton: text,
+    /** Enquanto o resultado é enviado ao servidor, logo depois da última pergunta. */
+    submitting: text,
+    /** Resultado inconclusivo (ADR 0014): a coordenação nacional vai analisar. */
+    analysisTitle: text,
+    analysisMessage: text,
+    /** Botão para escolher a casa direto, sem esperar a análise. */
+    analysisChooseButton: text,
     /** Tela de quem já aceitou a casa. */
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** Na página da pessoa, sem casa nem resultado (#203): convite para fazer o questionário. */
+    inviteMessage: text,
+    /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
+    rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,
@@ -239,6 +285,95 @@ export const instanceConfigSchema = z.strictObject({
       stale_consent: text,
       /** A coordenação encerrou a casa da pessoa: a volta é com ela. */
       removed_by_coordination: text,
+      /** Pedido de análise renovado há pouco (no máximo um por hora). */
+      rate_limited: text,
+      failed: text,
+    }),
+  }),
+  /**
+   * Telas da coordenação do questionário (#174, ADR 0014): resultados, casos para analisar e
+   * delegações. `{name}`, `{count}`, `{first}`, `{second}` e `{code}` são trocados na tela.
+   */
+  questionnaireCoordination: z.strictObject({
+    linkResults: text,
+    linkQueue: text,
+    linkDelegations: text,
+    backLink: text,
+    noName: text,
+    results: z.strictObject({
+      title: text,
+      intro: text,
+      houseFilterLabel: text,
+      houseFilterAll: text,
+      filterButton: text,
+      empty: text,
+      columnPerson: text,
+      columnHouse: text,
+      columnDate: text,
+      openLink: text,
+      truncated: text.refine((v) => v.includes("{count}"), "use {count}"),
+      detailTitle: text.refine((v) => v.includes("{name}"), "use {name}"),
+      houseLabel: text,
+      totemLabel: text,
+      totemPending: text,
+      totemUndecided: text,
+      dateLabel: text,
+      chartTitle: text,
+      /** Destaque da casa na legenda do gráfico (#201). */
+      chartCurrentHouse: text,
+      noScores: text,
+      unreadableOne: text,
+      backLink: text,
+    }),
+    queue: z.strictObject({
+      title: text,
+      intro: text,
+      empty: text,
+      columnPerson: text,
+      columnDate: text,
+      columnAxes: text,
+      kindTotem: text,
+      openLink: text,
+      truncated: text.refine((v) => v.includes("{count}"), "use {count}"),
+      unreadableList: text.refine((v) => v.includes("{count}"), "use {count}"),
+      caseTitle: text.refine((v) => v.includes("{name}"), "use {name}"),
+      tiedAxesLabel: text,
+      answersTitle: text,
+      chartTitle: text,
+      /** Destaque da casa na legenda do gráfico (#201). */
+      chartCurrentHouse: text,
+      resolveTitle: text,
+      totemOnlyNotice: text.refine((v) => v.includes("{house}"), "use {house}"),
+      houseLabel: text,
+      totemLabel: text,
+      totemOption: text.refine((v) => v.includes("{label}") && v.includes("{description}"), "use {label} e {description}"),
+      resolveButton: text,
+      resolvedNotice: text,
+      unreadableOne: text,
+      backLink: text,
+    }),
+    delegations: z.strictObject({
+      title: text,
+      intro: text,
+      activeTitle: text,
+      empty: text,
+      columnManager: text,
+      columnUnit: text,
+      columnDate: text,
+      revokeButton: text,
+      grantTitle: text,
+      managerLabel: text,
+      grantButton: text,
+      noCandidates: text,
+      grantedNotice: text,
+      revokedNotice: text,
+    }),
+    errors: z.strictObject({
+      forbidden: text,
+      invalid: text,
+      not_found: text,
+      exists: text,
+      changed: text,
       failed: text,
     }),
   }),

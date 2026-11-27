@@ -1,22 +1,29 @@
 export {
-  axes,
-  defaultTieBreak,
+  axisKeys,
   parseQuestionnaire,
   QuestionnaireConfigError,
   questionnaireSchema,
-  temperaments,
+  toPublicQuestionnaire,
 } from "./domain/schema";
-export { QuestionnaireAnswerError, scoreQuestionnaire } from "./domain/score";
+export { chartAxes, chartSpokes, crossOrder, houseZones, spokePoint } from "./domain/chart";
+export { answerSentence, intensitySentence, toDisplaySentence } from "./domain/sentence";
+export { totemCodes, totemLabel } from "./domain/totem";
+export { answerValues, QuestionnaireAnswerError, scoreQuestionnaire } from "./domain/score";
 export { loadQuestionnaire } from "./server/load";
 export type {
   Answer,
   AnswerErrorCode,
   Answers,
   Axis,
+  AxisScores,
+  ChartAxis,
+  ChartSpoke,
+  HouseByPoles,
+  HouseZone,
   Pole,
   QuestionnaireConfig,
+  PublicQuestionnaire,
   QuestionnaireItem,
   QuestionnaireResult,
   ReadText,
-  Temperament,
 } from "./types";

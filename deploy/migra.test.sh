@@ -45,12 +45,12 @@ export PATH="$BASE/bin:$PATH" STUB_CHAMADAS="$BASE/chamadas" STUB_SQL="$BASE/sql
        STUB_IMAGEM_DIR="$BASE/naimagem"
 
 roda() { : > "$STUB_CHAMADAS"; : > "$STUB_SQL"
-  APP_TAG=sha-abc1234 IMAGEM=ghcr.io/felipemaion/complexo42 DB_CONTAINER=stg-db-1 \
+  APP_IMAGEM=ghcr.io/felipemaion/complexo42:sha-abc1234 DB_CONTAINER=stg-db-1 \
     bash "$SCRIPT" "$@" > "$BASE/saida" 2>&1; }
 
 echo "== exigencias"
-for v in APP_TAG IMAGEM DB_CONTAINER; do
-  ( export APP_TAG=sha-abc1234 IMAGEM=i DB_CONTAINER=c; unset "$v"; bash "$SCRIPT" ) > /dev/null 2>&1
+for v in APP_IMAGEM DB_CONTAINER; do
+  ( export APP_IMAGEM=i:t DB_CONTAINER=c; unset "$v"; bash "$SCRIPT" ) > /dev/null 2>&1
   [ $? -ne 0 ] && r=0 || r=1; verifica "recusa rodar sem $v" $r
 done
 ( export DB_CONTAINER=c; bash "$SCRIPT" --de /tmp --lixo ) > /dev/null 2>&1

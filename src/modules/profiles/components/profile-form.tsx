@@ -1,26 +1,28 @@
 "use client";
 
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
-import { socialLinksSentField, type ProfileFormField } from "../domain/form";
+import type { StateOption } from "@config/states";
+import { neighborhoodSentField, socialLinksSentField, type ProfileFormField } from "../domain/form";
 import { profileLimits } from "../domain/schema";
 import { formatBrazilianWhatsapp, whatsappInputMaxLength } from "../domain/whatsapp";
-import type { MunicipalityOption, ProfileFormState, ProfileFormValues } from "../types";
+import type { DistrictOption, MunicipalityOption, ProfileFormState, ProfileFormValues } from "../types";
+import { LocationFields, type LocationText } from "./location-fields";
 
 // Formulário do perfil (issue #12). Só apresentação e eventos: quem valida, cifra e grava é a
 // server action (no servidor). Mobile-first, botões e letras grandes, tudo à vista e em
 // linguagem simples (pedido do stakeholder; o público inclui pessoas mais velhas).
 
-export type ProfileFormText = {
+export type ProfileFormText = LocationText & {
+  neighborhoodLabel: string;
+  neighborhoodHint: string;
+  /** Bairro guardado que não abriu: aviso de que continua guardado, e o botão para trocá-lo. */
+  neighborhoodUnreadable: string;
+  replaceNeighborhood: string;
   intro: string;
   nameLabel: string;
   nameHint: string;
   whatsappLabel: string;
   whatsappHint: string;
-  municipalityLabel: string;
-  municipalityPlaceholder: string;
-  districtLabel: string;
-  districtHint: string;
-  districtNone: string;
   /** Redes sociais (#17): título do grupo, dica, rótulo de cada caixa ("Link 1"...) e botões. */
   socialLinksLabel: string;
   socialLinksHint: string;
@@ -43,38 +45,57 @@ export type ProfileFormText = {
 type Props = {
   action: (state: ProfileFormState, formData: FormData) => Promise<ProfileFormState>;
   initial: ProfileFormValues;
-  municipalities: readonly MunicipalityOption[];
-  /** Distritos por código IBGE; só os municípios daqui mostram a escolha de distrito. */
-  districts: Readonly<Record<number, readonly string[]>>;
+  states: readonly StateOption[];
+  /** Cidades da UF e distritos da cidade já salvas (vazias para quem começa agora). */
+  initialMunicipalities: readonly MunicipalityOption[];
+  initialDistricts: readonly DistrictOption[];
+  /** Server actions de leitura da referência: as cidades vêm por UF, os distritos por cidade. */
+  loadMunicipalities: (stateCode: string) => Promise<MunicipalityOption[]>;
+  loadDistricts: (municipalityCode: number) => Promise<DistrictOption[]>;
   /**
    * Os links guardados não abriram inteiros (#17): sem caixas nem o campo escondido, para o
    * servidor manter o valor cifrado, até a pessoa tocar em "trocar".
    */
   socialLinksUnreadable?: boolean;
+  /** O bairro guardado não abriu: sem a caixa nem o campo escondido, até a pessoa tocar em "trocar". */
+  neighborhoodUnreadable?: boolean;
   text: ProfileFormText;
 };
 
 const inputClass =
   "w-full rounded-xl border-2 border-field bg-surface text-ink px-4 py-4 text-xl aria-[invalid=true]:border-danger focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
-const fieldOrder: readonly ProfileFormField[] = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"];
+const fieldOrder: readonly ProfileFormField[] = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"];
 const fieldId: Record<ProfileFormField, string> = {
   displayName: "perfil-nome",
   whatsapp: "perfil-whatsapp",
   municipalityCode: "perfil-cidade",
   district: "perfil-distrito",
+  neighborhood: "perfil-bairro",
   socialLinks: "perfil-redes",
 };
 const linkId = (index: number) => `perfil-rede-${index + 1}`;
 const buttonClass =
   "block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
-export function ProfileForm({ action, initial, municipalities, districts, socialLinksUnreadable = false, text }: Props) {
+export function ProfileForm({
+  action,
+  initial,
+  states,
+  initialMunicipalities,
+  initialDistricts,
+  loadMunicipalities,
+  loadDistricts,
+  socialLinksUnreadable = false,
+  neighborhoodUnreadable = false,
+  text,
+}: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" } as ProfileFormState);
   const [values, setValues] = useState<ProfileFormValues>(initial);
   const summaryRef = useRef<HTMLDivElement>(null);
   const addLinkRef = useRef<HTMLButtonElement>(null);
   // Para onde vai o foco depois de pôr ou tirar um link: a caixa nova, ou o botão de acrescentar.
   const [editingLinks, setEditingLinks] = useState(!socialLinksUnreadable);
+  const [editingNeighborhood, setEditingNeighborhood] = useState(!neighborhoodUnreadable);
   const [linkFocus, setLinkFocus] = useState<{ target: number | "add" } | null>(null);
 
   // Depois de cada resposta com erro: volta o que a pessoa digitou e leva o foco para o resumo.
@@ -96,7 +117,6 @@ export function ProfileForm({ action, initial, municipalities, districts, social
   const invalid = new Set<ProfileFormField>(state.status === "invalid" ? state.fields : []);
   if (state.status === "duplicate_whatsapp") invalid.add("whatsapp");
   const badLinks = new Set(state.status === "invalid" ? (state.badLinks ?? []) : []);
-  const districtOptions = districts[Number(values.municipalityCode)];
   // Sem links salvos, uma caixa vazia já aparece (funciona até sem JavaScript).
   const linkRows = values.socialLinks.length > 0 ? values.socialLinks : [""];
   const setLink = (index: number, value: string) =>
@@ -211,59 +231,65 @@ export function ProfileForm({ action, initial, municipalities, districts, social
         {errorText("whatsapp")}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <label htmlFor={fieldId.municipalityCode} className="text-xl font-semibold">
-          {text.municipalityLabel}
-        </label>
-        <select
-          id={fieldId.municipalityCode}
-          name="municipalityCode"
-          required
-          value={values.municipalityCode}
-          onChange={(event) => setValues((current) => ({ ...current, municipalityCode: event.target.value, district: "" }))}
-          aria-invalid={invalid.has("municipalityCode")}
-          aria-describedby={describedBy("municipalityCode", false)}
-          className={inputClass}
-        >
-          <option value="">{text.municipalityPlaceholder}</option>
-          {municipalities.map((m) => (
-            <option key={m.code} value={String(m.code)}>
-              {m.name}
-            </option>
-          ))}
-        </select>
-        {errorText("municipalityCode")}
-      </div>
+      <LocationFields
+        values={values}
+        onChange={(patch) => {
+          setValues((current) => ({ ...current, ...patch }));
+          // Trocar de lugar zera o bairro, inclusive o guardado que não abriu: a caixa volta, vazia.
+          if (patch.neighborhood !== undefined) setEditingNeighborhood(true);
+        }}
+        states={states}
+        initialMunicipalities={initialMunicipalities}
+        initialDistricts={initialDistricts}
+        loadMunicipalities={loadMunicipalities}
+        loadDistricts={loadDistricts}
+        text={text}
+        ids={{ state: "perfil-estado", municipalitySearch: "perfil-cidade-busca", municipality: fieldId.municipalityCode, district: fieldId.district }}
+        inputClass={inputClass}
+        describedBy={describedBy}
+        errorText={errorText}
+        isInvalid={(name) => invalid.has(name)}
+      />
 
-      {districtOptions && (
-        <div className="flex flex-col gap-2">
-          <label htmlFor={fieldId.district} className="text-xl font-semibold">
-            {text.districtLabel}
-          </label>
-          <p id={`${fieldId.district}-dica`} className="text-base">
-            {text.districtHint}
-          </p>
-          <select
-            id={fieldId.district}
-            name="district"
-            value={values.district}
-            onChange={set("district")}
-            aria-invalid={invalid.has("district")}
-            aria-describedby={describedBy("district", true)}
+      <div className="flex flex-col gap-2">
+        <label htmlFor={fieldId.neighborhood} className="text-xl font-semibold">
+          {text.neighborhoodLabel}
+        </label>
+        <p id={`${fieldId.neighborhood}-dica`} className="text-base">
+          {text.neighborhoodHint}
+        </p>
+        {!editingNeighborhood && (
+          <>
+            <p role="status" className="rounded-xl border-2 border-line bg-surface p-4 text-lg">
+              {text.neighborhoodUnreadable}
+            </p>
+            <button
+              type="button"
+              onClick={() => setEditingNeighborhood(true)}
+              className={buttonClass}
+            >
+              {text.replaceNeighborhood}
+            </button>
+          </>
+        )}
+        {editingNeighborhood && <input type="hidden" name={neighborhoodSentField} value="1" />}
+        {editingNeighborhood && (
+          <input
+            id={fieldId.neighborhood}
+            name="neighborhood"
+            type="text"
+            autoComplete="off"
+            maxLength={profileLimits.neighborhoodMax}
+            disabled={values.municipalityCode === ""}
+            value={values.neighborhood}
+            onChange={set("neighborhood")}
+            aria-invalid={invalid.has("neighborhood")}
+            aria-describedby={describedBy("neighborhood", true)}
             className={inputClass}
-          >
-            <option value="">{text.districtNone}</option>
-            {[...districtOptions]
-              .sort((a, b) => a.localeCompare(b, "pt-BR"))
-              .map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-          </select>
-          {errorText("district")}
-        </div>
-      )}
+          />
+        )}
+        {errorText("neighborhood")}
+      </div>
 
       <fieldset
         id={fieldId.socialLinks}

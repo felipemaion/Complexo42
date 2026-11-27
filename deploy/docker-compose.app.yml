@@ -10,7 +10,10 @@
 
 services:
   app:
-    image: ghcr.io/felipemaion/complexo42:${APP_TAG:?obrigatorio}
+    # Referência COMPLETA (#161): `ghcr.io/...:sha-abc` ou
+    # `ghcr.io/...@sha256:...`. Antes era `:${APP_TAG}`, que não comporta
+    # digest -- e digest é o que identifica a imagem que o build conferiu.
+    image: ${APP_IMAGEM:?obrigatorio}
     restart: unless-stopped
     logging:
       driver: json-file

@@ -79,7 +79,9 @@ sed -n '/^insert into public.houses (key) values/,/;$/p' supabase/seed.sql \
       exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
 ```
 
-Casa que **saiu** da config não é apagada (tem vínculos e histórico): desative-a, e ela deixa de
+Trocar a **chave** de uma casa (como em 2026-11, de `casa-exemplo-N` para os ids reais) é por
+migration (`app.rename_house_key`): ela leva junto vínculos, papéis, resultados e o log de auditoria
+sem apagar nada. Casa que **saiu** da config não é apagada (tem vínculos e histórico): desative-a, e ela deixa de
 aceitar entradas e coordenadores novos (quem já está nela continua):
 
 ```bash
@@ -87,6 +89,66 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
   -c "update public.houses set active = false where key = '<id-da-casa>'"
 ```
+
+## Questionário das casas (ADR 0014)
+
+O app pontua o questionário e assina o resultado; o banco só aceita resultado assinado. A chave
+`QUESTIONNAIRE_SIGNING_KEY` (gerada por `deploy/gen-secrets.sh`) precisa estar **igual** no
+ambiente do app e em `app.server_secrets` (a tabela não tem grant: só funções do banco leem). Na
+primeira subida e ao trocar a chave (valor lido do arquivo de segredos, sem ir para o histórico):
+
+```bash
+set -eu
+KEY=$(sed -n 's/^QUESTIONNAIRE_SIGNING_KEY=//p' <segredos>)
+[ -n "$KEY" ]
+printf "insert into app.server_secrets (name, value) values ('questionnaire_signing_key', '%s') on conflict (name) do update set value = excluded.value;\n" "$KEY" \
+  | docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+      exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
+```
+
+Sem a chave no banco, curta (menos de 32 caracteres) ou diferente da do app, gravar o resultado do
+questionário falha (fechado).
+
+- **Janela de relógio:** o banco recusa assinatura emitida há mais de 5 minutos (ou mais de 30
+  segundos no futuro). Mantenha os relógios do app e do banco sincronizados (NTP).
+- **Rotação da chave:** gere outra, **instale no banco e no app juntos** (o passo acima e o
+  `.env` do app, depois reinicie o app). Entre uma troca e a outra, o questionário falha fechado
+  por alguns minutos; nada é perdido (a pessoa tenta de novo).
+- **O `pg_dump` e o backup contêm a chave** (`app.server_secrets`). Vale a cifra e a retenção do
+  backup (#84); quem restaura um backup antigo restaura a chave antiga: confira se ainda é a do
+  app e, se a chave vazou, rotacione.
+- **Purga das respostas vencidas (30 dias):** além da purga que acontece a cada uso das funções
+  do pedido, agende uma chamada **diária** no cron do operador, para apagar as respostas de
+  quem nunca mais voltou:
+
+```bash
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c "select app.purge_expired_analysis()"
+```
+
+**Checklist de deploy do questionário (a cada JSON novo).** Antes de publicar um arquivo com
+`consentTermVersion` novo, cadastre a versão no banco. **Sem isso o aceite do termo falha fechado**
+(o banco recusa a versão desconhecida, e ninguém consegue responder). Troque `<versao>` pelo valor
+exato de `consentTermVersion` do arquivo (só letras, números, ponto, hífen e sublinhado, até 32):
+
+```bash
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
+  -c "insert into app.questionnaire_term_versions (version) values ('<versao>') on conflict do nothing"
+```
+
+1. cadastrar a versão do termo (acima); 2. instalar o arquivo em `QUESTIONNAIRE_PATH`; 3. reiniciar
+o app (ele valida o arquivo na subida e recusa subir com um inválido).
+
+**O totem, as notas dos eixos e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `scores_enc`, `answers_enc`,
+AES-256-GCM, ADR 0003 e ADR 0014 §5): o Postgres nunca recebe nem devolve esses valores em claro,
+então o log do Postgres e o `pg_stat_statements` não os expõem. Verificações:
+- `FIELD_ENCRYPTION_KEY` é a mesma do app que grava e lê (perdê-la perde totem, notas e respostas, como
+  o nome e o contato). A **rotação** de chaves (ADR 0003 §5) recifra também `totem_enc`,
+  `scores_enc` e `answers_enc`.
+- O backup (#84) é cifrado e contém essas tabelas (já cifradas): vale a mesma retenção dos demais dados.
+- **Delegação:** quem concede, revoga e o que cada gestor vê: `questionnaire_data_grants` e os
+  eventos `questionnaire_access_granted/revoked` no `audit_log` (leitura só da coordenação nacional).
 
 ## Subir, parar, ver
 
@@ -480,11 +542,26 @@ todo o resto: tudo o que ele executa ou interpreta é conferido antes.
 
 ### As três entradas, e por que cada uma é tratada assim
 
-**A tag** chega por **argumento**, não por `SSH_ORIGINAL_COMMAND` — essa
-variável não sobrevive ao `sudo` (`env_reset`). É validada com `[[ =~ ]]` e
-**não** com `grep`: o `grep` casa por **linha**, então `sha-abc\nrm -rf /`
-passaria por um `^...$` olhando só a primeira linha. Isso foi medido, não
-suposto. Aceita `sha-<hex>`, `vAAAA.MM.DD[.n]` e `main`.
+**A referência da imagem** chega por **argumento**, não por
+`SSH_ORIGINAL_COMMAND` — essa variável não sobrevive ao `sudo` (`env_reset`).
+É validada com `[[ =~ ]]` e **não** com `grep`: o `grep` casa por **linha**,
+então `sha-abc\nrm -rf /` passaria por um `^...$` olhando só a primeira linha.
+Isso foi medido, não suposto.
+
+**No caminho normal, só digest** (`sha256:<64 hex>`). Tag é ponteiro: aceitá-la
+aqui esvaziaria a #161, porque o destino não imporia nada. O `deploy.yml`
+resolve tag→digest **no runner** (`buildx imagetools inspect`) antes de
+chamar o servidor, inclusive no `workflow_dispatch` manual.
+
+**Break-glass:** `emergencia:<tag>` implanta por tag, e o log registra
+`modo=emergencia`. Existe para o registro estar indisponível para resolver
+digest, ou para alguém precisar voltar à mão com o Actions fora do ar. Um
+token só, porque o forced-command entrega um argumento só.
+
+> `main` não é aceita em lugar nenhum — nem pelo workflow, nem pelo script,
+> nem como `emergencia:main`. É um ponteiro móvel, e implantar ponteiro móvel
+> é exatamente o que esta issue fecha. Exceção que não deixa rastro vira regra
+> sem ninguém decidir; por isso o `modo=` no log.
 
 > O forced-command restringe o **comando**, não o argumento.
 
@@ -513,7 +590,14 @@ REDE_PROXY=<rede externa do proxy>
 ALVO_SAUDE=http://<alias do app>:3000/api/healthz
 MIGRA=<caminho do aplicador de migrations>
 SMOKE_IMAGEM=curlimages/curl@sha256:<digest>
+# Onde o deploy grava a infra, e onde guarda o manifesto do que gravou.
+# O manifesto fica num diretório SÓ DO ROOT -- ver a seção da sincronia.
+INFRA_DIR=<diretório de infra do ambiente>        # padrão: PROJECT_DIR
+MANIFESTO=/etc/complexo42/infra-<projeto>.manifesto
 ```
+
+O diretório do manifesto (`/etc/complexo42/`) precisa ser **do root e não
+gravável por outros** — o deploy confere isso e aborta se não for.
 
 `authorized_keys` do usuário de deploy — **uma chave por ambiente**:
 
@@ -541,18 +625,145 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 > quem está nele roda `docker run -v /:/host`. Aqui o usuário executa **um**
 > script, de caminho fixo, que ele não pode reescrever.
 
-### As quatro etapas, e por que nesta ordem
+### A sincronia da infra (ADR 0015)
 
-1. `pull` da tag;
-2. **migrations** — falhou, aborta e o app **não** é trocado;
-3. `up -d`;
-4. **smoke** em `/api/healthz`; falhou, volta para a tag anterior.
+O compose do Supabase, o `kong.yml` e o `initdb/` **viajam na imagem** e o
+deploy os sincroniza no servidor. A imagem é a fonte; o servidor é cópia.
 
-A tag anterior vem do **ID** do container no ar (`compose ps -q`), não de um
-nome montado à mão nem de arquivo de estado: o sufixo `-app-1` é convenção do
-Compose, e arquivo mente quando alguém mexe à mão. Imagem presa por **digest**
-não tem tag para onde voltar, e `main` é **móvel** — nos dois casos o script
-diz que não há rollback possível em vez de fingir que fez.
+**Quais arquivos — e a lista está no `deploy.sh`, não na imagem.** São
+exatamente quatro: `docker-compose.supabase.yml`, `kong.yml`,
+`initdb/01-extensions.sql` e `initdb/02-roles.sh`. A imagem é a fonte do
+**conteúdo**; nunca a fonte dos **caminhos**.
+
+> A diferença não é teórica. Se a imagem decidisse os caminhos, bastaria um
+> arquivo novo em `deploy/` que o `.dockerignore` não excluísse — ele é uma
+> lista de **exclusão**, então arquivo novo entra por omissão — para o root
+> gravar o que a imagem quisesse dentro do diretório de deploy. O caso que
+> fecha o assunto: a imagem passaria a trazer `migra.sh`, o deploy gravaria
+> por cima do aplicador de migrations, e a **etapa seguinte o executa como
+> root**. Com a lista fixa, arquivo sobrando **derruba o deploy**, e o CI
+> confere a mesma lista contra a imagem a cada build.
+
+Acrescentar arquivo à lista é decisão revisada em PR — que é onde ela deve ser.
+
+**O manifesto é o que distingue atualização de edição à mão.** O deploy grava
+o sha256 de cada arquivo que ele deixou. Ele mora **num diretório só do root**
+(`/etc/complexo42/`), e **não** no diretório de deploy: modo 600 protege o
+conteúdo do arquivo, não o nome. Quem pode escrever no diretório apaga o
+manifesto e põe outro no lugar — e manifesto forjado **inverte** a garantia
+desta seção, fazendo a divergência "conferir" e o deploy sobrescrever
+justamente o arquivo que alguém editou à mão.
+
+Na execução seguinte, para cada arquivo:
+
+| situação | o que acontece |
+|---|---|
+| local **igual** à imagem | nada, e o log diz "tudo igual" |
+| local **igual ao manifesto**, imagem mudou | troca, e registra `<sha antes> → <sha depois>` |
+| local **não bate com nenhum dos dois** | **falha fechado**, sem sobrescrever |
+
+A terceira linha é o ponto. Alguém editou à mão, e sobrescrever apagaria a
+única pista disso — foi exatamente assim que o servidor ficou semanas com um
+bootstrap de banco que ninguém revisava. Saídas: levar a mudança para o
+repositório (o certo), ou rodar **uma vez** com `--adotar-infra` para aceitar
+a versão da imagem.
+
+**Como rodar o `--adotar-infra`:** à mão, no servidor, como root — ele **não
+chega pelo SSH**, porque o forced-command passa só a referência da imagem:
+
+```sh
+sudo /opt/complexo42/deploy.sh --adotar-infra \
+  --config /etc/complexo42/staging.conf sha256:<digest>
+```
+
+Antes de rodar, **olhe o que vai ser descartado** (`git show
+origin/main:deploy/<arquivo>` contra o arquivo do servidor). A flag existe para
+destravar, não para pular a revisão.
+
+**Como o arquivo é gravado:** temporário no mesmo diretório → sha256 conferido
+depois de escrito → `mv` (rename, que é atômico). Nenhum componente do caminho
+pode ser link simbólico — nem o alvo, nem diretório nenhum até ele —, e link
+**na imagem** com nome permitido também derruba: `cat` leria o destino **no
+host**, e o deploy gravaria esse conteúdo no servidor.
+
+**No `emergencia:<tag>` a sincronia é PULADA.** A imagem vem por tag, que é
+ponteiro móvel, e gravar infra como root a partir de um ponteiro móvel é o
+oposto do que o break-glass quer: ele existe para restabelecer serviço, não
+para reescrever infra. Vantagem prática: infra divergente **não impede** de
+voltar o serviço ao ar. A próxima implantação normal sincroniza.
+
+**O rollback NÃO desfaz a sincronia.** Se o smoke falhar, o app volta para a
+imagem anterior, mas os arquivos de infra no disco continuam os da imagem nova.
+Na prática isso não quebra o rollback — quem sobe o app é o
+`docker-compose.app.yml`, que fica **fora** da sincronia; o compose do Supabase
+e o `initdb/` só valem quando alguém sobe o stack do banco ou recria o volume,
+que são ações manuais. Mas é uma assimetria a ter em mente: depois de um
+rollback, os arquivos no disco estão à frente do app no ar.
+
+**O `.env` nunca é tocado** — e isso é imposto pelo **código**, não por
+convenção: ele não está na lista, e há uma conferência no `deploy.sh` que
+aborta se alguma entrada da lista coincidir com o `ENV_FILE`, o
+`COMPOSE_APP`, o `MIGRA`, o log ou o próprio arquivo de configuração. Nem com
+`--adotar-infra` ele entra.
+
+**Os scripts de deploy não entram na imagem.** `deploy.sh`, `migra.sh`,
+`backup.sh` e os testes rodam no host, como root; não têm o que fazer dentro
+de uma imagem que roda sem privilégio e com disco só leitura.
+
+**O compose do APP também fica fora**, de propósito: é o arquivo que o próprio
+`deploy.sh` usa para subir o container. Sincronizá-lo no meio de um deploy
+seria trocar o chão enquanto se anda nele.
+
+> ⚠️ **Mudança em `initdb/` não chega a banco que já existe.** O `initdb/` só
+> roda em **volume vazio**. O deploy sincroniza o arquivo, **avisa no log** que
+> ele mudou e grava `initdb_mudou_recriacao_pendente` — mas **recriar o volume
+> é ação manual**, porque automatizá-la seria automatizar perda de dados.
+> O procedimento está em "Recriar o volume do Postgres" abaixo.
+
+### Recriar o volume do Postgres (manual)
+
+Três passos, **nesta ordem**. Inverter quebra o `up` com o stack já derrubado:
+
+1. as variáveis novas que o compose exigir, no `secrets/env` (geradas **no
+   servidor**, com cópia de segurança e conferência de contagem de linhas);
+2. os arquivos de infra atualizados — o deploy já faz, ou à mão conferindo
+   sha256 contra `git show origin/main:deploy/<arquivo>`;
+3. `compose down` → `docker volume rm <projeto>_db-dados` → `compose up -d`.
+
+Conferir ao fim: `postgres` com `rolcanlogin=false`, cada papel com senha
+própria (comparando **impressões digitais**, nunca valores) e os serviços
+saudáveis. **Fixe o método da impressão digital** — incluir ou não o newline
+muda o hash, e comparar métodos diferentes produz divergência falsa.
+
+### As cinco etapas, e por que nesta ordem
+
+1. `pull` da imagem;
+2. **sincronia da infra** (acima) — falhou, aborta antes de qualquer mudança;
+3. **migrations** — falhou, aborta e o app **não** é trocado;
+4. `up -d`;
+5. **smoke** em `/api/healthz`; falhou, volta para a imagem anterior.
+
+A imagem anterior vem do **`RepoDigests`** do container no ar, não do
+`.Config.Image`: aquele é o **nome** com que o container subiu (pode ser uma
+tag, que já se moveu), este é o **digest** que o Docker realmente tem. Sem
+`RepoDigests` — imagem só local, nunca vinda de registro — o deploy segue
+**sem rollback**, em vez de voltar para algo que não sabemos o que é.
+
+O destino do rollback é a única coisa que o script escolhe sozinho, sem
+ninguém revisar no momento. Por isso a checagem ali é a mais estreita do
+script: aceita **só um digest do nosso próprio repositório**, com regex
+ancorada. Recusa `:latest`, `:main`, tag qualquer, `repo` sem nada, digest
+truncado, e digest de outro registro ou de `host:porta/outro`.
+
+**O compose usa `image: ${APP_IMAGEM}`**, a referência completa — antes era
+`ghcr.io/...:${APP_TAG}`, que não comporta digest, porque `@sha256:...` não
+entra depois de um `:`.
+
+> ⚠️ **Ordem obrigatória para a produção** (cópia do compose fora deste
+> repositório, ADR 0009 §3): **trocar o `image:` para `${APP_IMAGEM}` ANTES**
+> de atualizar o `deploy.sh`. Na ordem inversa, o compose antigo espera
+> `APP_TAG`, o script novo manda `APP_IMAGEM`, e o `up` falha com
+> "obrigatorio" — no meio de um deploy.
 
 > **Migrations são expand/contract.** O rollback troca só o **app**; o banco
 > continua no schema novo. Uma migration que remove ou renomeia coluna torna o
@@ -610,13 +821,33 @@ trava aqui e o erro aparece no passo 2, antes de o app ser trocado.
 - `ALTER TYPE ... ADD VALUE` não pode ser usado na **mesma** transação que o
   criou; separe em duas migrations.
 
-Variáveis: `APP_TAG` (vem do `deploy.sh`), `IMAGEM`, `DB_CONTAINER` e,
-opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
+Variáveis: `APP_IMAGEM` (a referência completa, vem do `deploy.sh`),
+`DB_CONTAINER` e, opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
 
 Testes: `deploy/migra.test.sh` (25 asserções, dublê de `docker`) e
 `deploy/migra-integracao.test.sh` (12 asserções contra um Postgres de
 verdade — é ele que prova que o DDL e a linha de controle caem juntos
 quando uma migration falha; pula limpo sem Docker).
+
+### Mudança de coluna ou de função: janela de deploy e expand/contract
+
+O `migra.sh` aplica as migrations **antes** de o app novo subir. Migration que
+renomeia, troca o tipo ou apaga uma coluna que o app em execução usa deixa o
+app antigo quebrado (salvar e ler) até a troca, por segundos.
+
+- **Hoje, aceito:** ainda não há app em produção. A #175 (`profiles.district`
+  vira `district_code`) faz exatamente isso, de uma vez, e a migration aborta
+  (em vez de perder dado) se algum nome de distrito não virou código. A #179
+  (bairro cifrado) muda a **assinatura** de `save_own_profile` (parâmetro novo, função
+  antiga apagada) e a forma do `export_own_data`: o app antigo também quebra
+  ao salvar o perfil até a troca. Vale para toda mudança de assinatura de função
+  que o app chama, não só para colunas.
+- **Com app em produção, use expand/contract** em releases separados: (1)
+  *expand*: migration que **só acrescenta** (coluna nova, função nova com outra
+  assinatura), com o app lendo as duas e gravando a nova; (2) migrar os dados;
+  (3) *contract*: depois que nenhuma versão antiga está no ar, migration que
+  apaga a coluna ou a função velha. Nunca `drop`/`rename` no mesmo release em
+  que o app muda.
 
 ### Duas proteções que não são óbvias
 
@@ -631,10 +862,12 @@ vira escrita como root. Sai com 3 se outro deploy está em andamento.
 
 ### Registro
 
-Uma linha por execução em `data/logs/deploy.log`: data, tag, resultado
-(`ok`, `pull_falhou`, `migrations_falharam`, `rollback_ok=<tag>`,
-`rollback_falhou=<tag>`, `smoke_falhou_sem_rollback`, `up_falhou_sem_rollback`)
-e duração. O script recusa escrever se o log for link simbólico.
+Uma linha por execução em `data/logs/deploy.log`: data, **imagem**
+(referência completa — com digest a linha fica mais longa, e é o digest que
+identifica o que subiu), **modo** (`normal` ou `emergencia`), resultado
+(`ok`, `pull_falhou`,
+`migrations_falharam`, `rollback_ok=<imagem>`, `rollback_falhou=<imagem>`,
+`smoke_falhou_sem_rollback`, `up_falhou_sem_rollback`) e duração. O script recusa escrever se o log for link simbólico.
 
 ### Teste
 
@@ -651,6 +884,11 @@ Preferi `workflow_call` a `workflow_run`: ali os valores chegam explícitos em
 vez de serem garimpados do payload do evento. Escolher o ambiente errado por
 uma leitura equivocada do payload é o tipo de erro que só aparece quando algo
 vai para produção sem querer.
+
+O `build.yml` confere as migrations e move a tag `main` **pelo digest**, não
+pela tag — entre publicar e conferir, uma tag pode ter sido movida, e o que
+se confere tem de ser o que sobe. O `deploy.yml` manda **sempre um digest**
+pelo SSH: no `workflow_dispatch` manual, resolve a tag digitada no runner.
 
 | Evento | Tags publicadas | Ambiente |
 |---|---|---|

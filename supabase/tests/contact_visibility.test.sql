@@ -8,7 +8,7 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(88);
 
-truncate public.role_assignments, public.unit_members, public.house_members, public.units cascade;
+truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units cascade;
 
 -- ---------------------------------------------------------------------------------------
 -- Árvore: br ─┬─ sp (SP) ─┬─ abc ─┬─ team_x

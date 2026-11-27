@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 3;
+export const exportFormatVersion = 8;
 
 const timestamp = z.string().min(1);
 
@@ -32,7 +32,9 @@ export const ownDataRowsSchema = z.object({
       municipality_code: z.number().int(),
       municipality_name: z.string().nullable(),
       state_code: z.string(),
-      district: z.string().nullable(),
+      district_code: z.number().int().nullable(),
+      district_name: z.string().nullable(),
+      neighborhood_enc: z.string().nullable(),
       status: z.string(),
       access_status: z.string(),
       consent_version: z.string(),
@@ -70,6 +72,42 @@ export const ownDataRowsSchema = z.object({
   ),
   /** Aceites do termo do questionário (versão e data; nunca as respostas). */
   questionnaire_consents: z.array(z.object({ term_version: z.string(), consented_at: timestamp })),
+  /**
+   * Resultado do questionário (ADR 0014, #172): a casa sugerida e o totem (cifrado no banco, ADR
+   * 0003; o servidor decifra aqui). O totem é interno e só aparece aqui (LGPD art. 18), nunca na
+   * tela da casa. Nulo sem resultado (ou com análise aberta).
+   */
+  questionnaire_result: z
+    .object({
+      house_key: z.string(),
+      /** Nulo enquanto o totem está pendente (empate só no totem, #197). */
+      totem_enc: z.string().nullable(),
+      /** `decided`, `pending` ou `undecided` (o pedido de totem venceu ou foi encerrado sem decisão). */
+      totem_state: z.enum(["decided", "pending", "undecided"]),
+      /** Notas dos 4 eixos (JSON cifrado, ADR 0003); nulo em resultado antigo, de antes da escala. */
+      scores_enc: z.string().nullable(),
+      term_version: z.string(),
+      source: z.string(),
+      created_at: timestamp,
+    })
+    .nullable(),
+  /** Pedidos de análise do resultado inconclusivo; as respostas só existem com o pedido aberto. */
+  house_analysis_requests: z.array(
+    z.object({
+      status: z.string(),
+      resolution: z.string().nullable(),
+      term_version: z.string(),
+      tied_axes: z.array(z.string()),
+      /** JSON das respostas, cifrado (ADR 0003); nulo depois de resolvido. */
+      answers_enc: z.string().nullable(),
+      created_at: timestamp,
+      resolved_at: timestamp.nullable(),
+    }),
+  ),
+  /** Concessões que a pessoa (gestor) recebeu da coordenação nacional para ver totem e pedidos do escopo dela. */
+  questionnaire_access_grants: z.array(
+    z.object({ unit_name: z.string(), unit_type: z.string(), granted_at: timestamp, revoked_at: timestamp.nullable() }),
+  ),
   /** Aceites do termo de consentimento (#11): versão e data. */
   consent_acceptances: z.array(z.object({ version: z.string(), accepted_at: timestamp })),
   roles: z.array(
@@ -116,7 +154,8 @@ export type OwnDataExport = {
   perfil: {
     nome: string | null;
     municipio: { codigoIbge: number; nome: string | null; uf: string };
-    distrito: string | null;
+    distrito: { codigoIbge: number; nome: string | null } | null;
+    bairro: string | null;
     situacaoDaConta: string;
     liberacaoDeAcesso: string;
     termoDeConsentimento: { versao: string | null; aceitoEm: string | null };
@@ -137,6 +176,31 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  /** Casa sugerida e totem (ADR 0014). O totem é interno: só aparece neste arquivo. */
+  resultadoDoQuestionario: {
+    casaSugerida: string;
+    /** Nulo se o valor cifrado não decifra (o resto do arquivo sai). */
+    totem: string | null;
+    /** Situação do totem: decided, pending (a coordenação vai decidir) ou undecided (pedido encerrado sem decisão). */
+    situacaoDoTotem: "decided" | "pending" | "undecided";
+    /** Nota de cada eixo, de -100 (muito polo "a") a 100 (muito polo "b"); nula sem notas. */
+    notasPorEixo: { eixo1: number; eixo2: number; eixo3: number; eixo4: number } | null;
+    versaoDoTermo: string;
+    origem: string;
+    em: string;
+  } | null;
+  /** Concessões recebidas da coordenação nacional (delegação do acesso ao totem e aos pedidos do escopo). */
+  acessosDelegados: { unidade: string; tipo: string; concedidoEm: string; revogadoEm: string | null }[];
+  /** Pedidos de análise do resultado inconclusivo; `respostas` só com o pedido aberto. */
+  pedidosDeAnalise: {
+    situacao: string;
+    resolucao: string | null;
+    versaoDoTermo: string;
+    eixosEmpatados: string[];
+    respostas: Record<string, number> | null;
+    criadoEm: string;
+    resolvidoEm: string | null;
+  }[];
   papeis: {
     papel: string;
     unidade: string;
@@ -171,6 +235,13 @@ export type BuildExportInput = {
 };
 
 const socialLinks = z.array(z.string());
+const answersJson = z.record(z.string(), z.number().int());
+const axisScoresJson = z.strictObject({
+  house1: z.number().int(),
+  house2: z.number().int(),
+  totem1: z.number().int(),
+  totem2: z.number().int(),
+});
 
 /**
  * Monta o arquivo a partir do que o banco devolveu. Um valor que não decifra vira `null` (o
@@ -198,6 +269,31 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     }
   };
 
+  // Respostas do pedido de análise: JSON cifrado; só existem com o pedido aberto.
+  const openAnswers = async (value: string | null) => {
+    const raw = await open(value, "house_analysis_requests", "answers_enc");
+    if (raw === null) return null;
+    try {
+      return answersJson.parse(JSON.parse(raw));
+    } catch (error) {
+      input.onDecryptError?.("answers_enc", error);
+      return null;
+    }
+  };
+
+  // Notas dos eixos: JSON cifrado, nulo em resultado antigo (de antes da escala de intensidade).
+  const openScores = async (value: string | null) => {
+    const raw = await open(value, "questionnaire_results", "scores_enc");
+    if (raw === null) return null;
+    try {
+      const scores = axisScoresJson.parse(JSON.parse(raw));
+      return { eixo1: scores.house1, eixo2: scores.house2, eixo3: scores.totem1, eixo4: scores.totem2 };
+    } catch (error) {
+      input.onDecryptError?.("scores_enc", error);
+      return null;
+    }
+  };
+
   const p = rows.profile;
   const c = rows.contact;
   const houseName = (key: string | null) => (key === null ? null : (input.houseNames[key] ?? key));
@@ -221,7 +317,8 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     perfil: p && {
       nome: await open(p.display_name_enc, "profiles", "display_name_enc"),
       municipio: { codigoIbge: p.municipality_code, nome: p.municipality_name, uf: p.state_code },
-      distrito: p.district,
+      distrito: p.district_code === null ? null : { codigoIbge: p.district_code, nome: p.district_name },
+      bairro: await open(p.neighborhood_enc, "profiles", "neighborhood_enc"),
       situacaoDaConta: p.status,
       liberacaoDeAcesso: p.access_status,
       // `none` = ainda sem aceite (o perfil nasce assim; só o aceite, #11, avança).
@@ -252,6 +349,32 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       aceitaEm: h.accepted_at,
       saiuEm: h.left_at,
     })),
+    resultadoDoQuestionario: rows.questionnaire_result && {
+      casaSugerida: houseName(rows.questionnaire_result.house_key) ?? rows.questionnaire_result.house_key,
+      totem: await open(rows.questionnaire_result.totem_enc, "questionnaire_results", "totem_enc"),
+      situacaoDoTotem: rows.questionnaire_result.totem_state,
+      notasPorEixo: await openScores(rows.questionnaire_result.scores_enc),
+      versaoDoTermo: rows.questionnaire_result.term_version,
+      origem: rows.questionnaire_result.source,
+      em: rows.questionnaire_result.created_at,
+    },
+    acessosDelegados: rows.questionnaire_access_grants.map((g) => ({
+      unidade: g.unit_name,
+      tipo: g.unit_type,
+      concedidoEm: g.granted_at,
+      revogadoEm: g.revoked_at,
+    })),
+    pedidosDeAnalise: await Promise.all(
+      rows.house_analysis_requests.map(async (q) => ({
+        situacao: q.status,
+        resolucao: q.resolution,
+        versaoDoTermo: q.term_version,
+        eixosEmpatados: q.tied_axes,
+        respostas: await openAnswers(q.answers_enc),
+        criadoEm: q.created_at,
+        resolvidoEm: q.resolved_at,
+      })),
+    ),
     termosDeConsentimento: rows.consent_acceptances.map((c) => ({ versao: c.version, aceitoEm: c.accepted_at })),
     termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),
     papeis: rows.roles.map((r) => ({

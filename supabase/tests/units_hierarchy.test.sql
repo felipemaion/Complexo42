@@ -6,7 +6,7 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(44);
 
-truncate public.role_assignments, public.unit_members, public.house_members, public.units cascade;
+truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units cascade;
 
 -- Este arquivo não troca de papel (roda todo como dono do banco), então a busca pode ser
 -- feita na hora: os caminhos mudam quando a árvore é movida. Caminho desconhecido falha
@@ -158,10 +158,7 @@ insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a4'),
   ('00000000-0000-0000-0000-0000000000a5');
 
--- Municípios de teste fora de SP (a migration só traz a região metropolitana de SP).
-insert into public.municipalities (code, name, state_code) values
-  (3106200, 'Belo Horizonte', 'MG'),
-  (3304557, 'Rio de Janeiro', 'RJ');
+-- Belo Horizonte (3106200) e Rio de Janeiro (3304557) já vêm da base nacional de municípios.
 
 -- Vínculos e papéis exigem perfil (#10). a1 e a2 moram num estado sem unidade, para o
 -- trigger de entrada no estado não criar vínculo sozinho.

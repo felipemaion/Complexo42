@@ -9,11 +9,8 @@ import type { ProfileContactInput, ProfileInput } from "../types";
  * servidor (a máscara do navegador é só conforto) e convertido nos schemas de
  * `./schema.ts`, que são o contrato do que é cifrado e gravado.
  */
-export const profileFormFields = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"] as const;
+export const profileFormFields = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"] as const;
 export type ProfileFormField = (typeof profileFormFields)[number];
-
-/** Distritos aceitos para o município (ou `undefined`: o município não tem escolha de distrito). */
-export type DistrictCatalog = (municipalityCode: number) => readonly string[] | undefined;
 
 /**
  * Versão do termo de quem ainda não aceitou. É o que `save_own_profile` grava na criação; o
@@ -33,12 +30,20 @@ export const socialLinkFormEntriesMax = 20;
  */
 export const socialLinksSentField = "socialLinksSent";
 
+/**
+ * Campo escondido que o formulário envia junto do bairro quando a caixa está à vista. Sem ele, o
+ * envio não trouxe o bairro (formulário antigo, ou o valor guardado não abriu e a caixa ficou
+ * escondida): o cifrado guardado é mantido, em vez de apagado (mesma ideia dos links, #17).
+ */
+export const neighborhoodSentField = "neighborhoodSent";
+
 const field = z.string().max(200).optional();
 const formSchema = z.object({
   displayName: field,
   whatsapp: field,
   municipalityCode: field,
   district: field,
+  neighborhood: field,
   /**
    * As caixas de link, na ordem da tela (vazias são ignoradas). `undefined` = o envio não trouxe
    * os links (não veio do formulário atual): o servidor mantém os que já estão guardados.
@@ -53,6 +58,8 @@ export type ParsedProfileForm =
       contact: ProfileContactInput;
       /** O envio não trouxe os links: manter os guardados em vez de apagar (comentário da #17). */
       keepSocialLinks: boolean;
+      /** O envio não trouxe o bairro: manter o cifrado guardado. */
+      keepNeighborhood: boolean;
     }
   | {
       ok: false;
@@ -76,31 +83,32 @@ function checkSocialLinks(entries: readonly string[]): { links: string[]; bad: n
 }
 
 /** Lê os campos de um FormData (ou objeto) sem nunca devolver o valor em erro (R11). */
-export function parseProfileForm(raw: unknown, districtsFor: DistrictCatalog): ParsedProfileForm {
+export function parseProfileForm(raw: unknown): ParsedProfileForm {
   const form = formSchema.safeParse(raw);
   if (!form.success) return { ok: false, fields: [...profileFormFields] };
-  const { displayName, whatsapp, municipalityCode, district, socialLinks } = form.data;
+  const { displayName, whatsapp, municipalityCode, district, neighborhood, socialLinks } = form.data;
   const invalid = new Set<ProfileFormField>();
 
   const code = /^\d{7}$/.test(municipalityCode?.trim() ?? "") ? Number(municipalityCode) : null;
   if (code === null) invalid.add("municipalityCode");
 
-  // Distrito só para município com lista; fora dela, o valor enviado é descartado.
-  const allowed = code === null ? undefined : districtsFor(code);
+  // Aqui só o formato do código do distrito. Que ele é do município (e que município de um
+  // distrito só o descarta), quem decide é `save_own_profile`: o catálogo mora no banco.
   const chosen = district?.trim() || null;
-  if (allowed && chosen !== null && !allowed.includes(chosen)) invalid.add("district");
+  if (chosen !== null && !/^\d{9}$/.test(chosen)) invalid.add("district");
 
   const profile = profileInputSchema.safeParse({
     displayName: displayName ?? "",
     municipalityCode: code ?? 0,
-    district: allowed ? chosen : null,
+    districtCode: chosen === null ? null : Number(chosen),
+    neighborhood: neighborhood?.trim() || null,
     consentVersion: consentNotYetGiven,
   });
   if (!profile.success) {
     for (const issue of profile.error.issues) {
       const name = issue.path[0];
-      if (name === "displayName" || name === "district") invalid.add(name);
-      else if (name === "municipalityCode") invalid.add("municipalityCode");
+      if (name === "displayName" || name === "municipalityCode" || name === "neighborhood") invalid.add(name);
+      else if (name === "districtCode") invalid.add("district");
     }
   }
 
@@ -117,5 +125,5 @@ export function parseProfileForm(raw: unknown, districtsFor: DistrictCatalog): P
     const fields = profileFormFields.filter((name) => invalid.has(name));
     return social.bad.length > 0 ? { ok: false, fields, badLinks: social.bad } : { ok: false, fields };
   }
-  return { ok: true, profile: profile.data, contact: contact.data, keepSocialLinks: socialLinks === undefined };
+  return { ok: true, profile: profile.data, contact: contact.data, keepSocialLinks: socialLinks === undefined, keepNeighborhood: neighborhood === undefined };
 }

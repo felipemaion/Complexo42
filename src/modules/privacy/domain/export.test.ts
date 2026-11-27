@@ -22,7 +22,9 @@ const rows: OwnDataRows = {
     municipality_code: 3550308,
     municipality_name: "São Paulo",
     state_code: "SP",
-    district: "Sé",
+    district_code: 355030878,
+    district_name: "Sé",
+    neighborhood_enc: "enc:bairro",
     status: "active",
     access_status: "active",
     consent_version: "v1",
@@ -49,6 +51,27 @@ const rows: OwnDataRows = {
     },
   ],
   questionnaire_consents: [{ term_version: "termo-1", consented_at: "2026-11-19T11:20:00+00:00" }],
+  questionnaire_result: {
+    house_key: "casa-um",
+    totem_enc: "enc:totem",
+    totem_state: "decided",
+    scores_enc: "enc:notas",
+    term_version: "termo-1",
+    source: "questionnaire",
+    created_at: "2026-11-19T11:25:00+00:00",
+  },
+  house_analysis_requests: [
+    {
+      status: "open",
+      resolution: null,
+      term_version: "termo-1",
+      tied_axes: ["house1"],
+      answers_enc: "enc:respostas",
+      created_at: "2026-11-19T11:26:00+00:00",
+      resolved_at: null,
+    },
+  ],
+  questionnaire_access_grants: [{ unit_name: "São Paulo", unit_type: "Estado", granted_at: "2026-11-19T17:00:00+00:00", revoked_at: null }],
   consent_acceptances: [{ version: "v1", accepted_at: "2026-11-19T11:00:00+00:00" }],
   roles: [
     { role: "spokesperson", unit_name: "Equipe 1", unit_type: "Equipe", house_key: null, granted_at: "2026-11-19T13:00:00+00:00", revoked_at: null },
@@ -67,9 +90,13 @@ const rows: OwnDataRows = {
 
 const plain: Record<string, string> = {
   "enc:nome": "Maria Aparecida",
+  "enc:bairro": "Vila Exemplo",
   "enc:zap": "+5511987654321",
   "enc:redes": JSON.stringify(["https://exemplo.org/maria"]),
   "enc:quemviu": "Joana Coordena",
+  "enc:totem": "AB",
+  "enc:respostas": JSON.stringify({ q01: -3, q02: 2 }),
+  "enc:notas": JSON.stringify({ house1: -40, house2: 75, totem1: 0, totem2: -100 }),
 };
 
 function fakeDecrypt() {
@@ -98,12 +125,13 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 3, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 8, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
         municipio: { codigoIbge: 3550308, nome: "São Paulo", uf: "SP" },
-        distrito: "Sé",
+        distrito: { codigoIbge: 355030878, nome: "Sé" },
+        bairro: "Vila Exemplo",
         situacaoDaConta: "active",
         liberacaoDeAcesso: "active",
         termoDeConsentimento: { versao: "v1", aceitoEm: "2026-11-19T12:00:00+00:00" },
@@ -120,6 +148,27 @@ describe("buildOwnDataExport", () => {
           entrouEm: "2026-11-19T11:30:00+00:00",
           aceitaEm: "2026-11-19T11:30:00+00:00",
           saiuEm: null,
+        },
+      ],
+      resultadoDoQuestionario: {
+        casaSugerida: "Casa Um",
+        totem: "AB",
+        situacaoDoTotem: "decided",
+        notasPorEixo: { eixo1: -40, eixo2: 75, eixo3: 0, eixo4: -100 },
+        versaoDoTermo: "termo-1",
+        origem: "questionnaire",
+        em: "2026-11-19T11:25:00+00:00",
+      },
+      acessosDelegados: [{ unidade: "São Paulo", tipo: "Estado", concedidoEm: "2026-11-19T17:00:00+00:00", revogadoEm: null }],
+      pedidosDeAnalise: [
+        {
+          situacao: "open",
+          resolucao: null,
+          versaoDoTermo: "termo-1",
+          eixosEmpatados: ["house1"],
+          respostas: { q01: -3, q02: 2 },
+          criadoEm: "2026-11-19T11:26:00+00:00",
+          resolvidoEm: null,
         },
       ],
       termosDeConsentimento: [{ versao: "v1", aceitoEm: "2026-11-19T11:00:00+00:00" }],
@@ -147,13 +196,18 @@ describe("buildOwnDataExport", () => {
     expect(seen).toEqual(
       expect.arrayContaining([
         { table: "profiles", column: "display_name_enc", rowId: USER },
+        { table: "profiles", column: "neighborhood_enc", rowId: USER },
         { table: "profile_contacts", column: "whatsapp_enc", rowId: USER },
         { table: "profile_contacts", column: "social_links_enc", rowId: USER },
         // O nome de quem viu o contato é da linha dela (#119).
         { table: "profiles", column: "display_name_enc", rowId: VIEWER },
+        // Totem e respostas do questionário (ADR 0014): cifrados na linha da própria pessoa.
+        { table: "questionnaire_results", column: "totem_enc", rowId: USER },
+        { table: "house_analysis_requests", column: "answers_enc", rowId: USER },
+        { table: "questionnaire_results", column: "scores_enc", rowId: USER },
       ]),
     );
-    expect(seen).toHaveLength(4);
+    expect(seen).toHaveLength(8);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {
@@ -215,6 +269,9 @@ describe("buildOwnDataExport", () => {
         memberships: [],
         house_memberships: [],
         questionnaire_consents: [],
+        questionnaire_result: null,
+        house_analysis_requests: [],
+        questionnaire_access_grants: [],
         consent_acceptances: [],
         roles: [],
         audit_events: [],
@@ -230,10 +287,76 @@ describe("buildOwnDataExport", () => {
       casas: [],
       termosDeConsentimento: [],
       termosDoQuestionario: [],
+      resultadoDoQuestionario: null,
+      acessosDelegados: [],
+      pedidosDeAnalise: [],
       papeis: [],
       registrosSobreVoce: [],
       quemViuSeuContato: [],
     });
+  });
+});
+
+describe("totem e respostas cifrados", () => {
+  it("decifra o totem e as respostas com o AAD tabela.coluna.id-da-pessoa", async () => {
+    const { decrypt, seen } = fakeDecrypt();
+    await build({ decrypt });
+    expect(seen).toContainEqual({ table: "questionnaire_results", column: "totem_enc", rowId: USER });
+    expect(seen).toContainEqual({ table: "house_analysis_requests", column: "answers_enc", rowId: USER });
+  });
+
+  it("totem ou respostas que não decifram viram null, registrando só o nome da coluna", async () => {
+    const onDecryptError = vi.fn();
+    const broken = {
+      ...rows,
+      questionnaire_result: { ...rows.questionnaire_result!, totem_enc: "enc:estragado" },
+      house_analysis_requests: [{ ...rows.house_analysis_requests[0]!, answers_enc: "enc:estragado" }],
+    };
+    const out = await build({ rows: broken, onDecryptError });
+    expect(out.resultadoDoQuestionario?.totem).toBeNull();
+    expect(out.pedidosDeAnalise[0]?.respostas).toBeNull();
+    expect(onDecryptError.mock.calls.map((c) => c[0])).toEqual(["totem_enc", "answers_enc"]);
+  });
+
+  it.each(["pending", "undecided"] as const)("totem %s (nulo no banco, #197): sai nulo com a situação explícita, sem decifrar nem registrar erro", async (totemState) => {
+    const { decrypt, seen } = fakeDecrypt();
+    const onDecryptError = vi.fn();
+    const pending = { ...rows, questionnaire_result: { ...rows.questionnaire_result!, totem_enc: null, totem_state: totemState } };
+    const out = await build({ rows: pending, decrypt, onDecryptError });
+    expect(out.resultadoDoQuestionario?.totem).toBeNull();
+    expect(out.resultadoDoQuestionario?.situacaoDoTotem).toBe(totemState);
+    expect(seen).not.toContainEqual({ table: "questionnaire_results", column: "totem_enc", rowId: USER });
+    expect(onDecryptError).not.toHaveBeenCalledWith("totem_enc", expect.anything());
+  });
+
+  it("pedido resolvido (sem respostas) fica com respostas nulas, sem tentar decifrar", async () => {
+    const { decrypt } = fakeDecrypt();
+    const out = await build({ decrypt, rows: { ...rows, house_analysis_requests: [{ ...rows.house_analysis_requests[0]!, status: "resolved", answers_enc: null }] } });
+    expect(out.pedidosDeAnalise[0]?.respostas).toBeNull();
+  });
+});
+
+describe("notas dos eixos", () => {
+  it("resultado antigo, sem notas: notasPorEixo nulo, sem tentar decifrar", async () => {
+    const { decrypt, seen } = fakeDecrypt();
+    const out = await build({ decrypt, rows: { ...rows, questionnaire_result: { ...rows.questionnaire_result!, scores_enc: null } } });
+    expect(out.resultadoDoQuestionario?.notasPorEixo).toBeNull();
+    expect(seen.map((c) => c.column)).not.toContain("scores_enc");
+  });
+
+  it("notas que não decifram ou com formato errado viram null, registrando só o nome da coluna", async () => {
+    for (const broken of ["enc:estragado", "enc:notas-ruins"]) {
+      const onDecryptError = vi.fn();
+      const decrypt = async (value: string) => {
+        if (value === "enc:notas-ruins") return JSON.stringify({ house1: "x" });
+        const out = plain[value];
+        if (out === undefined) throw new Error("decrypt_failed");
+        return out;
+      };
+      const out = await build({ rows: { ...rows, questionnaire_result: { ...rows.questionnaire_result!, scores_enc: broken } }, decrypt, onDecryptError });
+      expect(out.resultadoDoQuestionario?.notasPorEixo).toBeNull();
+      expect(onDecryptError.mock.calls.map((c) => c[0])).toEqual(["scores_enc"]);
+    }
   });
 });
 

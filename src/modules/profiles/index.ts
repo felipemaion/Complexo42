@@ -11,11 +11,11 @@ export {
 } from "./domain/schema";
 export {
   consentNotYetGiven,
+  neighborhoodSentField,
   parseProfileForm,
   profileFormFields,
   socialLinkFormEntriesMax,
   socialLinksSentField,
-  type DistrictCatalog,
   type ParsedProfileForm,
   type ProfileFormField,
 } from "./domain/form";
@@ -28,7 +28,15 @@ export {
   type SocialLinkView,
 } from "./domain/social";
 export { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./domain/whatsapp";
-export { hasOwnProfile, listMunicipalities, loadOwnProfile, saveOwnProfile, type ProfileDeps } from "./server/profile";
+export { filterMunicipalities, hasDistrictChoice } from "./domain/localities";
+export {
+  hasOwnProfile,
+  listDistricts,
+  listMunicipalitiesByState,
+  loadOwnProfile,
+  saveOwnProfile,
+  type ProfileDeps,
+} from "./server/profile";
 export {
   CONTACT_VISIBILITY_PATH,
   CONTACT_VISIBILITY_STATUS_PARAM,
@@ -63,6 +71,7 @@ export { SocialLinkList } from "./components/social-links";
 export { ContactViewsList, ContactVisibilityChoices, type ContactVisibilityText } from "./components/contact-visibility";
 export type {
   AccessStatus,
+  DistrictOption,
   MunicipalityOption,
   OwnProfile,
   ProfileContactInput,

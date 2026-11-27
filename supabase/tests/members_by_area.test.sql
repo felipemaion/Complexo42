@@ -31,10 +31,10 @@ on conflict (code) do nothing;
 -- 6 pessoas na capital (Sé), 2 em São Bernardo, 7 no Rio (outro estado); c1 coordena SP
 insert into auth.users (id) select ('00000000-0000-0000-0000-0000000001' || lpad(n::text, 2, '0'))::uuid from generate_series(1, 15) as n;
 insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000c1'), ('00000000-0000-0000-0000-0000000000e1');
-insert into public.profiles (id, display_name_enc, municipality_code, district, consent_version)
+insert into public.profiles (id, display_name_enc, municipality_code, district_code, consent_version)
 select ('00000000-0000-0000-0000-0000000001' || lpad(n::text, 2, '0'))::uuid, pg_temp.enc('n'),
        case when n <= 6 then 3550308 when n <= 8 then 3548708 else 3304557 end,
-       case when n <= 6 then 'Sé' else null end, 'termo-teste'
+       case when n <= 6 then 355030878 else null end, 'termo-teste'  -- 355030878 = Sé (public.districts)
 from generate_series(1, 15) as n;
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version) values
   ('00000000-0000-0000-0000-0000000000c1', pg_temp.enc('n'), 3550308, 'termo-teste'),

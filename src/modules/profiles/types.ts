@@ -19,9 +19,14 @@ export type ProfileFormValues = {
   displayName: string;
   /** Como a pessoa digitou (com máscara), ou o número salvo já formatado. */
   whatsapp: string;
+  /** Sigla da UF (só ajuda a carregar os municípios; o servidor ignora), ou "". */
+  stateCode: string;
   /** Código IBGE em texto, ou "" se ainda não escolheu. */
   municipalityCode: string;
+  /** Código IBGE do distrito (9 dígitos) em texto, ou "" (sem escolha). */
   district: string;
+  /** Bairro como digitado (texto livre, opcional), ou "". */
+  neighborhood: string;
   /** As caixas de link de rede (#17), como digitadas, ou os links salvos. */
   socialLinks: string[];
 };
@@ -50,13 +55,22 @@ export type SaveProfileResult =
 /** Município da lista de escolha. */
 export type MunicipalityOption = { code: number; name: string };
 
+/** Distrito da lista de escolha (código IBGE de 9 dígitos). */
+export type DistrictOption = { code: number; name: string };
+
 /** O próprio perfil, decifrado no servidor, para preencher o formulário. */
 export type OwnProfile = {
   displayName: string;
   /** E.164 (`+5511912345678`). */
   whatsapp: string;
   municipalityCode: number;
-  district: string | null;
+  /** UF do município, derivada pelo banco. */
+  stateCode: string;
+  districtCode: number | null;
+  /** Bairro decifrado, ou "" se não informou ou não abriu (ver `neighborhoodUnreadable`). */
+  neighborhood: string;
+  /** O bairro guardado existe mas não abriu: o formulário não o envia e o servidor o mantém. */
+  neighborhoodUnreadable: boolean;
   /** Links de rede (#17), já normalizados (só os que abriram e passam na regra). */
   socialLinks: string[];
   /**

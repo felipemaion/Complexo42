@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
+import { chooseCity } from "./choose-city";
 
 // Fluxo completo do cadastro (#21), de ponta a ponta, contra o Supabase local com o Mailpit (o
 // job "E2E com banco" do CI sobe os dois). Uma pessoa nova percorre tudo pela interface:
@@ -140,8 +141,8 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   await expect(page.getByTestId("connected-as")).toHaveText("Conectado como fl***@e***.org");
   await page.getByLabel("Seu nome").fill(person.name);
   await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);
-  await page.getByLabel("Sua cidade").selectOption({ label: "São Paulo" });
-  await page.getByLabel("Seu distrito").selectOption("Sé");
+  await chooseCity(page, "São Paulo");
+  await page.getByLabel("Seu distrito").selectOption({ label: "Sé" });
   await page.getByRole("button", { name: "Salvar meus dados" }).click();
   await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
   await expect(page.getByRole("main").getByRole("status")).toBeVisible();
@@ -155,9 +156,9 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   // Casa (#76/#135): sabe qual quer, conhece e aceita.
   await page.getByRole("link", { name: "Escolher sua casa" }).click();
   await expect(page).toHaveURL(`${baseURL}/casa`);
-  await page.getByRole("button", { name: "Sim, já sei" }).click();
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Dois");
+  await expect(page.getByTestId("house-name")).toHaveText("Atenas");
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
@@ -180,7 +181,7 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   expect(data.conta.emailDeLogin).toBe(person.email);
   expect(data.perfil).toMatchObject({ nome: person.name, municipio: { nome: "São Paulo", uf: "SP" }, liberacaoDeAcesso: "active" });
   expect(data.contato).toMatchObject({ whatsapp: `+55${person.phone.replace(/\D/g, "")}` });
-  expect(data.casas).toEqual([expect.objectContaining({ casa: "Casa Exemplo Dois", formaDeEntrada: "self", saiuEm: null })]);
+  expect(data.casas).toEqual([expect.objectContaining({ casa: "Atenas", formaDeEntrada: "self", saiuEm: null })]);
   expect(data.registrosSobreVoce.map((r: { evento: string }) => r.evento)).toEqual(expect.arrayContaining(["house_accepted", "data_exported"]));
 
   // Excluir a conta (#18): some do Auth e do banco; a sessão acaba.
@@ -209,7 +210,7 @@ test("pessoa fora da lista: espera até o gestor importar o e-mail dela", async 
   await expect(page).toHaveURL(`${baseURL}/perfil`);
   await page.getByLabel("Seu nome").fill(person.name);
   await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);
-  await page.getByLabel("Sua cidade").selectOption({ label: "Osasco" });
+  await chooseCity(page, "Osasco");
   await page.getByRole("button", { name: "Salvar meus dados" }).click();
   await expect(page).toHaveURL(`${baseURL}/espera`);
   await expect(page.locator("body")).not.toContainText(person.name);

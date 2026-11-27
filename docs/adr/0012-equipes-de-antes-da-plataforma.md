@@ -38,5 +38,5 @@ O histórico real de equipes **na** plataforma já existe (`unit_members` com `l
 - A coordenação vê, no histórico da pessoa (#69), as equipes de antes da plataforma logo abaixo
   das equipes da plataforma.
 - Se o stakeholder quiser confirmação ou colegas, isso vira um ADR novo; a tabela atual não muda.
-- Implementação: migration `20261122000000_prior_teams.sql`, teste `supabase/tests/prior_teams.test.sql`,
+- Implementação: migration `20261128002000_prior_teams.sql`, teste `supabase/tests/prior_teams.test.sql`,
   tela `/perfil/equipes-anteriores`.

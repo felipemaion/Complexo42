@@ -16,6 +16,7 @@ import {
   readPublishableUnits,
   sessionMissionClient,
 } from "@/modules/missions";
+import { coordinationViewDeps, OwnHouse, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
 import { MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { loadOwnProfile, SocialLinkList } from "@/modules/profiles";
 import { buttonClass, CountUp, Notice, Tag } from "@/modules/ui";
@@ -88,6 +89,10 @@ export default async function SignedInHome({ searchParams }: Props) {
     collabClient && team ? orFallback(readTeamIdentity(collabClient, team.teamId), null, "identity") : Promise.resolve(null),
   ]);
 
+  // A casa e o gráfico da pessoa, só os eixos da casa (#203).
+  const houseDeps = coordinationViewDeps();
+  const houseClient = await sessionHouseClient();
+  const houseCard = houseClient && await readOwnHouseCard(houseClient, user.id, { crypto: houseDeps.crypto, questionnaire: houseDeps.questionnaire, houseIds: instance.houses.map((house) => house.id) });
   const site = instance.site;
   const text = instance.missions;
   const saved = params.salvo === "1";
@@ -220,6 +225,11 @@ export default async function SignedInHome({ searchParams }: Props) {
           </section>
 
           <div className="flex flex-col gap-6 lg:col-span-4">
+            {houseCard && (
+              <section className={cardClass}>
+                <OwnHouse card={houseCard} houses={instance.houses} text={instance.houseSelection} />
+              </section>
+            )}
             {(team || !isCoordinator) && (
               <section className={cardClass}>
                 <h2 className="text-2xl font-bold">{instance.myTeam.title}</h2>

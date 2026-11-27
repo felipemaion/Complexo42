@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-truncate public.role_assignments, public.unit_members, public.house_members, public.units cascade;
+truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units cascade;
 
 -- ---------------------------------------------------------------------------------------
 -- Árvore
@@ -118,7 +118,6 @@ insert into auth.users (id) select id from people;
 
 -- Perfis (#10). Todos num município de teste sem unidade de estado, para o trigger de entrada
 -- no estado não criar vínculos além dos desta matriz. Só `active` aparece para terceiros.
-insert into public.municipalities (code, name, state_code) values (3304557, 'Rio de Janeiro', 'RJ');
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
 select id, 'v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB', 3304557, 'v1' from people;
 update public.profiles set access_status = 'active', status = 'active'
@@ -272,6 +271,7 @@ from (values
 --   edit    → app.can_edit_profile (criar/editar perfil e contato)
 --   import  → app.can_import_allowlist   decide → app.can_decide_access (fila de espera)
 --   block / unblock → app.can_block_member / app.can_unblock_member (quem já entrou)
+--   quest_data → app.can_read_questionnaire_data (totem e pedidos de análise, ADR 0014)
 --   audit_import / audit_decision → app.can_read_audit (importação / decisão sobre o alvo)
 --   grant_<papel>     → app.can_grant_role('<papel>', unidade, outsider)
 --   selfgrant_<papel> → app.can_grant_role('<papel>', unidade, o próprio ator)
@@ -675,6 +675,14 @@ insert into matrix (actor, action, target, expected) values
   ('nat_mgr', 'decide', 'stu_wait', true),
   ('sp_mgr', 'decide', 'stu_wait', true),
   ('abc_mgr', 'decide', 'stu_wait', true),
+  -- Totem e pedidos de análise (ADR 0014): só a coordenação nacional, sobre pessoa ativa
+  ('nat_mgr', 'quest_data', 'stu_ah', true),
+  ('nat_mgr', 'quest_data', 'stu_wait', false),
+  ('sp_mgr', 'quest_data', 'stu_ah', false),
+  ('abc_mgr', 'quest_data', 'stu_ah', false),
+  ('house_nat', 'quest_data', 'stu_ah', false),
+  ('stu_ah', 'quest_data', 'stu_ah', true),
+  ('stu_ah', 'quest_data', 'stu_bh', false),
   ('mg_mgr', 'decide', 'stu_wait', false),
   ('team_a_mon', 'decide', 'stu_wait', false),
   ('house_mon', 'decide', 'stu_wait', false),
@@ -860,7 +868,7 @@ begin
     when p_action = 'contact_email' then app.can_view_contact(pg_temp.person(p_target), 'email')
     when p_action = 'manage' then app.can_manage_unit(pg_temp.unit(p_target))
     when p_action = 'unit' then app.can_view_unit(pg_temp.unit(p_target))
-    -- Missões e pontos (ADR 0006, migration 20261121000000): publicar e ver pontos da unidade.
+    -- Missões e pontos (ADR 0006, migration 20261128000000): publicar e ver pontos da unidade.
     when p_action = 'publish_mission' then app.can_publish_mission(pg_temp.unit(p_target))
     when p_action = 'unit_points' then app.can_view_unit_points(pg_temp.unit(p_target))
     when p_action = 'edit' then app.can_edit_profile(pg_temp.person(p_target))
@@ -868,6 +876,7 @@ begin
     when p_action = 'decide' then app.can_decide_access(pg_temp.person(p_target))
     when p_action = 'block' then app.can_block_member(pg_temp.person(p_target))
     when p_action = 'unblock' then app.can_unblock_member(pg_temp.person(p_target))
+    when p_action = 'quest_data' then app.can_read_questionnaire_data(pg_temp.person(p_target))
     when p_action = 'audit_import' then app.can_read_audit('allowlist_imported', null)
     when p_action = 'audit_decision' then
       app.can_read_audit('access_granted', pg_temp.person(p_target))
@@ -1320,7 +1329,7 @@ select is_empty(
 -- Escrita de perfil e contato só por `save_own_profile` (#12): sem grant direto, e a função
 -- não recebe o id do alvo (grava só a linha de quem chama).
 select throws_ok(
-  $$ update public.profiles set district = 'Centro' where id = pg_temp.person('stu_a') $$,
+  $$ update public.profiles set district_code = 330455705 where id = pg_temp.person('stu_a') $$,
   '42501', 'permission denied for table profiles',
   'coordenador NÃO edita perfil de membro direto pela API'
 );
@@ -1333,7 +1342,7 @@ select throws_ok(
 select lives_ok(
   $$ select public.save_own_profile(
        p_display_name_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
-       p_municipality_code => 3304557, p_district => 'Centro',
+       p_municipality_code => 3304557, p_district_code => null,
        p_whatsapp_enc => 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD',
        p_whatsapp_hmac => repeat('d', 64)) $$,
   'coordenador grava pela função: só alcança o próprio perfil'
@@ -1434,17 +1443,17 @@ select lives_ok(
 
 reset role;
 select results_eq(
-  $$ select district, (select social_links_enc from public.profile_contacts
-                       where profile_id = pg_temp.person('stu_a'))
+  $$ select district_code, (select social_links_enc from public.profile_contacts
+                            where profile_id = pg_temp.person('stu_a'))
      from public.profiles where id = pg_temp.person('stu_a') $$,
-  $$ values (null::text, null::text) $$,
+  $$ values (null::integer, null::text) $$,
   'perfil e contato do membro não foram alterados pelo coordenador'
 );
 select results_eq(
-  $$ select p.id, p.district, c.whatsapp_hmac
+  $$ select p.id, c.whatsapp_hmac
      from public.profiles as p join public.profile_contacts as c on c.profile_id = p.id
-     where p.district = 'Centro' or c.whatsapp_hmac = repeat('d', 64) $$,
-  $$ select pg_temp.person('team_a_mon'), 'Centro', repeat('d', 64) $$,
+     where c.whatsapp_hmac = repeat('d', 64) $$,
+  $$ select pg_temp.person('team_a_mon'), repeat('d', 64) $$,
   'a gravação do coordenador pela função caiu só na linha dele'
 );
 select is_empty(
@@ -1546,7 +1555,7 @@ select set_eq(
 );
 select set_eq(
   $$ select key from public.houses $$,
-  array['casa-exemplo-1', 'casa-exemplo-2', 'casa-exemplo-3', 'casa-exemplo-4',
+  array['esparta', 'atenas', 'alexandria', 'siracusa',
         'casa-t1', 'casa-t2', 'casa-off'],
   'quem está ativo lê as chaves das casas (sem dado pessoal)'
 );

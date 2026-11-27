@@ -76,7 +76,10 @@ test.describe("colunas cifradas com o Supabase local", () => {
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill(person.name);
     await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);
-    await page.getByLabel("Sua cidade").selectOption({ label: "São Paulo" });
+    // Formulário novo da main (#cidades/distritos): estado → cidade → distrito (São Paulo tem vários).
+    await page.getByLabel("Seu estado").selectOption({ label: "São Paulo" });
+    await page.getByLabel("Sua cidade", { exact: true }).selectOption({ label: "São Paulo" });
+    await page.getByLabel("Seu distrito").selectOption({ label: "Sé" });
     await page.getByRole("button", { name: "Pôr mais um link" }).click();
     await page.getByLabel("Link 1", { exact: true }).fill(person.social);
     await page.getByRole("button", { name: "Salvar meus dados" }).click();

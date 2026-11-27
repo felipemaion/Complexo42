@@ -102,7 +102,10 @@ test.describe("XSS com o Supabase local", () => {
     await expect(person.page).toHaveURL(`${baseURL}/perfil`);
     await person.page.getByLabel("Seu nome").fill(name);
     await person.page.getByLabel("Seu WhatsApp, com DDD").fill(`11 9${String(run).slice(-8)}`);
-    await person.page.getByLabel("Sua cidade").selectOption({ label: "São Paulo" });
+    // Formulário novo da main (#cidades/distritos): estado → cidade → distrito (São Paulo tem vários).
+    await person.page.getByLabel("Seu estado").selectOption({ label: "São Paulo" });
+    await person.page.getByLabel("Sua cidade", { exact: true }).selectOption({ label: "São Paulo" });
+    await person.page.getByLabel("Seu distrito").selectOption({ label: "Sé" });
     await person.page.getByRole("button", { name: "Salvar meus dados" }).click();
     await expect(person.page).toHaveURL(`${baseURL}/espera`);
 

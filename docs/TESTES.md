@@ -11,7 +11,7 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 | **Em todo PR** (CI) | Guardrails: gitleaks, campos pessoais proibidos (R4), testes bash de `deploy/` | job `guardrails` |
 | | Lint, tipos, Vitest (unidade e contratos de configuração) e build | job `app` (`npm run check`) |
 | | pgTAP: RLS em toda tabela, matriz de permissões, guardas de privilégio, regras por tabela | job `database` (`supabase test db`) |
-| | Playwright sem banco e com Supabase local (login, perfil, casa, contato, exclusão, fluxo completo) | jobs `e2e` e `e2e-live` |
+| | Playwright sem banco e com Supabase local (login, perfil, casa, contato, navegação, exclusão, fluxo completo) | jobs `e2e` e `e2e-live` |
 | | Imagem Docker: sem `.env`, não-root, `/api/healthz` | job `image` |
 | **Antes do deploy** (staging, #82) | Os mesmos jobs verdes na `main`; `restore-test.sh` (#84) | CI + `deploy/` |
 | **Antes do lançamento** (#39) | Pentest do §4, carga do §5, revisão manual de segurança | staging |
@@ -115,6 +115,6 @@ Medido em 22/11/2026 no servidor da demonstração (2 núcleos ARM, carregado):
 
 O seed revelou que as políticas de leitura de `profiles` e `unit_members` e a busca (#23)
 checavam o escopo linha por linha: com só 2 mil perfis, a lista da gestora levava 2,9 s e a busca
-com 50 mil levava 7,4 s. A migration `20261122000300_scope_listing_perf.sql` calcula o conjunto do
+com 50 mil levava 7,4 s. A migration `20261128002300_scope_listing_perf.sql` calcula o conjunto do
 escopo uma vez por consulta, com as mesmas condições (a matriz de permissões inteira passa igual).
 No staging (plano gratuito, 500 MB), rode 2 mil e 50 mil; 500 mil não cabe.

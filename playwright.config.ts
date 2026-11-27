@@ -61,6 +61,8 @@ export default defineConfig({
       SITE_URL: baseURL,
       FIELD_ENCRYPTION_KEY: randomKey(),
       BLIND_INDEX_KEY: process.env.E2E_BLIND_INDEX_KEY,
+      // Igual ao de supabase/seed.sql (só desenvolvimento e testes, ADR 0014).
+      QUESTIONNAIRE_SIGNING_KEY: "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=",
       LOG_DIR: "test-results/logs",
       // Turnstile (#116): chaves de TESTE oficiais e públicas da Cloudflare, que sempre passam
       // (as mesmas de src/server/auth/turnstile.ts). Em produção as reais são obrigatórias.

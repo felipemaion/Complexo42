@@ -3,11 +3,11 @@
 // JWT da pessoa) + serviço do módulo de perfis, que valida (Zod), cifra e grava pela função
 // `save_own_profile`. Nada de dado da pessoa em log ou na URL (R11).
 import { redirect } from "next/navigation";
-import { districtsByMunicipality } from "@config/districts";
 import {
   saveOwnProfile,
   socialLinkFormEntriesMax,
   socialLinkInputMaxLength,
+  neighborhoodSentField,
   socialLinksSentField,
   type ProfileFormState,
   type ProfileFormValues,
@@ -34,13 +34,17 @@ export async function saveProfileAction(_previous: ProfileFormState, formData: F
   const values: ProfileFormValues = {
     displayName: text(formData.get("displayName")),
     whatsapp: text(formData.get("whatsapp")),
+    stateCode: text(formData.get("stateCode")),
     municipalityCode: text(formData.get("municipalityCode")),
     district: text(formData.get("district")),
+    neighborhood: text(formData.get("neighborhood")),
     socialLinks: [],
   };
   const socialLinks = socialLinksFrom(formData);
   if (socialLinks) values.socialLinks = socialLinks;
-  const result = await saveOwnProfile(client, user.id, { ...values, socialLinks }, (code) => districtsByMunicipality[code]);
+  // Sem o campo escondido, o servidor mantém o bairro guardado (#179).
+  const neighborhood = formData.has(neighborhoodSentField) ? values.neighborhood : undefined;
+  const result = await saveOwnProfile(client, user.id, { ...values, socialLinks, neighborhood });
   switch (result.status) {
     case "saved":
       // A página inicial passa de novo pelo portão de acesso (perfil novo nasce `pending`).

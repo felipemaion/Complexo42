@@ -3,27 +3,31 @@
 // fluxo está em domain/flow.ts, e quem fala com o banco são as server actions.
 //
 // Privacidade: as respostas do questionário ficam só no estado deste componente, em memória.
-// Não vão para a rede, para o localStorage/sessionStorage nem para a URL. A pontuação roda
-// aqui (`scoreQuestionnaire`, #91), e só a casa aceita (com a forma de entrada) e a versão do
-// termo vão ao servidor. tests/house-privacy.test.ts e e2e/house-live.spec.ts conferem.
+// Não vão para o localStorage/sessionStorage nem para a URL. Ao fim das perguntas vão ao
+// servidor, que pontua com a chave real (que o navegador nunca recebe, ADR 0014 §1) e só as
+// guarda no pedido de análise do resultado inconclusivo. O navegador não manda casa nem totem.
+// tests/house-privacy.test.ts e e2e/house-live.spec.ts conferem.
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { InstanceConfig } from "@/modules/instance";
-import { scoreQuestionnaire, type Answer, type QuestionnaireConfig } from "@/modules/questionnaire";
+import { IntensityScale } from "@/modules/questionnaire/components/intensity-scale";
+import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
+import type { PublicQuestionnaire } from "@/modules/questionnaire";
 import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent } from "../domain/flow";
-import { acceptHouseAction, recordConsentAction } from "../server/actions";
+import { refusalMessage } from "../domain/refusal";
+import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
 import { HousePresentation, type HouseView } from "./house-presentation";
 
 type Props = {
   houses: readonly HouseView[];
-  questionnaire: QuestionnaireConfig;
+  questionnaire: PublicQuestionnaire;
   text: InstanceConfig["houseSelection"];
 };
 
-const bigBase = "min-h-14 w-full rounded-xl border-2 border-primary no-underline px-5 py-3 text-left text-lg font-semibold";
-const big = `${bigBase} bg-surface text-primary`;
-const primary = "min-h-14 w-full rounded-xl bg-primary px-5 py-3 text-lg font-bold text-on-primary";
+const big = "min-h-14 w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-5 py-3 text-left text-lg font-semibold";
+const primary =
+  "min-h-14 w-full rounded-xl bg-primary px-5 py-3 text-lg font-bold text-on-primary disabled:cursor-not-allowed disabled:opacity-40";
 
 export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const router = useRouter();
@@ -32,10 +36,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const [pending, startTransition] = useTransition();
 
   const ctx = useMemo<FlowContext>(
-    () => ({
-      itemIds: questionnaire.items.map((item) => item.id),
-      suggest: (answers) => scoreQuestionnaire(questionnaire, answers).houseId,
-    }),
+    () => ({ questionIds: questionnaire.items.map((item) => item.id) }),
     [questionnaire],
   );
   const dispatch = (event: FlowEvent) => {
@@ -50,6 +51,28 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       else setError(result.error);
     });
 
+  // Depois da última pergunta as respostas vão ao servidor, que pontua e grava o resultado. A
+  // ação é idempotente, então repetir o efeito (modo estrito do React) não duplica nada.
+  const { step } = state;
+  const answers = state.answers;
+  useEffect(() => {
+    if (step.kind !== "submit") return;
+    let cancelled = false;
+    void (async () => {
+      const response = await submitAnswersAction({ answers });
+      if (cancelled) return;
+      // A recusa vai no estado do fluxo (#199): setError e dispatch na mesma hora apagariam o motivo.
+      if (!response.ok) dispatch({ type: "submit_failed", error: response.error, retryAfterSeconds: response.retryAfterSeconds });
+      else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles });
+      else dispatch({ type: "analysis_requested" });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // `dispatch` só troca o estado; o efeito roda uma vez por entrada no passo "submit".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const acceptHouse = (houseId: string, joinMethod: "self" | "questionnaire") =>
     startTransition(async () => {
       const result = await acceptHouseAction({ houseId, joinMethod });
@@ -62,23 +85,9 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       ← {text.backButton}
     </button>
   );
-  const { step } = state;
 
   let body: React.ReactNode;
   switch (step.kind) {
-    case "ask":
-      body = (
-        <>
-          <h2 className="text-2xl font-bold">{text.knowsQuestion}</h2>
-          <button type="button" className={big} onClick={() => dispatch({ type: "knows", value: true })}>
-            {text.knowsYes}
-          </button>
-          <button type="button" className={big} onClick={() => dispatch({ type: "knows", value: false })}>
-            {text.knowsNo}
-          </button>
-        </>
-      );
-      break;
     case "activities":
       body = (
         <>
@@ -122,17 +131,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
     case "question": {
       const item = questionnaire.items[step.index]!;
       const chosen = state.answers[item.id];
-      const option = (value: Answer, label: string, detail?: string) => (
-        <button
-          type="button"
-          className={`${bigBase} ${chosen === value ? "bg-secondary text-on-secondary" : "bg-surface text-primary"}`}
-          aria-pressed={chosen === value}
-          onClick={() => dispatch({ type: "answer", value })}
-        >
-          <span className="mr-3 inline-block min-w-6 font-bold">{label}</span>
-          {detail}
-        </button>
-      );
+      const isLast = step.index === questionnaire.items.length - 1;
       body = (
         <>
           {back}
@@ -140,18 +139,66 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
             {formatProgress(text.progress, step.index + 1, questionnaire.items.length)}
           </p>
           <h2 className="text-2xl font-bold">{item.text}</h2>
-          {option("a", "a", item.a.text)}
-          {option("b", "b", item.b.text)}
-          {option("both", text.bothButton)}
+          {/* `key`: cada pergunta começa com a escala vazia e o foco no começo. */}
+          <IntensityScale
+            key={item.id}
+            legend={text.scaleLegend}
+            intensities={text.scaleIntensities}
+            poleA={item.a.text}
+            poleB={item.b.text}
+            value={chosen}
+            onChange={(value) => dispatch({ type: "answer", value })}
+          />
+          <button type="button" className={primary} onClick={() => dispatch({ type: "next" })} disabled={chosen === undefined}>
+            {isLast ? text.finishButton : text.nextButton}
+          </button>
         </>
       );
       break;
     }
+    case "submit":
+      body = (
+        <p className="text-lg font-semibold" role="status">
+          {text.submitting}
+        </p>
+      );
+      break;
+    case "analysis":
+      body = (
+        <>
+          {back}
+          <h2 className="text-2xl font-bold">{text.analysisTitle}</h2>
+          <p className="text-lg">{text.analysisMessage}</p>
+          <button type="button" className={primary} onClick={() => dispatch({ type: "choose_other" })}>
+            {text.analysisChooseButton}
+          </button>
+        </>
+      );
+      break;
     case "presentation": {
       const house = houses.find((h) => h.id === step.houseId);
       body = (
         <>
           {back}
+          {step.chart && step.chart.length > 0 && (
+            <section className="flex flex-col gap-2" aria-labelledby="profile-chart-title">
+              <h2 id="profile-chart-title" className="text-2xl font-bold">
+                {text.chartTitle}
+              </h2>
+              <SpiderChart
+                chart={step.chart}
+                title={text.chartTitle}
+                houses={
+                  step.byPoles && {
+                    byPoles: step.byPoles,
+                    houses,
+                    currentHouseId: step.houseId,
+                    currentLabel: text.chartCurrentHouse,
+                  }
+                }
+              />
+            </section>
+          )}
           {house && (
             <HousePresentation
               house={house}
@@ -180,9 +227,9 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   return (
     <div className="flex flex-col gap-4">
       {body}
-      {error && (
-        <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg">
-          {text.errors[error]}
+      {(state.refusal || error) && (
+        <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg" data-testid="refusal-message">
+          {state.refusal ? refusalMessage(text, state.refusal) : text.errors[error!]}
         </p>
       )}
     </div>

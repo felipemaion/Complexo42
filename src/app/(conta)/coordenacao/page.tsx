@@ -3,9 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { ALLOWLIST_UPLOAD_PATH, MEMBER_BLOCK_PATH, WAITLIST_QUEUE_PATH, readCoordinationMenu } from "@/modules/access";
-import { BackLink } from "@/modules/ui";
+import { readCoordinationLinks } from "@/modules/houses";
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
+import { BackLink } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.coordination.title };
 
@@ -19,6 +20,9 @@ export default async function CoordinationHome() {
   const menu = await readCoordinationMenu(client, user.id);
   if (!menu.waitlist) redirect(HOME_PATH);
   const text = instance.coordination;
+  // Atalhos do questionário só para quem pode: a nacional ou um delegado (o banco responde).
+  const questionnaire = await readCoordinationLinks();
+  const links = instance.questionnaireCoordination;
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
       <h1 className="text-3xl font-bold">{text.title}</h1>
@@ -32,6 +36,21 @@ export default async function CoordinationHome() {
       {menu.allowlist && (
         <Link href={ALLOWLIST_UPLOAD_PATH} className={big}>
           {text.allowlist.menuLink}
+        </Link>
+      )}
+      {(questionnaire.national || questionnaire.delegate) && (
+        <>
+          <Link href="/coordenacao/casas/resultados" className={big}>
+            {links.linkResults}
+          </Link>
+          <Link href="/coordenacao/casas/analise" className={big}>
+            {links.linkQueue}
+          </Link>
+        </>
+      )}
+      {questionnaire.national && (
+        <Link href="/coordenacao/casas/delegacoes" className={big}>
+          {links.linkDelegations}
         </Link>
       )}
       <BackLink href={HOME_PATH} label={text.homeBackLink} />

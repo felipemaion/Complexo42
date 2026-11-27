@@ -17,7 +17,7 @@ import type {
   StepSubmission,
 } from "../types";
 
-/** Código do Postgres/PostgREST → motivo exibido (migration 20261121000000, regra 7). */
+/** Código do Postgres/PostgREST → motivo exibido (migration 20261128000000, regra 7). */
 const errorByCode: Record<string, MissionErrorCode> = {
   "42501": "not_allowed",
   "22023": "invalid_evidence",

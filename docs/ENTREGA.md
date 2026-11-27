@@ -27,7 +27,7 @@ separados por assunto, para você aceitar aos poucos (um PR por commit, se prefe
 | Mapa: onde as pessoas estão, por cidade da região metropolitana e distrito da capital; número abaixo de 5 aparece como "< 5" | #24 | `…001700`, `src/modules/map`, `/coordenacao/mapa` |
 | Medalhas de evento e de marco (o marco guarda quem chegou primeiro e a história) | #71 | `…001800`, `/coordenacao/medalhas` |
 | Catálogo de habilidades pela tela do gestor nacional (criar, renomear, sinônimos, desativar sem apagar) | #25 | `…001900`, `/coordenacao/habilidades` |
-| Equipes de antes da plataforma (ex-aluno): a pessoa informa até 5, sem confirmação e sem colegas; não dão acesso; a coordenação vê no histórico; saem no "Baixar meus dados". **ADR 0012 proposto** (R4) | #136 | `20261122000000`, `/perfil/equipes-anteriores` |
+| Equipes de antes da plataforma (ex-aluno): a pessoa informa até 5, sem confirmação e sem colegas; não dão acesso; a coordenação vê no histórico; saem no "Baixar meus dados". **ADR 0012 proposto** (R4) | #136 | `20261128002000`, `/perfil/equipes-anteriores` |
 | A pessoa marca as próprias habilidades do catálogo (até 12, só ativas; busca por nome, área ou sinônimo, pensada para o celular); saem no "Baixar meus dados" | #15 | `…000200`, `src/modules/search/server/my-skills.ts`, `/perfil/habilidades` |
 | Medalha "trabalhou com": cada porta-voz tem a sua (nasce sozinha), só ele dá, a quem esteve na equipe dele no mesmo período; a concessão manual não a dá; o nome do porta-voz é decifrado só na tela | #71 | `…000400`, `/equipe` |
 | CSP completa com nonce por requisição (sem `unsafe-inline` em script; Turnstile só em `/entrar`, YouTube só no portfólio; `CSP_REPORT_ONLY=1` só avisa, para o staging) | #152 | `src/server/csp.ts`, `src/proxy.ts` |
@@ -81,6 +81,34 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
   buscar → dar medalha → publicar missão → entregar → validar → pontos e medalha no perfil; e o draft
   (abrir → vez da equipe → escolher → a vez passa).
 
+## Junção com a main (27/11)
+
+A main ganhou 5 PRs desde a base desta entrega (#198, #202, #204, #206, #207). O que foi decidido
+ao juntar, para você conferir:
+
+- **Migrations desta entrega renumeradas para depois das suas** (`20261128000000` a `…002400`, mesma
+  ordem entre elas). As suas de 27/11 já rodaram em produção; com as minhas numeradas antes, o
+  `migra.sh` as aplicaria depois das suas lá e antes delas num banco novo (CI, instalação do zero):
+  duas ordens diferentes. Agora é uma ordem só, as suas primeiro. Nenhuma das minhas tinha ido para
+  produção. Referências nos documentos e comentários foram trocadas junto.
+- **Lista de eventos da auditoria**: as duas levas redefiniam `audit_log_event_check`; a da entrega
+  agora tem a união (os seus 5 do questionário + `evaluation_viewed`). Teste:
+  `supabase/tests/audit_events_union.test.sql`.
+- **Distrito**: com `district` virando `district_code` (`20261127100200`), "membros por área"
+  passou a contar pelo código e buscar o nome em `public.districts`.
+- **Matriz de permissões** (`rls_matrix.test.sql`): entraram `districts` (catálogo),
+  `house_analysis_requests`, `questionnaire_data_grants` e `questionnaire_results` (escopo).
+- **Telas**: a moldura desta entrega ficou; o seu "Voltar"/"Início" (`AccountNav`, #205) entrou numa
+  linha logo abaixo do menu, sem mudar o componente. O cartão da sua casa (#203) entrou no topo da
+  coluna da direita do início. Nas suas telas novas da coordenação de casas, só as cores viraram os
+  tokens do tema (a guarda `visual-tokens` reprova cor fixa).
+- Provas da junção: `supabase test db` em banco recriado do zero, 42 arquivos e 1892 testes passando;
+  `npm run check` (lint, tipos, 1051 testes, build) passando; Playwright com o Supabase local: 94
+  passam, e só os 3 de sempre (`auth-live`, `fluxo-completo`, `profile`) falham aqui porque o link do
+  e-mail aponta para a porta 3000 do `site_url` (no CI rodam na 3000). Dois testes desta entrega
+  (`encrypted-columns-live`, `xss-live`) passaram a preencher estado → cidade → distrito, como o
+  formulário novo pede.
+
 ## Pendências conhecidas
 
 - **ADR 0012 (equipes de antes da plataforma) está proposto**: precisa do seu OK (R4). O termo de
@@ -93,12 +121,13 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 - As políticas de leitura de `profiles` e `unit_members` mudaram de forma, não de regra
   (`…000300`): o escopo é calculado uma vez por consulta. A matriz de permissões passa inteira.
 - Conserto já incluído: tirar um item do portfólio podia dar "chave repetida" com as linhas guardadas
-  fora de ordem (`…20261122000100`, com teste que reproduzia a falha).
+  fora de ordem (`…20261128002100`, com teste que reproduzia a falha).
 
 - Velocidade no celular (Lighthouse 13.6, 27/11): o CSS deixou de ir embutido (`inlineCss: false`): o
   Next mandava o mesmo CSS duas vezes e a página inicial caiu de 127 KB para 22 KB; o trabalho de estilo e
   layout caiu de ~1,1 s para ~0,25 s. Com a CPU calibrada como manda a tabela do Lighthouse
-  (`docs/throttling.md`: esta máquina mede ~650–1150, faixa de celular topo de linha → multiplicador 1,5):
+  (docs/throttling.md do próprio Lighthouse: esta máquina mede ~650–1150, faixa de celular topo de
+  linha → multiplicador 1,5):
   93, 98, 77 e 89 (mediana 91; LCP ~1 s, CLS 0). Com o multiplicador padrão 4× a nota oscila 71–93 só pela
   carga do servidor (2 núcleos, carga 8–12 de outros programas). O que sobra é a partida do React (base de
   qualquer página Next). A nota oficial do PageSpeed segue sem medir: a cota grátis de quem chama deste

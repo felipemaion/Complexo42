@@ -1,16 +1,36 @@
-import { axes, type Axis, type Pole, type QuestionnaireConfig, type Temperament } from "./schema";
+import type { Axis, Pole, QuestionnaireConfig } from "./schema";
 
 /*
- * Pontuação do questionário (ADR 0008 §2.1, #91). Função pura: sem I/O, sem data, sem estado.
- * Roda no navegador; as respostas não saem do dispositivo e não são guardadas. O retorno traz
- * só o temperamento e a casa sugerida.
+ * Pontuação do questionário (ADR 0014, #172 e #183). Função pura: sem I/O, sem data, sem estado.
+ * Roda só no servidor (ADR 0014 §1): o navegador não recebe a chave. As respostas só são
+ * guardadas no caso inconclusivo, para o pedido de análise (ADR 0014 §3); as notas por eixo
+ * ficam guardadas, cifradas, junto do resultado.
  */
 
-/** Resposta de um item: alternativa a, b, ou as duas (indecisão). */
-export type Answer = "a" | "b" | "both";
+/**
+ * Intensidade da resposta, seis níveis e sem meio: negativo é o polo "a" (-3 muito a), positivo
+ * é o polo "b" (3 muito b).
+ */
+export const answerValues = [-3, -2, -1, 1, 2, 3] as const;
+export type Answer = (typeof answerValues)[number];
 export type Answers = Readonly<Record<string, Answer>>;
 
-export type QuestionnaireResult = { temperament: Temperament; houseId: string };
+/** Maior intensidade possível de uma resposta (a nota do eixo é normalizada por ela). */
+const maxIntensity = 3;
+
+/** Nota de cada eixo, inteira de -100 (tudo "muito a") a 100 (tudo "muito b"). */
+export type AxisScores = Readonly<Record<Axis, number>>;
+
+/**
+ * Conclusivo: a casa sugerida, o totem e as notas. Totem pendente (#197): os eixos da casa definem a
+ * casa, mas algum eixo do totem empatou; `axes` são só os eixos do totem empatados. Inconclusivo: algum
+ * eixo da casa sem polo (nota 0 e desempate também 0); `axes` lista todos os empatados. `scores` são as
+ * notas, sem as respostas.
+ */
+export type QuestionnaireResult =
+  | { status: "ok"; houseId: string; totem: string; scores: AxisScores }
+  | { status: "totem_pending"; houseId: string; axes: readonly Axis[]; scores: AxisScores }
+  | { status: "inconclusive"; axes: readonly Axis[]; scores: AxisScores };
 
 export type AnswerErrorCode = "missing_answer" | "unknown_item" | "invalid_answer";
 
@@ -23,14 +43,14 @@ export class QuestionnaireAnswerError extends Error {
     const reason = {
       missing_answer: "item sem resposta",
       unknown_item: "resposta para item inexistente",
-      invalid_answer: "resposta diferente de a, b ou both",
+      invalid_answer: "resposta fora de -3, -2, -1, 1, 2 e 3",
     }[code];
     super(`Respostas inválidas (${reason}): ${itemIds.join(", ")}`);
     this.name = "QuestionnaireAnswerError";
   }
 }
 
-const VALID: readonly string[] = ["a", "b", "both"] satisfies Answer[];
+const validValues: readonly unknown[] = answerValues;
 
 function checkAnswers(config: QuestionnaireConfig, answers: Answers): void {
   const ids = new Set(config.items.map((item) => item.id));
@@ -38,39 +58,60 @@ function checkAnswers(config: QuestionnaireConfig, answers: Answers): void {
   if (unknown.length > 0) throw new QuestionnaireAnswerError("unknown_item", unknown);
   const missing = config.items.filter((item) => !Object.hasOwn(answers, item.id)).map((item) => item.id);
   if (missing.length > 0) throw new QuestionnaireAnswerError("missing_answer", missing);
-  const invalid = config.items.filter((item) => !VALID.includes(answers[item.id] as string)).map((item) => item.id);
+  const invalid = config.items.filter((item) => !validValues.includes(answers[item.id])).map((item) => item.id);
   if (invalid.length > 0) throw new QuestionnaireAnswerError("invalid_answer", invalid);
 }
 
-/**
- * Pontos por polo, em meios pontos inteiros para evitar fração: uma alternativa vale 2 para o
- * seu polo; "as duas" vale 1 para cada polo (meio ponto, até a pergunta 75 dizer outra coisa).
- */
-function tally(config: QuestionnaireConfig, answers: Answers): Record<Pole, number> {
-  const points: Record<Pole, number> = { E: 0, I: 0, S: 0, N: 0, T: 0, F: 0, J: 0, P: 0 };
-  for (const item of config.items) {
-    const answer = answers[item.id];
-    if (answer === "a" || answer === "both") points[item.a.pole] += answer === "a" ? 2 : 1;
-    if (answer === "b" || answer === "both") points[item.b.pole] += answer === "b" ? 2 : 1;
-  }
-  return points;
+function sumOf(itemIds: readonly string[], answers: Answers): number {
+  return itemIds.reduce((total, id) => total + (answers[id] as number), 0);
 }
 
-function winner(axis: Axis, points: Record<Pole, number>, config: QuestionnaireConfig): Pole {
-  const [first, second] = axes[axis];
-  if (points[first] === points[second]) return config.tieBreak[axis];
-  return points[first] > points[second] ? first : second;
+/** Nota do eixo: média das respostas, normalizada para -100..100 (inteira; sem -0). */
+function scoreOf(itemIds: readonly string[], answers: Answers): number {
+  return Math.round((sumOf(itemIds, answers) / itemIds.length / maxIntensity) * 100) + 0;
+}
+
+/** Polo de um conjunto de itens pelo sinal da soma (a média tem o mesmo sinal); soma 0 é empate. */
+function poleOfSum(itemIds: readonly string[], answers: Answers): Pole | null {
+  const sum = sumOf(itemIds, answers);
+  if (sum === 0) return null;
+  return sum < 0 ? "a" : "b";
+}
+
+/** Polo do eixo; em empate, desempata pela média dos itens indicados; ainda 0, `null`. */
+function poleOf(config: QuestionnaireConfig, axis: Axis, answers: Answers): Pole | null {
+  const { itemIds, tieBreakItems } = config.axes[axis];
+  return poleOfSum(itemIds, answers) ?? (tieBreakItems.length > 0 ? poleOfSum(tieBreakItems, answers) : null);
 }
 
 /**
- * Transforma as respostas na casa sugerida. Temperamento de Keirsey: com S, o par é SJ ou SP
- * (eixo J/P); com N, é NT ou NF (eixo T/F). O eixo E/I entra na contagem mas não na casa.
+ * Transforma as respostas na casa sugerida, no totem e nas notas dos eixos. A casa é a
+ * interseção dos polos dos eixos 1 e 2; o totem, as letras dos polos dos eixos 3 e 4. Eixo da casa
+ * sem polo (nota 0 sem desempate): inconclusivo, nenhuma casa é atribuída. Só eixo do totem sem polo:
+ * a casa sai e o totem fica pendente para a coordenação (ADR 0014 §2).
  */
 export function scoreQuestionnaire(config: QuestionnaireConfig, answers: Answers): QuestionnaireResult {
   checkAnswers(config, answers);
-  const points = tally(config, answers);
-  const perception = winner("SN", points, config);
-  const temperament: Temperament =
-    perception === "S" ? (winner("JP", points, config) === "J" ? "SJ" : "SP") : winner("TF", points, config) === "T" ? "NT" : "NF";
-  return { temperament, houseId: config.houseByTemperament[temperament] };
+  const scores: AxisScores = {
+    house1: scoreOf(config.axes.house1.itemIds, answers),
+    house2: scoreOf(config.axes.house2.itemIds, answers),
+    totem1: scoreOf(config.axes.totem1.itemIds, answers),
+    totem2: scoreOf(config.axes.totem2.itemIds, answers),
+  };
+  const poles = {
+    house1: poleOf(config, "house1", answers),
+    house2: poleOf(config, "house2", answers),
+    totem1: poleOf(config, "totem1", answers),
+    totem2: poleOf(config, "totem2", answers),
+  };
+  const tied = (Object.keys(poles) as Axis[]).filter((axis) => poles[axis] === null);
+  if (poles.house1 === null || poles.house2 === null) return { status: "inconclusive", axes: tied, scores };
+  const houseId = config.houseByPoles[`${poles.house1}${poles.house2}`];
+  if (poles.totem1 === null || poles.totem2 === null) return { status: "totem_pending", houseId, axes: tied, scores };
+  return {
+    status: "ok",
+    houseId,
+    totem: config.axes.totem1.letters[poles.totem1] + config.axes.totem2.letters[poles.totem2],
+    scores,
+  };
 }

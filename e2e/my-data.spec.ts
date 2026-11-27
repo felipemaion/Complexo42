@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
+import { chooseCity } from "./choose-city";
 
 // "Baixar meus dados" (#20). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o Supabase local,
 // o fluxo real: duas pessoas se cadastram, são liberadas e cada uma baixa o próprio arquivo,
@@ -49,7 +50,7 @@ test.describe("download com o Supabase local", () => {
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill(person.name);
     await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);
-    await page.getByLabel("Sua cidade").selectOption({ label: person.city });
+    await chooseCity(page, person.city);
     await page.getByRole("button", { name: "Salvar meus dados" }).click();
     await expect(page).toHaveURL(`${baseURL}/espera`);
     const res = await admin(`/rest/v1/profiles?id=eq.${link.id}`, {

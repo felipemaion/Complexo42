@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { instance } from "@config/instance";
+import { toPublicQuestionnaire } from "@/modules/questionnaire";
 import { getQuestionnaire, HouseFlow, HousePresentation, readAcceptedHouse, sessionHouseClient } from "@/modules/houses";
 import { requireUser } from "@/server/auth/session";
 
 export const metadata: Metadata = { title: instance.houseSelection.title };
 
 // Escolha da casa (#76, ADR 0008 §2). Quem já aceitou vê a sua casa; quem não, o fluxo. O
-// questionário é lido no servidor (QUESTIONNAIRE_PATH ou o exemplo) e vai para a tela como
-// dado; a pontuação acontece no aparelho.
+// questionário é lido no servidor (QUESTIONNAIRE_PATH ou o exemplo) e vai para a tela só com as
+// perguntas; a pontuação e a chave ficam no servidor (ADR 0014 §1).
 export default async function HousePage() {
   const user = await requireUser();
   const text = instance.houseSelection;
@@ -27,7 +28,7 @@ export default async function HousePage() {
           videosTitle={text.videosTitle}
         />
       ) : (
-        <HouseFlow houses={instance.houses} questionnaire={getQuestionnaire()} text={text} />
+        <HouseFlow houses={instance.houses} questionnaire={toPublicQuestionnaire(getQuestionnaire())} text={text} />
       )}
     </main>
   );

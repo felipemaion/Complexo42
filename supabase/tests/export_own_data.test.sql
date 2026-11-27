@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(31);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -23,9 +23,9 @@ insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a1'),
   ('00000000-0000-0000-0000-0000000000a2'),
   ('00000000-0000-0000-0000-0000000000a3');
-insert into public.profiles (id, display_name_enc, municipality_code, district, consent_version) values
-  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('NomeA'), 3550308, 'Sé', 'v1'),
-  ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('NomeB'), 3550308, null, 'v1');
+insert into public.profiles (id, display_name_enc, municipality_code, district_code, neighborhood_enc, consent_version) values
+  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('NomeA'), 3550308, 355030878, pg_temp.enc('BairroA'), 'v1'),
+  ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('NomeB'), 3550308, null, null, 'v1');
 update public.profiles set access_status = 'active', status = 'active'
 where id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2');
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac) values
@@ -77,10 +77,10 @@ select throws_ok($$ select public.export_own_data() $$, '42501', null,
 -- outra casa direto. Os eventos de B não podem ir para o arquivo de A.
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000a2');
-select public.accept_house('casa-exemplo-2', 'self', null);
+select public.accept_house('atenas', 'self', null);
 select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
 select public.record_questionnaire_consent('termo-exemplo-1');
-select public.accept_house('casa-exemplo-1', 'questionnaire', 'termo-exemplo-1');
+select public.accept_house('esparta', 'questionnaire', 'termo-exemplo-1');
 
 -- ---------------------------------------------------------------------------------------
 -- A exporta
@@ -91,12 +91,14 @@ create temporary table out_a as select pg_temp.export() as d;
 
 select is((select d->'profile'->>'display_name_enc' from out_a), pg_temp.enc('NomeA'),
   'nome (ainda cifrado) de A');
+select is((select d->'profile'->>'neighborhood_enc' from out_a), pg_temp.enc('BairroA'),
+  'bairro (ainda cifrado) de A');
 select is(
   (select (d->'profile'->>'municipality_name') || '/' || (d->'profile'->>'state_code') || '/'
-          || (d->'profile'->>'district') || '/' || (d->'profile'->>'consent_version')
+          || (d->'profile'->>'district_code') || '/' || (d->'profile'->>'district_name') || '/' || (d->'profile'->>'consent_version')
           || '/' || (d->'profile'->>'access_status') from out_a),
-  'São Paulo/SP/Sé/v1/active',
-  'município, UF, distrito, versão do termo e liberação de A'
+  'São Paulo/SP/355030878/Sé/v1/active',
+  'município, UF, distrito (código e nome), versão do termo e liberação de A'
 );
 select ok((select d->'profile' ? 'consent_at' and d->'profile' ? 'created_at' from out_a),
   'data do termo e do cadastro presentes');
@@ -136,13 +138,13 @@ select is(
                     order by e->>'event')
    from out_a, jsonb_array_elements(d->'audit_events') as e
    where e->>'event' in ('house_accepted', 'questionnaire_consented')),
-  '[{"e": "house_accepted", "t": "termo-exemplo-1", "h": "casa-exemplo-1"},
+  '[{"e": "house_accepted", "t": "termo-exemplo-1", "h": "esparta"},
     {"e": "questionnaire_consented", "t": "termo-exemplo-1", "h": null}]'::jsonb,
   'os eventos de casa trazem a versão do termo e a casa (#132)'
 );
 select is(
   (select jsonb_agg(h - 'joined_at' - 'accepted_at') from out_a, jsonb_array_elements(d->'house_memberships') as h),
-  '[{"house_key": "casa-exemplo-1", "join_method": "questionnaire", "consent_version": "termo-exemplo-1", "left_at": null}]'::jsonb,
+  '[{"house_key": "esparta", "join_method": "questionnaire", "consent_version": "termo-exemplo-1", "left_at": null}]'::jsonb,
   'o vínculo de casa de A vai no arquivo, com a forma e a versão do termo'
 );
 select ok(
@@ -165,7 +167,7 @@ select is(
   'o aceite do termo do questionário de A vai no arquivo'
 );
 select ok(
-  (select d::text not like '%casa-exemplo-2%' from out_a),
+  (select d::text not like '%atenas%' from out_a),
   'a casa de B não aparece no arquivo de A'
 );
 select ok(

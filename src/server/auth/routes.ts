@@ -59,6 +59,16 @@ export function decideRoute(path: string, search: string, authenticated: boolean
   return { action: "next" };
 }
 
+/**
+ * O que /espera faz com quem a abre (#195), a partir do que o portão de acesso decidiu
+ * (`accessRedirect`: null = pode seguir): já liberado vai para dentro (a página é de quem ESPERA);
+ * quem segue esperando fica; bloqueado ou com falha na checagem segue o destino do portão.
+ */
+export function waitlistPageTarget(accessTarget: string | null): string | null {
+  if (accessTarget === null) return HOME_PATH;
+  return accessTarget === WAITLIST_PATH ? null : accessTarget;
+}
+
 /** Respostas de login e as que gravam cookie não podem ficar em cache compartilhado (L3). */
 export function needsNoStore(path: string, setsCookie: boolean): boolean {
   return setsCookie || path === LOGIN_PATH || path.startsWith("/auth/");

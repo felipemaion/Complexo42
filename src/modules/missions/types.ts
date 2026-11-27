@@ -1,7 +1,7 @@
 import type { InstanceConfig } from "@/modules/instance";
 
 // Contratos do módulo de missões (ADR 0006). Os valores das uniões são as chaves do banco
-// (supabase/migrations/20261121000000_missions.sql); o texto exibido vem de config/ (R17).
+// (supabase/migrations/20261128000000_missions.sql); o texto exibido vem de config/ (R17).
 
 export type MissionOrigin = "national" | "regional";
 export type MissionMode = "team" | "individual";

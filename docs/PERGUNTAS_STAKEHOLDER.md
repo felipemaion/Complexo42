@@ -86,24 +86,26 @@
 73. **Questionário das casas:** a licença permite usá-lo na plataforma?
 74. **Tamanho da equipe** (cerca de 12?) e **duração do ciclo** (4 meses?).
 
-### Questionário das casas (recebido em 2026-11-18, ADR 0008 §2.1)
+### Questionário das casas (chave nova de 2026-11-25, ADR 0014)
 
-75. **Chave de correção:**
-    - qual alternativa conta para qual polo em cada pergunta?
-    - como desempatar um eixo (por exemplo, 4 × 4)?
-    - o que vale quando a pessoa marca "as duas"?
-76. **Do temperamento à casa:** nossa hipótese é
-    - idealista (NF) → porta-vozes;
-    - guardião (SJ) → coordenação de equipe;
-    - racional (NT) → intelectuais;
-    - artesão (SP) → produção.
+Chave recebida: 28 perguntas, quatro eixos (dois para a casa, dois para o totem) e
+desempate só no eixo 1. As perguntas 75 a 78 da versão anterior (temperamentos) ficam
+substituídas pelas abaixo.
 
-    Confere?
-77. **Extroversão × introversão:** esse eixo não define o temperamento. As cinco perguntas
-    dele continuam? Sem elas, o questionário fica mais curto e coleta menos.
+75. ✅ *(chave de 2026-11-25; escala aprovada pelo gestor em 2026-11-27)* **Chave de correção:** itens
+    por eixo e a casa pela interseção dos eixos 1 e 2 estão no arquivo recebido. A resposta é a
+    intensidade (6 círculos, de -3 a 3, sem meio, sem "as duas"); a nota do eixo é a média
+    normalizada para -100..100, e o sinal dá o polo.
+76. ✅ *(stakeholder, itens 23 e 26 da chave; já na config privada)* **Itens de desempate do eixo 1:** respondida: o stakeholder indicou os itens 23 e 26,
+    que ficam só na configuração privada.
+77. [?] **Desempate dos eixos 2, 3 e 4:** há itens de desempate também nesses eixos? Sem regra,
+    o empate deixa o resultado inconclusivo e abre um pedido de análise.
 78. **Termo de consentimento:** podemos adaptá-lo assim?
-    - **Resultado:** só a própria pessoa vê o temperamento. A plataforma guarda apenas a
-      casa sugerida.
+    - **Resultado:** a pessoa vê a casa e o gráfico dos eixos 1 e 2. A plataforma guarda a casa
+      sugerida, o totem (interno) e as notas dos 4 eixos, cifradas. O termo privado já diz isso [?].
+    - **Respostas:** vão ao servidor para o cálculo e só são guardadas se o resultado for
+      inconclusivo, para a coordenação nacional analisar; são apagadas ao resolver ou em 30 dias.
+      O texto atual não diz isso [?].
     - **Assinatura e e-mail:** dão lugar a um aceite na tela, registrado com data e versão.
     - **Desistência:** vira o botão "escolher outra casa".
 79. **Licença:** quem detém os direitos das perguntas e da adaptação? Até a resposta, o texto
@@ -112,6 +114,43 @@
     e a coordenação do escopo veem o perfil (ADR 0002). *Recomendação:* manter assim no piloto,
     porque o contato já tem a regra própria (ADR 0010); abrir a visão entre colegas de equipe só
     se a coordenação sentir falta.
+81. ✅ *(decisão do gestor, 2026-11-27)* **Quem vê o totem:** a própria pessoa (em "Baixar meus
+    dados"), a coordenação nacional e o gestor de unidade (estadual, municipal) a quem a nacional
+    **conceder**, para as pessoas ativas do escopo dele; a concessão é revogável e auditada.
+    Coordenadores de casa continuam sem ver. A delegação inclui **resolver** a fila (decisão do gestor, 2026-11-27).
+82. [?] **Prazo para trocar de casa:** a pessoa pode escolher outra casa depois de aceitar? Depois
+    de quanto tempo? Hoje, depois de aceitar, só a coordenação troca.
+83. ✅ *(decisão do gestor, 2026-11-27)* **Quem resolve a fila de análise** (resultado inconclusivo): a
+    coordenação nacional e quem ela delegar, no escopo dele. [?] Em quanto tempo? E o que fazer com quem não quer esperar (hoje pode escolher a casa direto)?
+84. ✅ *(stakeholder, 26/11; aplicado na #193)* **Ids reais das casas:** `esparta`, `atenas`, `alexandria` e
+    `siracusa`. Eixo 1: polo a = Esparta/Atenas, polo b = Alexandria/Siracusa. Eixo 2: polo a =
+    Esparta/Alexandria, polo b = Atenas/Siracusa. Logo aa = Esparta, ab = Atenas, ba = Alexandria, bb =
+    Siracusa. Descrições e atividades das casas seguem `[PREENCHER]`.
+
+## Núcleos (decisão do gestor de 2026-11-24, aceita em 2026-11-27, ADR 0013)
+
+O núcleo é um agrupamento de debate e de tarefas públicas, fora da árvore de território, com
+pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos internos. A
+**sugestão padrão** das perguntas em aberto vale até a resposta.
+
+85. ✅ *(gestor, 2026-11-24)* **Um ou vários núcleos por pessoa?** Vários, com exatamente um
+    principal.
+86. ✅ *(gestor, 2026-11-24)* **Entrada:** a pessoa pede e o coordenador aprova ou recusa.
+87. ✅ *(gestor, 2026-11-24)* **Diretório de núcleos** visível aos membros? Por enquanto não.
+88. ✅ *(gestor, 2026-11-24)* **Relação com as casas:** independentes, sem vínculo.
+89. ✅ *(gestor, 2026-11-24)* **Reuniões, pauta e presença** entram na plataforma.
+90. ✅ *(gestor, 2026-11-24)* **A presença conta pontos**, além da medalha de presença.
+91. **Quem cria núcleos de topo e designa o primeiro coordenador?** *Padrão: o gestor da raiz.*
+92. **Para pedir um subnúcleo, é preciso ser membro do núcleo pai?** *Padrão: não.*
+93. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
+94. [?] **Nomes oficiais das quatro dimensões e dos polos** do questionário, e o **nome dos quatro
+    totens**. Hoje, provisórios no arquivo privado: Convívio (Expansivo/Reservado), Decisão
+    (Razão/Coração), Percepção (P·Prático/A·Abstrato) e Ritmo (R·Regrado/A·Adaptável). Totens
+    (provisórios, aprovados pelo gestor, só para a coordenação e os delegados): PR = Executor (Prático e
+    Regrado), PA = Realizador (Prático e Adaptável), AR = Estrategista (Abstrato e Regrado), AA =
+    Explorador (Abstrato e Adaptável). O exemplo público usa nomes genéricos.
+95. [?] **Significado das letras e perfil de cada casa:** falta o stakeholder dizer o que significam P, A
+    e R (Prático, Abstrato, Regrado?) e **qual perfil de cada casa corresponde a cada totem**.
 
 ## Novas perguntas (após as definições)
 
@@ -197,6 +236,8 @@ ele não tenha preferência.
 16. **Localização:** município + bairro está bom? Para a capital, sugestão: **subprefeitura ou
     distrito** (lista fechada de 96 distritos) em vez de bairro livre. Evita a "maçaroca" de
     grafias diferentes e permite agrupar. Na Grande SP, município basta?
+    *Decidido em 2026-11-27 (#175, #179): município e distrito em lista oficial do IBGE, e bairro
+    livre **opcional e cifrado**; sem busca por bairro.*
 17. **Idade mínima:** podem existir alunos **menores de 18 anos**? Se sim, a LGPD (art. 14)
     exige consentimento dos pais. Sugestão: **só maiores de 18** no piloto, com uma caixa de
     declaração.

@@ -7,10 +7,10 @@ import "server-only";
 import { z } from "zod";
 import { decryptField, encryptField, whatsappBlindIndex } from "@/server/crypto";
 import { log as appLog, type Logger } from "@/server/log";
-import { parseProfileForm, type DistrictCatalog } from "../domain/form";
+import { parseProfileForm } from "../domain/form";
 import { profileLimits, serializeSocialLinks } from "../domain/schema";
 import { socialLinkViews } from "../domain/social";
-import type { MunicipalityOption, OwnProfile, ProfileDbClient, SaveProfileResult } from "../types";
+import type { DistrictOption, MunicipalityOption, OwnProfile, ProfileDbClient, SaveProfileResult } from "../types";
 
 export type ProfileDeps = {
   encrypt: typeof encryptField;
@@ -28,6 +28,7 @@ const defaultDeps: ProfileDeps = {
 
 const uuid = z.guid();
 const keptRow = z.object({ social_links_enc: z.string().nullable() }).nullable();
+const keptNeighborhoodRow = z.object({ neighborhood_enc: z.string().nullable() }).nullable();
 const storedSocialLinks = z.array(z.string()).max(profileLimits.socialLinksMax);
 /** O que `save_own_profile` devolve quando não dá erro (#127: o repetido é retorno, não erro). */
 const saveOutcome = z.enum(["saved", "duplicate_whatsapp"]);
@@ -48,11 +49,10 @@ export async function saveOwnProfile(
   client: ProfileDbClient,
   userId: string,
   raw: unknown,
-  districtsFor: DistrictCatalog,
   deps: ProfileDeps = defaultDeps,
 ): Promise<SaveProfileResult> {
   const rowId = uuid.parse(userId);
-  const parsed = parseProfileForm(raw, districtsFor);
+  const parsed = parseProfileForm(raw);
   if (!parsed.ok) {
     return parsed.badLinks ? { status: "invalid", fields: parsed.fields, badLinks: parsed.badLinks } : { status: "invalid", fields: parsed.fields };
   }
@@ -75,13 +75,32 @@ export async function saveOwnProfile(
     keptSocialLinks = kept.data?.social_links_enc ?? null;
   }
 
+  // Envio sem o bairro (formulário antigo, ou o valor guardado não abriu): repassa o cifrado que
+  // já está guardado, sem abrir. Foi cifrado com o AAD desta mesma linha e coluna (#179).
+  let keptNeighborhood: string | null = null;
+  if (parsed.keepNeighborhood) {
+    const { data, error } = await client.from("profiles").select("neighborhood_enc").eq("id", rowId).maybeSingle();
+    const kept = keptNeighborhoodRow.safeParse(data);
+    if (error || !kept.success) {
+      deps.log.error("profile_save_failed", { reason: error ? errorCode(error) : "unexpected_result" });
+      return { status: "failed" };
+    }
+    keptNeighborhood = kept.data?.neighborhood_enc ?? null;
+  }
+
   let args: Record<string, unknown>;
   try {
     const socialLinks = serializeSocialLinks(contact.socialLinks);
     args = {
       p_display_name_enc: await deps.encrypt(profile.displayName, { table: "profiles", column: "display_name_enc", rowId }),
       p_municipality_code: profile.municipalityCode,
-      p_district: profile.district,
+      p_district_code: profile.districtCode,
+      // Bairro (#179): texto livre = dado pessoal, só cifrado, com AAD `profiles.neighborhood_enc.<id>`.
+      p_neighborhood_enc: parsed.keepNeighborhood
+        ? keptNeighborhood
+        : profile.neighborhood === null
+          ? null
+          : await deps.encrypt(profile.neighborhood, { table: "profiles", column: "neighborhood_enc", rowId }),
       // Sem versão do termo: o banco grava `none` e só o aceite (#11) a avança (revisão do #125).
       p_whatsapp_enc: await deps.encrypt(contact.whatsapp, { table: "profile_contacts", column: "whatsapp_enc", rowId }),
       p_whatsapp_hmac: await deps.blindIndex(contact.whatsapp),
@@ -111,6 +130,8 @@ export async function saveOwnProfile(
   }
   // Município que não existe na tabela (o trigger da UF recusa).
   if (code === "23503") return { status: "invalid", fields: ["municipalityCode"] };
+  // Distrito que não é do município (`save_own_profile`, #175).
+  if (code === "PT422") return { status: "invalid", fields: ["district"] };
   if (code === "42501") {
     deps.log.warn("profile_save_denied", { reason: code });
     return { status: "forbidden" };
@@ -123,7 +144,9 @@ const ownRow = z
   .object({
     display_name_enc: z.string(),
     municipality_code: z.number().int(),
-    district: z.string().nullable(),
+    state_code: z.string(),
+    district_code: z.number().int().nullable(),
+    neighborhood_enc: z.string().nullable(),
     profile_contacts: z.object({ whatsapp_enc: z.string(), social_links_enc: z.string().nullable().optional() }).nullable(),
   })
   .nullable();
@@ -140,7 +163,7 @@ export async function loadOwnProfile(
   const rowId = uuid.parse(userId);
   const { data, error } = await client
     .from("profiles")
-    .select("display_name_enc, municipality_code, district, profile_contacts(whatsapp_enc, social_links_enc)")
+    .select("display_name_enc, municipality_code, state_code, district_code, neighborhood_enc, profile_contacts(whatsapp_enc, social_links_enc)")
     .eq("id", rowId)
     .maybeSingle();
   if (error) throw new Error(`profile_read_failed:${errorCode(error)}`);
@@ -155,14 +178,35 @@ export async function loadOwnProfile(
       return "";
     }
   };
+  const neighborhood = await readNeighborhood(row.neighborhood_enc, rowId, deps);
   const social = await readSocialLinks(row.profile_contacts?.social_links_enc ?? null, rowId, deps);
   return {
     displayName: await open(row.display_name_enc, "profiles", "display_name_enc"),
     whatsapp: await open(row.profile_contacts?.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
     municipalityCode: row.municipality_code,
-    district: row.district,
+    stateCode: row.state_code,
+    districtCode: row.district_code,
+    ...neighborhood,
     ...social,
   };
+}
+
+/**
+ * O bairro guardado. Se existe mas não decifra, volta `neighborhoodUnreadable: true`: o
+ * formulário então não envia o campo e o servidor mantém o cifrado, em vez de apagá-lo (#179).
+ */
+async function readNeighborhood(
+  value: string | null,
+  rowId: string,
+  deps: ProfileDeps,
+): Promise<Pick<OwnProfile, "neighborhood" | "neighborhoodUnreadable">> {
+  if (value === null) return { neighborhood: "", neighborhoodUnreadable: false };
+  try {
+    return { neighborhood: await deps.decrypt(value, { table: "profiles", column: "neighborhood_enc", rowId }), neighborhoodUnreadable: false };
+  } catch (err) {
+    deps.log.warn("profile_decrypt_failed", { column: "neighborhood_enc", reason: errorCode(err) });
+    return { neighborhood: "", neighborhoodUnreadable: true };
+  }
 }
 
 /**
@@ -212,11 +256,32 @@ export async function hasOwnProfile(client: ProfileDbClient, userId: string): Pr
   return data !== null;
 }
 
-const municipalityRows = z.array(z.object({ code: z.number().int(), name: z.string() }));
+/** Teto de linhas por consulta da API (PostgREST); explícito para o corte nunca ser silencioso. */
+const referenceListMaxRows = 1000;
+const stateCodeSchema = z.string().regex(/^[A-Z]{2}$/);
+const codeNameRows = z.array(z.object({ code: z.number().int(), name: z.string() }));
 
-/** Municípios para a lista de escolha, em ordem alfabética. */
-export async function listMunicipalities(client: ProfileDbClient): Promise<MunicipalityOption[]> {
-  const { data, error } = await client.from("municipalities").select("code, name").order("name");
+/**
+ * Municípios de uma UF para a lista de escolha, em ordem alfabética. Por UF e não todos: o maior
+ * (MG) tem 853, abaixo do teto de 1000 linhas (um teste confere nos dados).
+ */
+export async function listMunicipalitiesByState(client: ProfileDbClient, stateCode: string): Promise<MunicipalityOption[]> {
+  const { data, error } = await client.from("municipalities").select("code, name")
+    .eq("state_code", stateCodeSchema.parse(stateCode))
+    .order("name")
+    .limit(referenceListMaxRows);
   if (error) throw new Error(`municipalities_read_failed:${errorCode(error)}`);
-  return municipalityRows.parse(data).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  return codeNameRows.parse(data).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+/** Distritos de um município, em ordem alfabética (o maior, o da capital paulista, tem 96). */
+export async function listDistricts(client: ProfileDbClient, municipalityCode: number): Promise<DistrictOption[]> {
+  const { data, error } = await client
+    .from("districts")
+    .select("code, name")
+    .eq("municipality_code", z.number().int().min(1_000_000).max(9_999_999).parse(municipalityCode))
+    .order("name")
+    .limit(referenceListMaxRows);
+  if (error) throw new Error(`districts_read_failed:${errorCode(error)}`);
+  return codeNameRows.parse(data).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }

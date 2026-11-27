@@ -47,13 +47,19 @@ select pg_temp.seed_unit('team', 'br.mg.central', 'equipe_1', 'Equipe 1');
 -- Idempotente: em produção (onde o seed não roda) este mesmo comando é aplicado à mão
 -- (docs/OPERACAO.md, "Casas").
 insert into public.houses (key) values
-  ('casa-exemplo-1'),
-  ('casa-exemplo-2'),
-  ('casa-exemplo-3'),
-  ('casa-exemplo-4')
+  ('esparta'),
+  ('atenas'),
+  ('alexandria'),
+  ('siracusa')
 on conflict (key) do update set active = true;
 
 -- Versão do termo do questionário de exemplo (config/questionnaire.example.json). Uma versão só
 -- é aceita se estiver aqui (ADR 0008 §2.1, #76); na instância real, a do arquivo instalado
 -- entra por migration.
 insert into app.questionnaire_term_versions (version) values ('termo-exemplo-1');
+
+-- Chave de assinatura do resultado do questionário (ADR 0014), SÓ DE DESENVOLVIMENTO: a mesma de
+-- .env.example e do playwright.config.ts. Em produção o seed não roda: a chave é instalada por
+-- quem opera (docs/OPERACAO.md).
+insert into app.server_secrets (name, value)
+values ('questionnaire_signing_key', 'YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=');

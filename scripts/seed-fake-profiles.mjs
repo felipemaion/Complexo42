@@ -12,7 +12,6 @@ import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
-import { districtsByMunicipality } from "../config/districts.ts";
 import { buildFakePeople, fakePeopleCount } from "./fake-people.mjs";
 
 const localHosts = new Set(["127.0.0.1", "localhost"]);
@@ -59,7 +58,18 @@ async function main() {
     return data;
   };
 
-  const municipalities = orFail(await db.from("municipalities").select("code").order("code"), "municípios");
+  // Os fictícios ficam na Região Metropolitana de São Paulo (a base agora tem o Brasil inteiro).
+  const municipalities = orFail(
+    await db.from("municipalities").select("code").eq("metro_region", "rmsp").order("code"),
+    "municípios",
+  );
+  const districtsByMunicipality = new Map();
+  for (const district of orFail(
+    await db.from("districts").select("code, municipality_code").in("municipality_code", municipalities.map((m) => m.code)).order("code"),
+    "distritos",
+  )) {
+    districtsByMunicipality.set(district.municipality_code, [...(districtsByMunicipality.get(district.municipality_code) ?? []), district.code]);
+  }
   const skills = orFail(await db.from("skills").select("id").order("name"), "habilidades");
   if (skills.length === 0) throw new Error("o catálogo de habilidades está vazio; rode `npm run db:reset`.");
 
@@ -76,14 +86,15 @@ async function main() {
       id = created.user.id;
     }
     const municipality = municipalities[person.municipalityIndex].code;
-    const districts = districtsByMunicipality[municipality];
+    // Município com um distrito só (a sede) não tem escolha: distrito nulo (#175).
+    const districts = districtsByMunicipality.get(municipality) ?? [];
 
     orFail(
       await db.from("profiles").upsert({
         id,
         display_name_enc: await encryptField(person.name, { table: "profiles", column: "display_name_enc", rowId: id }),
         municipality_code: municipality,
-        district: districts ? districts[person.index % districts.length] : null,
+        district_code: districts.length > 1 ? districts[person.index % districts.length] : null,
         status: "active",
         access_status: "active",
         consent_version: consentVersion,

@@ -13,6 +13,8 @@
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Redes sociais (máx. 5 URLs https) | `profile_contacts.social_links_enc` | AES-256-GCM | Coordenação do escopo (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Portfólio (máx. 3 links https) | `portfolio_items.url_enc` | AES-256-GCM | Escopo, porta-voz da equipe (ADR 0007 §5) |
+| Totem do questionário (ADR 0014) | `questionnaire_results.totem_enc` | AES-256-GCM | A pessoa, a coordenação nacional e quem ela delegou (`questionnaire_data_grants`); nunca na tela da casa |
+| Respostas do pedido de análise (ADR 0014) | `house_analysis_requests.answers_enc` | AES-256-GCM (JSON) | A pessoa, a coordenação nacional e quem ela delegou; só com o pedido aberto |
 | Avaliação reservada | `member_evaluations.grade_enc`, `note_enc` | AES-256-GCM | **Só quem avaliou**; gestor por pedido auditado (ADR 0007 §4) [jurídico] |
 | E-mail de login | `auth.users` (Supabase) | Texto puro, gerenciado pelo Supabase | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010). O dono o vê **mascarado** no cabeçalho (`fu***@g***.com`). Não é exportado em massa |
 | Lista de autorizados | `access_allowlist.email_hmac` | Só HMAC (sem nome, sem e-mail em claro) | Ninguém; usada só na conferência do primeiro login (ADR 0008 §1) |
@@ -21,6 +23,14 @@
 Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe, casa,
 habilidades, missões, pontos e badges. Também as **equipes de antes da plataforma** (nome,
 período e papel, informados pela pessoa; `prior_teams`, ADR 0012 **proposto**).
+
+O **totem** e as **respostas** do pedido de análise (ADR 0014) são dado pessoal e ficam
+**cifrados** (AES-256-GCM, ADR 0003): `questionnaire_results.totem_enc` e
+`house_analysis_requests.answers_enc`, com o AAD `tabela.coluna.<profile_id>`. O banco só guarda o
+valor; o servidor decifra. O totem aparece em "Baixar meus dados" (LGPD art. 18) e nunca na tela da
+casa. Quem lê: a própria pessoa, a coordenação nacional (gestor da raiz) e quem ela delegou
+(`questionnaire_data_grants`, abaixo). As respostas só existem com o pedido de análise aberto e são
+apagadas ao resolver.
 
 > **"Feitos" = entregas de missão validadas** (ADR 0006). Não existe campo de texto livre
 > para isso.
@@ -39,6 +49,7 @@ unit_types ─< units (árvore: nacional > estado > [região] > turma, via ltree
 profiles ───────┼─< unit_members >── units
    │            ├─< role_assignments >── units   (papel vale na unidade e abaixo dela)
    │            ├─< house_members >── houses     (casa nacional, fora da árvore; ADR 0011)
+   │            ├─< circle_members >── circles   (árvore de núcleos, fora do território; ADR 0013, aceito, sem migration ainda)
    │            ├─< profile_skills >── skills
    │            ├─< mission_run_members >── mission_runs
    │            └─< profile_badges >── badges
@@ -48,6 +59,9 @@ profiles ───────┼─< unit_members >── units
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
+questionnaire_results (1:1 com profiles: casa sugerida e totem cifrado; leem a pessoa, a coordenação nacional e quem ela delegou, ADR 0014)
+house_analysis_requests (fila do resultado inconclusivo; as respostas, cifradas, só existem com o pedido aberto, ADR 0014)
+questionnaire_data_grants (delegação: a coordenação nacional concede a um gestor o acesso ao totem e aos pedidos do escopo dele, ADR 0014)
 consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
 missions ─< mission_steps
@@ -153,7 +167,8 @@ com a lista importada.
 | `display_name_enc` | text | 🔒 `v1.iv.ct` (ADR 0003 §3) |
 | `municipality_code` | int FK | IBGE |
 | `state_code` | char(2) | derivado do município (trigger); no cadastro, o aluno entra na unidade do seu estado |
-| `district` | text null | distrito, só para município com lista em `config/districts.ts` (hoje a capital paulista, 96 distritos do IBGE); nulo nos demais (2 a 60 caracteres) |
+| `district_code` | int null FK | distrito (código IBGE de 9 dígitos, `districts`). Chave estrangeira composta com o município: o banco recusa distrito de outro. Nulo = sem escolha ou município com um distrito só (ver `districts`) |
+| `neighborhood_enc` | text null | 🔒 bairro, **opcional**, texto livre cifrado (`v1.iv.ct`, AAD `profiles.neighborhood_enc.<id>`). Sem busca nem filtro. Ver "Bairro" abaixo |
 | `status` | text | `pending`, `active`, `suspended` |
 | `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
 | `consent_version`, `consent_at` | text, timestamptz | Espelho do último aceite do termo (#11), para leitura rápida; a prova é `consent_acceptances`. `save_own_profile` cria o perfil já com a versão vigente (e recusa quem não aceitou); `accept_consent` avança a versão de quem já tem perfil, e o trigger grava `consent_at`. Nenhuma outra via muda |
@@ -164,7 +179,7 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 - **O titular** cria e edita só o próprio perfil e o próprio contato, e **só pela função
   `public.save_own_profile`** (#12), que o servidor chama com os valores já cifrados e o HMAC
   calculado no servidor. `profiles` e `profile_contacts` não têm grant de INSERT/UPDATE para a
-  API. A função grava `display_name_enc`, `municipality_code`, `district` e o contato. Ela não
+  API. A função grava `display_name_enc`, `municipality_code`, `district_code`, `neighborhood_enc` e o contato. Distrito que não é do município volta como erro `PT422`; município com um distrito só grava distrito nulo. Ela não
   recebe a versão do termo: cria o perfil com `consent_version = 'none'` e nunca a altera (só a
   função do aceite, #11, avança a versão, derivada no servidor). Perfil `blocked` ou com conta `suspended` não edita (mas lê o
   próprio). WhatsApp repetido volta como o retorno `duplicate_whatsapp`, sem dizer de quem é
@@ -236,10 +251,31 @@ linha vale `none` (só a coordenação). Só o titular lê (RLS) e só ele grava
   o id (aceito: a pessoa já tem o direito de saber quem viu). Tela "Quem vê meu contato"
   (`/perfil/contato`).
 
-### `municipalities` (referência pública, só leitura)
-`code` (IBGE, 7 dígitos), `name`, `state_code`, `metro_region` (ex.: `rmsp`). Carregada por
-migration (referência de produção), conferida com a API de localidades do IBGE. Hoje: os 39
-municípios da Região Metropolitana de São Paulo.
+### `municipalities` e `districts` (referência pública, só leitura)
+`municipalities`: `code` (IBGE, 7 dígitos), `name`, `state_code`, `metro_region` (ex.: `rmsp`).
+Todos os municípios da API de localidades do IBGE (5.571 registros na consulta de 2026-11-27).
+`metro_region` só está preenchida nos 39 da Região Metropolitana de São Paulo: a API de regiões
+metropolitanas lista 39 municípios em mais de uma região e a coluna guarda uma chave só.
+
+`districts`: `code` (IBGE, 9 dígitos: os 7 primeiros são o município), `municipality_code`, `name`.
+Todos os distritos do IBGE (10.751). Em 3.332 municípios o único distrito é a sede: ali o
+formulário **esconde a escolha** e o perfil grava `district_code` nulo (o distrito seria o
+próprio município; `save_own_profile` aplica a regra, não só a tela).
+
+As duas são dado público, sem dado pessoal, com a mesma RLS: lê quem está logado e não está na
+espera nem bloqueado; escrita só por migration. Vêm de migrations **geradas** por
+`npm run db:gen-localities` (`scripts/generate-localities-sql.mjs`), que cita a URL e a data da
+consulta no cabeçalho; para atualizar, rode o script e crie uma migration nova com a diferença.
+O formulário do perfil carrega as cidades **por UF** (o maior estado tem 853), nunca as 5.570.
+
+**Bairro** (#179, decisão do gestor em 2026-11-27) é opcional e **texto livre**, porque não há base
+oficial nacional de bairros. Como texto livre pode virar endereço, é **dado pessoal**: só existe
+cifrado (`profiles.neighborhood_enc`, ADR 0003), o banco recusa texto puro, e não há busca nem
+filtro por bairro. O servidor valida antes de cifrar: 2 a 60 caracteres (letras, números, espaço,
+hífen, apóstrofo e ponto), sem espaços nas pontas, espaços internos colapsados; o formulário pede
+"não informe rua nem número". Quem já vê o perfil (`can_view_profile`) o vê pelo servidor, que
+decifra; hoje nenhuma tela de terceiros o mostra. Vai no arquivo de exportação (`bairro`) e some
+com a conta (cascata).
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)
@@ -268,7 +304,8 @@ coordenadores; quem já está na casa continua.
 `house_members`: `id`, `profile_id`, `house_key`, `join_method` (`self`, `questionnaire`),
 `consent_version` null (só pelo questionário), `joined_at`, `accepted_at` null, `left_at` null,
 `ended_by` null. Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
-guarda-se só a casa sugerida.
+guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionnaire_results`
+(que a coordenação de território e de casa **não** leem).
 
 - **O vínculo de casa só conta com `accepted_at`:** sem aceite, não dá visão a quem coordena a
   casa nem entra em "mesma casa". A pessoa continua lendo o próprio vínculo.
@@ -286,6 +323,38 @@ guarda-se só a casa sugerida.
 - **`ended_by`**: quem gravou `left_at` (trigger; nulo em operação direta no banco). Se outra
   pessoa encerrou o vínculo de casa, a pessoa não volta sozinha, nem para a mesma casa nem para
   outra (erro C7602): a volta é decisão da coordenação.
+
+### `circles`, `circle_members` e reuniões (ADR 0013, aceito)
+Nada disso existe em migration ainda: depende de missões e pontos (ADR 0006), do parecer jurídico e, nos
+detalhes das perguntas 91 a 93, do padrão conservador. O núcleo é
+uma **árvore própria**, fora do território e da casa; os rótulos ("Núcleo", "Subnúcleo" e os
+níveis de cargo) vêm de `config/` (R17).
+
+- `circles`: `id`, `parent_id` null, `slug`, `name`, `path` (ltree, como `units`),
+  `municipality_code` null (**do núcleo**, nunca da pessoa), `status` (`active`, `archived`),
+  `created_by`, `created_at`. Subnúcleo não muda de pai; arquivar arquiva os de baixo.
+- `circle_members`: `id`, `circle_id`, `profile_id`, `level` (chave do nível, de `config/`),
+  `is_primary`, `join_method`, `joined_at`, `accepted_at` null, `left_at` null, `ended_by` null.
+  Várias por pessoa; **um principal** (índice único parcial por pessoa, entre vínculos abertos e
+  aceitos). Só conta com aceite; encerrar guarda histórico.
+- `circle_join_requests`: `id`, `circle_id`, `profile_id`, `status` (`pending`, `approved`,
+  `rejected`), `requested_at`, `decided_by` null, `decided_at` null. **Só o topo do próprio
+  núcleo aprova** a entrada; o topo de núcleo acima não.
+- **Visão (duas hierarquias):** o nível de topo vê o núcleo e os subnúcleos abaixo (`path <@`),
+  com contato pelo ADR 0010; nível intermediário vê só quem está abaixo dele no mesmo núcleo, sem
+  contato; o mais baixo vê só a si. O topo de núcleo **acima** também pode **remover** pessoas do núcleo e dos
+  subnúcleos abaixo (encerra o vínculo, `circle_member_removed` no `audit_log`). Sem vista para
+  cima nem para os lados. Sem escopo territorial.
+- `circle_meetings` (`circle_id`, `held_on`, `title`, `agenda` null, ≤ 500) e
+  `circle_attendance` (`meeting_id`, `profile_id`, `registered_by`): presença é dado pessoal
+  mínimo. Cada presença gera **um lançamento individual** em `points_ledger` (`circle_id`,
+  `reason = 'attendance'`) e conta para a medalha `attendance`.
+- `mission_runs.circle_id` null e `points_ledger.circle_id` null: a execução é de uma pessoa, de
+  uma unidade **ou** de um núcleo.
+- **`on delete`:** `circle_members`, `circle_join_requests` e `circle_attendance` são dado da
+  pessoa (`cascade`); `ended_by`, `decided_by`, `registered_by` e `created_by`, `set null`.
+- Fica **fora**: localização da pessoa, dado de saúde (atividade física só como participação em
+  evento) e foto.
 
 ### `consent_acceptances` (#11)
 `user_id` (FK `auth.users`, `on delete cascade`), `version`, `accepted_at`; PK `(user_id, version)`.
@@ -310,8 +379,76 @@ precisa existir; repetir a versão mantém a primeira data e não gera outro
 `app.questionnaire_term_versions` (`version` PK, `created_at`): as versões do termo que
 existem. Entram só por migration ou seed (sem grant para a API); a versão do arquivo do
 questionário instalado no servidor precisa estar aqui. RLS: só o
-titular lê; sem grant de escrita. **As respostas do questionário nunca chegam ao banco**: a
-pontuação roda no aparelho e só a casa vai ao servidor.
+titular lê; sem grant de escrita. **A pontuação roda no servidor do app** (ADR 0014 §1): o
+navegador manda só as respostas. Com resultado conclusivo, o banco recebe só a casa e o totem
+**cifrado**; as respostas só chegam ao banco, cifradas, no resultado inconclusivo
+(`house_analysis_requests`, abaixo).
+
+### `questionnaire_results` e `house_analysis_requests` (ADR 0014, #172)
+`questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
+`app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem_enc`, `scores_enc` (as notas dos 4 eixos, JSON cifrado; nulo em resultado antigo) (o totem, duas letras
+maiúsculas, cifrado no servidor; o banco só confere o formato `v<n>.<iv>.<ct>`; **nulo enquanto o totem está pendente**, quando só os eixos do totem empataram), `totem_state` (`decided`; `pending`, com o pedido de totem aberto; `undecided`, "totem não decidido": o pedido venceu ou a pessoa foi bloqueada),
+`source` (`questionnaire`, pontuação no servidor do app; `analysis`, decidido pela coordenação
+nacional), `created_at`. Uma linha por pessoa, a mais recente.
+
+`house_analysis_requests`: `id`, `profile_id` (FK, cascata), `term_version`, `kind` (`full`: a coordenação
+decide casa e totem; `totem`: a casa já saiu pelos eixos 1 e 2 e falta só o totem), `tied_axes` (eixos
+empatados: `house1`, `house2`, `totem1`, `totem2`; em `kind = totem`, só os do totem), `answers_enc` (JSON item → intensidade
+-3, -2, -1, 1, 2 ou 3, cifrado no servidor; até 8 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
+`created_at` (último envio: base do limite de renovação), `opened_at` (primeira abertura, nunca muda: base do prazo de 30 dias), `resolved_at`, `resolved_by` (nulo fora de `coordination` e se a conta de quem resolveu
+sair). `resolution`: `coordination`, `self`, `inactive` (pessoa bloqueada ou suspensa) ou
+`expired` (passou de 30 dias).
+Um pedido aberto por pessoa. **As respostas existem só com o pedido aberto** (o banco recusa
+`answers_enc` em pedido resolvido): são apagadas quando a coordenação nacional resolve, quando a
+pessoa aceita uma casa (gatilho em `house_members`; só o pedido `full`, o de totem segue aberto), quando refaz o questionário com resultado
+conclusivo, quando é bloqueada ou suspensa (gatilho em `profiles`) e **depois de 30 dias**
+(`app.analysis_max_age()`: a política de leitura já esconde o pedido vencido, e as respostas são
+apagadas na chamada seguinte das funções abaixo). A linha resolvida fica, sem respostas.
+
+`app.server_secrets` (`name`, `value`): segredos que o app e o banco compartilham; hoje a
+`questionnaire_signing_key` (ADR 0014 §1), instalada por quem opera (`docs/OPERACAO.md`). RLS sem
+política e sem grant: só funções `security definer` leem.
+
+- **Quem lê** (RLS, `app.can_read_questionnaire_data`): a própria pessoa; a coordenação nacional
+  (gestor da raiz ativo) sobre pessoa ativa; e um gestor com concessão ativa (abaixo) sobre pessoa
+  ativa do escopo dele. Ninguém escreve pela API: só as funções abaixo.
+- **`record_questionnaire_result(termo, casa, totem_enc, notas_enc, emitido_em, assinatura)`:** a pessoa da
+  sessão (ativa, com o aceite daquela versão do termo; casa existente e ativa) grava o resultado
+  conclusivo e fecha um pedido aberto. **Só com a assinatura do servidor do app** (HMAC-SHA256
+  sobre pessoa, termo, casa, totem e notas cifrados e hora; vale 5 minutos; erro 42501 se faltar ou não bater):
+  chamar a API direto, sem a chave, não impõe resultado.
+- **`request_house_analysis(termo, eixos, respostas_enc, emitido_em, assinatura)`:** a pessoa da
+  sessão abre (ou renova) o pedido do resultado inconclusivo e apaga o resultado anterior; também
+  só com a assinatura (que cobre os eixos e o valor cifrado das respostas: é ela que garante que
+  são as respostas completas e válidas, já que o banco não decifra). Valida os eixos e o formato do
+  valor cifrado (erro 22023). Renovar um pedido completo antes de 1 hora é recusado (54000); renovar não estende o prazo de 30 dias. Gera `house_analysis_requested`.
+- **`record_totem_pending(termo, casa, notas_enc, eixos, respostas_enc, emitido_em, assinatura)`:** quando só os
+  eixos do totem empatam, o servidor grava, numa chamada, a casa com `totem_enc` nulo e o pedido `totem` (um
+  pedido aberto por pessoa; renova na hora, sem o limite de 1 hora, porque a casa já é conclusiva). Assinatura
+  com o prefixo `totem_pending` (cobre o tipo, a casa, as notas, os eixos e as respostas cifradas). Valida
+  eixos só de totem, sem repetição, e formato dos valores cifrados (22023). Limites por tipo: o totem pendente só
+  pode ser reenviado depois de 10 segundos (54000) e o pedido completo, depois de 1 hora; um tipo não segura o
+  outro. Gera `house_analysis_requested`.
+- **`resolve_house_analysis(pedido, casa, totem_enc, notas_enc, emitido_em, assinatura)`** (as notas o servidor refaz das respostas do pedido): a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, ou de pessoa inativa, o pedido aparece como inexistente; o delegado também não resolve o de quem é gestor ativo na raiz ou na unidade da concessão ou acima dela), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa, totem e notas cifrados e o **hash das respostas** que o servidor leu; 5 minutos; se o pedido mudou desde a leitura, recusa 40001), nunca sobre o
+  próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Em pedido `totem`, a casa tem de ser a do resultado (22023). Grava o resultado
+  (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
+  aceita a casa pelo fluxo normal (`accept_house`). As telas da coordenação (#174, `/coordenacao/casas/`: resultados,
+  análise e delegações) leem pelo servidor, que decifra (`src/modules/houses/server/coordination*.ts`).
+
+`questionnaire_data_grants` (delegação, ADR 0014 §4): `id`, `grantee_id` (FK `profiles`, cascata),
+`unit_id` (FK `units`: unidade abaixo da raiz onde o gestor tem o papel de gestor ativo),
+`role_assignment_id` (FK `role_assignments`: o papel de gestor a que a concessão está amarrada; revogado
+o papel, a concessão não volta com um papel novo, precisa de nova decisão da nacional), `granted_by`, `granted_at`, `revoked_at`, `revoked_by`. Uma concessão ativa por gestor e unidade.
+Dá ao gestor o direito de ver o totem, os pedidos de análise e os eventos `house_analysis_*` das
+pessoas **ativas** com vínculo aberto na unidade ou abaixo (`units.path <@`); só vale enquanto ele
+mantém **esse mesmo papel** de gestor ali; nunca sobre si mesmo; inclui resolver a fila (no escopo).
+- **Quem lê** (RLS): a coordenação nacional e o próprio gestor (a que recebeu).
+- **`grant_questionnaire_access(gestor, unidade)` / `revoke_questionnaire_access(concessão)`:** só
+  o gestor ativo da raiz; ninguém concede a si mesmo; a pessoa precisa estar ativa e ser gestora
+  ativa da unidade, que não pode ser a raiz (22023); concessão repetida, 23505 (uma concessão antiga
+  de papel já revogado é encerrada ao refazer). Geram `questionnaire_access_granted/revoked` (ator =
+  a nacional, alvo = o gestor) com **`unit_id` e `grant_id`** do evento (ids, sem dado pessoal; só
+  nesses eventos).
 
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`,
@@ -350,7 +487,7 @@ arquivo e rode `npm run db:reset`. Aprovado, o catálogo entra em produção por
 
 **Perfis fictícios (~50):** `npm run db:seed-profiles` (depois do `db:reset`) cria, só no
 Supabase local, 50 contas `perfil-ficticio-NN@example.com` com nome e WhatsApp
-(`+55119000000NN`, convenção deste projeto para teste) cifrados pelo código do app, município, distrito (capital) e 2 a 6
+(`+55119000000NN`, convenção deste projeto para teste) cifrados pelo código do app, município (da Região Metropolitana de São Paulo), distrito (onde há mais de um) e 2 a 6
 habilidades. Roda de novo sem duplicar; recusa produção e qualquer endereço não local.
 
 ### Missões, entregas e pontos (ADR 0006)
@@ -400,7 +537,7 @@ escopo nem acesso e não citam colegas. Leem: a pessoa e a coordenação do esco
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
 `access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`,
-`member_blocked`, `member_unblocked`),
+`member_blocked`, `member_unblocked`, `house_analysis_requested`, `house_analysis_resolved`),
 `target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
@@ -409,6 +546,15 @@ automática na importação), em `house_accepted` (a forma de entrada: `self` ou
 eventos é obrigatório. Em `member_blocked` é opcional (`impersonation`, `conduct` ou `other`). Em `contact_viewed`, `actor_id` é quem viu e `target_id` a pessoa vista. `term_version` é a versão do termo do questionário: obrigatória em
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
 `actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória; só neste evento).
+Em `house_analysis_requested`, ator e alvo são a pessoa; em `house_analysis_resolved`, o ator é a
+coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, o totem nem a casa.
+**Leem a coordenação nacional e quem ela delegou sobre aquela pessoa**: o gestor territorial comum
+que gerencia a pessoa não. `questionnaire_access_granted/revoked` (ator = a nacional, alvo = o
+gestor): só a coordenação nacional os lê; o gestor os vê no próprio arquivo.
+`questionnaire_result_viewed` (ator = quem abriu o resultado ou o caso, alvo = a pessoa vista; sem conteúdo, um por ator e alvo a cada 10 minutos,
+gravado por `log_questionnaire_view`, só para quem pode ler os dados do alvo e nunca sobre si): só a
+coordenação nacional o lê; a pessoa vista o vê no próprio arquivo. `questionnaire_coordination_access()`
+diz ao menu e às telas se quem chama é a nacional e/ou delegado (só para o 404; não concede nada).
 Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca
 respostas do questionário.
 **Nunca contém dados pessoais em claro.** Quem lê (`app.can_read_audit(evento, alvo, ator,
@@ -426,7 +572,8 @@ forma explícita; nenhum teste ou migration atual limpa o log.
 A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
-encerrados, aceites do termo do questionário, papéis (com a casa do coordenador de casa),
+encerrados, aceites do termo do questionário, o resultado do questionário (casa, **totem** e **notas por eixo**, cifrados e decifrados pelo servidor; formato 8 do arquivo), os pedidos de
+análise (com as respostas, se abertos, idem), as concessões de acesso que recebeu, papéis (com a casa do coordenador de casa),
 eventos do `audit_log` cujo alvo é a pessoa, os `house_accepted` e `questionnaire_consented` que
 ela fez (#132) e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor
 decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.
@@ -463,7 +610,7 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   aberto não bastam.
 - **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
   `profiles`, `profile_contacts`, `unit_members`, `house_members` e `role_assignments` da pessoa,
-  `access_waitlist_hmac`, `questionnaire_consents`, `consent_acceptances`, `app.profile_save_attempts` e `app.member_block_attempts`. A função
+  `access_waitlist_hmac`, `questionnaire_consents`, `questionnaire_results`, `house_analysis_requests`, `consent_acceptances`, `app.profile_save_attempts` e `app.member_block_attempts`. A função
   apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`, pelo id ou pelo
   e-mail exato da conta, lido antes de apagar) e o `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
 - **O que fica dos outros:** quando a pessoa aparece no dado de outra
