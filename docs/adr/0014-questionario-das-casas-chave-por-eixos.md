@@ -112,7 +112,10 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
 - sem concessão ativa, só a nacional lê; revogada, 0 linhas; nunca lê quem não está ativo;
 - a delegação inclui **resolver a fila** (decisão do gestor, 2026-11-27), nas mesmas regras de escopo
   e de papel ativo da leitura; a resolução do delegado também é assinada pelo servidor e auditada
-  (ator = o delegado).
+  (ator = o delegado). Regra conservadora (decisão do orquestrador): o delegado **não resolve** o
+  pedido de quem é gestor ativo na raiz ou em unidade igual ou acima da unidade da concessão (nem
+  de outro delegado nessa condição); esses a coordenação nacional resolve. O escopo é conferido logo
+  ao ler o pedido: fora dele, ou de pessoa inativa, o pedido aparece como inexistente.
 
 ### 5. Dados novos
 

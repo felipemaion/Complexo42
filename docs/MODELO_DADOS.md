@@ -413,7 +413,7 @@ política e sem grant: só funções `security definer` leem.
   só com a assinatura (que cobre os eixos e o valor cifrado das respostas: é ela que garante que
   são as respostas completas e válidas, já que o banco não decifra). Valida os eixos e o formato do
   valor cifrado (erro 22023). Renovar um pedido aberto antes de 1 hora é recusado (54000). Gera `house_analysis_requested`.
-- **`resolve_house_analysis(pedido, casa, totem_enc, emitido_em, assinatura)`:** a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, o pedido aparece como inexistente), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa e totem cifrado; 5 minutos), nunca sobre o
+- **`resolve_house_analysis(pedido, casa, totem_enc, emitido_em, assinatura)`:** a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, ou de pessoa inativa, o pedido aparece como inexistente; o delegado também não resolve o de quem é gestor ativo na raiz ou na unidade da concessão ou acima dela), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa e totem cifrado; 5 minutos), nunca sobre o
   próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Grava o resultado
   (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
   aceita a casa pelo fluxo normal (`accept_house`). A tela da coordenação para a fila ainda não
