@@ -78,6 +78,7 @@ describe("acceptHouse", () => {
       ["C7601", "failed"], // a região não é mais exigida (ADR 0011)
       ["C7602", "removed_by_coordination"],
       ["C7603", "house_locked"], // trava de 4 meses para trocar de casa
+      ["C7604", "house_conflict"], // troca concorrente
       ["22023", "failed"],
       [undefined, "failed"],
     ];

@@ -213,6 +213,7 @@ export const instance = parseInstanceConfig({
       stale_consent: "O termo foi atualizado ou ainda não foi aceito. Recarregue a página e leia o termo de novo.",
       removed_by_coordination: "A coordenação tirou você da sua casa. Para voltar ou trocar de casa, fale com a coordenação.",
       house_locked: "Você ainda não pode trocar de casa. A troca por conta própria só é possível 4 meses depois do aceite do termo.",
+      house_conflict: "A sua casa mudou enquanto você escolhia. Recarregue a página e veja a sua casa atual.",
       rate_limited: "Você acabou de enviar as suas respostas. Espere um pouco antes de tentar de novo, ou escolha a casa direto.",
       failed: "Não foi possível salvar agora. Tente de novo.",
     },

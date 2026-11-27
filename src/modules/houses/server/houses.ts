@@ -14,6 +14,7 @@ const errorByCode: Record<string, HouseErrorCode> = {
   "23505": "already_accepted", // outra casa já aceita
   C7602: "removed_by_coordination", // a coordenação encerrou a casa da pessoa
   C7603: "house_locked", // trava de 4 meses para trocar de casa (ADR 0016)
+  C7604: "house_conflict", // a casa mudou (troca da coordenação) enquanto a pessoa trocava
   "54000": "rate_limited", // pedido de análise renovado há pouco
 };
 

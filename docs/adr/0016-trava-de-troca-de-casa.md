@@ -7,10 +7,11 @@
 ## Decisão
 
 1. Definida a casa (aceita, escolhida direto ou decidida pela coordenação), a **pessoa** só a troca
-   por conta própria 4 meses depois do aceite do termo do questionário (sem termo aceito, 4 meses
-   depois do aceite da casa). Antes de definir (tela de sugestão), "Escolher outra casa" é livre.
-2. A **coordenação** com alcance sobre a pessoa (o de `can_manage_house_member` ou o das telas de
-   resultado, `can_read_questionnaire_data`) troca a casa a qualquer momento, na tela de resultado.
+   por conta própria 4 meses depois do **mais tardio** entre o aceite do termo do questionário e o
+   aceite da casa (sem termo aceito, o aceite da casa): ninguém entra com a trava já vencida. Antes de definir (tela de sugestão), "Escolher outra casa" é livre.
+2. A **coordenação** com alcance de **gestão** sobre a pessoa (`can_manage_house_member`: gestor ou
+   monitor da unidade, ou coordenação da casa) troca a casa a qualquer momento, na tela de
+   resultado. A delegação de **leitura** dos resultados não vira poder de escrita.
    A troca da coordenação **não** reinicia a trava; a da própria pessoa a reinicia (4 meses
    a partir da troca).
 3. Toda troca vai para o `audit_log` (`house_changed`, ator = quem trocou, motivo `self` ou
@@ -24,8 +25,10 @@
 
 No banco, não na interface: `house_members.locked_until` é preenchida por gatilho (e pelas funções) com o
 relógio do servidor; a pessoa não escreve em `house_members`; `accept_house` (security definer)
-recusa outra casa antes do prazo (`C7603`); `coordination_set_house` confere o alcance. Trocas
-(`moved`) não contam como "tirada pela coordenação" (`C7602`).
+recusa outra casa antes do prazo (`C7603`); `coordination_set_house` confere o alcance. As duas
+travam o perfil da pessoa e o vínculo aberto (`for update`), então não correm uma contra a outra; se
+a troca concorrente ainda atropelar, o erro é `C7604`. Trocas (`moved`) não contam como "tirada pela
+coordenação" (`C7602`). "Baixar meus dados" traz `locked_until` e o histórico `house_changed`.
 
 ## Consequências
 

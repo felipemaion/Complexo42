@@ -313,13 +313,14 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   (`security definer`): a própria pessoa, liberada e ativa (conferido depois de travar o
   perfil); a casa precisa existir e estar ativa; `questionnaire` exige o aceite de
   **exatamente** essa versão do termo, gravada em `consent_version` (nula em `self`); uma casa
-  já aceita só é trocada pela pessoa depois de `locked_until` (4 meses do aceite do termo do
-  questionário; sem termo, do aceite da casa; relógio do servidor), senão `C7603`; a troca
+  já aceita só é trocada pela pessoa depois de `locked_until` (4 meses do mais tardio entre o aceite
+  do termo do questionário e o aceite da casa; relógio do servidor), senão `C7603` (`C7604` se a
+  casa mudou no meio da troca); a troca
   reinicia a trava e gera `house_changed` (`self`). Repetir a mesma casa devolve o mesmo
   vínculo. A primeira definição gera `house_accepted` no `audit_log`.
 - **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a qualquer
-  momento, com alcance sobre a pessoa (`can_manage_house_member` ou `can_read_questionnaire_data`),
-  mantendo a trava; gera `house_changed` (`coordination`). Ver ADR 0016.
+  momento, com alcance de gestão sobre a pessoa (`can_manage_house_member`; a delegação de leitura
+  não basta), mantendo a trava; gera `house_changed` (`coordination`). Ver ADR 0016.
 - **Quem lê e encerra** (RLS): a pessoa lê os próprios vínculos; a coordenação territorial
   (monitor ou manager acima do vínculo de território da pessoa) e o coordenador da casa aberta
   da pessoa, dentro do seu território, leem os vínculos aceitos de perfis ativos e podem

@@ -143,6 +143,7 @@ const valid = {
       stale_consent: "t",
       removed_by_coordination: "t",
       house_locked: "t",
+      house_conflict: "t",
       rate_limited: "t",
       failed: "t",
     },
