@@ -83,8 +83,8 @@ async function consents(profileId: string): Promise<{ term_version: string }[]> 
   return (await admin(`/rest/v1/questionnaire_consents?profile_id=eq.${profileId}&select=term_version`)).json();
 }
 
-async function resultRows(profileId: string): Promise<{ house_key: string; totem_enc: string; scores_enc: string; source: string }[]> {
-  return (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${profileId}&select=house_key,totem_enc,scores_enc,source`)).json();
+async function resultRows(profileId: string): Promise<{ house_key: string; totem_enc: string; scores_enc: string; answers_enc: string; source: string }[]> {
+  return (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${profileId}&select=house_key,totem_enc,scores_enc,answers_enc,source`)).json();
 }
 type AnalysisRow = { status: string; resolution: string | null; answers_enc: string | null; tied_axes: string[] };
 async function analysisRows(profileId: string): Promise<AnalysisRow[]> {
@@ -236,6 +236,9 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   // As notas dos eixos também ficam cifradas (ADR 0014), nunca em JSON legível.
   expect(stored!.scores_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
   expect(stored!.scores_enc).not.toContain("house1");
+  // As últimas respostas ficam guardadas cifradas (ADR 0014, #256), nunca em JSON legível.
+  expect(stored!.answers_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
+  expect(stored!.answers_enc).not.toContain(questionnaire.items[0]!.id);
   expect(await analysisRows(member.id)).toEqual([]);
   // O totem é interno: não aparece na tela da casa.
   await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);

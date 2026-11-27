@@ -176,6 +176,7 @@ describe("submitQuestionnaire", () => {
     const outcome = await submitQuestionnaire(client, { answers: conclusive }, ctx);
     expect(outcome).toMatchObject({ ok: true, outcome: "recorded", houseId: "casa-b" });
     const totemEnc = "enc[questionnaire_results.totem_enc.u-1](YV)";
+    const answersEnc = `enc[questionnaire_results.answers_enc.u-1](${JSON.stringify(conclusive)})`;
     expect(calls).toEqual([
       {
         fn: "record_questionnaire_result",
@@ -185,10 +186,22 @@ describe("submitQuestionnaire", () => {
           p_totem_enc: totemEnc,
           p_scores_enc: encScores(conclusiveScores),
           p_issued_at: 1000,
-          p_signature: `sig(result|u-1|termo-1|casa-b|${totemEnc}|${encScores(conclusiveScores)}|1000)`,
+          // As últimas respostas vão cifradas (AAD da linha da pessoa) e a assinatura as cobre.
+          p_signature: `sig(result|u-1|termo-1|casa-b|${totemEnc}|${encScores(conclusiveScores)}|1000|${answersEnc})`,
+          p_answers_enc: answersEnc,
         },
       },
     ]);
+  });
+
+  it("as respostas guardadas são as da pessoa, cifradas para ela, nunca em texto puro nem na resposta ao navegador", async () => {
+    const { client, calls } = fakeClient();
+    const outcome = await submitQuestionnaire(client, { answers: conclusive }, ctx);
+    const sent = String(calls[0]!.args.p_answers_enc);
+    expect(sent.startsWith("enc[questionnaire_results.answers_enc.u-1](")).toBe(true);
+    expect(JSON.parse(sent.slice("enc[questionnaire_results.answers_enc.u-1](".length, -1))).toEqual(conclusive);
+    expect(JSON.stringify(outcome)).not.toContain("answers_enc");
+    expect(signed.at(-1)).toContain(`|${sent}`); // a assinatura cobre o valor cifrado
   });
 
   it("nem totem, nem notas em texto puro vão ao banco: só os valores cifrados", async () => {

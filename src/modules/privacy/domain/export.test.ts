@@ -58,6 +58,8 @@ const rows: OwnDataRows = {
     totem_enc: "enc:totem",
     totem_state: "decided",
     scores_enc: "enc:notas",
+    // As últimas respostas guardadas (#256), cifradas.
+    answers_enc: "enc:respostasguardadas",
     term_version: "termo-1",
     source: "questionnaire",
     created_at: "2026-11-19T11:25:00+00:00",
@@ -99,6 +101,7 @@ const plain: Record<string, string> = {
   "enc:totem": "AB",
   "enc:respostas": JSON.stringify({ q01: -3, q02: 2 }),
   "enc:notas": JSON.stringify({ house1: -40, house2: 75, totem1: 0, totem2: -100 }),
+  "enc:respostasguardadas": JSON.stringify({ q01: -5, q02: 3, q03: 1 }),
 };
 
 function fakeDecrypt() {
@@ -127,7 +130,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 9, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 10, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -158,6 +161,7 @@ describe("buildOwnDataExport", () => {
         casaSugerida: "Casa Um",
         totem: "AB",
         situacaoDoTotem: "decided",
+        respostasGuardadas: { q01: -5, q02: 3, q03: 1 },
         notasPorEixo: { eixo1: -40, eixo2: 75, eixo3: 0, eixo4: -100 },
         versaoDoTermo: "termo-1",
         origem: "questionnaire",
@@ -207,11 +211,12 @@ describe("buildOwnDataExport", () => {
         { table: "profiles", column: "display_name_enc", rowId: VIEWER },
         // Totem e respostas do questionário (ADR 0014): cifrados na linha da própria pessoa.
         { table: "questionnaire_results", column: "totem_enc", rowId: USER },
+        { table: "questionnaire_results", column: "answers_enc", rowId: USER },
         { table: "house_analysis_requests", column: "answers_enc", rowId: USER },
         { table: "questionnaire_results", column: "scores_enc", rowId: USER },
       ]),
     );
-    expect(seen).toHaveLength(8);
+    expect(seen).toHaveLength(9);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {
@@ -306,7 +311,13 @@ describe("totem e respostas cifrados", () => {
     const { decrypt, seen } = fakeDecrypt();
     await build({ decrypt });
     expect(seen).toContainEqual({ table: "questionnaire_results", column: "totem_enc", rowId: USER });
+    expect(seen).toContainEqual({ table: "questionnaire_results", column: "answers_enc", rowId: USER });
     expect(seen).toContainEqual({ table: "house_analysis_requests", column: "answers_enc", rowId: USER });
+  });
+
+  it("resultado sem respostas guardadas (anterior à mudança ou decidido pela coordenação): respostasGuardadas nulo", async () => {
+    const out = await build({ rows: { ...rows, questionnaire_result: { ...rows.questionnaire_result!, answers_enc: null } } });
+    expect(out.resultadoDoQuestionario).toMatchObject({ respostasGuardadas: null });
   });
 
   it("totem ou respostas que não decifram viram null, registrando só o nome da coluna", async () => {

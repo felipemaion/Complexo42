@@ -590,8 +590,8 @@ select ok((public.export_own_data() -> 'profile') ? 'neighborhood_enc',
 
 -- Totem e respostas só existem cifrados: nenhuma coluna em texto puro (ADR 0003).
 select columns_are('public', 'questionnaire_results',
-  array['profile_id', 'term_version', 'house_key', 'totem_enc', 'totem_state', 'scores_enc', 'source', 'created_at'],
-  'questionnaire_results guarda o totem e as notas só cifrados (totem_enc, scores_enc), sem coluna em texto puro');
+  array['profile_id', 'term_version', 'house_key', 'totem_enc', 'totem_state', 'scores_enc', 'answers_enc', 'source', 'created_at'],
+  'questionnaire_results guarda o totem, as notas e as últimas respostas só cifrados (totem_enc, scores_enc, answers_enc), sem coluna em texto puro');
 select columns_are('public', 'house_analysis_requests',
   array['id', 'profile_id', 'term_version', 'kind', 'tied_axes', 'answers_enc', 'status', 'resolution', 'created_at', 'opened_at', 'resolved_at', 'resolved_by'],
   'house_analysis_requests guarda as respostas só cifradas (answers_enc), sem coluna em texto puro');

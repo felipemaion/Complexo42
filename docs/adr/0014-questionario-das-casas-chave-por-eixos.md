@@ -62,8 +62,14 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   (`auth.uid()`, nunca um parâmetro), a versão do termo, a casa e os valores **cifrados** do totem
   e das notas (ou, no pedido de análise, os eixos e o valor cifrado das respostas) e vale 5 minutos; o pedido de totem tem prefixo próprio (`totem_pending`), que cobre o tipo. O navegador, mesmo chamando
   a API direto com o próprio login, não consegue impor casa nem totem nem abrir pedido.
-- As respostas **passam pelo servidor** em todo envio (para a pontuação), mas só são **guardadas**
-  no pedido de análise. Não vão para o log (R11).
+- As respostas **passam pelo servidor** em todo envio (para a pontuação). Desde #256 (decisão do Felipe) a **última resposta
+  válida** de cada pessoa fica **guardada cifrada** (AES-GCM, AAD `questionnaire_results.answers_enc.<profile_id>`) junto do
+  resultado, para a comparação na troca de casa; antes disso só ficavam no pedido de análise. Regras: a mesma assinatura HMAC do
+  servidor cobre o valor cifrado; a coluna **não tem grant de leitura** para `authenticated` (nem a própria pessoa, nem a
+  coordenação, nem a API leem): só o servidor, por função security definer da própria pessoa, e decifra só lá; um novo resultado
+  substitui as respostas (e um resultado decidido pela coordenação as apaga); somem com a conta; entram em "Baixar meus dados".
+  **Totem pendente (legado):** o caminho `record_totem_pending` reescreve o resultado sem respostas e por isso as **apaga**; com os pesos 1-3-5 o empate de totem não acontece mais em respostas novas (a soma nunca é zero), então isso só valeria para um caminho que não roda; fica fixado em pgTAP. A coordenação continua sem ver respostas individuais. Não vão para o log (R11). Quem respondeu antes desta mudança fica sem
+  respostas guardadas (a troca de casa usa então frases gerais por eixo).
 - O esquema Zod rejeita item em dois eixos, item sem eixo, eixo com número par de itens, casas
   repetidas e letras iguais nos dois polos de um eixo do totem.
 
