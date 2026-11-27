@@ -138,6 +138,18 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
   de outro delegado nessa condição); esses a coordenação nacional resolve. O escopo é conferido logo
   ao ler o pedido: fora dele, ou de pessoa inativa, o pedido aparece como inexistente.
 
+**Telas da coordenação** (#174), todas com o JWT da pessoa (nada de `service_role`): em
+`/coordenacao/casas/`, **resultados** (lista de pessoas ativas do escopo com casa, totem e data, filtro por
+casa; abrir mostra o gráfico completo de 4 eixos e o totem), **analise** (fila de casos inconclusivos: nome,
+data e eixos empatados; abrir mostra as respostas como frases da escala e o gráfico; formulário para
+escolher casa e totem e resolver; linhas ilegíveis são contadas e avisadas) e **delegacoes** (só a
+nacional: conceder, revogar e listar). Quem não tem permissão recebe **404**, nunca 403. O link no menu da
+coordenação só aparece para quem pode (`questionnaire_coordination_access()`, que só alimenta menu e 404:
+quem lê e quem resolve segue sendo o banco). **Abrir o resultado ou o caso de alguém gera o evento
+`questionnaire_result_viewed`** (ator e alvo, sem conteúdo; função `log_questionnaire_view`, só para quem
+pode ler os dados do alvo e nunca sobre si), que só a coordenação nacional lê no log; a pessoa vista o
+encontra no "Baixar meus dados".
+
 ### 5. Dados novos
 
 O totem, as notas dos eixos e as respostas são dado pessoal e ficam **cifrados** com o esquema existente (R13, ADR

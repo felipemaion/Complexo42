@@ -423,8 +423,8 @@ política e sem grant: só funções `security definer` leem.
 - **`resolve_house_analysis(pedido, casa, totem_enc, notas_enc, emitido_em, assinatura)`** (as notas o servidor refaz das respostas do pedido): a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, ou de pessoa inativa, o pedido aparece como inexistente; o delegado também não resolve o de quem é gestor ativo na raiz ou na unidade da concessão ou acima dela), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa, totem e notas cifrados e o **hash das respostas** que o servidor leu; 5 minutos; se o pedido mudou desde a leitura, recusa 40001), nunca sobre o
   próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Grava o resultado
   (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
-  aceita a casa pelo fluxo normal (`accept_house`). A tela da coordenação para a fila ainda não
-  existe (issue de seguimento); o servidor já lê e decifra (`src/modules/houses/server/coordination.ts`).
+  aceita a casa pelo fluxo normal (`accept_house`). As telas da coordenação (#174, `/coordenacao/casas/`: resultados,
+  análise e delegações) leem pelo servidor, que decifra (`src/modules/houses/server/coordination*.ts`).
 
 `questionnaire_data_grants` (delegação, ADR 0014 §4): `id`, `grantee_id` (FK `profiles`, cascata),
 `unit_id` (FK `units`: unidade abaixo da raiz onde o gestor tem o papel de gestor ativo),
@@ -536,6 +536,10 @@ coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, 
 **Leem a coordenação nacional e quem ela delegou sobre aquela pessoa**: o gestor territorial comum
 que gerencia a pessoa não. `questionnaire_access_granted/revoked` (ator = a nacional, alvo = o
 gestor): só a coordenação nacional os lê; o gestor os vê no próprio arquivo.
+`questionnaire_result_viewed` (ator = quem abriu o resultado ou o caso, alvo = a pessoa vista; sem conteúdo,
+gravado por `log_questionnaire_view`, só para quem pode ler os dados do alvo e nunca sobre si): só a
+coordenação nacional o lê; a pessoa vista o vê no próprio arquivo. `questionnaire_coordination_access()`
+diz ao menu e às telas se quem chama é a nacional e/ou delegado (só para o 404; não concede nada).
 Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca
 respostas do questionário.
 **Nunca contém dados pessoais em claro.** Quem lê (`app.can_read_audit(evento, alvo, ator,
