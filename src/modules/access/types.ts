@@ -62,8 +62,9 @@ export type WaitlistEntry = {
   profileId: string;
   /** Null quando o nome não decifra (a pessoa continua na fila). */
   displayName: string | null;
-  municipalityCode: number;
-  stateCode: string;
+  /** Nulos: perfil incompleto (ADR 0017). */
+  municipalityCode: number | null;
+  stateCode: string | null;
   createdAt: string;
 };
 

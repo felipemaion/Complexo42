@@ -33,6 +33,10 @@ sem casa"; "quem ainda não respondeu nada nem perfil tem, nem poderá ver coisa
 
 ## Consequências
 
+- **Trocar a versão do termo geral suspende o acesso de membro de todos até o re-aceite** (`is_active_member` exige o
+  termo vigente), inclusive coordenação e delegação: só a tela do termo, os próprios dados e a exclusão da conta
+  seguem abertos. Nada é apagado. Por isso a troca de versão deve ser **comunicada antes** (checklist de deploy
+  em `docs/OPERACAO.md`).
 - (+) Ninguém usa a plataforma sem casa; o perfil só aparece depois.
 - (−) Todo teste que cria uma pessoa para usar o perfil ou a coordenação precisa dar a ela uma casa.
 - (−) A página inicial de quem entra pela primeira vez é `/casa`, não `/inicio`.

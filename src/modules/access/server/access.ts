@@ -32,9 +32,10 @@ const resolvedSchema = z.enum(accessStatuses).nullable();
 const waitlistRowsSchema = z.array(
   z.object({
     profile_id: z.guid(),
-    display_name_enc: z.string(),
-    municipality_code: z.number().int(),
-    state_code: z.string(),
+    // Nulos: pessoa de perfil incompleto que foi bloqueada e desbloqueada (ADR 0017); a fila a mostra assim mesmo.
+    display_name_enc: z.string().nullable(),
+    municipality_code: z.number().int().nullable(),
+    state_code: z.string().nullable(),
     created_at: z.string(),
   }),
 );
@@ -130,7 +131,7 @@ export async function listWaitlist(
   const entries = await Promise.all(
     rows.map(async (row) => ({
       profileId: row.profile_id,
-      displayName: await decrypt(row.display_name_enc, {
+      displayName: row.display_name_enc === null ? null : await decrypt(row.display_name_enc, {
         table: "profiles",
         column: "display_name_enc",
         rowId: row.profile_id,

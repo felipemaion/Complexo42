@@ -140,6 +140,12 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
 1. cadastrar a versão do termo (acima); 2. instalar o arquivo em `QUESTIONNAIRE_PATH`; 3. reiniciar
 o app (ele valida o arquivo na subida e recusa subir com um inválido).
 
+**Trocar a versão do termo geral (`config/consent.ts` + `app.current_consent_version()`).** Quem não aceitou a
+versão vigente deixa de valer como membro (`app.is_active_member()` exige o aceite): perde o acesso a dados de
+outras pessoas, unidades, coordenação e delegação até aceitar de novo em `/termo`. Nada é apagado. **Comunique a
+troca antes** e, antes de publicar, conte quem ficaria sem aceite:
+`select count(*) from public.profiles p where not exists (select 1 from public.consent_acceptances c where c.user_id = p.id and c.version = '<versao nova>')`.
+
 **O totem, as notas dos eixos e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `scores_enc`, `answers_enc`,
 AES-256-GCM, ADR 0003 e ADR 0014 §5): o Postgres nunca recebe nem devolve esses valores em claro,
 então o log do Postgres e o `pg_stat_statements` não os expõem. Verificações:

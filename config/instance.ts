@@ -368,6 +368,7 @@ export const instance = parseInstanceConfig({
       confirmBlockButton: "Sim, bloquear",
       cancelButton: "Não, voltar",
       unknownName: "Nome que não pôde ser lido",
+      incompleteProfile: "(perfil incompleto)",
       unknownNameNote: "Não é possível liberar sem identificar a pessoa: o nome não pôde ser lido. Bloquear continua possível.",
       nextPage: "Ver mais pessoas",
       firstPage: "Voltar ao começo da lista",

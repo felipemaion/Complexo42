@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(33);
+select plan(49);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -145,6 +145,45 @@ select is(public.save_own_profile(pg_temp.enc('d5'), 3550308, null, pg_temp.enc(
 select results_eq($$ select consent_version, consent_at is not null from public.profiles where id = '00000000-0000-0000-0000-0000000000d5' $$,
   $$ values ('v1'::text, true) $$,
   'ao completar, a versão do termo é a exigida agora (não uma velha que a linha trazia) e consent_at é gravado');
+
+-- ---------------------------------------------------------------------------------------
+-- Quem não está liberado NÃO usa a entrada (accept_house, termo do questionário, questionário)
+-- ---------------------------------------------------------------------------------------
+reset role;
+insert into auth.users (id) values
+  ('00000000-0000-0000-0000-0000000000a1'), ('00000000-0000-0000-0000-0000000000a2'),
+  ('00000000-0000-0000-0000-0000000000a3'), ('00000000-0000-0000-0000-0000000000a4');
+-- a1: na espera; a2: bloqueada; a3: conta suspensa; a4: sem linha (fora da lista de autorizados).
+insert into public.profiles (id, status, access_status) values
+  ('00000000-0000-0000-0000-0000000000a1', 'pending', 'waitlisted'),
+  ('00000000-0000-0000-0000-0000000000a2', 'pending', 'blocked'),
+  ('00000000-0000-0000-0000-0000000000a3', 'suspended', 'active');
+insert into public.consent_acceptances (user_id, version)
+select id, 'v1' from auth.users where id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000a3', '00000000-0000-0000-0000-0000000000a4');
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000a1');
+select throws_ok($$ select public.accept_house('casa-t1', 'self', null) $$, '42501', null, 'na espera: accept_house recusado');
+select throws_ok($$ select public.record_questionnaire_consent('termo-1') $$, '42501', null, 'na espera: termo do questionário recusado');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', pg_temp.enc('AB'), pg_temp.enc('SC'), 0, 'x') $$, '42501', 'só quem está ativo usa o questionário', 'na espera: questionário recusado (lock_active_caller)');
+select pg_temp.login('00000000-0000-0000-0000-0000000000a2');
+select throws_ok($$ select public.accept_house('casa-t1', 'self', null) $$, '42501', null, 'bloqueada: accept_house recusado');
+select throws_ok($$ select public.record_questionnaire_consent('termo-1') $$, '42501', null, 'bloqueada: termo do questionário recusado');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', pg_temp.enc('AB'), pg_temp.enc('SC'), 0, 'x') $$, '42501', 'só quem está ativo usa o questionário', 'bloqueada: questionário recusado (lock_active_caller)');
+select pg_temp.login('00000000-0000-0000-0000-0000000000a3');
+select throws_ok($$ select public.accept_house('casa-t1', 'self', null) $$, '42501', null, 'conta suspensa: accept_house recusado');
+select throws_ok($$ select public.record_questionnaire_consent('termo-1') $$, '42501', null, 'conta suspensa: termo do questionário recusado');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', pg_temp.enc('AB'), pg_temp.enc('SC'), 0, 'x') $$, '42501', 'só quem está ativo usa o questionário', 'conta suspensa: questionário recusado (lock_active_caller)');
+select pg_temp.login('00000000-0000-0000-0000-0000000000a4');
+select throws_ok($$ select public.accept_house('casa-t1', 'self', null) $$, '42501', null, 'sem linha (fora da lista): accept_house recusado');
+select throws_ok($$ select public.record_questionnaire_consent('termo-1') $$, '42501', null, 'sem linha: termo do questionário recusado');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', pg_temp.enc('AB'), pg_temp.enc('SC'), 0, 'x') $$, '42501', 'só quem está ativo usa o questionário', 'sem linha: questionário recusado (lock_active_caller)');
+
+-- A linha incompleta (d2: ativa, com termo) não lê contato, auditoria, delegação nem resultados/coordenação.
+select pg_temp.login('00000000-0000-0000-0000-0000000000d2');
+select is((select count(*)::int from public.profile_contacts), 0, 'a linha incompleta NÃO lê contatos');
+select is((select count(*)::int from public.audit_log), 0, '... nem a auditoria');
+select is((select count(*)::int from public.questionnaire_data_grants), 0, '... nem as delegações');
+select is((select count(*)::int from public.questionnaire_results) + (select count(*)::int from public.house_analysis_requests), 0, '... nem os resultados e pedidos do questionário (cortes da coordenação)');
 
 select * from finish();
 rollback;

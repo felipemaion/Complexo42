@@ -214,7 +214,7 @@ const valid = {
       confirmApproveButton: "t",
       confirmBlockButton: "t",
       cancelButton: "t",
-      unknownName: "t",
+      unknownName: "t", incompleteProfile: "t",
       unknownNameNote: "t",
       nextPage: "t",
       firstPage: "t",
