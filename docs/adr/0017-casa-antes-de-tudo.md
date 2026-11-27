@@ -27,6 +27,7 @@ sem casa"; "quem ainda não respondeu nada nem perfil tem, nem poderá ver coisa
   aceita; sem ela redireciona para `/casa`. Só `/casa` e as ações da escolha da casa usam a variante que não
   exige casa (`requireUserBeforeHouse`); termo, `/meus-dados` e excluir conta usam `requireAccessUser`.
   A falha na checagem falha fechada (encerra a sessão).
+- **Base (perfil incompleto, #226):** a casa vem antes do perfil, mas `house_members` e o resto referenciam `profiles`. A linha de `profiles` passa a nascer no **primeiro login de quem está na lista de autorizados**, sem nome, município, UF nem versão do termo (`profile_completed_at` nulo). Os nulos só valem enquanto incompleto (CHECK); `save_own_profile` completa e marca; ninguém volta a incompleto (trigger). Quem não está na lista não ganha linha: segue o caminho de hoje (perfil, depois espera). Leituras (perfil, nomes na coordenação, "Baixar meus dados", formato 9) toleram perfil incompleto.
 - **Banco:** `save_own_profile` recusa (42501, `house_required`) quem não tem vínculo de casa aberto, além do que já
   exigia (termo vigente, permissão de edição). A UI não é a única barreira.
 
