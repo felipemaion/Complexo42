@@ -102,6 +102,10 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
   undecided` ("totem não decidido"), explícito na tela da coordenação e no "Baixar meus dados". Aceitar a
   casa fecha só o pedido `full`. Só o servidor abre o pedido (assinado);
   renovar o pedido aberto só é possível depois de 1 hora.
+- **Recusa visível** (#199): se o envio das respostas é recusado, a tela volta à última pergunta e
+  mostra o motivo em texto da config da instância; no limite de renovação (1 hora), com os minutos
+  que faltam (calculados no servidor a partir da abertura do pedido). Termo não reconhecido pelo banco
+  vira "leia o termo de novo". Só o pedido de análise tem limite: o resultado conclusivo nunca esbarra nele.
 - A tela diz que a coordenação nacional vai analisar e deixa a pessoa **escolher a casa direto**.
 - As respostas ficam guardadas **só enquanto o pedido está aberto** e são apagadas quando:
   a coordenação nacional resolve (e define casa e totem); a pessoa aceita uma casa (só no pedido `full`); ela refaz o

@@ -293,4 +293,40 @@ describe("submitQuestionnaire", () => {
       error: "rate_limited",
     });
   });
+
+  describe("recusa visível (#199)", () => {
+    /** Cliente cujo envio é recusado com `code` e cuja leitura do pedido aberto devolve `request`. */
+    function refusingClient(code: string, request: { data?: unknown; error?: unknown }) {
+      const { client, filters } = fakeClient(request);
+      const refusing: HouseClient = { ...client, rpc: () => Promise.resolve({ data: null, error: { code } }) };
+      return { client: refusing, filters };
+    }
+
+    it("limite de renovação: devolve quantos segundos faltam (1 hora depois da abertura do pedido aberto)", async () => {
+      // ctx.nowSeconds = 1000 (1970-01-01T00:16:40Z); o pedido foi aberto em 1970-01-01T00:00:00Z.
+      const { client, filters } = refusingClient("54000", { data: { created_at: "1970-01-01T00:00:00Z" } });
+      expect(await submitQuestionnaire(client, { answers: tied }, ctx)).toEqual({ ok: false, error: "rate_limited", retryAfterSeconds: 3600 - 1000 });
+      expect(filters).toContainEqual(["from", "house_analysis_requests", "created_at"]);
+      expect(filters).toContainEqual(["eq", "profile_id", "u-1"]);
+      expect(filters).toContainEqual(["eq", "status", "open"]);
+    });
+
+    it("sem pedido legível (ou já passou de 1 hora): recusa sem tempo, nunca com número inventado", async () => {
+      for (const request of [{ data: null }, { error: { code: "42501" } }, { data: { created_at: "lixo" } }, { data: { created_at: "1969-12-31T00:00:00Z" } }]) {
+        const { client } = refusingClient("54000", request);
+        expect(await submitQuestionnaire(client, { answers: tied }, ctx)).toEqual({ ok: false, error: "rate_limited" });
+      }
+    });
+
+    it("o resultado conclusivo nunca consulta o limite: um erro dele não vira 'limite'", async () => {
+      const { client, filters } = refusingClient("42501", {});
+      expect(await submitQuestionnaire(client, { answers: conclusive }, ctx)).toEqual({ ok: false, error: "not_active" });
+      expect(filters.filter((f) => f[0] === "from")).toEqual([]);
+    });
+
+    it("termo da pessoa que o banco não reconhece (22023): pede para ler o termo de novo, não 'falha'", async () => {
+      const { client } = refusingClient("22023", {});
+      expect(await submitQuestionnaire(client, { answers: conclusive }, ctx)).toEqual({ ok: false, error: "stale_consent" });
+    });
+  });
 });

@@ -22,6 +22,9 @@ const valid = {
     signedInTitle: "t",
     signedInMessage: "t",
     connectedAs: "t",
+    navLabel: "t",
+    navHome: "t",
+    navBack: "t",
     confirmTitle: "t",
     confirmMessage: "t",
     confirmButton: "t",
@@ -127,6 +130,7 @@ const valid = {
     analysisChooseButton: "t",
     acceptedTitle: "t",
     homeLink: "t",
+    rateLimitedWait: "{minutes}",
     errors: {
       unavailable: "t",
       already_accepted: "t",

@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(240);
+select plan(244);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -975,6 +975,18 @@ select throws_ok($$ insert into public.house_analysis_requests (profile_id, term
 select throws_ok($$ insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, totem_state, source)
                      values (pg_temp.person('p3'), 'termo-1', 'casa-t1', null, 'decided', 'questionnaire') $$, '23514', null,
   'CHECK: totem decidido exige o totem');
+
+-- ---------------------------------------------------------------------------------------
+-- Resultado conclusivo nunca esbarra no limite da fila (#199)
+-- ---------------------------------------------------------------------------------------
+set local role authenticated;
+select pg_temp.login('p4');
+select lives_ok($$ select pg_temp.analyze('termo-1', array['house1'], 'respA') $$, 'p4 abre um pedido de análise');
+select throws_ok($$ select pg_temp.analyze('termo-1', array['house1'], 'respB') $$, '54000', null, 'renovar o pedido logo depois bate no limite');
+select lives_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AB') $$,
+  'mas um resultado conclusivo logo depois (dentro de 1 hora) é gravado: o limite é só do pedido de análise');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'), 0,
+  '... e fecha o pedido aberto');
 
 select * from finish();
 rollback;
