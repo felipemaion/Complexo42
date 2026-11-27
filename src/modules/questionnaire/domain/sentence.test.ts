@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { intensitySentence, toDisplaySentence } from "./sentence";
+import { answerSentence, intensitySentence, toDisplaySentence } from "./sentence";
 
 describe("toDisplaySentence (frase exibida: maiúscula no começo, pontuação no fim)", () => {
   it("põe a primeira letra em maiúscula", () => {
@@ -71,5 +71,24 @@ describe("intensitySentence (intensidade + texto da alternativa)", () => {
 
   it("alternativa vazia: só a intensidade, com ponto", () => {
     expect(intensitySentence("Totalmente", "")).toBe("Totalmente.");
+  });
+});
+
+describe("answerSentence (a resposta de um item como frase, para a coordenação)", () => {
+  const item = { id: "q1", text: "Numa festa, você prefere:", a: { text: "conversar com muita gente;" }, b: { text: "conversar com poucos" } };
+  const intensities = ["Totalmente", "Na maior parte das vezes", "Um pouco mais", "Um pouco mais", "Na maior parte das vezes", "Totalmente"] as const;
+
+  it("respostas negativas usam o texto da alternativa a, e as positivas, o da b", () => {
+    expect(answerSentence(item, -3, intensities)).toBe("Totalmente: conversar com muita gente.");
+    expect(answerSentence(item, -1, intensities)).toBe("Um pouco mais: conversar com muita gente.");
+    expect(answerSentence(item, 1, intensities)).toBe("Um pouco mais: conversar com poucos.");
+    expect(answerSentence(item, 2, intensities)).toBe("Na maior parte das vezes: conversar com poucos.");
+    expect(answerSentence(item, 3, intensities)).toBe("Totalmente: conversar com poucos.");
+  });
+
+  it("valor fora da escala: sem frase (nunca inventa uma intensidade)", () => {
+    expect(answerSentence(item, 0, intensities)).toBeNull();
+    expect(answerSentence(item, 4, intensities)).toBeNull();
+    expect(answerSentence(item, 1.5, intensities)).toBeNull();
   });
 });
