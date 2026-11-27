@@ -6,8 +6,18 @@
 // (a nacional ou o delegado) ou concede (só a coordenação nacional). Nada aqui vai para log (R11).
 import "server-only";
 import { z } from "zod";
+import {
+  answerValues,
+  axisKeys,
+  chartAxes,
+  QuestionnaireAnswerError,
+  scoreQuestionnaire,
+  type AxisScores,
+  type ChartAxis,
+  type QuestionnaireConfig,
+} from "@/modules/questionnaire";
 import type { CipherContext, HouseClient } from "../types";
-import { answersContext, totemContext } from "./houses";
+import { answersContext, scoresContext, totemContext } from "./houses";
 
 export type CoordinationCrypto = {
   decrypt(value: string, context: CipherContext): Promise<string>;
@@ -26,19 +36,44 @@ function errorOf(error: unknown): CoordinationError {
   return (typeof code === "string" && errorByCode[code]) || "failed";
 }
 
-const resultRow = z.object({ house_key: z.string(), totem_enc: z.string(), source: z.string(), created_at: z.string() });
+const resultRow = z.object({
+  house_key: z.string(),
+  totem_enc: z.string(),
+  scores_enc: z.string().nullable(),
+  source: z.string(),
+  created_at: z.string(),
+});
+const scoresJson = z.strictObject({
+  house1: z.number().int().min(-100).max(100),
+  house2: z.number().int().min(-100).max(100),
+  totem1: z.number().int().min(-100).max(100),
+  totem2: z.number().int().min(-100).max(100),
+});
 
-export type QuestionnaireResultView = { houseId: string; totem: string; source: string; createdAt: string };
+export type QuestionnaireResultView = {
+  houseId: string;
+  totem: string;
+  /** Notas dos 4 eixos; nulo em resultado antigo, de antes da escala de intensidade. */
+  scores: AxisScores | null;
+  /** O gráfico completo (4 eixos) para a coordenação; nulo sem notas. */
+  chart: ChartAxis[] | null;
+  source: string;
+  createdAt: string;
+};
 
-/** Casa e totem de `personId`, ou null se não há resultado ou a RLS não deixa ler. Decifra o totem. */
+/**
+ * Casa, totem e notas de `personId`, ou null se não há resultado ou a RLS não deixa ler. Decifra
+ * o totem e as notas. A coordenação (nacional ou delegada) vê os 4 eixos; a pessoa, só os da casa.
+ */
 export async function readQuestionnaireResultOf(
   client: HouseClient,
   personId: string,
   crypto: CoordinationCrypto,
+  questionnaire: QuestionnaireConfig,
 ): Promise<QuestionnaireResultView | null> {
   const { data, error } = await client
     .from("questionnaire_results")
-    .select("house_key,totem_enc,source,created_at")
+    .select("house_key,totem_enc,scores_enc,source,created_at")
     .eq("profile_id", personId)
     .maybeSingle();
   if (error) throw new Error(`questionnaire_read_failed:${errorOf(error)}`);
@@ -51,7 +86,22 @@ export async function readQuestionnaireResultOf(
     // Só o nome da coluna: nunca a mensagem do erro nem o valor.
     throw new Error("decrypt_failed:totem_enc");
   }
-  return { houseId: row.house_key, totem, source: row.source, createdAt: row.created_at };
+  let scores: AxisScores | null = null;
+  if (row.scores_enc !== null) {
+    try {
+      scores = scoresJson.parse(JSON.parse(await crypto.decrypt(row.scores_enc, scoresContext(personId))));
+    } catch {
+      throw new Error("decrypt_failed:scores_enc");
+    }
+  }
+  return {
+    houseId: row.house_key,
+    totem,
+    scores,
+    chart: scores && chartAxes(questionnaire, scores, axisKeys),
+    source: row.source,
+    createdAt: row.created_at,
+  };
 }
 
 const requestRow = z.object({
@@ -61,13 +111,13 @@ const requestRow = z.object({
   answers_enc: z.string(),
   created_at: z.string(),
 });
-const answersJson = z.record(z.string(), z.string());
+const answersJson = z.record(z.string(), z.literal([...answerValues]));
 
 export type AnalysisRequestView = {
   requestId: string;
   profileId: string;
   tiedAxes: string[];
-  answers: Record<string, string>;
+  answers: Record<string, number>;
   createdAt: string;
 };
 
@@ -104,7 +154,7 @@ export async function listOpenAnalysisRequests(
       } catch {
         throw new UnreadableRow("answers_enc");
       }
-      let answers: Record<string, string>;
+      let answers: Record<string, number>;
       try {
         answers = answersJson.parse(JSON.parse(plain));
       } catch {
@@ -137,17 +187,21 @@ export type ResolveSigning = { userId: string; nowSeconds: number; sign(message:
 
 export type CoordinationResult = { ok: true } | { ok: false; error: CoordinationError };
 
+/** O que a resolução precisa do servidor: as casas e o questionário da config, a cifra e a assinatura. */
+export type ResolveDeps = {
+  houseIds: readonly string[];
+  questionnaire: QuestionnaireConfig;
+  crypto: CoordinationCrypto;
+  signing: ResolveSigning;
+};
+
 /**
- * Resolve o pedido: a coordenação nacional escolhe a casa (da config) e o totem; o servidor cifra
- * o totem para a pessoa do pedido. Resolve a nacional ou o delegado, no escopo dele (o banco decide).
+ * Resolve o pedido: a coordenação escolhe a casa (da config) e o totem; o servidor refaz as notas
+ * dos eixos a partir das respostas do pedido e cifra o totem e as notas para a pessoa do pedido.
+ * Resolve a nacional ou o delegado, no escopo dele (o banco decide).
  */
-export async function resolveAnalysis(
-  client: HouseClient,
-  input: unknown,
-  houseIds: readonly string[],
-  crypto: CoordinationCrypto,
-  signing: ResolveSigning,
-): Promise<CoordinationResult> {
+export async function resolveAnalysis(client: HouseClient, input: unknown, deps: ResolveDeps): Promise<CoordinationResult> {
+  const { houseIds, questionnaire, crypto, signing } = deps;
   const parsed = z
     .strictObject({
       requestId: z.uuid(),
@@ -156,22 +210,46 @@ export async function resolveAnalysis(
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "invalid" };
-  const found = await client.from("house_analysis_requests").select("profile_id").eq("id", parsed.data.requestId).eq("status", "open").maybeSingle();
+  const found = await client
+    .from("house_analysis_requests")
+    .select("profile_id,answers_enc")
+    .eq("id", parsed.data.requestId)
+    .eq("status", "open")
+    .maybeSingle();
   if (found.error) return { ok: false, error: errorOf(found.error) };
-  const person = z.nullable(z.object({ profile_id: z.string() })).parse(found.data);
-  if (!person) return { ok: false, error: "not_found" };
-  const totemEnc = await crypto.encrypt(parsed.data.totem, totemContext(person.profile_id));
-  // O banco só aceita a resolução assinada pelo servidor (pedido, casa e totem cifrado, para quem resolve).
+  const request = z.nullable(z.object({ profile_id: z.string(), answers_enc: z.string() })).parse(found.data);
+  if (!request) return { ok: false, error: "not_found" };
+  const scores = await scoresOfRequest(request, questionnaire, crypto);
+  if (!scores) return { ok: false, error: "failed" };
+  const totemEnc = await crypto.encrypt(parsed.data.totem, totemContext(request.profile_id));
+  const scoresEnc = await crypto.encrypt(JSON.stringify(scores), scoresContext(request.profile_id));
+  // O banco só aceita a resolução assinada pelo servidor (pedido, casa, totem e notas cifrados, para quem resolve).
   const { userId, nowSeconds, sign } = signing;
-  const signature = sign(`resolve|${userId}|${parsed.data.requestId}|${parsed.data.houseId}|${totemEnc}|${nowSeconds}`);
+  const signature = sign(`resolve|${userId}|${parsed.data.requestId}|${parsed.data.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}`);
   const { error } = await client.rpc("resolve_house_analysis", {
     p_request_id: parsed.data.requestId,
     p_house_key: parsed.data.houseId,
     p_totem_enc: totemEnc,
+    p_scores_enc: scoresEnc,
     p_issued_at: nowSeconds,
     p_signature: signature,
   });
   return error ? { ok: false, error: errorOf(error) } : { ok: true };
+}
+
+/** Notas dos eixos refeitas das respostas do pedido; null se não decifra ou não pontua (sem vazar o motivo). */
+async function scoresOfRequest(
+  request: { profile_id: string; answers_enc: string },
+  questionnaire: QuestionnaireConfig,
+  crypto: CoordinationCrypto,
+): Promise<AxisScores | null> {
+  try {
+    const plain = await crypto.decrypt(request.answers_enc, answersContext(request.profile_id));
+    return scoreQuestionnaire(questionnaire, answersJson.parse(JSON.parse(plain))).scores;
+  } catch (error) {
+    if (error instanceof QuestionnaireAnswerError) return null;
+    return null;
+  }
 }
 
 /** A coordenação nacional concede a um gestor de unidade abaixo da raiz o acesso ao totem e aos pedidos do escopo dele. */

@@ -24,30 +24,38 @@ O texto das perguntas e a chave real são privados e não entram no repositório
 ### 1. Formato e pontuação
 
 Cada item tem duas alternativas, **a** e **b**. O config lista os **itens de cada eixo** (não a
-ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b".
+ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b". Cada eixo tem um
+**nome** e o **nome dos dois polos** no config (`label`, `poleLabels`), usados no gráfico.
 
+**Escala de intensidade** (decisão do gestor, 2026-11-27; substitui a escolha a/b/"as duas"). Cada
+pergunta mostra seis círculos, sem meio, maiores nas pontas (a à esquerda, b à direita), **nenhum
+marcado de início** (resposta obrigatória). A resposta é um inteiro em {-3, -2, -1, 1, 2, 3}
+(negativo = polo "a"). Acessível: grupo de rádio com os nomes "muito a, a, um pouco a, um pouco b,
+b, muito b" (texto da config da instância), teclado (setas, Home e End) e botão "próxima".
+
+- **Nota do eixo** = média das respostas dos itens do eixo, normalizada para -100..100
+  (`média / 3 × 100`, arredondada). O polo é o **sinal da soma** (negativo = a); nota 0 é empate.
 - **Casa** = interseção dos polos dos eixos 1 e 2: `(a,a)` casa 1, `(a,b)` casa 2, `(b,a)` casa 3,
   `(b,b)` casa 4. O mapa vive no config (`houseByPoles`), com as quatro casas distintas.
 - **Totem** = uma letra por eixo extra (eixos 3 e 4; as letras de cada polo vêm do config). Dá
   quatro totens.
-- **"As duas"** conta um ponto para cada polo do item.
-- **Empate no eixo:** desempata pelos `tieBreakItems` do eixo (subconjunto dos itens do próprio
-  eixo, indicados pelo stakeholder; vale por eixo e pode ser vazio). Se ainda empatar, ou se o
-  eixo não tem desempate, o resultado é **inconclusivo**.
-- **Resultado** (função pura): `{ status: 'ok', houseId, totem }` ou
-  `{ status: 'inconclusive', axes }`, com a lista dos eixos empatados. Inconclusivo não atribui
-  casa nem totem.
+- **Empate no eixo** (nota 0): desempata pelo sinal da média dos `tieBreakItems` do eixo
+  (subconjunto dos itens do próprio eixo, indicados pelo stakeholder; vale por eixo e pode ser
+  vazio). Se ainda for 0, ou se o eixo não tem desempate, o resultado é **inconclusivo**.
+- **Resultado** (função pura): `{ status: 'ok', houseId, totem, scores }` ou
+  `{ status: 'inconclusive', axes, scores }`, com a lista dos eixos empatados e as quatro notas.
+  Inconclusivo não atribui casa nem totem.
 - **A pontuação roda no servidor**, não no navegador (revisão do PR #173). Motivos: o navegador
   que pontua recebe a chave real (o totem deixaria de ser interno) e pode mandar qualquer casa
   e totem direto à API. O navegador manda **só as respostas**; o servidor valida (todas as
-  perguntas, só `a`, `b` ou `both`), pontua com o arquivo real (`QUESTIONNAIRE_PATH`) e devolve
+  perguntas, só os seis valores da escala), pontua com o arquivo real (`QUESTIONNAIRE_PATH`) e devolve
   só a casa. A chave (eixos, desempates, mapa das casas) nunca sai do servidor
   (`toPublicQuestionnaire`).
 - **O banco só aceita resultado assinado pelo servidor.** O app não tem `service_role` (R6);
   em vez dela, assina cada resultado com HMAC-SHA256 (`QUESTIONNAIRE_SIGNING_KEY`, a mesma chave
   em `app.server_secrets`, sem acesso pela API). A assinatura cobre a pessoa da sessão
-  (`auth.uid()`, nunca um parâmetro), a versão do termo, a casa e o valor **cifrado** do totem
-  (ou, no pedido de análise, os eixos e o valor cifrado das respostas) e vale 5 minutos. O navegador, mesmo chamando
+  (`auth.uid()`, nunca um parâmetro), a versão do termo, a casa e os valores **cifrados** do totem
+  e das notas (ou, no pedido de análise, os eixos e o valor cifrado das respostas) e vale 5 minutos. O navegador, mesmo chamando
   a API direto com o próprio login, não consegue impor casa nem totem nem abrir pedido.
 - As respostas **passam pelo servidor** em todo envio (para a pontuação), mas só são **guardadas**
   no pedido de análise. Não vão para o log (R11).
@@ -56,8 +64,17 @@ ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b"
 
 ### 2. O que a pessoa vê
 
-A pessoa vê **só a casa** ("a casa sugerida para você"). O **totem é interno**: não aparece na
-tela da casa. Por ser dado pessoal, aparece em "Baixar meus dados" (LGPD art. 18).
+A pessoa vê a casa ("a casa sugerida para você") e o **gráfico de aranha dos eixos 1 e 2**, os que
+definem a casa. O **totem é interno**, e as notas dos eixos 3 e 4 também: não aparecem na tela da
+casa. Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
+
+**Gráfico de aranha** (SVG próprio, sem biblioteca): os polos "a" de todos os eixos vêm primeiro e
+depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frente (meia volta). Cada
+raio vale a intensidade do polo (0 a 100). A pessoa vê 4 raios; a coordenação nacional e os
+delegados veem os 4 eixos (8 raios) e o totem. Os nomes das dimensões e dos polos vêm do config do
+questionário: o exemplo público usa nomes genéricos; no arquivo privado são **provisórios** até o
+stakeholder (Convívio: Expansivo/Reservado; Decisão: Razão/Coração; Percepção: P·Prático/A·Abstrato;
+Ritmo: R·Regrado/A·Adaptável).
 
 A sugestão é só o ponto de partida: a pessoa continua podendo **escolher outra casa** e aceitar
 pelo fluxo de sempre (`accept_house`). Trocar de casa depois de aceitar continua sendo com a
@@ -119,9 +136,11 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
 
 ### 5. Dados novos
 
-O totem e as respostas são dado pessoal e ficam **cifrados** com o esquema existente (R13, ADR
+O totem, as notas dos eixos e as respostas são dado pessoal e ficam **cifrados** com o esquema existente (R13, ADR
 0003: AES-256-GCM, `v<n>.<iv>.<ct>`), **sem exceção**:
 - `questionnaire_results.totem_enc`, AAD `questionnaire_results.totem_enc.<profile_id>`;
+- `questionnaire_results.scores_enc` (JSON das quatro notas, -100..100), AAD
+  `questionnaire_results.scores_enc.<profile_id>`; nulo só em resultado antigo, de antes da escala;
 - `house_analysis_requests.answers_enc` (JSON das respostas), AAD
   `house_analysis_requests.answers_enc.<profile_id>` (a linha é a da pessoa: só um pedido aberto
   por pessoa, e as respostas só existem com ele aberto).
@@ -143,6 +162,8 @@ meus dados" decifra e entrega o totem e as respostas (formato 5).
   é o caminho de quem lê.
 - **Decifrar no banco (pgcrypto, chave no banco):** poria a chave de dados no Postgres; o ADR 0003
   a mantém só no servidor do app.
+- **Guardar as notas dos eixos cifradas junto do resultado** (decisão do gestor): é o que permite
+  o gráfico sem guardar as respostas. As notas são dado pessoal e seguem o ADR 0003 (§5).
 - **Guardar sempre as respostas:** formaria um perfil psicológico sem necessidade. Só o caso
   inconclusivo precisa delas.
 - **Atribuir a casa por sorteio ou pelo polo "padrão" em empate:** esconderia uma decisão que é

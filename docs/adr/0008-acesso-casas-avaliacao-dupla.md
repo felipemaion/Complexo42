@@ -84,8 +84,8 @@ território. Daqui continuam valendo:
 
 **A chave, os eixos, o totem, o desempate e o resultado inconclusivo estão no ADR 0014**, que
 substitui o formato de 26 perguntas e quatro eixos de temperamento recebido em 2026-11-18. O
-questionário atual tem 28 perguntas de escolha entre duas alternativas (a/b), com a opção de
-marcar **as duas**, e um termo de consentimento próprio.
+questionário atual tem 28 perguntas, cada uma com duas alternativas (a/b) e uma **escala de
+intensidade** de seis círculos (ADR 0014 §1), e um termo de consentimento próprio.
 
 **Decisões que continuam valendo:**
 - **A pontuação roda no servidor** (ADR 0014 §1), é uma função pura, configurável e coberta por
@@ -93,8 +93,8 @@ marcar **as duas**, e um termo de consentimento próprio.
   `localStorage`); o servidor guarda a casa sugerida e o totem. Só no resultado inconclusivo as
   respostas são guardadas, para a coordenação nacional (ADR 0014 §3).
 - **Interface:**
-  - uma pergunta por tela, com o progresso visível ("3 de 28") e botões grandes "a", "b" e
-    "as duas";
+  - uma pergunta por tela, com o progresso visível ("3 de 28"), os seis círculos de intensidade
+    (nenhum marcado de início) e o botão "próxima";
   - o botão de voltar aparece sempre;
   - o resultado mostra a casa sugerida e o botão **"escolher outra casa"**.
 - **O aceite do termo** é registrado com a versão do texto e a data, sem assinatura nem

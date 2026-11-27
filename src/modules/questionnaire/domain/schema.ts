@@ -7,7 +7,9 @@ import { z } from "zod";
  *
  * Quatro eixos, cada um com a sua lista de itens (o config diz quais itens contam para qual
  * eixo, não a ordem de apresentação). Em todo item a alternativa "a" marca o polo "a" do eixo
- * e a "b" marca o polo "b". Os eixos 1 e 2 definem a casa; os eixos 3 e 4, o totem.
+ * e a "b" marca o polo "b"; a resposta é a intensidade, de -3 (muito a) a 3 (muito b), sem 0.
+ * Os eixos 1 e 2 definem a casa; os eixos 3 e 4, o totem. Cada eixo tem um nome e o nome dos
+ * seus dois polos (para o gráfico).
  *
  * O texto real das perguntas e a chave real não entram no repositório: em desenvolvimento usa-se
  * `config/questionnaire.example.json`, fictício; em produção, o arquivo de QUESTIONNAIRE_PATH.
@@ -34,6 +36,9 @@ const itemSchema = z.strictObject({
 });
 
 const axisShape = {
+  /** Nome da dimensão (ex.: do gráfico) e dos seus dois polos; o polo "a" é o das respostas negativas. */
+  label: text,
+  poleLabels: z.strictObject({ a: text, b: text }),
   /** Ids dos itens que contam para este eixo. */
   itemIds: z.array(slug).min(1),
   /**

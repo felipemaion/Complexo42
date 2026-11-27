@@ -92,14 +92,17 @@ Chave recebida: 28 perguntas, quatro eixos (dois para a casa, dois para o totem)
 desempate só no eixo 1. As perguntas 75 a 78 da versão anterior (temperamentos) ficam
 substituídas pelas abaixo.
 
-75. ✅ *(chave de 2026-11-25)* **Chave de correção:** itens por eixo e a casa pela interseção dos
-    eixos 1 e 2 estão no arquivo recebido. "As duas" conta para os dois polos.
+75. ✅ *(chave de 2026-11-25; escala aprovada pelo gestor em 2026-11-27)* **Chave de correção:** itens
+    por eixo e a casa pela interseção dos eixos 1 e 2 estão no arquivo recebido. A resposta é a
+    intensidade (6 círculos, de -3 a 3, sem meio, sem "as duas"); a nota do eixo é a média
+    normalizada para -100..100, e o sinal dá o polo.
 76. ✅ *(stakeholder, itens 23 e 26 da chave; já na config privada)* **Itens de desempate do eixo 1:** respondida: o stakeholder indicou os itens 23 e 26,
     que ficam só na configuração privada.
 77. [?] **Desempate dos eixos 2, 3 e 4:** há itens de desempate também nesses eixos? Sem regra,
     o empate deixa o resultado inconclusivo e abre um pedido de análise.
 78. **Termo de consentimento:** podemos adaptá-lo assim?
-    - **Resultado:** a pessoa vê só a casa. A plataforma guarda a casa sugerida e o totem (interno).
+    - **Resultado:** a pessoa vê a casa e o gráfico dos eixos 1 e 2. A plataforma guarda a casa
+      sugerida, o totem (interno) e as notas dos 4 eixos, cifradas. O termo privado já diz isso [?].
     - **Respostas:** vão ao servidor para o cálculo e só são guardadas se o resultado for
       inconclusivo, para a coordenação nacional analisar; são apagadas ao resolver ou em 30 dias.
       O texto atual não diz isso [?].
@@ -138,6 +141,10 @@ pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos 
 91. **Quem cria núcleos de topo e designa o primeiro coordenador?** *Padrão: o gestor da raiz.*
 92. **Para pedir um subnúcleo, é preciso ser membro do núcleo pai?** *Padrão: não.*
 93. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
+94. [?] **Nomes oficiais das quatro dimensões e dos polos** do questionário, e o **nome dos quatro
+    totens**. Hoje, provisórios no arquivo privado: Convívio (Expansivo/Reservado), Decisão
+    (Razão/Coração), Percepção (P·Prático/A·Abstrato) e Ritmo (R·Regrado/A·Adaptável). O exemplo
+    público usa nomes genéricos.
 
 ## Novas perguntas (após as definições)
 

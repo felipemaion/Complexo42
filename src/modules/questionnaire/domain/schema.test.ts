@@ -6,7 +6,10 @@ import { parseQuestionnaire, QuestionnaireConfigError, questionnaireSchema } fro
 const houseIds = instance.houses.map((h) => h.id);
 
 type Raw = Omit<typeof example, "axes"> & {
-  axes: Record<"house1" | "house2" | "totem1" | "totem2", { itemIds: string[]; tieBreakItems: string[]; letters?: { a: string; b: string } }>;
+  axes: Record<
+    "house1" | "house2" | "totem1" | "totem2",
+    { label: string; poleLabels: { a: string; b: string }; itemIds: string[]; tieBreakItems: string[]; letters?: { a: string; b: string } }
+  >;
 };
 const clone = (): Raw => structuredClone(example) as Raw;
 
@@ -112,6 +115,18 @@ describe("questionnaireSchema", () => {
     const oldFormat = clone();
     (oldFormat.items[0] as unknown as { axis: string }).axis = "SN";
     expect(fieldsOf(oldFormat)).toEqual(["items.0"]);
+  });
+
+  it("cada eixo precisa de nome e do nome dos dois polos", () => {
+    const noLabel = clone() as unknown as { axes: Record<string, Record<string, unknown>> };
+    delete noLabel.axes.house1!.label;
+    expect(fieldsOf(noLabel)).toEqual(["axes.house1.label"]);
+    const noPole = clone() as unknown as { axes: Record<string, { poleLabels: Record<string, unknown> }> };
+    delete noPole.axes.totem2!.poleLabels.b;
+    expect(fieldsOf(noPole)).toEqual(["axes.totem2.poleLabels.b"]);
+    const blank = clone();
+    blank.axes.house2.poleLabels.a = "   ";
+    expect(fieldsOf(blank)).toEqual(["axes.house2.poleLabels.a"]);
   });
 
   it("rejeita alternativa sem texto e texto só com espaços", () => {

@@ -77,6 +77,7 @@ describe("exportOwnData", () => {
       questionnaire_result: {
         house_key: "casa-qualquer",
         totem_enc: await enc("PA", "questionnaire_results", "totem_enc"),
+        scores_enc: await enc(JSON.stringify({ house1: -40, house2: 75, totem1: 0, totem2: -100 }), "questionnaire_results", "scores_enc"),
         term_version: "termo-1",
         source: "questionnaire",
         created_at: "2026-11-19T11:25:00+00:00",
@@ -87,7 +88,7 @@ describe("exportOwnData", () => {
           resolution: null,
           term_version: "termo-1",
           tied_axes: ["house1"],
-          answers_enc: await enc(JSON.stringify({ q01: "a", q02: "both" }), "house_analysis_requests", "answers_enc"),
+          answers_enc: await enc(JSON.stringify({ q01: -3, q02: 2 }), "house_analysis_requests", "answers_enc"),
           created_at: "2026-11-19T11:26:00+00:00",
           resolved_at: null,
         },
@@ -99,8 +100,10 @@ describe("exportOwnData", () => {
     if (out.status !== "ok") return;
     const file = JSON.parse(out.body);
     expect(file.resultadoDoQuestionario.totem).toBe("PA");
-    expect(file.pedidosDeAnalise[0].respostas).toEqual({ q01: "a", q02: "both" });
+    expect(file.resultadoDoQuestionario.notasPorEixo).toEqual({ eixo1: -40, eixo2: 75, eixo3: 0, eixo4: -100 });
+    expect(file.pedidosDeAnalise[0].respostas).toEqual({ q01: -3, q02: 2 });
     expect(out.body).not.toContain("totem_enc");
+    expect(out.body).not.toContain("scores_enc");
   });
 
   it("devolve o arquivo decifrado e loga só o código do evento", async () => {
