@@ -168,7 +168,7 @@ com a lista importada.
 | `id` | uuid PK | = `auth.users.id` |
 | `display_name_enc` | text null | 🔒 `v1.iv.ct` (ADR 0003 §3); nulo só em perfil incompleto |
 | `municipality_code` | int FK null | IBGE; nulo só em perfil incompleto |
-| `profile_completed_at` | timestamptz null | nulo = perfil **incompleto** (ADR 0017): a linha nasce no primeiro login de quem está na lista de autorizados, sem nome, município, UF nem versão do termo; `save_own_profile` completa e marca; CHECK: nome, município, UF e termo não nulos quando completo; trigger: nunca volta a nulo. Quem não está na lista não ganha linha até salvar o perfil |
+| `profile_completed_at` | timestamptz null | nulo = perfil **incompleto** (ADR 0017): a linha nasce no primeiro login de quem está na lista de autorizados, sem nome, município, UF nem versão do termo; `save_own_profile` completa e marca; CHECK: nome, município, UF e termo não nulos quando completo; uma linha gravada já com nome, município e termo nasce completa (trigger); trigger: nunca volta a nulo. Quem não está na lista não ganha linha até salvar o perfil |
 | `state_code` | char(2) null | derivado do município (trigger; nulo em perfil incompleto); no cadastro, o aluno entra na unidade do seu estado |
 | `district_code` | int null FK | distrito (código IBGE de 9 dígitos, `districts`). Chave estrangeira composta com o município: o banco recusa distrito de outro. Nulo = sem escolha ou município com um distrito só (ver `districts`) |
 | `neighborhood_enc` | text null | 🔒 bairro, **opcional**, texto livre cifrado (`v1.iv.ct`, AAD `profiles.neighborhood_enc.<id>`). Sem busca nem filtro. Ver "Bairro" abaixo |

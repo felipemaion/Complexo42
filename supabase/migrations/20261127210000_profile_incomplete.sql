@@ -74,6 +74,12 @@ begin
       else old.consent_at
     end;
   end if;
+  -- Já com nome, município e termo, o perfil está completo (fixtures, scripts e SQL direto não precisam marcar).
+  -- (Em UPDATE de perfil já completo, tentar zerar a marca não é completar: o trigger de "sem volta" recusa.)
+  if new.profile_completed_at is null and (tg_op = 'INSERT' or old.profile_completed_at is null)
+     and new.display_name_enc is not null and new.municipality_code is not null and new.consent_version is not null then
+    new.profile_completed_at := now();
+  end if;
   new.updated_at := now();
   return new;
 end;
