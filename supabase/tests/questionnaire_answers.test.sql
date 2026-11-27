@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(18);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -52,7 +52,7 @@ select throws_ok($$ select pg_temp.record(pg_temp.enc('OUTRAS'), false) $$, '425
 select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t1', pg_temp.enc('AB'), pg_temp.enc('SC'), pg_temp.now_s(),
     pg_temp.sig(format('result|%s|termo-1|casa-t1|%s|%s|%s|%s', (select auth.uid()), pg_temp.enc('AB'), pg_temp.enc('SC'), pg_temp.now_s(), '{"q01":-5}')), '{"q01":-5}') $$, '22023', null,
   'respostas em texto puro (não cifradas) são recusadas, mesmo assinadas');
-select throws_ok(format($$ select pg_temp.record(%L) $$, pg_temp.enc(repeat('Z', 5000))), '22023', null, 'respostas cifradas grandes demais são recusadas');
+select throws_ok(format($$ select pg_temp.record(%L) $$, 'v1.AAAAAAAAAAAAAAAA.' || repeat('Z', 5000)), '22023', null, 'respostas cifradas grandes demais são recusadas');
 select lives_ok($$ select pg_temp.record() $$, 'um novo resultado sem respostas substitui o anterior');
 reset role;
 select is((select answers_enc from public.questionnaire_results where profile_id = '00000000-0000-0000-0000-0000000000c1'), null, '... e as respostas somem (só a última resposta válida fica)');
@@ -76,6 +76,13 @@ select pg_temp.login('00000000-0000-0000-0000-0000000000c3');
 select is(public.own_questionnaire_answers_enc(), null, 'a coordenação também só vê as próprias (nenhuma)');
 reset role;
 select is(has_function_privilege('anon', 'public.own_questionnaire_answers_enc()', 'execute'), false, 'anon não executa a função das respostas');
+
+-- Um resultado decidido pela coordenação (sem respostas) apaga as antigas: nunca ficam respostas de resultado que já não vale.
+select pg_temp.login('00000000-0000-0000-0000-0000000000c2');
+reset role;
+update public.questionnaire_results set source = 'analysis', created_at = now() + interval '1 second' where profile_id = '00000000-0000-0000-0000-0000000000c1';
+select is((select answers_enc from public.questionnaire_results where profile_id = '00000000-0000-0000-0000-0000000000c1'), null,
+  'resultado reescrito (ex.: decidido pela coordenação) sem respostas novas apaga as antigas');
 
 -- Some com a conta.
 delete from auth.users where id = '00000000-0000-0000-0000-0000000000c1';
