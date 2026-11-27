@@ -152,15 +152,15 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
         </div>
         <nav aria-label={site.accountTitle} className="flex flex-col gap-3">
           <p className={footerTitle}>{site.accountTitle}</p>
-          <Link href={PROFILE_PATH} className={footerLink}>{instance.profile.editLink}</Link>
+          <Link prefetch={false} href={PROFILE_PATH} className={footerLink}>{instance.profile.editLink}</Link>
           {/* Habilidades marcadas pela própria pessoa (#15). */}
-          <Link href={MY_SKILLS_PATH} className={footerLink}>{instance.mySkills.homeLink}</Link>
+          <Link prefetch={false} href={MY_SKILLS_PATH} className={footerLink}>{instance.mySkills.homeLink}</Link>
           {/* Portfólio por links (#70). */}
-          <Link href={PORTFOLIO_PATH} className={footerLink}>{instance.portfolio.homeLink}</Link>
+          <Link prefetch={false} href={PORTFOLIO_PATH} className={footerLink}>{instance.portfolio.homeLink}</Link>
           {/* Equipes de antes da plataforma (#136). */}
-          <Link href={PRIOR_TEAMS_PATH} className={footerLink}>{instance.priorTeams.homeLink}</Link>
+          <Link prefetch={false} href={PRIOR_TEAMS_PATH} className={footerLink}>{instance.priorTeams.homeLink}</Link>
           {/* Quem vê meu contato (#119, ADR 0010). */}
-          <Link href={CONTACT_VISIBILITY_PATH} className={footerLink}>{instance.contactVisibility.homeLink}</Link>
+          <Link prefetch={false} href={CONTACT_VISIBILITY_PATH} className={footerLink}>{instance.contactVisibility.homeLink}</Link>
           <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-1">
             <button type="submit" aria-describedby="my-data-hint" className={`${footerLink} cursor-pointer text-left`}>
               {instance.myData.downloadButton}
@@ -168,20 +168,20 @@ function SiteFooter({ coordinationLinks, hasWaitlist }: FooterProps) {
             <p id="my-data-hint" className="text-base text-ink-muted">{instance.myData.downloadHint}</p>
           </form>
           {/* Escolha da casa de formação (#76). */}
-          <Link href="/casa" className={footerLink}>{instance.houseSelection.homeLink}</Link>
+          <Link prefetch={false} href="/casa" className={footerLink}>{instance.houseSelection.homeLink}</Link>
           {/* "Excluir minha conta" (#18): a página tem o aviso e a confirmação; nada é apagado aqui. */}
-          <Link href={DELETE_ACCOUNT_PATH} className={footerLink}>{instance.deleteAccount.homeLink}</Link>
+          <Link prefetch={false} href={DELETE_ACCOUNT_PATH} className={footerLink}>{instance.deleteAccount.homeLink}</Link>
         </nav>
         {(coordinationLinks.length > 0 || hasWaitlist) && (
           <nav aria-label={site.coordinationTitle} className="flex flex-col gap-3">
             <p className={footerTitle}>{site.coordinationTitle}</p>
             {coordinationLinks.map((link) => (
-              <Link key={link.href} href={link.href} className={footerLink}>{link.label}</Link>
+              <Link prefetch={false} key={link.href} href={link.href} className={footerLink}>{link.label}</Link>
             ))}
             {/* Coordenação (#26): lista de espera, só para quem tem papel de gestor (R15). */}
-            {hasWaitlist && <Link href={COORDINATION_PATH} className={footerLink}>{instance.coordination.homeLink}</Link>}
+            {hasWaitlist && <Link prefetch={false} href={COORDINATION_PATH} className={footerLink}>{instance.coordination.homeLink}</Link>}
             {/* Catálogo de habilidades (#25): a tela avisa se a pessoa não é gestora nacional. */}
-            {coordinationLinks.length > 0 && <Link href={SKILLS_CATALOG_PATH} className={footerLink}>{instance.skillsCatalog.homeLink}</Link>}
+            {coordinationLinks.length > 0 && <Link prefetch={false} href={SKILLS_CATALOG_PATH} className={footerLink}>{instance.skillsCatalog.homeLink}</Link>}
           </nav>
         )}
       </div>

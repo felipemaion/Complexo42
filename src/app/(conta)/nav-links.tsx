@@ -16,7 +16,7 @@ export function NavLinks({ items, label }: { readonly items: readonly Item[]; re
           const isCurrent = item.href === "/inicio" ? pathname === item.href : pathname.startsWith(item.href);
           return (
             <li key={item.href}>
-              <Link
+              <Link prefetch={false}
                 href={item.href}
                 aria-current={isCurrent ? "page" : undefined}
                 className={`inline-flex min-h-14 items-center gap-2 border-b-4 px-2 text-base font-semibold no-underline sm:px-3 sm:text-lg ${

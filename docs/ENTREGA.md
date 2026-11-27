@@ -108,6 +108,12 @@ ao juntar, para você conferir:
   e-mail aponta para a porta 3000 do `site_url` (no CI rodam na 3000). Dois testes desta entrega
   (`encrypted-columns-live`, `xss-live`) passaram a preencher estado → cidade → distrito, como o
   formulário novo pede.
+- O CI da junção achou dois defeitos desta entrega, já consertados com guarda
+  (`src/app/(conta)/frame-links.test.ts`): (1) a animação de troca de tela (`template.tsx`) também
+  animava a resposta de formulário na mesma tela, e o que a pessoa digitava durante ela se perdia (seu
+  `profile.spec.ts`: o bairro corrigido voltava ao valor errado) → `update="none"`, só a troca de tela
+  anima; (2) os links do menu e do rodapé faziam prefetch das outras páginas, que aparecia como
+  requisição no meio do questionário (seu `house-live.spec.ts`) → `prefetch={false}` na moldura.
 
 ## Pendências conhecidas
 
