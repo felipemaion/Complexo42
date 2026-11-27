@@ -332,6 +332,7 @@ erDiagram
         text house_key FK "casa sugerida"
         text totem_enc "cifrado, interno"
         text scores_enc "cifrado, notas"
+        text answers_enc "cifrado, últimas respostas; sem leitura pela API"
         text totem_state
         text source
         timestamptz created_at

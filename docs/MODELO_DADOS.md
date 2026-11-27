@@ -384,6 +384,12 @@ pela API. `save_own_profile` recusa (42501) quem não aceitou a vigente; `requir
 A exportação inclui os aceites; a exclusão da conta os apaga em cascata.
 **Perfil anterior a esta tabela** (criado antes da migration do #11, sem linha aqui) passa pelo termo uma vez no próximo acesso; o aceite então grava a linha e atualiza o espelho. O seed local (`npm run db:seed-profiles`) grava o aceite fictício da versão vigente, lida de `config/consent.ts`.
 
+**`questionnaire_results.answers_enc`** (#256, nulo em resultado anterior ou decidido pela coordenação): a última resposta válida do
+questionário, JSON item → intensidade (-5, -3, -1, 1, 3, 5), cifrado no servidor (AAD `questionnaire_results.answers_enc.<profile_id>`; o
+banco só confere o formato `v<n>.<iv>.<ct>`, até 4 KB). Gravado só por `record_questionnaire_result` (parâmetro novo, coberto pela
+assinatura do servidor). **Sem grant de leitura** para `authenticated`: a própria pessoa o lê por `own_questionnaire_answers_enc()`
+(definer; só o servidor decifra). Apaga com a conta (cascata) e entra em "Baixar meus dados" (formato 10). Um resultado reescrito sem respostas novas (decidido pela coordenação, ou o caminho legado `record_totem_pending`, que com os pesos 1-3-5 não roda em respostas novas) as apaga (trigger). Tamanho real: 26 respostas cifradas ocupam menos de 1 KB (teto 4 KB).
+
 ### `questionnaire_consents` (ADR 0008 §2.1)
 `profile_id` (FK `profiles`, `on delete cascade`), `term_version` (FK
 `app.questionnaire_term_versions`), `consented_at`; PK `(profile_id, term_version)`. Aceite do
