@@ -78,8 +78,8 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
   pedido fica, sem as respostas.
 - A resolução também é **assinada pelo servidor** (casa, totem cifrado, pedido e quem resolve), como o
   resultado: a coordenação não grava um valor qualquer pela API direta.
-- A coordenação nacional resolve só pedido de **pessoa ativa** e nunca o **próprio**. Resolver
-  é só dela: a delegação (§4) não inclui resolver [?] (se deve incluir, é decisão do gestor).
+- Resolve a coordenação nacional **ou quem ela delegou** (§4), este só sobre pedido de pessoa do
+  escopo dele. Sempre só pedido de **pessoa ativa** e nunca o **próprio**.
 - Abrir e resolver o pedido geram `house_analysis_requested` e `house_analysis_resolved` no
   `audit_log`, sem as respostas.
 - O termo do questionário precisa dizer isso: as respostas vão ao servidor para o cálculo e só
@@ -110,7 +110,9 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
   ressuscita a concessão antiga (a nacional decide de novo);
 - os eventos de concessão e revogação guardam a unidade e a concessão (`unit_id`, `grant_id`);
 - sem concessão ativa, só a nacional lê; revogada, 0 linhas; nunca lê quem não está ativo;
-- **resolver a fila continua só da nacional** [?] (a delegação deve incluir resolver?).
+- a delegação inclui **resolver a fila** (decisão do gestor, 2026-11-27), nas mesmas regras de escopo
+  e de papel ativo da leitura; a resolução do delegado também é assinada pelo servidor e auditada
+  (ator = o delegado).
 
 ### 5. Dados novos
 
@@ -152,7 +154,7 @@ meus dados" decifra e entrega o totem e as respostas (formato 5).
 - (+) A regra é um dado do config: trocar a chave não muda o código.
 - (+) O navegador não vê a chave nem impõe resultado; o difícil tem fila, prazo e auditoria.
 - (−) Uma chave de assinatura a mais para guardar e instalar nos dois lados (app e banco).
-- (−) Quando há empate sem desempate, depende de a coordenação nacional resolver os pedidos. A
+- (−) Quando há empate sem desempate, depende de a coordenação nacional (ou de um delegado) resolver os pedidos. A
   tela da fila ainda não existe (acompanha em issue própria); hoje a resolução é a função
   `resolve_house_analysis`.
 - (−) O termo do questionário precisa de revisão para cobrir o envio das respostas.
