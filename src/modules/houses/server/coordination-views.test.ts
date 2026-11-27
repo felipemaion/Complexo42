@@ -144,10 +144,27 @@ describe("listResults", () => {
     expect(out.rows[0]).toMatchObject({ chosenHouseId: null, chosenAt: null, changedByCoordinationAt: null });
   });
 
-  it("filtro \"escolheu outra casa\": só quem tem casa escolhida diferente da sugerida", async () => {
-    const { client } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: chosen } });
-    const out = await listResults(client, deps, VIEWER, { otherHouse: true });
+  it("filtro \"escolheu outra casa\": o banco filtra (todas as pessoas do alcance), sem ler a tabela de resultados", async () => {
+    const other = [{ profile_id: U2, house_key: HOUSE_B, created_at: "2026-11-26T10:00:00Z" }];
+    const { client, log, rpcCalls } = fake({ profiles: { data: profiles } }, { coordination_other_house_results: { data: other }, coordination_chosen_houses: { data: chosen } });
+    const out = await listResults(client, deps, VIEWER, { otherHouse: true, houseId: HOUSE_B });
     expect(out.rows.map((row) => row.profileId)).toEqual([U2]);
+    expect(rpcCalls[0]).toEqual({ fn: "coordination_other_house_results", args: { p_house: HOUSE_B, p_limit: maxResultRows + 1 } });
+    expect(log.some((entry) => entry[0] === "from" && entry[1] === "questionnaire_results")).toBe(false);
+  });
+
+  it("filtro \"escolheu outra casa\" com mais linhas que a página: mostra a página e avisa que truncou (e sem filtro de casa manda nulo)", async () => {
+    const many = manyRows(maxResultRows + 1).map((row) => ({ ...row }));
+    const { client, rpcCalls } = fake({ profiles: { data: [] } }, { coordination_other_house_results: { data: many }, coordination_chosen_houses: { data: [] } });
+    const out = await listResults(client, deps, VIEWER, { otherHouse: true });
+    expect(out.rows).toHaveLength(maxResultRows);
+    expect(out.truncated).toBe(true);
+    expect(rpcCalls[0]).toEqual({ fn: "coordination_other_house_results", args: { p_house: null, p_limit: maxResultRows + 1 } });
+  });
+
+  it("erro do banco no filtro: falha sem vazar mensagem", async () => {
+    const { client } = fake({}, { coordination_other_house_results: { error: { code: "42501", message: "detalhe interno" } } });
+    await expect(listResults(client, deps, VIEWER, { otherHouse: true })).rejects.toThrow("results_read_failed");
   });
 
   it("erro ao ler a casa escolhida: a tela falha (erro visível), sem mostrar a coluna vazia como se fosse verdade", async () => {
