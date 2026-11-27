@@ -184,3 +184,16 @@ test("rota protegida com credencial na query: o /entrar guarda só o caminho", a
   await expect(page).toHaveURL(/\/entrar\?next=%2Finicio$/);
   expect(page.url()).not.toMatch(/segredo|code=|access_token/);
 });
+
+// Os templates de e-mail do GoTrue são buscados pela rede interna, sem sessão: a rota não pode pedir login.
+test("templates de e-mail respondem 200 sem sessão, em português, com as variáveis do GoTrue", async ({ request }) => {
+  for (const kind of ["magic-link", "confirmation", "recovery", "invite", "email-change"]) {
+    const response = await request.get(`/emails/${kind}`, { maxRedirects: 0 });
+    expect(response.status(), kind).toBe(200);
+    expect(response.headers()["content-type"], kind).toContain("text/html");
+    const body = await response.text();
+    expect(body, kind).toContain("{{ .ConfirmationURL }}");
+    expect(body, kind).toContain('lang="pt-BR"');
+  }
+  expect((await request.get("/emails/nao-existe", { maxRedirects: 0 })).status()).toBe(404);
+});
