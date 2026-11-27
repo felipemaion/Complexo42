@@ -317,6 +317,13 @@ export const instanceConfigSchema = z.strictObject({
       /** Destaque da casa na legenda do gráfico (#201). */
       chartCurrentHouse: text,
       noScores: text,
+      columnChosen: text,
+      chosenNone: text,
+      differsMark: text,
+      changedByCoordination: text.refine((v) => v.includes("{date}"), "use {date}"),
+      otherHouseFilter: text,
+      chosenLabel: text,
+      chosenDateLabel: text,
       changeHouseTitle: text,
       changeHouseLabel: text,
       changeHouseButton: text,
