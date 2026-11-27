@@ -158,15 +158,43 @@ describe("fluxo da escolha da casa", () => {
     expect(nextFlow(chosen, { type: "back" }, ctx).step).toEqual({ kind: "activities" });
   });
 
-  it("escolher outra casa leva à lista e descarta as respostas", () => {
-    const answered = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-sugerida", chart }, ctx);
-    const other = nextFlow(answered, { type: "choose_other" }, ctx);
-    expect(other).toEqual({ step: { kind: "activities" }, answers: {} });
-    expect(nextFlow(other, { type: "activity_chosen", houseId: "casa-c" }, ctx).step).toEqual({
-      kind: "presentation",
-      houseId: "casa-c",
-      method: "self",
+  describe("escolher outra casa depois do questionário: comparar as casas (#240)", () => {
+    const byPoles = { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" } as const;
+    const answered = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-a", chart, byPoles }, ctx);
+
+    it("leva à comparação das casas, com a sugerida e as respostas guardadas (a comparação as usa no servidor)", () => {
+      const compare = nextFlow(answered, { type: "choose_other" }, ctx);
+      expect(compare.step).toEqual({ kind: "compare", suggestedId: "casa-a", chart, byPoles });
+      expect(compare.answers).toEqual(answered.answers);
     });
+
+    it("selecionar uma casa a destaca, sem confirmar", () => {
+      const compare = nextFlow(answered, { type: "choose_other" }, ctx);
+      const selected = nextFlow(compare, { type: "house_selected", houseId: "casa-c" }, ctx);
+      expect(selected.step).toMatchObject({ kind: "compare", suggestedId: "casa-a", selectedId: "casa-c" });
+      expect(nextFlow(selected, { type: "house_selected", houseId: "casa-d" }, ctx).step).toMatchObject({ selectedId: "casa-d" });
+    });
+
+    it("confirmar outra casa vai à apresentação (self) e descarta as respostas; confirmar a sugerida mantém questionnaire", () => {
+      const selected = nextFlow(nextFlow(answered, { type: "choose_other" }, ctx), { type: "house_selected", houseId: "casa-c" }, ctx);
+      expect(nextFlow(selected, { type: "house_confirmed" }, ctx)).toEqual({
+        step: { kind: "presentation", houseId: "casa-c", method: "self" },
+        answers: {},
+      });
+      const suggested = nextFlow(nextFlow(answered, { type: "choose_other" }, ctx), { type: "house_selected", houseId: "casa-a" }, ctx);
+      expect(nextFlow(suggested, { type: "house_confirmed" }, ctx).step).toEqual({ kind: "presentation", houseId: "casa-a", method: "questionnaire", chart, byPoles });
+    });
+
+    it("sem casa selecionada, confirmar não faz nada; voltar leva à casa sugerida", () => {
+      const compare = nextFlow(answered, { type: "choose_other" }, ctx);
+      expect(nextFlow(compare, { type: "house_confirmed" }, ctx)).toBe(compare);
+      expect(nextFlow(compare, { type: "back" }, ctx).step).toEqual({ kind: "presentation", houseId: "casa-a", method: "questionnaire", chart, byPoles });
+    });
+  });
+
+  it("escolher outra casa vindo da lista de atividades (sem questionário) segue como antes: lista, sem respostas", () => {
+    const chosen = run([{ type: "consent_declined" }, { type: "activity_chosen", houseId: "x" }]);
+    expect(nextFlow(chosen, { type: "choose_other" }, ctx)).toEqual({ step: { kind: "activities" }, answers: {} });
   });
 
   it("evento fora do passo não muda nada", () => {
