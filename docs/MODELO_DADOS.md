@@ -321,7 +321,9 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
 - **Casa escolhida na coordenação:** `coordination_chosen_houses(pessoas)` (security definer, mesmo alcance
   das telas de resultado, nunca a própria pessoa) devolve a casa do vínculo aberto e aceito, a data e se a
   troca foi da coordenação (`house_changed` posterior ao aceite). A lista e o resultado comparam com a casa
-  sugerida de `questionnaire_results`; só casas e datas, nada do totem. Ver ADR 0016.
+  sugerida de `questionnaire_results`; só casas e datas, nada do totem. O filtro "escolheu outra casa" é
+  `coordination_other_house_results(casa, limite)`: no banco, sobre todas as pessoas do alcance (até 201,
+  das mais novas), com o mesmo alcance. Ver ADR 0016.
 - **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a qualquer
   momento, com alcance de gestão sobre a pessoa (`can_manage_house_member`; a delegação de leitura
   não basta), mantendo a trava; gera `house_changed` (`coordination`). Ver ADR 0016.

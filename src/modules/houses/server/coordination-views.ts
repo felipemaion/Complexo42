@@ -148,9 +148,17 @@ export async function listResults(
   viewerId: string,
   filter: { houseId?: string; otherHouse?: boolean },
 ): Promise<{ rows: ResultRow[]; truncated: boolean }> {
-  let query = client.from("questionnaire_results").select("profile_id,house_key,created_at").neq("profile_id", viewerId);
-  if (filter.houseId !== undefined && instance.houses.some((house) => house.id === filter.houseId)) query = query.eq("house_key", filter.houseId);
-  const { data, error } = await query.order("created_at", { ascending: false }).limit(maxResultRows + 1);
+  const houseId = filter.houseId !== undefined && instance.houses.some((house) => house.id === filter.houseId) ? filter.houseId : undefined;
+  let data: unknown;
+  let error: unknown;
+  if (filter.otherHouse) {
+    // "Escolheu outra casa" é filtrado no banco, sobre todas as pessoas do alcance (não só a página).
+    ({ data, error } = await client.rpc("coordination_other_house_results", { p_house: houseId ?? null, p_limit: maxResultRows + 1 }));
+  } else {
+    let query = client.from("questionnaire_results").select("profile_id,house_key,created_at").neq("profile_id", viewerId);
+    if (houseId !== undefined) query = query.eq("house_key", houseId);
+    ({ data, error } = await query.order("created_at", { ascending: false }).limit(maxResultRows + 1));
+  }
   if (error) throw new Error(`results_read_failed:${dbErrorCode(error)}`);
   const parsed = z.array(resultListRow).safeParse(data ?? []);
   if (!parsed.success) throw new Error("results_read_failed:shape");
@@ -170,7 +178,7 @@ export async function listResults(
       changedByCoordinationAt: choice?.changedByCoordinationAt ?? null,
     };
   });
-  return { rows: filter.otherHouse ? rows.filter(choseOtherHouse) : rows, truncated: parsed.data.length > maxResultRows };
+  return { rows, truncated: parsed.data.length > maxResultRows };
 }
 
 export type OpenedResult =

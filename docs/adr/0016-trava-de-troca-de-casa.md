@@ -23,7 +23,8 @@
 
 5. Na lista e no resultado da coordenação aparecem a casa **sugerida** e a **escolhida** (vínculo aberto;
    vazia se ainda não aceitou), com destaque quando diferem, a data da escolha e se a troca foi da
-   coordenação; há o filtro "escolheu outra casa". Lido por `coordination_chosen_houses`, com o
+   coordenação; há o filtro "escolheu outra casa", feito no banco sobre todas as pessoas do alcance
+   (`coordination_other_house_results`), não só sobre a página. Lido por `coordination_chosen_houses`, com o
    alcance das telas de resultado; abrir o resultado continua auditado.
 
 ## Como é garantido
