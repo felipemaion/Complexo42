@@ -10,6 +10,8 @@ type Props = {
 };
 
 const size = 360;
+// Margem dos lados: os nomes dos polos à esquerda e à direita cabem inteiros.
+const sidePad = 90;
 const center = { x: size / 2, y: size / 2 };
 const radius = 120;
 const labelRadius = radius + 26;
@@ -23,7 +25,7 @@ export function SpiderChart({ axes, title }: Readonly<Props>) {
   // O gráfico é decorativo para o leitor de tela; a lista abaixo diz os mesmos números em texto.
   return (
     <figure className="flex flex-col items-center gap-2" data-testid="spider-chart">
-      <svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={title} className="w-full max-w-sm">
+      <svg viewBox={`${-sidePad} 0 ${size + 2 * sidePad} ${size}`} role="img" aria-label={title} className="w-full max-w-sm">
         {gridSteps.map((step) => (
           <polygon
             key={step}

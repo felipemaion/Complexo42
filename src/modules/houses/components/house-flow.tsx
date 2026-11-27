@@ -25,7 +25,8 @@ type Props = {
 };
 
 const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
-const primary = "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white";
+const primary =
+  "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
 
 export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const router = useRouter();
