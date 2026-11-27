@@ -221,7 +221,7 @@ export const instance = parseInstanceConfig({
     linkQueue: "Casos para analisar",
     linkDelegations: "Delegar acesso ao questionário",
     backLink: "Voltar para a coordenação",
-    noName: "(nome indisponível)",
+    noName: "(sem nome: perfil incompleto ou nome indisponível)",
     results: {
       title: "Resultados do questionário",
       intro: "Pessoas ativas da sua área que já têm resultado. Abrir um resultado fica registrado.",

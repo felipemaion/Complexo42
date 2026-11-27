@@ -50,7 +50,7 @@ export function canSeeResults(access: CoordinationAccess): boolean {
 // ---------------------------------------------------------------------------------------
 // Nomes (os de `profiles` são cifrados: o servidor decifra com o AAD da linha)
 // ---------------------------------------------------------------------------------------
-const nameRows = z.array(z.object({ id: z.string(), display_name_enc: z.string() }));
+const nameRows = z.array(z.object({ id: z.string(), display_name_enc: z.string().nullable() }));
 
 /** Ids por consulta de nomes: a URL do PostgREST não aguenta centenas de uuids de uma vez. */
 const nameBatchSize = 50;
@@ -69,6 +69,8 @@ async function readNames(client: HouseClient, ids: readonly string[], crypto: Co
     if (!rows.success) throw new Error("names_read_failed:shape");
     await Promise.all(
       rows.data.map(async (row) => {
+        // Perfil incompleto (ADR 0017): ainda sem nome; a tela mostra o texto de "sem nome", nunca quebra.
+        if (row.display_name_enc === null) return void names.set(row.id, null);
         try {
           names.set(row.id, await crypto.decrypt(row.display_name_enc, { table: "profiles", column: "display_name_enc", rowId: row.id }));
         } catch {
@@ -214,8 +216,8 @@ export async function openResult(client: HouseClient, personId: string, deps: Vi
 
 async function readNamesOne(client: HouseClient, id: string, crypto: CoordinationCrypto): Promise<string | null> {
   const { data } = await client.from("profiles").select("id,display_name_enc").eq("id", id).maybeSingle();
-  const row = z.object({ id: z.string(), display_name_enc: z.string() }).safeParse(data);
-  if (!row.success) return null;
+  const row = z.object({ id: z.string(), display_name_enc: z.string().nullable() }).safeParse(data);
+  if (!row.success || row.data.display_name_enc === null) return null;
   try {
     return await crypto.decrypt(row.data.display_name_enc, { table: "profiles", column: "display_name_enc", rowId: row.data.id });
   } catch {

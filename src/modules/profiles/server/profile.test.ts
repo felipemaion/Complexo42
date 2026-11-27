@@ -258,6 +258,12 @@ describe("saveOwnProfile", () => {
 });
 
 describe("loadOwnProfile", () => {
+  it("perfil incompleto (criado no primeiro login, ADR 0017): para o formulário é como não ter perfil, sem quebrar", async () => {
+    const { deps: d } = deps();
+    const row = { display_name_enc: null, municipality_code: null, state_code: null, district_code: null, neighborhood_enc: null, profile_completed_at: null, profile_contacts: null };
+    expect(await loadOwnProfile(fakeClient({ row }).client, USER, d)).toBeNull();
+  });
+
   it("decifra o próprio perfil com o id da pessoa", async () => {
     const { deps: d } = deps();
     const row = {
@@ -266,6 +272,7 @@ describe("loadOwnProfile", () => {
       state_code: "SP",
       district_code: SE_DISTRICT,
       neighborhood_enc: await d.encrypt(NEIGHBORHOOD, { table: "profiles", column: "neighborhood_enc", rowId: USER }),
+      profile_completed_at: "2026-11-19T12:00:00+00:00",
       profile_contacts: { whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }) },
     };
     const { client, reads } = fakeClient({ row });
