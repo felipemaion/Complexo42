@@ -94,6 +94,7 @@ export const instanceConfigSchema = z.strictObject({
       unavailable: text,
       failed: text,
       blocked: text,
+      legacy_link: text,
     }),
   }),
   /** Formulário do perfil (#12): nome, WhatsApp e localização. Linguagem simples. */
