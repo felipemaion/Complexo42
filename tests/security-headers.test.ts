@@ -82,6 +82,23 @@ describe("CSP com nonce no proxy (#152)", () => {
     expect(response.headers.get("Content-Security-Policy-Report-Only") ?? "").toContain("'strict-dynamic'");
   });
 
+  it.each([
+    ["só aviso", "1", "Content-Security-Policy"],
+    ["bloqueando", undefined, "Content-Security-Policy-Report-Only"],
+  ])("%s: cabeçalho de CSP vindo do cliente não chega à página (o Next leria dele o nonce errado)", async (_mode, reportOnly, spoofed) => {
+    // Arrange: o Next tira o nonce do Content-Security-Policy da requisição e, sem ele, do Report-Only.
+    if (reportOnly) process.env.CSP_REPORT_ONLY = reportOnly;
+    const request = new NextRequest("http://127.0.0.1/entrar", { headers: { [spoofed]: "script-src 'nonce-forjado'" } });
+
+    // Act
+    const response = await proxy(request);
+    const forwarded = response.headers.get(`x-middleware-request-${spoofed.toLowerCase()}`);
+
+    // Assert
+    expect(forwarded).toBeNull();
+    expect(response.headers.get("x-middleware-request-x-nonce")).toBeTruthy();
+  });
+
   it("nenhuma página sai pronta do build: página estática não recebe nonce e teria os scripts bloqueados", () => {
     // Arrange
     const layout = readFileSync(join(process.cwd(), "src", "app", "layout.tsx"), "utf8");
