@@ -50,6 +50,10 @@ export const instance = parseInstanceConfig({
     signedInTitle: "Você entrou",
     signedInMessage: "Seu acesso está funcionando. As próximas telas chegam em breve.",
     connectedAs: "Conectado como",
+    // Navegação das páginas logadas (#205).
+    navLabel: "Navegação da conta",
+    navHome: "Início",
+    navBack: "Voltar",
     confirmTitle: "Entrar",
     confirmMessage: "Toque no botão abaixo para concluir a entrada.",
     confirmButton: "Entrar",
