@@ -3,7 +3,7 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import type { QuestionnaireConfig } from "../src/modules/questionnaire/domain/schema";
 
 // Telas da coordenação do questionário (#174, ADR 0014) contra um Supabase local: resultados com o
-// gráfico completo, fila de análise (respostas como frases, resolver), delegações e o 404 de quem
+// gráfico completo, fila de análise vazia, delegações e o 404 de quem
 // não tem permissão. Os resultados nascem pelo caminho de verdade (a pessoa responde na tela e o
 // servidor pontua, cifra e assina). Para rodar localmente, com o banco de pé:
 //   E2E_LIVE_SUPABASE_URL=<API_URL> E2E_LIVE_ANON_KEY=<ANON_KEY> \
@@ -83,15 +83,13 @@ async function answerQuestionnaire(browser: Browser, person: { email: string }, 
     await page.getByTestId(`scale-${answers[item.id]}`).click();
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
-  await expect(page.getByText("Sugerimos esta casa para você").or(page.getByRole("heading", { name: "Vamos analisar o seu resultado" }))).toBeVisible();
+  await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await context.close();
 }
 
-const allA: Record<string, number> = Object.fromEntries(questionnaire.items.map((item) => [item.id, -3]));
+const allA: Record<string, number> = Object.fromEntries(questionnaire.items.map((item) => [item.id, -5]));
 // Eixo 1 todo "muito b": outra casa que a de allA.
-const houseB: Record<string, number> = { ...allA, q01: 3, q05: 3, q09: 3 };
-// Eixos 2, 3 e 4 empatados (nota 0, sem desempate no exemplo), eixo 1 conclusivo: caso inconclusivo.
-const tied: Record<string, number> = { q01: -3, q05: -3, q09: -3, q02: -2, q06: -1, q10: 3, q03: -3, q07: 3, q04: -3, q08: 3 };
+const houseB: Record<string, number> = { ...allA, q01: 5, q05: 5, q09: 5 };
 
 async function viewedEvents(targetId: string): Promise<{ actor_id: string }[]> {
   return (await admin(`/rest/v1/audit_log?event=eq.questionnaire_result_viewed&target_id=eq.${targetId}&select=actor_id`)).json();
@@ -100,7 +98,7 @@ async function viewedEvents(targetId: string): Promise<{ actor_id: string }[]> {
 test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser }) => {
   test.setTimeout(180_000);
   // Gente: a coordenação nacional (gestora da raiz), um gestor de SP (futuro delegado), duas pessoas
-  // de SP com resultado, uma de Minas Gerais com resultado, uma com caso inconclusivo e uma pessoa comum.
+  // de SP com resultado, uma de Minas Gerais com resultado e uma pessoa comum (sem resultado).
   const root = await createPerson("raiz");
   await makeManager(root.id, "br");
   const state = await createPerson("sp");
@@ -108,12 +106,10 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   const first = await createPerson("a");
   const second = await createPerson("b");
   const outside = await createPerson("mg", "br.mg");
-  const undecided = await createPerson("i");
   const plain = await createPerson("comum");
   await answerQuestionnaire(browser, first, allA);
   await answerQuestionnaire(browser, second, houseB);
   await answerQuestionnaire(browser, outside, allA);
-  await answerQuestionnaire(browser, undecided, tied);
 
   // --- Pessoa comum: as telas não existem para ela (404), sem dizer que existem.
   const plainContext = await browser.newContext();
@@ -138,7 +134,7 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   for (const person of [first, second, outside]) {
     await expect(page.locator(`a[href="/coordenacao/casas/resultados/${person.id}"]`)).toHaveCount(1);
   }
-  await expect(page.locator(`a[href="/coordenacao/casas/resultados/${undecided.id}"]`)).toHaveCount(0);
+  await expect(page.locator(`a[href="/coordenacao/casas/resultados/${plain.id}"]`)).toHaveCount(0);
 
   // Filtro por casa: só as que têm a casa escolhida.
   const houseOfFirst = await page.locator(`tr:has(a[href="/coordenacao/casas/resultados/${first.id}"]) td`).nth(1).innerText();
@@ -166,28 +162,13 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   }
   expect(await viewedEvents(first.id)).toEqual([{ actor_id: root.id }]);
   // Resultado de quem não existe ou não tem resultado: 404.
-  expect((await page.goto(`/coordenacao/casas/resultados/${undecided.id}`))?.status()).toBe(404);
+  expect((await page.goto(`/coordenacao/casas/resultados/${plain.id}`))?.status()).toBe(404);
   expect((await page.goto("/coordenacao/casas/resultados/nao-e-um-id"))?.status()).toBe(404);
 
-  // Fila: o caso inconclusivo aparece com os eixos empatados; abrir mostra as respostas como frases e o gráfico.
+  // Fila de análise: respostas novas nunca empatam (chave sem empate, #211), então não nascem casos pelo app; a fila
+  // fica para casos antigos e a correção pela coordenação, coberta nos testes de unidade e do banco.
   await page.goto("/coordenacao/casas/analise");
-  await expect(page.getByTestId("case-row")).not.toHaveCount(0);
-  const caseLink = page.locator('[data-testid="case-row"] a').first();
-  await caseLink.click();
-  await expect(page.getByTestId("case-answer")).toHaveCount(questionnaire.items.length);
-  await expect(page.getByTestId("case-answer").first()).toContainText(/(Totalmente|Na maior parte das vezes|Um pouco mais): .+\.$/);
-  await expect(page.getByText(/^\s*[ab]\)/)).toHaveCount(0);
-  await expect(page.getByTestId("spider-chart").locator("svg text")).toHaveCount(12); // 8 polos + 4 casas nas zonas (#201)
-  await expect(page.getByTestId("spider-chart").getByTestId("house-zone")).toHaveCount(4);
-
-  // Resolver: escolhe a casa e o totem; o caso sai da fila e a pessoa passa a ter resultado.
-  await page.locator('select[name="casa"]').selectOption({ index: 1 });
-  await page.locator('select[name="totem"]').selectOption({ index: 1 });
-  await page.getByRole("button", { name: "Resolver" }).click();
-  await expect(page.getByTestId("resolved-notice")).toBeVisible();
-  const resolved = await (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${undecided.id}&select=source,totem_enc,scores_enc`)).json();
-  expect(resolved).toEqual([{ source: "analysis", totem_enc: expect.stringMatching(/^v1\./), scores_enc: expect.stringMatching(/^v1\./) }]);
-  expect((await (await admin(`/rest/v1/house_analysis_requests?profile_id=eq.${undecided.id}&select=status,answers_enc`)).json())).toEqual([{ status: "resolved", answers_enc: null }]);
+  await expect(page.getByTestId("case-row")).toHaveCount(0);
 
   // --- O gestor de SP, sem delegação: não vê as telas do questionário (nem os atalhos).
   const stateContext = await browser.newContext();

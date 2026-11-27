@@ -59,7 +59,7 @@ access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
 questionnaire_results (1:1 com profiles: casa sugerida e totem cifrado; leem a pessoa, a coordenação nacional e quem ela delegou, ADR 0014)
-house_analysis_requests (fila do resultado inconclusivo; as respostas, cifradas, só existem com o pedido aberto, ADR 0014)
+house_analysis_requests (fila de casos antigos e de correção pela coordenação, sem empate desde a chave de #211; as respostas, cifradas, só existem com o pedido aberto, ADR 0014)
 questionnaire_data_grants (delegação: a coordenação nacional concede a um gestor o acesso ao totem e aos pedidos do escopo dele, ADR 0014)
 consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
@@ -392,9 +392,8 @@ precisa existir; repetir a versão mantém a primeira data e não gera outro
 existem. Entram só por migration ou seed (sem grant para a API); a versão do arquivo do
 questionário instalado no servidor precisa estar aqui. RLS: só o
 titular lê; sem grant de escrita. **A pontuação roda no servidor do app** (ADR 0014 §1): o
-navegador manda só as respostas. Com resultado conclusivo, o banco recebe só a casa e o totem
-**cifrado**; as respostas só chegam ao banco, cifradas, no resultado inconclusivo
-(`house_analysis_requests`, abaixo).
+navegador manda só as respostas. O banco recebe só a casa, o totem e as notas
+**cifrados**; as respostas não chegam mais ao banco (só estão em pedidos antigos de `house_analysis_requests`, abaixo).
 
 ### `questionnaire_results` e `house_analysis_requests` (ADR 0014, #172)
 `questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
@@ -406,7 +405,7 @@ nacional), `created_at`. Uma linha por pessoa, a mais recente.
 `house_analysis_requests`: `id`, `profile_id` (FK, cascata), `term_version`, `kind` (`full`: a coordenação
 decide casa e totem; `totem`: a casa já saiu pelos eixos 1 e 2 e falta só o totem), `tied_axes` (eixos
 empatados: `house1`, `house2`, `totem1`, `totem2`; em `kind = totem`, só os do totem), `answers_enc` (JSON item → intensidade
--3, -2, -1, 1, 2 ou 3, cifrado no servidor; até 8 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
+-5, -3, -1, 1, 3 ou 5 (-3 a 3 na chave antiga), cifrado no servidor; até 8 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
 `created_at` (último envio: base do limite de renovação), `opened_at` (primeira abertura, nunca muda: base do prazo de 30 dias), `resolved_at`, `resolved_by` (nulo fora de `coordination` e se a conta de quem resolveu
 sair). `resolution`: `coordination`, `self`, `inactive` (pessoa bloqueada ou suspensa) ou
 `expired` (passou de 30 dias).

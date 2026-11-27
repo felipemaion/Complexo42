@@ -144,8 +144,8 @@ pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos 
 92. **Para pedir um subnúcleo, é preciso ser membro do núcleo pai?** *Padrão: não.*
 93. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
 94. [?] **Nomes oficiais das quatro dimensões e dos polos** do questionário, e o **nome dos quatro
-    totens**. Hoje, provisórios no arquivo privado: Convívio (Expansivo/Reservado), Decisão
-    (Razão/Coração), Percepção (P·Prático/A·Abstrato) e Ritmo (R·Regrado/A·Adaptável). Totens
+    totens**. Hoje, provisórios no arquivo privado: Ação × Contemplação (Ação/Contemplação, decisão do Cortez), Leis × Costumes (Leis/Costumes, idem),
+    Percepção (P·Prático/A·Abstrato) e Ritmo (R·Regrado/A·Adaptável). Totens
     (provisórios, aprovados pelo gestor, só para a coordenação e os delegados): PR = Executor (Prático e
     Regrado), PA = Realizador (Prático e Adaptável), AR = Estrategista (Abstrato e Regrado), AA =
     Explorador (Abstrato e Adaptável). O exemplo público usa nomes genéricos.

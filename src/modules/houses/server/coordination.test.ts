@@ -121,9 +121,9 @@ describe("listOpenAnalysisRequests", () => {
   });
 
   it("decifra as respostas de cada pedido aberto", async () => {
-    const { client, filters } = fake({ from: { data: [good(U1, { q1: -3, q2: 2 })] } });
+    const { client, filters } = fake({ from: { data: [good(U1, { q1: -3, q2: 3 })] } });
     expect(await listOpenAnalysisRequests(client, crypto)).toEqual({
-      requests: [{ requestId: REQ, profileId: U1, kind: "full", tiedAxes: ["house1"], answers: { q1: -3, q2: 2 }, createdAt: "t" }],
+      requests: [{ requestId: REQ, profileId: U1, kind: "full", tiedAxes: ["house1"], answers: { q1: -3, q2: 3 }, createdAt: "t" }],
       unreadable: 0,
       truncated: false,
     });
@@ -172,7 +172,7 @@ describe("resolveAnalysis", () => {
   const signing = { userId: U2, nowSeconds: 1000, sign: (m: string) => `sig(${m})`, sha256Hex: (v: string) => `hash(${v})` };
   const deps = { houseIds, questionnaire, crypto, signing };
   // Respostas completas do exemplo (itens q01..), todas "muito a": notas -100 nos quatro eixos.
-  const answers = Object.fromEntries(questionnaire.items.map((item) => [item.id, -3]));
+  const answers = Object.fromEntries(questionnaire.items.map((item) => [item.id, -5]));
   const allA = { house1: -100, house2: -100, totem1: -100, totem2: -100 };
   const requestRow = { profile_id: U1, answers_enc: `enc[house_analysis_requests.answers_enc.${U1}](${JSON.stringify(answers)})` };
 

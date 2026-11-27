@@ -119,14 +119,14 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   // Trava de 4 meses (ADR 0016): o aviso aparece antes do aceite, junto ao botão, fora do termo.
   await expect(page.getByTestId("consent-lock-notice")).toContainText("4 meses");
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
-  // A chave (eixos, desempates, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
+  // A chave (eixos, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
   const html = await page.content();
-  for (const secret of ["tieBreakItems", "houseByPoles", "itemIds", "letters"]) expect(html).not.toContain(secret);
+  for (const secret of ["houseByPoles", "itemIds", "letters"]) expect(html).not.toContain(secret);
 
   const total = questionnaire.items.length;
   const answers: Record<string, number> = {};
   // Intensidades variadas, todas do lado "a" (negativas): resultado conclusivo (casa 1 e o totem do exemplo).
-  const pick = (i: number) => [-3, -2, -1][i % 3]!;
+  const pick = (i: number) => [-5, -3, -1][i % 3]!;
   const circle = (value: number) => page.getByTestId(`scale-${value}`);
   const next = page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ });
   const before = requests.length;
@@ -143,15 +143,15 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
     await expect(next).toBeDisabled();
     if (i === 0) {
       // Teclado: as setas movem e marcam; sem círculo marcado, a primeira seta marca o seguinte.
-      await circle(-3).focus();
+      await circle(-5).focus();
       await page.keyboard.press("ArrowRight");
-      await expect(circle(-2)).toHaveAttribute("aria-checked", "true");
+      await expect(circle(-3)).toHaveAttribute("aria-checked", "true");
       // Abaixo dos círculos, a frase composta da posição (intensidade + texto da alternativa), com maiúscula
       // e pontuação final; o mesmo texto é o nome acessível do círculo, e o "a)"/"b)" não aparece.
       const first = questionnaire.items[0]!;
       const sentence = `Na maior parte das vezes: ${first.a.text.trim().replace(/[;,:]$/, "").replace(/([^.!?…])$/, "$1.")}`;
       await expect(page.getByTestId("scale-reading")).toHaveText(sentence);
-      await expect(circle(-2)).toHaveAttribute("aria-label", sentence);
+      await expect(circle(-3)).toHaveAttribute("aria-label", sentence);
       await expect(page.getByText(/^\s*[ab]\)/)).toHaveCount(0);
       // Passar o mouse mostra a frase do outro círculo; sair volta à marcada.
       await circle(1).hover();
@@ -243,54 +243,6 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await page.reload();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Aceito e quero responder" })).toHaveCount(0);
-});
-
-test("resultado inconclusivo: pedido de análise com as respostas, sem casa; escolher direto apaga as respostas", async ({ page }) => {
-  const member = await createMember("i");
-  await signIn(page, member.email);
-  await page.goto("/casa");
-  const requests = recordRequests(page);
-
-  await page.getByRole("button", { name: "Aceito e quero responder" }).click();
-  // Notas 0 nos eixos 2, 3 e 4 (sem desempate no exemplo): eixo 2 com -2, -1 e 3; eixos 3 e 4 com -3 e 3.
-  // O eixo 1 fica conclusivo (tudo "muito a"). Resultado inconclusivo.
-  const tiedAnswers: Record<string, number> = {
-    q01: -3, q05: -3, q09: -3,
-    q02: -2, q06: -1, q10: 3,
-    q03: -3, q07: 3,
-    q04: -3, q08: 3,
-  };
-  const answers: Record<string, number> = {};
-  for (const item of questionnaire.items) {
-    const value = tiedAnswers[item.id]!;
-    answers[item.id] = value;
-    await page.getByTestId(`scale-${value}`).click();
-    await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
-  }
-  await expect(page.getByRole("heading", { name: "Vamos analisar o seu resultado" })).toBeVisible();
-  await expect(page.getByText("Sugerimos esta casa para você")).toHaveCount(0);
-  await expectNoStorage(page);
-
-  // O navegador manda só as respostas; o servidor decide que é inconclusivo. Nenhuma casa foi atribuída.
-  const bodies = actionBodies(requests);
-  expect(bodies).toHaveLength(2);
-  expect(bodies[1]).toEqual([{ answers }]);
-  expect(await houseRows(member.id)).toEqual([]);
-  expect(await resultRows(member.id)).toEqual([]);
-  const [open] = await analysisRows(member.id);
-  expect(open).toMatchObject({ status: "open", resolution: null });
-  // As respostas ficam cifradas no banco, nunca em JSON legível.
-  expect(open!.answers_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
-  expect(open!.answers_enc).not.toContain("q01");
-
-  // A pessoa pode escolher a casa direto; o pedido fecha e as respostas somem.
-  await page.getByRole("button", { name: "Escolher a casa direto" }).click();
-  await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
-  await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
-  expect(await analysisRows(member.id)).toEqual([
-    { status: "resolved", resolution: "self", answers_enc: null, tied_axes: ["house2", "totem1", "totem2"] },
-  ]);
 });
 
 test("sabe → atividade → apresentação → escolher outra → aceitar (self), sem termo", async ({ page }) => {
