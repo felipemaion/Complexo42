@@ -149,6 +149,7 @@ describe("submitQuestionnaire", () => {
         totem2: { label: "D4", poleLabels: { a: "a4", b: "b4" }, itemIds: ["t2a", "t2b"], letters: { a: "V", b: "W" } },
       },
       houseByPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
+      totemLabels: { XV: { name: "t1", description: "d" }, XW: { name: "t2", description: "d" }, YV: { name: "t3", description: "d" }, YW: { name: "t4", description: "d" } },
     },
     ["casa-a", "casa-b", "casa-c", "casa-d"],
   );

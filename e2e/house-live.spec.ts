@@ -296,16 +296,16 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await page.getByRole("button", { name: "Sim, já sei" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
   await expect(page.getByText("Conheça a casa")).toBeVisible();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Dois");
+  await expect(page.getByTestId("house-name")).toHaveText("Atenas");
   await page.getByRole("button", { name: "Escolher outra casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 3A" }).click();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Três");
+  await expect(page.getByTestId("house-name")).toHaveText("Alexandria");
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-3", joinMethod: "self" }]]);
+  expect(actionBodies(requests)).toEqual([[{ houseId: "alexandria", joinMethod: "self" }]]);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-3" },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "alexandria" },
   ]);
   expect(await consents(member.id)).toEqual([]);
   await expectNoStorage(page);
@@ -324,7 +324,7 @@ test("recusar o termo leva à escolha direta e não grava aceite", async ({ page
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
-  expect(actionBodies(requests)).toEqual([[{ houseId: "casa-exemplo-1", joinMethod: "self" }]]);
+  expect(actionBodies(requests)).toEqual([[{ houseId: "esparta", joinMethod: "self" }]]);
   expect(await consents(member.id)).toEqual([]);
   expect((await houseRows(member.id))[0]?.join_method).toBe("self");
 });
@@ -352,7 +352,7 @@ test("quem ainda está só no estado (sem região) escolhe a casa (ADR 0011)", a
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   expect(await houseRows(member.id)).toEqual([
-    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "casa-exemplo-1" },
+    { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "esparta" },
   ]);
 });
 

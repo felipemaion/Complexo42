@@ -19,6 +19,7 @@ const raw = {
     totem2: { ...axis("D4"), itemIds: ["t2a", "t2b"], tieBreakItems: [], letters: { a: "V", b: "W" } },
   },
   houseByPoles: { aa: "casa-1", ab: "casa-2", ba: "casa-3", bb: "casa-4" },
+  totemLabels: { XV: { name: "t1", description: "d" }, XW: { name: "t2", description: "d" }, YV: { name: "t3", description: "d" }, YW: { name: "t4", description: "d" } },
 };
 const config = parseQuestionnaire(raw, ["casa-1", "casa-2", "casa-3", "casa-4"]);
 

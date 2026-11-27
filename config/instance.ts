@@ -397,8 +397,8 @@ export const instance = parseInstanceConfig({
   // (tests/house-units.test.ts).
   houses: [
     {
-      id: "casa-exemplo-1",
-      name: "Casa Exemplo Um",
+      id: "esparta",
+      name: "Esparta",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 1A", "[PREENCHER] Atividade exemplo 1B"],
       firstSteps: {
@@ -407,8 +407,8 @@ export const instance = parseInstanceConfig({
       },
     },
     {
-      id: "casa-exemplo-2",
-      name: "Casa Exemplo Dois",
+      id: "atenas",
+      name: "Atenas",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 2A", "[PREENCHER] Atividade exemplo 2B"],
       firstSteps: {
@@ -417,8 +417,8 @@ export const instance = parseInstanceConfig({
       },
     },
     {
-      id: "casa-exemplo-3",
-      name: "Casa Exemplo Três",
+      id: "alexandria",
+      name: "Alexandria",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 3A"],
       firstSteps: {
@@ -427,8 +427,8 @@ export const instance = parseInstanceConfig({
       },
     },
     {
-      id: "casa-exemplo-4",
-      name: "Casa Exemplo Quatro",
+      id: "siracusa",
+      name: "Siracusa",
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 4A"],
       firstSteps: {

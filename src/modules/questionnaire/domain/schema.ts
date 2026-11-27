@@ -56,6 +56,11 @@ const totemAxisSchema = z.strictObject({
 
 const houseByPolesShape = { aa: slug, ab: slug, ba: slug, bb: slug };
 
+/** Os quatro códigos de totem, na ordem aa, ab, ba, bb (letra do eixo 3 + letra do eixo 4). */
+export function totemCodesOf(first: { a: string; b: string }, second: { a: string; b: string }): string[] {
+  return [first.a + second.a, first.a + second.b, first.b + second.a, first.b + second.b];
+}
+
 export const questionnaireSchema = z
   .strictObject({
     /** Versão do questionário (identifica a chave de correção usada). */
@@ -80,6 +85,12 @@ export const questionnaireSchema = z
      * Id de uma casa de config/instance.ts; as quatro casas são distintas.
      */
     houseByPoles: z.strictObject(houseByPolesShape),
+    /**
+     * Nome e descrição curta de cada totem, pelo código de duas letras (letra do polo do eixo 3 +
+     * letra do polo do eixo 4). Só a coordenação e os delegados veem; o totem é interno. Os nomes
+     * reais podem ser provisórios até o stakeholder confirmar.
+     */
+    totemLabels: z.record(z.string(), z.strictObject({ name: text, description: text })),
   })
   .superRefine((config, ctx) => {
     const issue = (message: string, path: (string | number)[]) => ctx.addIssue({ code: "custom", message, path });
@@ -105,11 +116,22 @@ export const questionnaireSchema = z
       if (!axisOfItem.has(item.id)) issue("item sem eixo", ["items", index, "id"]);
     });
 
+    let lettersOk = true;
     for (const axis of ["totem1", "totem2"] as const) {
       const { a, b } = config.axes[axis].letters;
-      if (a === b) issue("os dois polos do totem precisam de letras diferentes", ["axes", axis, "letters"]);
+      if (!/^[A-Z]$/.test(a) || !/^[A-Z]$/.test(b)) lettersOk = false;
+      if (a === b) {
+        lettersOk = false;
+        issue("os dois polos do totem precisam de letras diferentes", ["axes", axis, "letters"]);
+      }
     }
     if (new Set(Object.values(config.houseByPoles)).size !== 4) issue("as quatro casas precisam ser distintas", ["houseByPoles"]);
+    // O mapa dos totens traz exatamente os quatro códigos que as letras dos polos formam.
+    const expected = totemCodesOf(config.axes.totem1.letters, config.axes.totem2.letters);
+    const given = Object.keys(config.totemLabels);
+    if (lettersOk && (given.length !== expected.length || !expected.every((code) => given.includes(code)))) {
+      issue("os quatro totens precisam de nome", ["totemLabels"]);
+    }
   });
 
 export type QuestionnaireConfig = z.infer<typeof questionnaireSchema>;

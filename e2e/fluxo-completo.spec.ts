@@ -158,7 +158,7 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   await expect(page).toHaveURL(`${baseURL}/casa`);
   await page.getByRole("button", { name: "Sim, já sei" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
-  await expect(page.getByTestId("house-name")).toHaveText("Casa Exemplo Dois");
+  await expect(page.getByTestId("house-name")).toHaveText("Atenas");
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
@@ -181,7 +181,7 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   expect(data.conta.emailDeLogin).toBe(person.email);
   expect(data.perfil).toMatchObject({ nome: person.name, municipio: { nome: "São Paulo", uf: "SP" }, liberacaoDeAcesso: "active" });
   expect(data.contato).toMatchObject({ whatsapp: `+55${person.phone.replace(/\D/g, "")}` });
-  expect(data.casas).toEqual([expect.objectContaining({ casa: "Casa Exemplo Dois", formaDeEntrada: "self", saiuEm: null })]);
+  expect(data.casas).toEqual([expect.objectContaining({ casa: "Atenas", formaDeEntrada: "self", saiuEm: null })]);
   expect(data.registrosSobreVoce.map((r: { evento: string }) => r.evento)).toEqual(expect.arrayContaining(["house_accepted", "data_exported"]));
 
   // Excluir a conta (#18): some do Auth e do banco; a sessão acaba.

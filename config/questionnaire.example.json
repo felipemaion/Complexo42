@@ -1,5 +1,5 @@
 {
-  "version": "exemplo-3",
+  "version": "exemplo-4",
   "consentTermVersion": "termo-exemplo-1",
   "consentTerm": "[EXEMPLO] Termo fictício, só para desenvolvimento. Este questionário ajuda a sugerir uma casa. Cada resposta é uma intensidade entre as duas alternativas; as respostas são calculadas no servidor e só a casa sugerida, um código interno e as notas por eixo são guardados (cifrados). Se o resultado não for conclusivo, as suas respostas ficam guardadas para a coordenação nacional analisar e são apagadas assim que ela decidir. Você pode recusar e escolher a casa diretamente.",
   "items": [
@@ -168,9 +168,27 @@
     }
   },
   "houseByPoles": {
-    "aa": "casa-exemplo-1",
-    "ab": "casa-exemplo-2",
-    "ba": "casa-exemplo-3",
-    "bb": "casa-exemplo-4"
+    "aa": "esparta",
+    "ab": "atenas",
+    "ba": "alexandria",
+    "bb": "siracusa"
+  },
+  "totemLabels": {
+    "XV": {
+      "name": "Totem Um",
+      "description": "Descrição curta fictícia do primeiro totem."
+    },
+    "XW": {
+      "name": "Totem Dois",
+      "description": "Descrição curta fictícia do segundo totem."
+    },
+    "YV": {
+      "name": "Totem Três",
+      "description": "Descrição curta fictícia do terceiro totem."
+    },
+    "YW": {
+      "name": "Totem Quatro",
+      "description": "Descrição curta fictícia do quarto totem."
+    }
   }
 }
