@@ -1,4 +1,4 @@
-import type { Answer, Answers, ChartAxis } from "@/modules/questionnaire";
+import type { Answer, Answers, ChartAxis, HouseByPoles } from "@/modules/questionnaire";
 
 /*
  * Fluxo da escolha da casa (#76, ADR 0008 §2 e §2.1). Puro: a tela só despacha eventos.
@@ -25,8 +25,11 @@ export type Step =
   | { kind: "submit" }
   /** Resultado inconclusivo: a coordenação nacional decide a casa. */
   | { kind: "analysis" }
-  /** `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário. */
-  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[] };
+  /**
+   * `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário;
+   * `houseByPoles`: o mapa das casas para as zonas coloridas do gráfico (#201).
+   */
+  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[]; houseByPoles?: HouseByPoles };
 
 export type FlowState = { step: Step; answers: Answers };
 
@@ -36,7 +39,7 @@ export type FlowEvent =
   /** Marca a intensidade da pergunta atual; só `next` avança. */
   | { type: "answer"; value: Answer }
   | { type: "next" }
-  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[] }
+  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[]; houseByPoles?: HouseByPoles }
   | { type: "analysis_requested" }
   | { type: "submit_failed" }
   | { type: "activity_chosen"; houseId: string }
@@ -104,7 +107,8 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
 function afterSubmit(state: FlowState, event: FlowEvent, lastIndex: number): FlowState {
   const { answers } = state;
   if (event.type === "result_recorded") {
-    return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire", chart: event.chart }, answers);
+    const { houseId, chart, houseByPoles } = event;
+    return at({ kind: "presentation", houseId, method: "questionnaire", chart, ...(houseByPoles && { houseByPoles }) }, answers);
   }
   if (event.type === "analysis_requested") return at({ kind: "analysis" }, answers);
   if (event.type === "submit_failed") return at({ kind: "question", index: lastIndex }, answers);

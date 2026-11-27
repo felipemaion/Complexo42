@@ -209,6 +209,7 @@ describe("submitQuestionnaire", () => {
         { key: "house1", label: "D1", poleA: "a1", poleB: "b1", score: -100 },
         { key: "house2", label: "D2", poleA: "a2", poleB: "b2", score: 100 },
       ],
+      houseByPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
     });
     expect(JSON.stringify(outcome)).not.toMatch(/YV|totem|D3|D4|a3|b4/);
   });

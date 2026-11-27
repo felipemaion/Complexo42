@@ -182,6 +182,7 @@ export const instance = parseInstanceConfig({
     nextButton: "Próxima",
     finishButton: "Ver o resultado",
     chartTitle: "Seu perfil",
+    chartCurrentHouse: "sua casa",
     backButton: "Voltar",
     suggestedTitle: "Sugerimos esta casa para você",
     chosenTitle: "Conheça a casa",
@@ -231,6 +232,7 @@ export const instance = parseInstanceConfig({
       totemLabel: "Totem",
       dateLabel: "Data",
       chartTitle: "Perfil completo",
+      chartCurrentHouse: "casa da pessoa",
       noScores: "Este resultado é de antes da escala de intensidade e não tem notas.",
       unreadableOne: "Este resultado não pôde ser lido.",
       backLink: "Voltar para a lista",
@@ -249,6 +251,7 @@ export const instance = parseInstanceConfig({
       tiedAxesLabel: "Eixos empatados",
       answersTitle: "Respostas",
       chartTitle: "Perfil completo",
+      chartCurrentHouse: "casa da pessoa",
       resolveTitle: "Resolver o caso",
       houseLabel: "Casa",
       totemLabel: "Totem",
@@ -397,6 +400,8 @@ export const instance = parseInstanceConfig({
     {
       id: "esparta",
       name: "Esparta",
+      // Cores provisórias do gráfico (#201): o claro e o escuro, ambas com contraste de 3:1 ou mais.
+      color: { light: "#c0392b", dark: "#f0786b" },
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 1A", "[PREENCHER] Atividade exemplo 1B"],
       firstSteps: {
@@ -407,6 +412,8 @@ export const instance = parseInstanceConfig({
     {
       id: "atenas",
       name: "Atenas",
+      // Cores provisórias do gráfico (#201): o claro e o escuro, ambas com contraste de 3:1 ou mais.
+      color: { light: "#2563c9", dark: "#7aa8f5" },
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 2A", "[PREENCHER] Atividade exemplo 2B"],
       firstSteps: {
@@ -417,6 +424,8 @@ export const instance = parseInstanceConfig({
     {
       id: "alexandria",
       name: "Alexandria",
+      // Cores provisórias do gráfico (#201): o claro e o escuro, ambas com contraste de 3:1 ou mais.
+      color: { light: "#1f8a52", dark: "#5ccf8f" },
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 3A"],
       firstSteps: {
@@ -427,6 +436,8 @@ export const instance = parseInstanceConfig({
     {
       id: "siracusa",
       name: "Siracusa",
+      // Cores provisórias do gráfico (#201): o claro e o escuro, ambas com contraste de 3:1 ou mais.
+      color: { light: "#b07d12", dark: "#e6b84a" },
       description: "[PREENCHER] Descrição curta da casa.",
       activities: ["[PREENCHER] Atividade exemplo 4A"],
       firstSteps: {

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { instance } from "@config/instance";
 import { openCase, requireCoordinationScreen } from "@/modules/houses";
-import { answerSentence, totemCodes, totemLabel } from "@/modules/questionnaire";
+import { answerSentence, crossOrder, totemCodes, totemLabel } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { resolveCaseAction } from "../actions";
 import { errorText as lookupErrorText, fill, shortDate } from "../../format";
@@ -65,7 +65,11 @@ export default async function CasePage({
         <h2 id="case-chart-title" className="text-2xl font-bold">
           {text.queue.chartTitle}
         </h2>
-        <SpiderChart axes={opened.chart} title={text.queue.chartTitle} />
+        <SpiderChart
+          axes={crossOrder(opened.chart)}
+          title={text.queue.chartTitle}
+          houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentLabel: text.queue.chartCurrentHouse }}
+        />
       </section>
       <section className="flex flex-col gap-3" aria-labelledby="case-answers-title">
         <h2 id="case-answers-title" className="text-2xl font-bold">

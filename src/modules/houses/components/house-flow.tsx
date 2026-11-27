@@ -63,7 +63,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       if (!response.ok) {
         setError(response.error);
         dispatch({ type: "submit_failed" });
-      } else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart });
+      } else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, houseByPoles: response.houseByPoles });
       else dispatch({ type: "analysis_requested" });
     })();
     return () => {
@@ -185,7 +185,18 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
               <h2 id="profile-chart-title" className="text-2xl font-bold">
                 {text.chartTitle}
               </h2>
-              <SpiderChart axes={step.chart} title={text.chartTitle} />
+              <SpiderChart
+                axes={step.chart}
+                title={text.chartTitle}
+                houses={
+                  step.houseByPoles && {
+                    byPoles: step.houseByPoles,
+                    houses,
+                    currentHouseId: step.houseId,
+                    currentLabel: text.chartCurrentHouse,
+                  }
+                }
+              />
             </section>
           )}
           {house && (

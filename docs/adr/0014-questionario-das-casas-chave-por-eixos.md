@@ -53,8 +53,10 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   que pontua recebe a chave real (o totem deixaria de ser interno) e pode mandar qualquer casa
   e totem direto à API. O navegador manda **só as respostas**; o servidor valida (todas as
   perguntas, só os seis valores da escala), pontua com o arquivo real (`QUESTIONNAIRE_PATH`) e devolve
-  só a casa. A chave (eixos, desempates, mapa das casas) nunca sai do servidor
-  (`toPublicQuestionnaire`).
+  só a casa. A chave (eixos, itens de cada eixo, desempates) nunca sai do servidor
+  (`toPublicQuestionnaire`). **Exceção** (decisão do gestor, #201): o mapa polos → casa (`houseByPoles`) vai à tela
+  **só junto do resultado**, para desenhar as zonas das casas no gráfico (abaixo); a página que o navegador
+  recebe antes de responder não o traz.
 - **O banco só aceita resultado assinado pelo servidor.** O app não tem `service_role` (R6);
   em vez dela, assina cada resultado com HMAC-SHA256 (`QUESTIONNAIRE_SIGNING_KEY`, a mesma chave
   em `app.server_secrets`, sem acesso pela API). A assinatura cobre a pessoa da sessão
@@ -74,7 +76,12 @@ casa. Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
 
 **Gráfico de aranha** (SVG próprio, sem biblioteca): os polos "a" de todos os eixos vêm primeiro e
 depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frente (meia volta). Cada
-raio vale a intensidade do polo (0 a 100). A pessoa vê 4 raios; a coordenação nacional e os
+raio vale a intensidade do polo (0 a 100). **Zonas das casas** (#201, protótipo aprovado): o quadrante entre os
+polos dos eixos 1 e 2 que formam cada casa é colorido, com o nome da casa dentro, e uma legenda destaca a casa da
+pessoa ("sua casa"). Os quadrantes seguem o `houseByPoles`; a cor de cada casa (clara e escura, `light-dark()`)
+vem de `houses[].color` em `config/instance.ts`, com contraste de 3:1 ou mais nos dois temas. Na visão da
+coordenação os raios saem na ordem a1, a3, a2, a4, b1, b3, b2, b4: os eixos da casa em cruz e os do totem nas
+diagonais (`crossOrder`, `houseZones` em `domain/chart.ts`). A pessoa vê 4 raios; a coordenação nacional e os
 delegados veem os 4 eixos (8 raios) e o totem. Os nomes das dimensões e dos polos vêm do config do
 questionário: o exemplo público usa nomes genéricos; no arquivo privado são **provisórios** até o
 stakeholder (Convívio: Expansivo/Reservado; Decisão: Razão/Coração; Percepção: P·Prático/A·Abstrato;

@@ -5,7 +5,7 @@ export {
   questionnaireSchema,
   toPublicQuestionnaire,
 } from "./domain/schema";
-export { chartAxes, chartSpokes, spokePoint } from "./domain/chart";
+export { chartAxes, chartSpokes, crossOrder, houseZones, spokePoint } from "./domain/chart";
 export { answerSentence, intensitySentence, toDisplaySentence } from "./domain/sentence";
 export { totemCodes, totemLabel } from "./domain/totem";
 export { answerValues, QuestionnaireAnswerError, scoreQuestionnaire } from "./domain/score";
@@ -18,6 +18,8 @@ export type {
   AxisScores,
   ChartAxis,
   ChartSpoke,
+  HouseByPoles,
+  HouseZone,
   Pole,
   QuestionnaireConfig,
   PublicQuestionnaire,

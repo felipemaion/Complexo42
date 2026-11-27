@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { instance } from "@config/instance";
 import { openResult, requireCoordinationScreen } from "@/modules/houses";
-import { totemLabel } from "@/modules/questionnaire";
+import { crossOrder, totemLabel } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { fill, houseName, shortDate } from "../../format";
 
@@ -47,7 +47,11 @@ export default async function ResultPage({ params }: Readonly<{ params: Promise<
           <h2 id="result-chart-title" className="text-2xl font-bold">
             {text.results.chartTitle}
           </h2>
-          <SpiderChart axes={result.chart} title={text.results.chartTitle} />
+          <SpiderChart
+            axes={crossOrder(result.chart)}
+            title={text.results.chartTitle}
+            houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentHouseId: result.houseId, currentLabel: text.results.chartCurrentHouse }}
+          />
         </section>
       ) : (
         <p className="text-lg">{text.results.noScores}</p>

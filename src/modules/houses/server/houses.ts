@@ -111,7 +111,14 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     });
     if (error) return { ok: false, error: errorCode(error) };
     // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.
-    return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
+    return {
+      ok: true,
+      outcome: "recorded",
+      houseId: result.houseId,
+      chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
+      // O mapa das casas só vai depois das respostas, para as zonas do gráfico (#201); a chave dos itens segue no servidor.
+      houseByPoles: ctx.questionnaire.houseByPoles,
+    };
   }
   const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), answersContext(userId));
   const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${answersEnc}|${nowSeconds}`);
