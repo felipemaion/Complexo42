@@ -62,4 +62,4 @@ insert into app.questionnaire_term_versions (version) values ('termo-exemplo-1')
 -- .env.example e do playwright.config.ts. Em produção o seed não roda: a chave é instalada por
 -- quem opera (docs/OPERACAO.md).
 insert into app.server_secrets (name, value)
-values ('questionnaire_signing_key', 'ZGV2LXF1ZXN0aW9ubmFpcmUtc2lnbmluZy1rZXktMzI=');
+values ('questionnaire_signing_key', 'YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=');
