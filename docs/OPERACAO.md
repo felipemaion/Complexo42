@@ -486,9 +486,10 @@ sem recarregar, e aí vale a CSP da página anterior.
 | `connect-src` | `'self'` (o navegador nunca fala direto com o Supabase) |
 
 A chamada ao siteverify parte do servidor, não do navegador, então não entra
-em `connect-src`. Para estrear num ambiente sem risco, suba com
-`CSP_REPORT_ONLY=1`: o navegador só avisa no console o que bloquearia
-(`Content-Security-Policy-Report-Only`). Sem avisos depois de usar as telas,
+em `connect-src`. Para estrear num ambiente sem risco, ponha
+`CSP_REPORT_ONLY=1` no `secrets/env` dele e recrie o app (o
+`docker-compose.app.yml` repassa a variável): o navegador só avisa no console o
+que bloquearia (`Content-Security-Policy-Report-Only`). Sem avisos depois de usar as telas,
 tire a variável e reinicie: com ela ligada, a CSP não bloqueia nada, então não
 a deixe em produção. Para conferir: `curl -sI https://<domínio>/entrar` mostra
 o cabeçalho, com um nonce diferente a cada chamada.
