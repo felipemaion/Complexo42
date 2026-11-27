@@ -176,6 +176,17 @@ type Step = { isAsking: boolean; questionIndex?: number; houseId?: string };
 - Teste o contrato público (o que o `index.ts` exporta), não detalhe interno.
 - Dados de teste fictícios e óbvios (`"casa-b"`, `"+5511999990000"`), nunca dado real.
 
+**Teste antes do código (TDD)**
+
+Vale para regra de domínio (`domain/`), permissão e RLS no banco (pgTAP) e correção de bug:
+
+1. Escreva o teste do comportamento novo e confira que ele **falha** pelo motivo certo.
+2. Faça um commit só com o teste (`test: ...`), antes do código.
+3. Escreva o mínimo de código para o teste passar, em outro commit, e depois refatore.
+- **Bug:** o primeiro commit é um teste que reproduz o bug falhando.
+- Ajuste visual de tela e mudança só de texto não precisam de teste antes.
+- O revisor confere a ordem dos commits na branch, antes do squash.
+
 **PR**
 
 - **Um assunto por PR** (R12): refatoração e funcionalidade nova em PRs separados.
@@ -194,6 +205,7 @@ Uma tarefa só está pronta quando:
 
 - [ ] Todos os critérios de aceite da issue foram atendidos.
 - [ ] Há testes cobrindo o caminho feliz **e** pelo menos um caso de erro ou permissão negada.
+- [ ] Em regra de domínio, permissão ou bug, o teste entrou num commit anterior ao do código (§2.2).
 - [ ] `npm run check` passa localmente e no CI.
 - [ ] Nenhum dado pessoal novo; se a tarefa cria tabela, há teste de RLS.
 - [ ] O que roda em cada fase (PR, deploy, lançamento) e as lacunas conhecidas estão em
