@@ -5,7 +5,7 @@
 // do Supabase é o da sessão, com o JWT de quem está logado (R14).
 import { instance } from "@config/instance";
 import { encryptField, signQuestionnaireMessage } from "@/server/crypto";
-import { requireUser, requireUserClient } from "@/server/auth/session";
+import { requireUserBeforeHouse, requireUserClientBeforeHouse } from "@/server/auth/session";
 import { log } from "@/server/log";
 import type { HouseActionResult, SubmitAnswersResult } from "../types";
 import { acceptHouse, recordConsent, submitQuestionnaire } from "./houses";
@@ -19,7 +19,7 @@ function logged(event: string, result: HouseActionResult): HouseActionResult {
 }
 
 export async function acceptHouseAction(input: unknown): Promise<HouseActionResult> {
-  await requireUser();
+  await requireUserBeforeHouse();
   const client = await sessionHouseClient();
   if (!client) return { ok: false, error: "failed" };
   const houseIds = instance.houses.map((h) => h.id);
@@ -29,7 +29,7 @@ export async function acceptHouseAction(input: unknown): Promise<HouseActionResu
 }
 
 export async function recordConsentAction(input: unknown): Promise<HouseActionResult> {
-  await requireUser();
+  await requireUserBeforeHouse();
   const client = await sessionHouseClient();
   if (!client) return { ok: false, error: "failed" };
   return logged("questionnaire_consent_refused", await recordConsent(client, input, getQuestionnaire().consentTermVersion));
@@ -41,7 +41,7 @@ export async function recordConsentAction(input: unknown): Promise<HouseActionRe
  * ao banco (ADR 0003). As respostas não vão para o log.
  */
 export async function submitAnswersAction(input: unknown): Promise<SubmitAnswersResult> {
-  const { user } = await requireUserClient();
+  const { user } = await requireUserClientBeforeHouse();
   const client = await sessionHouseClient();
   if (!client) return { ok: false, error: "failed" };
   let result: SubmitAnswersResult;

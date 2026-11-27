@@ -3,7 +3,7 @@ import { instance } from "@config/instance";
 import { toPublicQuestionnaire } from "@/modules/questionnaire";
 import Link from "next/link";
 import { canChangeHouse, getQuestionnaire, HouseFlow, HousePresentation, houseLockNotice, readAcceptedHouse, readHouseLock, sessionHouseClient } from "@/modules/houses";
-import { requireUser } from "@/server/auth/session";
+import { requireUserBeforeHouse } from "@/server/auth/session";
 
 export const metadata: Metadata = { title: instance.houseSelection.title };
 
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: instance.houseSelection.title };
 // questionário é lido no servidor (QUESTIONNAIRE_PATH ou o exemplo) e vai para a tela só com as
 // perguntas; a pontuação e a chave ficam no servidor (ADR 0014 §1).
 export default async function HousePage({ searchParams }: Readonly<{ searchParams: Promise<{ trocar?: string }> }>) {
-  const user = await requireUser();
+  const user = await requireUserBeforeHouse();
   const text = instance.houseSelection;
   const houseIds = instance.houses.map((h) => h.id);
   const client = await sessionHouseClient();
