@@ -86,21 +86,24 @@ imagem_reversivel() {
 
 modo_e_dono() { stat -c '%u %a' "$1" 2> /dev/null || stat -f '%u %Lp' "$1"; }
 
+# Devolve 1, NAO sai. Assim a mesma conferencia serve para duas coisas: a de
+# partida, que aborta com `|| exit 2`, e a da sincronia, que precisa falhar pelo
+# caminho normal -- com `registra infra_falhou` no log -- e nao com exit seco.
 confere() { # confere <caminho> <descricao> [segredo]
   local f=$1 d=$2 seg=${3:-} info dono modo g o
-  [ -e "$f" ] || { log "ERRO: $d nao existe: $f"; exit 2; }
-  [ -L "$f" ] && { log "ERRO: $d e um link simbolico: $f"; exit 2; }
+  [ -e "$f" ] || { log "ERRO: $d nao existe: $f"; return 1; }
+  [ -L "$f" ] && { log "ERRO: $d e um link simbolico: $f"; return 1; }
   [ "$SOU_ROOT" = 1 ] || return 0
   info=$(modo_e_dono "$f"); dono=${info%% *}; modo=${info##* }
   modo=$(printf '%03d' "$modo"); g=${modo: -2:1}; o=${modo: -1}
   if [ -z "$seg" ] && [ "$dono" != 0 ]; then
-    log "ERRO: $d nao pertence ao root: $f"; exit 2
+    log "ERRO: $d nao pertence ao root: $f"; return 1
   fi
   if [ $(( g & 2 )) -ne 0 ] || [ $(( o & 2 )) -ne 0 ]; then
-    log "ERRO: $d e gravavel por grupo ou outros: $f"; exit 2
+    log "ERRO: $d e gravavel por grupo ou outros: $f"; return 1
   fi
   if [ -n "$seg" ] && { [ $(( g & 4 )) -ne 0 ] || [ $(( o & 4 )) -ne 0 ]; }; then
-    log "ERRO: $d e legivel por grupo ou outros: $f"; exit 2
+    log "ERRO: $d e legivel por grupo ou outros: $f"; return 1
   fi
   # Sem isto a função devolve o status do último `if` -- 1 quando nenhum ramo
   # é tomado --, e o `set -e` derruba o script no primeiro arquivo correto.
@@ -167,26 +170,48 @@ sha_de() { sha256sum "$1" 2> /dev/null | cut -d' ' -f1; }
 # e ali o `set -e` nao vale -- medido, o corpo segue depois do comando que
 # falhou e a funcao ainda devolve 0. Sem o `||`, uma gravacao que falha seguiria
 # em frente e o manifesto registraria o que nao foi escrito.
+# INFRA_DIR e cada diretorio intermediario tem de ser do root e nao gravavel
+# por grupo/outros. Sem isto, `initdb/` com modo 777 ou de outro dono permite
+# trocar o temporario ENTRE o sha256 e o `mv`, e o que fica no lugar e um
+# `02-roles.sh` de quem quiser -- que roda como superusuario do banco na
+# proxima recriacao do volume.
+#
+# E e tambem o que torna o `mv` seguro sem o `-T` do GNU (que o macOS nao tem, e
+# o teste roda la): com os pais conferidos, ninguem pode por um diretorio no
+# lugar do alvo entre a conferencia e o rename.
+confere_pais() { # confere_pais <relativo>
+  local d=$INFRA_DIR resto=$1 parte
+  confere "$d" "o diretorio de infra" || return 1
+  while [ "$resto" != "${resto#*/}" ]; do
+    parte=${resto%%/*}; resto=${resto#*/}
+    d="$d/$parte"
+    confere "$d" "o diretorio $parte/ da infra" || return 1
+  done
+  return 0
+}
+
 grava_infra() { # grava_infra <origem> <alvo absoluto> <relativo>
-  local origem=$1 alvo=$2 rel=$3 dir tmp
+  local origem=$1 alvo=$2 rel=$3 dir tmp modo=644 info
   sem_links "$rel" || return 1
   dir=${alvo%/*}
   if [ ! -d "$dir" ]; then
     mkdir -p "$dir" || { log "ERRO: nao consegui criar $dir"; return 1; }
     chmod 755 "$dir" || return 1
   fi
-  # Recusa diretorio, fifo, dispositivo. Tambem e o que torna o `mv` seguro
-  # sem o `-T` do GNU: destino que nao e arquivo comum nunca chega la.
-  if [ -e "$alvo" ] && [ ! -f "$alvo" ]; then
+  confere_pais "$rel" || return 1
+  if [ -e "$alvo" ] && { [ ! -f "$alvo" ] || [ -L "$alvo" ]; }; then
     log "ERRO: $rel no servidor nao e arquivo comum"; return 1
   fi
+  # Preserva o modo do que ja esta la: se o operador fechou um arquivo para
+  # 600, atualizar nao e motivo para o deploy afrouxar de volta para 644.
+  if [ -f "$alvo" ]; then info=$(modo_e_dono "$alvo") && modo=${info##* }; fi
   tmp=$(mktemp "$dir/.infra.XXXXXX") || { log "ERRO: nao consegui criar temporario em $dir"; return 1; }
   cat "$origem" > "$tmp" || { rm -f "$tmp"; log "ERRO: falhei ao escrever $rel"; return 1; }
   if [ "$(sha_de "$tmp")" != "$(sha_de "$origem")" ]; then
     rm -f "$tmp"; log "ERRO: $rel saiu diferente da origem depois de escrito"; return 1
   fi
-  chmod 644 "$tmp" || { rm -f "$tmp"; return 1; }
-  mv -f "$tmp" "$alvo" || { rm -f "$tmp"; log "ERRO: falhei ao por $rel no lugar"; return 1; }
+  chmod "$modo" "$tmp" || { rm -f "$tmp"; return 1; }
+  mv -f -- "$tmp" "$alvo" || { rm -f "$tmp"; log "ERRO: falhei ao por $rel no lugar"; return 1; }
   return 0
 }
 
@@ -202,7 +227,14 @@ REFERENCIA=${1:?falta a referencia (sha256:<digest> ou emergencia:<tag>)}
 referencia_valida "$REFERENCIA" || { log "ERRO: referencia recusada"; exit 2; }
 case "$REFERENCIA" in emergencia:*) MODO=emergencia ;; *) MODO=normal ;; esac
 
-confere "$CONFIG" "o arquivo de configuracao"
+confere "$CONFIG" "o arquivo de configuracao" || exit 2
+# Limpos ANTES de carregar a configuracao. Depois do `.` nao da mais para
+# distinguir "veio da config" de "veio do ambiente", e `${X:-padrao}` aceitaria
+# o ambiente calado -- contra o que diz o cabecalho deste script. Com o
+# env_reset do sudo o ambiente nem chega aqui; o `unset` e o que garante que
+# continue assim se alguem afrouxar o sudoers.
+unset PROJECT_DIR ENV_FILE COMPOSE_APP APP_PROJETO REDE_PROXY ALVO_SAUDE MIGRA
+unset INFRA_DIR MANIFESTO IMAGEM ESPERA_SMOKE SMOKE_IMAGEM TRAVA REGISTRO
 # shellcheck source=/dev/null
 . "$CONFIG"
 
@@ -231,17 +263,17 @@ SMOKE_IMAGEM=${SMOKE_IMAGEM:?falta SMOKE_IMAGEM na configuracao (fixe por digest
 TRAVA=${TRAVA:-/run/complexo42-$APP_PROJETO.lock}
 REGISTRO=${REGISTRO:-$PROJECT_DIR/data/logs/deploy.log}
 
-confere "$COMPOSE_APP" "o compose do app"
-confere "$MIGRA" "o aplicador de migrations"
-confere "$ENV_FILE" "o arquivo de segredos" segredo
-confere "$(dirname "$REGISTRO")" "o diretorio do log"
+confere "$COMPOSE_APP" "o compose do app" || exit 2
+confere "$MIGRA" "o aplicador de migrations" || exit 2
+confere "$ENV_FILE" "o arquivo de segredos" segredo || exit 2
+confere "$(dirname "$REGISTRO")" "o diretorio do log" || exit 2
 [ -L "$REGISTRO" ] && { log "ERRO: o log e um link simbolico"; exit 2; }
 # O diretorio de infra e o do manifesto entram na MESMA conferencia do resto: o
 # deploy grava neles como root, e diretorio gravavel por outros e o problema de
 # sempre -- quem escreve ali troca o arquivo entre a conferencia e o uso.
-confere "$INFRA_DIR" "o diretorio de infra"
-confere "$(dirname "$MANIFESTO")" "o diretorio do manifesto de infra"
-if [ -e "$MANIFESTO" ]; then confere "$MANIFESTO" "o manifesto de infra"; fi
+confere "$INFRA_DIR" "o diretorio de infra" || exit 2
+confere "$(dirname "$MANIFESTO")" "o diretorio do manifesto de infra" || exit 2
+if [ -e "$MANIFESTO" ]; then confere "$MANIFESTO" "o manifesto de infra" || exit 2; fi
 
 # Tripwire: nenhum arquivo da lista de infra pode coincidir com um arquivo que
 # o proprio deploy le ou EXECUTA. Hoje nao coincide; a conferencia existe para
@@ -307,18 +339,31 @@ sobe() { APP_IMAGEM="$1" dc up -d --no-deps app; }   # sem --remove-orphans: apa
 # edicao manual, e foi assim que o servidor ficou semanas com um bootstrap de
 # banco que ninguem revisava (ADR 0015, Contexto).
 
-# Extracao com limpeza garantida nos DOIS caminhos. Sem isso, imagem sem
-# /app/deploy deixava um container parado para tras a cada tentativa. O nome
-# leva $RANDOM porque $$ se repete entre deploys de projetos diferentes.
-extrai_infra() { # extrai_infra <destino>
-  local criado=infra-$$-$RANDOM rc=0
-  docker create --name "$criado" "$IMAGEM_ALVO" > /dev/null 2>&1 || {
-    log "ERRO: nao consegui criar container para extrair a infra"; return 1
+# Estado da sincronia em curso, para a limpeza poder acontecer de qualquer
+# lugar -- inclusive de um sinal no meio do `docker cp`.
+INFRA_TMP=
+INFRA_CONTAINER=
+limpa_infra() {
+  [ -n "$INFRA_CONTAINER" ] && docker rm -f "$INFRA_CONTAINER" > /dev/null 2>&1
+  [ -n "$INFRA_TMP" ] && rm -rf "$INFRA_TMP"
+  INFRA_TMP=; INFRA_CONTAINER=
+  return 0
+}
+
+# Limpeza garantida nos DOIS caminhos. Sem isso, imagem sem /app/deploy deixava
+# um container parado para tras a cada tentativa. O nome leva $RANDOM porque $$
+# se repete entre deploys de projetos diferentes.
+extrai_infra() { # extrai_infra <raiz temporaria>
+  local rc=0
+  INFRA_CONTAINER=infra-$$-$RANDOM
+  docker create --name "$INFRA_CONTAINER" "$IMAGEM_ALVO" > /dev/null 2>&1 || {
+    INFRA_CONTAINER=; log "ERRO: nao consegui criar container para extrair a infra"; return 1
   }
-  docker cp "$criado:/app/deploy" "$1" > /dev/null 2>&1 || {
+  docker cp "$INFRA_CONTAINER:/app/deploy" "$1/deploy" > /dev/null 2>&1 || {
     log "ERRO: a imagem nao traz /app/deploy"; rc=1
   }
-  docker rm -f "$criado" > /dev/null 2>&1 || log "ALERTA: o container $criado ficou para tras"
+  docker rm -f "$INFRA_CONTAINER" > /dev/null 2>&1 || log "ALERTA: o container $INFRA_CONTAINER ficou para tras"
+  INFRA_CONTAINER=
   return $rc
 }
 
@@ -326,8 +371,18 @@ extrai_infra() { # extrai_infra <destino>
 # sinal de que `deploy/` cresceu sem ninguem olhar o `.dockerignore` -- que e
 # uma lista de EXCLUSAO, entao arquivo novo entra na imagem por omissao. E e
 # assim que um `*.key` ou um `staging.env` viajaria junto.
-confere_sobras() { # confere_sobras <diretorio extraido>
-  local rel sobra=0
+confere_sobras() { # confere_sobras <raiz temporaria>
+  local dir=$1/deploy lista=$1/lista rel sobra=0
+  # /app/deploy como LINK na imagem: o `docker cp` o materializa como link, e
+  # dai todo o caminho abaixo dele sai do nosso controle.
+  [ -L "$dir" ] && { log "ERRO: /app/deploy na imagem e um link simbolico"; return 1; }
+  [ -d "$dir" ] || { log "ERRO: /app/deploy nao chegou como diretorio"; return 1; }
+  # Lista PRIMEIRO, com o erro detectado. Antes isto ia direto para o `while`
+  # por substituicao de processo, onde `cd` ou `find` falhando viram "nenhuma
+  # sobra": a conferencia passava justamente quando nao havia o que conferir.
+  (cd "$dir" && find . ! -type d -print0) > "$lista" || {
+    log "ERRO: nao consegui listar /app/deploy da imagem"; return 1
+  }
   while IFS= read -r -d '' rel; do
     rel=${rel#./}
     # O nome recusado NAO e impresso: nome vindo de fora pode levar sequencia
@@ -338,70 +393,107 @@ confere_sobras() { # confere_sobras <diretorio extraido>
     if ! permitida "$rel"; then
       log "ERRO: a imagem traz arquivo fora da lista de infra: $rel"; sobra=1; continue
     fi
-    if [ -L "$1/$rel" ]; then
+    if [ -L "$dir/$rel" ]; then
       # Link na imagem com nome permitido: `cat` leria o destino NO HOST e o
       # deploy gravaria esse conteudo no servidor. /etc/shadow como kong.yml.
       log "ERRO: $rel na imagem e um link simbolico"; sobra=1
     fi
-  done < <(cd "$1" && find . ! -type d -print0)
+  done < "$lista"
+  rm -f "$lista"
   [ "$sobra" = 0 ] || return 1
   return 0
 }
 
-# O manifesto e o estado que ESTE deploy deixou. Escrito por inteiro e trocado
-# por rename: manifesto meio escrito faria o deploy SEGUINTE ver divergencia
-# onde nao houve, e falhar fechado sem motivo.
+# O manifesto e o estado que ESTE deploy deixou NO DISCO. Escrito por inteiro e
+# trocado por rename: manifesto meio escrito faria o deploy SEGUINTE ver
+# divergencia onde nao houve, e falhar fechado sem motivo.
 grava_manifesto() {
-  local dir=${MANIFESTO%/*} tmp rel
+  local dir=${MANIFESTO%/*} tmp rel sha
   [ -d "$dir" ] || { log "ERRO: o diretorio do manifesto nao existe: $dir"; return 1; }
   tmp=$(mktemp "$dir/.manifesto.XXXXXX") || { log "ERRO: nao consegui criar temporario do manifesto"; return 1; }
   for rel in "${INFRA_PERMITIDA[@]}"; do
-    printf '%s  %s\n' "$(sha_de "$INFRA_DIR/$rel")" "$rel" >> "$tmp" || {
+    # Arquivo que ainda nao esta no disco nao entra. O manifesto diz o que o
+    # deploy DEIXOU, e na primeira execucao ele grava um de cada vez: exigir os
+    # quatro aqui faria a primeira gravacao falhar por causa das tres que ainda
+    # nao aconteceram. Linha ausente e lida como "nao foi o deploy que gravou",
+    # que e exatamente o certo para arquivo que o deploy nunca tocou.
+    [ -f "$INFRA_DIR/$rel" ] || continue
+    # O sha vai para uma variavel e e conferido: dentro do `printf` um sha
+    # vazio viraria uma linha sem hash, que o deploy seguinte leria como
+    # "nao foi o deploy que gravou" e travaria.
+    sha=$(sha_de "$INFRA_DIR/$rel")
+    if [ -z "$sha" ]; then
+      rm -f "$tmp"; log "ERRO: nao consegui calcular o sha256 de $rel para o manifesto"; return 1
+    fi
+    printf '%s  %s\n' "$sha" "$rel" >> "$tmp" || {
       rm -f "$tmp"; log "ERRO: falhei ao escrever o manifesto"; return 1
     }
   done
   chmod 600 "$tmp" || { rm -f "$tmp"; return 1; }
-  mv -f "$tmp" "$MANIFESTO" || { rm -f "$tmp"; log "ERRO: falhei ao por o manifesto no lugar"; return 1; }
+  mv -f -- "$tmp" "$MANIFESTO" || { rm -f "$tmp"; log "ERRO: falhei ao por o manifesto no lugar"; return 1; }
   return 0
 }
 
-# Um ponto so de limpeza do temporario: o trabalho vai na funcao de dentro, que
-# pode voltar de onde quiser sem deixar diretorio para tras.
+# Gravar e registrar andam JUNTOS. O manifesto e refeito depois de cada
+# gravacao, nao uma vez no fim: assim ele diz sempre o que esta no disco.
+# Antes, falha na terceira gravacao deixava as duas primeiras sem registro, e o
+# deploy SEGUINTE as lia como edicao a mao e travava -- precisando de
+# `--adotar-infra` por um erro que nao foi de ninguem. Sao quatro linhas de
+# sha256: refazer a cada arquivo nao custa nada.
+grava_e_registra() { # grava_e_registra <origem> <alvo> <relativo>
+  grava_infra "$1" "$2" "$3" || return 1
+  grava_manifesto || return 1
+  return 0
+}
+
+# Um ponto so de limpeza, e trap para o sinal no meio do caminho.
 sincroniza_infra() {
-  local tmp rc
-  tmp=$(mktemp -d) || { log "ERRO: nao consegui criar diretorio temporario"; return 1; }
-  sincroniza_infra_em "$tmp"; rc=$?
-  rm -rf "$tmp"
+  local rc
+  INFRA_TMP=$(mktemp -d) || { log "ERRO: nao consegui criar diretorio temporario"; return 1; }
+  # So INT/TERM, nunca EXIT: trap de EXIT faz as checagens `${VAR:?}` deste
+  # script sairem com 0 -- medido, e esta no SERVER.md como gotcha 63.
+  trap 'limpa_infra; exit 130' INT TERM
+  sincroniza_infra_em "$INFRA_TMP"; rc=$?
+  trap - INT TERM
+  limpa_infra
   return $rc
 }
 
 sincroniza_infra_em() {
-  local tmp=$1 rel alvo origem img loc man mudou=0 initdb_mudou=0 este
-  extrai_infra "$tmp/deploy" || return 1
-  confere_sobras "$tmp/deploy" || return 1
+  local tmp=$1 rel alvo origem img loc man mudou=0 initdb_mudou=0 i=0
+  local -a acao=() sha_img=()
+  extrai_infra "$tmp" || return 1
+  confere_sobras "$tmp" || return 1
 
+  # ── passada 1: DECIDE tudo antes de gravar qualquer coisa ──
+  # Tudo ou nada. Antes, um arquivo que divergia DEPOIS de outro ja ter sido
+  # gravado derrubava o deploy com o disco pela metade -- e, pior, o manifesto
+  # desatualizado fazia o deploy SEGUINTE travar como se alguem tivesse editado
+  # a mao. Decidir primeiro faz a recusa acontecer com o disco intocado.
   for rel in "${INFRA_PERMITIDA[@]}"; do
-    origem="$tmp/deploy/$rel"; alvo="$INFRA_DIR/$rel"; este=0
+    origem="$tmp/deploy/$rel"; alvo="$INFRA_DIR/$rel"
     if [ ! -f "$origem" ] || [ -L "$origem" ]; then
       log "ERRO: a imagem nao traz $rel"; return 1
     fi
     img=$(sha_de "$origem")
     [ -n "$img" ] || { log "ERRO: nao consegui calcular o sha256 de $rel na imagem"; return 1; }
+    sha_img[i]=$img
     man=$(awk -v r="$rel" '$2 == r { print $1 }' "$MANIFESTO" 2> /dev/null || true)
     if [ ! -e "$alvo" ]; then
-      grava_infra "$origem" "$alvo" "$rel" || return 1
-      log "infra: $rel NOVO (${img:0:12})"; este=1
+      acao[i]=novo
+    elif [ ! -f "$alvo" ] || [ -L "$alvo" ]; then
+      # ANTES de qualquer sha256: um fifo no lugar do alvo travaria o
+      # `sha256sum` para sempre, com a trava do deploy presa com ele.
+      log "ERRO: $rel no servidor nao e arquivo comum"; return 1
     else
       loc=$(sha_de "$alvo")
+      [ -n "$loc" ] || { log "ERRO: nao consegui calcular o sha256 de $rel no servidor"; return 1; }
       if [ "$loc" = "$img" ]; then
-        este=0
+        acao[i]=igual
       elif [ -n "$man" ] && [ "$loc" = "$man" ]; then
-        # era o que o deploy gravou: atualizacao legitima.
-        grava_infra "$origem" "$alvo" "$rel" || return 1
-        log "infra: $rel ${loc:0:12} -> ${img:0:12}"; este=1
+        acao[i]=atualiza:$loc          # era o que o deploy gravou: legitimo
       elif [ -n "$ADOTAR_INFRA" ]; then
-        grava_infra "$origem" "$alvo" "$rel" || return 1
-        log "infra: $rel ADOTADO ${loc:0:12} -> ${img:0:12}"; este=1
+        acao[i]=adota:$loc
       else
         log "ERRO: $rel no servidor (${loc:0:12}) nao veio deste deploy nem confere"
         log "      com a imagem (${img:0:12}). Alguem editou a mao."
@@ -410,15 +502,36 @@ sincroniza_infra_em() {
         return 1
       fi
     fi
-    # FORA do else: este `case` estava so no ramo do arquivo que JA existia,
-    # entao arquivo NOVO em initdb/ nao disparava o aviso -- e e o caso em que
-    # ele mais importa, porque e initdb que nunca rodou.
-    if [ "$este" = 1 ]; then
-      mudou=1
-      case "$rel" in initdb/*) initdb_mudou=1 ;; esac
-    fi
+    i=$((i + 1))
   done
 
+  # ── passada 2: grava, registrando no manifesto a cada arquivo ──
+  i=0
+  for rel in "${INFRA_PERMITIDA[@]}"; do
+    origem="$tmp/deploy/$rel"; alvo="$INFRA_DIR/$rel"; img=${sha_img[i]}
+    case ${acao[i]} in
+      igual) ;;
+      novo)
+        grava_e_registra "$origem" "$alvo" "$rel" || return 1
+        log "infra: $rel NOVO (${img:0:12})"; mudou=1 ;;
+      atualiza:*)
+        loc=${acao[i]#atualiza:}
+        grava_e_registra "$origem" "$alvo" "$rel" || return 1
+        log "infra: $rel ${loc:0:12} -> ${img:0:12}"; mudou=1 ;;
+      adota:*)
+        loc=${acao[i]#adota:}
+        grava_e_registra "$origem" "$alvo" "$rel" || return 1
+        log "infra: $rel ADOTADO ${loc:0:12} -> ${img:0:12}"; mudou=1 ;;
+    esac
+    # FORA do ramo do arquivo que ja existia: antes este `case` so rodava la,
+    # entao arquivo NOVO em initdb/ nao disparava o aviso -- e e o caso em que
+    # ele mais importa, porque e initdb que nunca rodou.
+    case ${acao[i]} in igual) ;; *) case "$rel" in initdb/*) initdb_mudou=1 ;; esac ;; esac
+    i=$((i + 1))
+  done
+
+  # Tambem quando nada mudou: na primeira execucao o manifesto nao existe, e
+  # sem esta chamada o deploy seguinte leria tudo como edicao a mao.
   grava_manifesto || return 1
 
   [ "$mudou" = 0 ] && log "infra: tudo igual a imagem"

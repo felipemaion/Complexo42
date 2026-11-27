@@ -202,6 +202,17 @@ jobs:
             | sed '1d;$d' | tr -d ' \t' | grep -v '^$' | LC_ALL=C sort)
           na_imagem=$(docker run --rm --entrypoint sh complexo42:ci \
             -c 'cd /app/deploy && find . ! -type d | sed "s|^\./||"' | LC_ALL=C sort)
+          # Sem isto o passo passaria com a lista VAZIA: um `sed` que deixe de
+          # casar (alguem renomeia a variavel, muda a indentacao) faria
+          # "esperado" e "na_imagem" ficarem os dois vazios, e o passo viraria
+          # decoração. Não fixo o número 4 aqui de propósito -- seria uma
+          # segunda cópia da lista para manter, e é o teste do deploy.sh que
+          # garante QUAIS são os arquivos; aqui só se confere que a leitura
+          # funcionou e produziu caminhos plausíveis.
+          [ -n "$esperado" ] || { echo "ERRO: nao consegui ler INFRA_PERMITIDA do deploy.sh"; exit 1; }
+          echo "$esperado" | grep -qvE '^[A-Za-z0-9][A-Za-z0-9._/-]*$' \
+            && { echo "ERRO: a lista lida do deploy.sh tem linha que nao e caminho:"; echo "$esperado"; exit 1; }
+          echo "entradas lidas do deploy.sh: $(echo "$esperado" | wc -l | tr -d ' ')"
           echo "--- esperado ---"; echo "$esperado"
           echo "--- na imagem ---"; echo "$na_imagem"
           if [ "$esperado" != "$na_imagem" ]; then
@@ -210,3 +221,16 @@ jobs:
             exit 1
           fi
           echo "ok: a imagem traz exatamente a infra da lista"
+      # A allowlist diz QUAIS arquivos o root grava; nao diz o que tem DENTRO
+      # deles. O compose do Supabase roda como root no host, entao `privileged`,
+      # o socket do Docker ou um monte de `/` sao caminho direto para fora do
+      # container -- risco residual registrado na ADR 0015. Este grep nao
+      # substitui a revisao do PR; pega a regressao obvia.
+      - name: O compose do Supabase não pede privilégio no host
+        run: |
+          padrao='privileged|/var/run/docker\.sock|^[[:space:]]*-[[:space:]]*/:|cap_add|pid:[[:space:]]*host|network_mode:[[:space:]]*host'
+          if grep -nEi "$padrao" deploy/docker-compose.supabase.yml; then
+            echo "ERRO: o compose do Supabase pede privilegio no host -- revise na mao"
+            exit 1
+          fi
+          echo "ok: nenhum pedido de privilegio no compose do Supabase"
