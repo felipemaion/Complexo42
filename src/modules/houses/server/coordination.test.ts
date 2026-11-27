@@ -4,6 +4,7 @@ import example from "@config/questionnaire.example.json";
 import { parseQuestionnaire } from "@/modules/questionnaire";
 import type { CipherContext, HouseClient, HouseQuery } from "../types";
 import {
+  changeHouse,
   grantQuestionnaireAccess,
   listOpenAnalysisRequests,
   readQuestionnaireResultOf,
@@ -261,5 +262,32 @@ describe("delegação do acesso", () => {
     expect(rpcCalls).toEqual([{ fn: "revoke_questionnaire_access", args: { p_grant_id: REQ } }]);
     expect(await revokeQuestionnaireAccess(client, { grantId: "x" })).toEqual({ ok: false, error: "invalid" });
     expect(await revokeQuestionnaireAccess(fake({ rpc: { error: { code: "P0002" } } }).client, { grantId: REQ })).toEqual({ ok: false, error: "not_found" });
+  });
+});
+
+describe("changeHouse", () => {
+  const profileId = "8f1c2a4e-0b5d-4c3a-9e7f-1a2b3c4d5e6f";
+
+  it("manda ao banco só a pessoa e a casa (o banco confere o alcance, a trava e a casa)", async () => {
+    const { client, rpcCalls } = fake();
+    expect(await changeHouse(client, { profileId, houseId: instance.houses[1]!.id }, instance.houses.map((h) => h.id))).toEqual({ ok: true });
+    expect(rpcCalls).toEqual([{ fn: "coordination_set_house", args: { p_profile: profileId, p_house_key: instance.houses[1]!.id } }]);
+  });
+
+  it("recusa entrada malformada ou casa fora da config, sem chamar o banco", async () => {
+    const { client, rpcCalls } = fake();
+    const ids = instance.houses.map((h) => h.id);
+    expect(await changeHouse(client, { profileId: "x", houseId: ids[0] }, ids)).toEqual({ ok: false, error: "invalid" });
+    expect(await changeHouse(client, { profileId, houseId: "casa-inexistente" }, ids)).toEqual({ ok: false, error: "invalid" });
+    expect(await changeHouse(client, { profileId, houseId: ids[0], extra: 1 }, ids)).toEqual({ ok: false, error: "invalid" });
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("traduz a recusa do banco (sem alcance, casa indisponível), sem repassar o texto", async () => {
+    const ids = instance.houses.map((h) => h.id);
+    const forbidden = fake({ rpc: { error: { code: "42501", message: "detalhe interno" } } });
+    expect(await changeHouse(forbidden.client, { profileId, houseId: ids[0] }, ids)).toEqual({ ok: false, error: "forbidden" });
+    const gone = fake({ rpc: { error: { code: "P0002", message: "detalhe interno" } } });
+    expect(await changeHouse(gone.client, { profileId, houseId: ids[0] }, ids)).toEqual({ ok: false, error: "not_found" });
   });
 });
