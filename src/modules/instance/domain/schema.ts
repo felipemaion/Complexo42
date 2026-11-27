@@ -221,9 +221,12 @@ export const instanceConfigSchema = z.strictObject({
     /** Progresso do questionário, com `{current}` e `{total}` (ex.: "{current} de {total}"). */
     progress: text.refine((v) => v.includes("{current}") && v.includes("{total}"), "use {current} e {total}"),
     /** Botão de quem marca as duas alternativas (indecisão). */
-    /** Pergunta da escala de intensidade (leitor de tela) e o nome dos seis círculos, de "muito a" a "muito b". */
+    /**
+     * Pergunta da escala de intensidade (leitor de tela) e a intensidade de cada um dos seis círculos,
+     * da ponta "a" à ponta "b". A frase da posição é "intensidade: texto da alternativa".
+     */
     scaleLegend: text,
-    scaleOptions: z.tuple([text, text, text, text, text, text]),
+    scaleIntensities: z.tuple([text, text, text, text, text, text]),
     nextButton: text,
     finishButton: text,
     /** Título do gráfico de aranha do perfil (eixos da casa). */

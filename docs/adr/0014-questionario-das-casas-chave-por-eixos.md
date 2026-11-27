@@ -30,8 +30,12 @@ ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b"
 **Escala de intensidade** (decisão do gestor, 2026-11-27; substitui a escolha a/b/"as duas"). Cada
 pergunta mostra seis círculos, sem meio, maiores nas pontas (a à esquerda, b à direita), **nenhum
 marcado de início** (resposta obrigatória). A resposta é um inteiro em {-3, -2, -1, 1, 2, 3}
-(negativo = polo "a"). Acessível: grupo de rádio com os nomes "muito a, a, um pouco a, um pouco b,
-b, muito b" (texto da config da instância), teclado (setas, Home e End) e botão "próxima".
+(negativo = polo "a"). Sem "a)" e "b)": as pontas mostram o texto de cada alternativa e, abaixo dos
+círculos, a **frase composta** da posição escolhida (ou em foco/sob o mouse): "Intensidade: texto da
+alternativa." (ex.: "Totalmente: …", "Na maior parte das vezes: …", "Um pouco mais: …"; as intensidades
+ficam na config da instância). A mesma frase é o nome acessível do círculo. Toda frase exibida começa
+com maiúscula e termina em pontuação (normalização só de exibição: o JSON do questionário não muda;
+`domain/sentence.ts`). Acessível: grupo de rádio, teclado (setas, Home e End) e botão "próxima".
 
 - **Nota do eixo** = média das respostas dos itens do eixo, normalizada para -100..100
   (`média / 3 × 100`, arredondada). O polo é o **sinal da soma** (negativo = a); nota 0 é empate.
