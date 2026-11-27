@@ -94,9 +94,8 @@ substituídas pelas abaixo.
 
 75. ✅ *(chave de 2026-11-25)* **Chave de correção:** itens por eixo e a casa pela interseção dos
     eixos 1 e 2 estão no arquivo recebido. "As duas" conta para os dois polos.
-76. [?] **Itens de desempate do eixo 1:** quais são os dois itens (do próprio eixo 1) que
-    desempatam? A chave recebida não os traz; enquanto isso, qualquer empate no eixo 1 dá
-    resultado inconclusivo.
+76. ✅ *(stakeholder, itens 23 e 26 da chave; já na config privada)* **Itens de desempate do eixo 1:** respondida: o stakeholder indicou os itens 23 e 26,
+    que ficam só na configuração privada.
 77. [?] **Desempate dos eixos 2, 3 e 4:** há itens de desempate também nesses eixos? Sem regra,
     o empate deixa o resultado inconclusivo e abre um pedido de análise.
 78. **Termo de consentimento:** podemos adaptá-lo assim?
@@ -124,7 +123,7 @@ substituídas pelas abaixo.
 84. [?] **Ids reais das casas:** a ligação das casas 1 a 4 aos polos usa os ids de `config/instance.ts`;
     falta a config real da instância para fechar o mapa do arquivo privado.
 
-## Núcleos (decisão do gestor de 2026-11-24, ADR 0013)
+## Núcleos (decisão do gestor de 2026-11-24, aceita em 2026-11-27, ADR 0013)
 
 O núcleo é um agrupamento de debate e de tarefas públicas, fora da árvore de território, com
 pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos internos. A

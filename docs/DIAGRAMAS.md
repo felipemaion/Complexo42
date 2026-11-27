@@ -32,7 +32,7 @@ flowchart TB
     H3["Casa 3"]
     H4["Casa 4"]
   end
-  subgraph N["Eixo do núcleo (circles, PROPOSTO, ADR 0013)"]
+  subgraph N["Eixo do núcleo (circles, ADR 0013)"]
     direction LR
     N1["Núcleo"] --> N2["Subnúcleo"]
   end
@@ -47,11 +47,12 @@ flowchart TB
   (`unit_id` + `house_key`): vê as pessoas ativas daquela casa cujo vínculo de território está
   nele ou abaixo.
 - Quem ainda está em `waitlisted` não aparece em nenhum dos dois eixos (ADR 0008 §1).
-- **Núcleo (proposto, ADR 0013):** árvore própria (`ltree`) de núcleos e subnúcleos, fora do
+- **Núcleo (ADR 0013, aceito; sem código ainda):** árvore própria (`ltree`) de núcleos e subnúcleos, fora do
   território, com pessoas de regiões diferentes. Valem **duas hierarquias juntas**: a árvore diz
-  *onde* a pessoa alcança e o cargo diz *o quê* ela faz. Só o nível de topo desce a árvore (vê e
-  aprova no núcleo e nos subnúcleos); os cargos intermediários valem dentro de cada núcleo. Sem
-  vista para cima nem para os lados, e sem localização.
+  *onde* a pessoa alcança e o cargo diz *o quê* ela faz. Só o nível de topo desce a árvore: vê o
+  núcleo e os subnúcleos abaixo e pode **remover** pessoas deles (auditado). **A entrada é
+  aprovada só pelo topo do próprio núcleo**; o de núcleo acima não aprova. Os cargos intermediários
+  valem dentro de cada núcleo. Sem vista para cima nem para os lados, e sem localização.
 
 ## 2. Papéis e quem concede quem
 
@@ -166,7 +167,7 @@ sequenceDiagram
 
 - Colegas verem o perfil uns dos outros: hoje não veem; decisão de produto na pergunta 80 de
   [`PERGUNTAS_STAKEHOLDER.md`](PERGUNTAS_STAKEHOLDER.md).
-- Núcleos, cargos internos, reuniões e presença: só o ADR 0013 (proposto), nas issues #168 a
-  #170, bloqueadas até o stakeholder responder (perguntas 91 a 93).
+- Núcleos, cargos internos, reuniões e presença: só o ADR 0013 (aceito), nas issues #168 a
+  #170, bloqueadas por missões e pontos; pendem só as perguntas 91 a 93 (padrão conservador).
 - Porta-voz do ciclo e avaliação (dupla): sem código ainda, nas issues #69 e #72. O painel da casa
   (ADR 0008 §3) e as funções `app.can_*` dele ainda não têm issue própria.
