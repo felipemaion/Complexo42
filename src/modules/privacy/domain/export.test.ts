@@ -29,6 +29,7 @@ const rows: OwnDataRows = {
     access_status: "active",
     consent_version: "v1",
     consent_at: "2026-11-19T12:00:00+00:00",
+    profile_completed_at: "2026-11-19T12:00:00+00:00",
     created_at: "2026-11-19T11:00:00+00:00",
     updated_at: "2026-11-19T12:00:00+00:00",
   },
@@ -126,11 +127,12 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 8, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 9, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
         municipio: { codigoIbge: 3550308, nome: "São Paulo", uf: "SP" },
+        perfilCompletoEm: "2026-11-19T12:00:00+00:00",
         distrito: { codigoIbge: 355030878, nome: "Sé" },
         bairro: "Vila Exemplo",
         situacaoDaConta: "active",
@@ -363,6 +365,16 @@ describe("notas dos eixos", () => {
 });
 
 describe("ownDataRowsSchema", () => {
+  it("perfil incompleto (ADR 0017): exporta com nome e município nulos e perfilCompletoEm nulo, sem quebrar", async () => {
+    const incomplete: OwnDataRows = {
+      ...rows,
+      profile: { ...rows.profile!, display_name_enc: null, municipality_code: null, municipality_name: null, state_code: null, district_code: null, district_name: null, neighborhood_enc: null, consent_version: null, consent_at: null, profile_completed_at: null },
+      contact: null,
+    };
+    const out = await build({ rows: incomplete });
+    expect(out.perfil).toMatchObject({ nome: null, municipio: null, perfilCompletoEm: null, termoDeConsentimento: { versao: null, aceitoEm: null } });
+  });
+
   it("recusa um formato inesperado do banco", () => {
     expect(ownDataRowsSchema.safeParse({ profile: null }).success).toBe(false);
   });

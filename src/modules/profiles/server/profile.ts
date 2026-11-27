@@ -142,11 +142,13 @@ export async function saveOwnProfile(
 
 const ownRow = z
   .object({
-    display_name_enc: z.string(),
-    municipality_code: z.number().int(),
-    state_code: z.string(),
+    display_name_enc: z.string().nullable(),
+    municipality_code: z.number().int().nullable(),
+    state_code: z.string().nullable(),
     district_code: z.number().int().nullable(),
     neighborhood_enc: z.string().nullable(),
+    /** Nulo = perfil incompleto (criado no primeiro login, ADR 0017): para o formulário, é como não ter perfil. */
+    profile_completed_at: z.string().nullable().optional(),
     profile_contacts: z.object({ whatsapp_enc: z.string(), social_links_enc: z.string().nullable().optional() }).nullable(),
   })
   .nullable();
@@ -163,12 +165,12 @@ export async function loadOwnProfile(
   const rowId = uuid.parse(userId);
   const { data, error } = await client
     .from("profiles")
-    .select("display_name_enc, municipality_code, state_code, district_code, neighborhood_enc, profile_contacts(whatsapp_enc, social_links_enc)")
+    .select("display_name_enc, municipality_code, state_code, district_code, neighborhood_enc, profile_completed_at, profile_contacts(whatsapp_enc, social_links_enc)")
     .eq("id", rowId)
     .maybeSingle();
   if (error) throw new Error(`profile_read_failed:${errorCode(error)}`);
   const row = ownRow.parse(data);
-  if (!row) return null;
+  if (!row || row.profile_completed_at === null || row.municipality_code === null || row.state_code === null) return null;
   const open = async (value: string | undefined, table: string, column: string) => {
     if (value === undefined) return "";
     try {
@@ -181,7 +183,7 @@ export async function loadOwnProfile(
   const neighborhood = await readNeighborhood(row.neighborhood_enc, rowId, deps);
   const social = await readSocialLinks(row.profile_contacts?.social_links_enc ?? null, rowId, deps);
   return {
-    displayName: await open(row.display_name_enc, "profiles", "display_name_enc"),
+    displayName: await open(row.display_name_enc ?? undefined, "profiles", "display_name_enc"),
     whatsapp: await open(row.profile_contacts?.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
     municipalityCode: row.municipality_code,
     stateCode: row.state_code,
@@ -247,13 +249,6 @@ function safeJson(text: string): unknown {
   } catch {
     return null;
   }
-}
-
-/** A pessoa já tem perfil? (Sem perfil, a página inicial manda para o formulário.) */
-export async function hasOwnProfile(client: ProfileDbClient, userId: string): Promise<boolean> {
-  const { data, error } = await client.from("profiles").select("id").eq("id", uuid.parse(userId)).maybeSingle();
-  if (error) throw new Error(`profile_read_failed:${errorCode(error)}`);
-  return data !== null;
 }
 
 /** Teto de linhas por consulta da API (PostgREST); explícito para o corte nunca ser silencioso. */

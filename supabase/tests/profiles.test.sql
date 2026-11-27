@@ -90,7 +90,7 @@ select ok(
 -- ---------------------------------------------------------------------------------------
 select columns_are('public', 'profiles', array[
   'id', 'display_name_enc', 'municipality_code', 'state_code', 'district_code', 'neighborhood_enc', 'status',
-  'access_status', 'consent_version', 'consent_at', 'created_at', 'updated_at'
+  'access_status', 'consent_version', 'consent_at', 'created_at', 'updated_at', 'profile_completed_at'
 ], 'profiles tem exatamente as colunas do modelo de dados');
 select columns_are('public', 'profile_contacts', array[
   'profile_id', 'whatsapp_enc', 'whatsapp_hmac', 'social_links_enc', 'updated_at'
