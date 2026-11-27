@@ -12,8 +12,8 @@ import { parseInstanceConfig } from "@/modules/instance";
  * Os tipos de unidade e seus rótulos não ficam aqui: vêm de `unit_types.label` no banco (#46).
  */
 export const instance = parseInstanceConfig({
-  name: "Organização Exemplo",
-  shortName: "OrgExemplo",
+  name: "Incubadora Complexo42",
+  shortName: "Incubadora",
   colors: {
     primary: "#1f4e79",
     secondary: "#f2a900",

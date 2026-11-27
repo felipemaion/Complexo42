@@ -88,8 +88,8 @@ roxo e verde). Cada casa tem o escudo em `public/casas/<id>-{512,128}.{webp,png}
 reserva, gerado por `scripts/otimizar-escudos.mjs`), mostrado ao lado do nome da casa (início, `/casa`, resultado)
 e pequeno nas listas da coordenação, com o nome como alt, tamanho fixo e `loading=lazy`. O escudo do app
 (`public/casas/app-logo-*`) é o logo do **app**, não de uma casa: favicon, ícone de toque, cabeçalho das telas e
-`/entrar`; ninguém "pertence" a ele. O nome exibido do app vem de `instance.name` e `instance.shortName`: a
-config da instância real usa o nome do app, e o repositório público mantém o exemplo genérico. Na visão da
+`/entrar`; ninguém "pertence" a ele. O nome exibido do app vem de `instance.name` ("Incubadora Complexo42") e
+`instance.shortName` ("Incubadora") em `config/instance.ts`, que é o nome do projeto e fica também no exemplo público. Na visão da
 coordenação os raios saem na ordem a1, a3, a2, a4, b1, b3, b2, b4: os eixos da casa em cruz e os do totem nas
 diagonais (`crossOrder`, `houseZones` em `domain/chart.ts`). A pessoa vê 4 raios; a coordenação nacional e os
 delegados veem os 4 eixos (8 raios) e o totem. Os nomes das dimensões e dos polos vêm do config do
