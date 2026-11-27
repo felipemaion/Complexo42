@@ -187,15 +187,26 @@ jobs:
           fi
       # A infra que o deploy sincroniza (ADR 0015) tambem viaja na imagem, e os
       # SCRIPTS de deploy nao podem viajar junto: rodam no host, como root.
-      - name: A infra está na imagem, e os scripts de deploy não
+      - name: A infra está na imagem, e SÓ ela
         run: |
-          for f in docker-compose.supabase.yml kong.yml initdb/02-roles.sh; do
-            docker run --rm --entrypoint ls complexo42:ci "/app/deploy/$f" > /dev/null \
-              || { echo "ERRO: /app/deploy/$f falta na imagem"; exit 1; }
-          done
-          for f in deploy.sh migra.sh backup.sh docker-compose.app.yml; do
-            if docker run --rm --entrypoint ls complexo42:ci "/app/deploy/$f" > /dev/null 2>&1; then
-              echo "ERRO: /app/deploy/$f vazou para a imagem"; exit 1
-            fi
-          done
-          echo "ok: infra na imagem, scripts fora"
+          # A lista fica no deploy.sh (allowlist): a imagem e fonte de
+          # CONTEUDO, nao de caminho. Aqui o CI confere o outro lado -- que a
+          # imagem nao traga NADA alem dela. O .dockerignore e lista de
+          # EXCLUSAO, entao arquivo novo em deploy/ entra por omissao: sem este
+          # passo, um `*.key` ou um `staging.env` viajaria na imagem, e o
+          # deploy recusaria a sincronia so em producao.
+          #
+          # A lista e LIDA do deploy.sh, nao repetida aqui: duas copias de uma
+          # lista divergem, e a divergencia apareceria no deploy, nao no CI.
+          esperado=$(sed -n '/^INFRA_PERMITIDA=(/,/^)/p' deploy/deploy.sh \
+            | sed '1d;$d' | tr -d ' \t' | grep -v '^$' | LC_ALL=C sort)
+          na_imagem=$(docker run --rm --entrypoint sh complexo42:ci \
+            -c 'cd /app/deploy && find . ! -type d | sed "s|^\./||"' | LC_ALL=C sort)
+          echo "--- esperado ---"; echo "$esperado"
+          echo "--- na imagem ---"; echo "$na_imagem"
+          if [ "$esperado" != "$na_imagem" ]; then
+            echo "ERRO: /app/deploy nao e exatamente a lista do deploy.sh"
+            diff <(echo "$esperado") <(echo "$na_imagem") || true
+            exit 1
+          fi
+          echo "ok: a imagem traz exatamente a infra da lista"

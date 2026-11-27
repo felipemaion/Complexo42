@@ -576,7 +576,14 @@ REDE_PROXY=<rede externa do proxy>
 ALVO_SAUDE=http://<alias do app>:3000/api/healthz
 MIGRA=<caminho do aplicador de migrations>
 SMOKE_IMAGEM=curlimages/curl@sha256:<digest>
+# Onde o deploy grava a infra, e onde guarda o manifesto do que gravou.
+# O manifesto fica num diretório SÓ DO ROOT -- ver a seção da sincronia.
+INFRA_DIR=<diretório de infra do ambiente>        # padrão: PROJECT_DIR
+MANIFESTO=/etc/complexo42/infra-<projeto>.manifesto
 ```
+
+O diretório do manifesto (`/etc/complexo42/`) precisa ser **do root e não
+gravável por outros** — o deploy confere isso e aborta se não for.
 
 `authorized_keys` do usuário de deploy — **uma chave por ambiente**:
 
@@ -609,8 +616,30 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 O compose do Supabase, o `kong.yml` e o `initdb/` **viajam na imagem** e o
 deploy os sincroniza no servidor. A imagem é a fonte; o servidor é cópia.
 
+**Quais arquivos — e a lista está no `deploy.sh`, não na imagem.** São
+exatamente quatro: `docker-compose.supabase.yml`, `kong.yml`,
+`initdb/01-extensions.sql` e `initdb/02-roles.sh`. A imagem é a fonte do
+**conteúdo**; nunca a fonte dos **caminhos**.
+
+> A diferença não é teórica. Se a imagem decidisse os caminhos, bastaria um
+> arquivo novo em `deploy/` que o `.dockerignore` não excluísse — ele é uma
+> lista de **exclusão**, então arquivo novo entra por omissão — para o root
+> gravar o que a imagem quisesse dentro do diretório de deploy. O caso que
+> fecha o assunto: a imagem passaria a trazer `migra.sh`, o deploy gravaria
+> por cima do aplicador de migrations, e a **etapa seguinte o executa como
+> root**. Com a lista fixa, arquivo sobrando **derruba o deploy**, e o CI
+> confere a mesma lista contra a imagem a cada build.
+
+Acrescentar arquivo à lista é decisão revisada em PR — que é onde ela deve ser.
+
 **O manifesto é o que distingue atualização de edição à mão.** O deploy grava
-em `.infra-do-deploy` (modo 600) o sha256 de cada arquivo que ele deixou.
+o sha256 de cada arquivo que ele deixou. Ele mora **num diretório só do root**
+(`/etc/complexo42/`), e **não** no diretório de deploy: modo 600 protege o
+conteúdo do arquivo, não o nome. Quem pode escrever no diretório apaga o
+manifesto e põe outro no lugar — e manifesto forjado **inverte** a garantia
+desta seção, fazendo a divergência "conferir" e o deploy sobrescrever
+justamente o arquivo que alguém editou à mão.
+
 Na execução seguinte, para cada arquivo:
 
 | situação | o que acontece |
@@ -625,7 +654,43 @@ bootstrap de banco que ninguém revisava. Saídas: levar a mudança para o
 repositório (o certo), ou rodar **uma vez** com `--adotar-infra` para aceitar
 a versão da imagem.
 
-**O `.env` nunca é tocado.** Ele é do operador e vive fora do `deploy/`.
+**Como rodar o `--adotar-infra`:** à mão, no servidor, como root — ele **não
+chega pelo SSH**, porque o forced-command passa só a referência da imagem:
+
+```sh
+sudo /opt/complexo42/deploy.sh --adotar-infra \
+  --config /etc/complexo42/staging.conf sha256:<digest>
+```
+
+Antes de rodar, **olhe o que vai ser descartado** (`git show
+origin/main:deploy/<arquivo>` contra o arquivo do servidor). A flag existe para
+destravar, não para pular a revisão.
+
+**Como o arquivo é gravado:** temporário no mesmo diretório → sha256 conferido
+depois de escrito → `mv` (rename, que é atômico). Nenhum componente do caminho
+pode ser link simbólico — nem o alvo, nem diretório nenhum até ele —, e link
+**na imagem** com nome permitido também derruba: `cat` leria o destino **no
+host**, e o deploy gravaria esse conteúdo no servidor.
+
+**No `emergencia:<tag>` a sincronia é PULADA.** A imagem vem por tag, que é
+ponteiro móvel, e gravar infra como root a partir de um ponteiro móvel é o
+oposto do que o break-glass quer: ele existe para restabelecer serviço, não
+para reescrever infra. Vantagem prática: infra divergente **não impede** de
+voltar o serviço ao ar. A próxima implantação normal sincroniza.
+
+**O rollback NÃO desfaz a sincronia.** Se o smoke falhar, o app volta para a
+imagem anterior, mas os arquivos de infra no disco continuam os da imagem nova.
+Na prática isso não quebra o rollback — quem sobe o app é o
+`docker-compose.app.yml`, que fica **fora** da sincronia; o compose do Supabase
+e o `initdb/` só valem quando alguém sobe o stack do banco ou recria o volume,
+que são ações manuais. Mas é uma assimetria a ter em mente: depois de um
+rollback, os arquivos no disco estão à frente do app no ar.
+
+**O `.env` nunca é tocado** — e isso é imposto pelo **código**, não por
+convenção: ele não está na lista, e há uma conferência no `deploy.sh` que
+aborta se alguma entrada da lista coincidir com o `ENV_FILE`, o
+`COMPOSE_APP`, o `MIGRA`, o log ou o próprio arquivo de configuração. Nem com
+`--adotar-infra` ele entra.
 
 **Os scripts de deploy não entram na imagem.** `deploy.sh`, `migra.sh`,
 `backup.sh` e os testes rodam no host, como root; não têm o que fazer dentro
@@ -656,7 +721,7 @@ própria (comparando **impressões digitais**, nunca valores) e os serviços
 saudáveis. **Fixe o método da impressão digital** — incluir ou não o newline
 muda o hash, e comparar métodos diferentes produz divergência falsa.
 
-### As quatro etapas, e por que nesta ordem
+### As cinco etapas, e por que nesta ordem
 
 1. `pull` da imagem;
 2. **sincronia da infra** (acima) — falhou, aborta antes de qualquer mudança;
