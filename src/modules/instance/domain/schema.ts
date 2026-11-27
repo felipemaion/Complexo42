@@ -339,6 +339,8 @@ export const instanceConfigSchema = z.strictObject({
     /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
     rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
     consentLockNotice: text,
+    /** Aviso de tela (fora do termo): as respostas ficam guardadas cifradas, para a troca de casa. */
+    consentStoredNotice: text,
     lockedUntilNotice: text.refine((v) => v.includes("{date}"), "use {date}"),
     changeHouseLink: text,
     /** Depois da casa aceita: o próximo passo é o perfil (via /inicio), ADR 0017. */

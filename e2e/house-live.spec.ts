@@ -119,6 +119,9 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
   // Trava de 4 meses (ADR 0016): o aviso aparece antes do aceite, junto ao botão, fora do termo.
   await expect(page.getByTestId("consent-lock-notice")).toContainText("4 meses");
+  // Respostas guardadas cifradas: aviso de tela logo depois, ainda antes do botão de aceitar e fora do termo.
+  await expect(page.getByTestId("consent-stored-notice")).toContainText("guardadas de forma cifrada");
+  await expect(page.getByTestId("consent-term")).not.toContainText("guardadas de forma cifrada");
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   // A chave (eixos, mapa das casas, letras do totem) não vai para o navegador (ADR 0014 §1).
   const html = await page.content();

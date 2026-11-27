@@ -171,6 +171,7 @@ const valid = {
     homeLink: "t",
     rateLimitedWait: "{minutes}",
     consentLockNotice: "t",
+    consentStoredNotice: "t",
     lockedUntilNotice: "{date}",
     changeHouseLink: "t",
     continueLink: "t",
