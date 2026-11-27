@@ -176,7 +176,7 @@ test("link antigo /verify com token vira /entrar sem query e avisa que o link é
   await page.goto("/verify?token=segredo-de-uso-unico&type=magiclink");
   await expect(page).toHaveURL(/\/entrar\?erro=legacy_link$/);
   expect(page.url()).not.toContain("segredo");
-  await expect(page.getByRole("alert")).toContainText("link");
+  await expect(page.getByText("Esse link de entrada é antigo ou já foi usado")).toBeVisible();
 });
 
 test("rota protegida com credencial na query: o /entrar guarda só o caminho", async ({ page }) => {
