@@ -139,10 +139,10 @@ describe("submitQuestionnaire", () => {
       consentTerm: "t",
       items,
       axes: {
-        house1: { itemIds: ["h1a", "h1b"], tieBreakItems: ["h1a"] },
-        house2: { itemIds: ["h2a", "h2b"] },
-        totem1: { itemIds: ["t1a", "t1b"], letters: { a: "X", b: "Y" } },
-        totem2: { itemIds: ["t2a", "t2b"], letters: { a: "V", b: "W" } },
+        house1: { label: "D1", poleLabels: { a: "a1", b: "b1" }, itemIds: ["h1a", "h1b"], tieBreakItems: ["h1a"] },
+        house2: { label: "D2", poleLabels: { a: "a2", b: "b2" }, itemIds: ["h2a", "h2b"] },
+        totem1: { label: "D3", poleLabels: { a: "a3", b: "b3" }, itemIds: ["t1a", "t1b"], letters: { a: "X", b: "Y" } },
+        totem2: { label: "D4", poleLabels: { a: "a4", b: "b4" }, itemIds: ["t2a", "t2b"], letters: { a: "V", b: "W" } },
       },
       houseByPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
     },
@@ -158,67 +158,89 @@ describe("submitQuestionnaire", () => {
     encrypt: async (plaintext: string, context: { table: string; column: string; rowId: string }) =>
       `enc[${context.table}.${context.column}.${context.rowId}](${plaintext})`,
   };
-  const all = (value: "a" | "b" | "both") => Object.fromEntries(items.map((i) => [i.id, value]));
+  const all = (value: -3 | -2 | -1 | 1 | 2 | 3) => Object.fromEntries(items.map((i) => [i.id, value]));
 
-  it("resultado conclusivo: o servidor pontua e manda ao banco casa e totem cifrados e assinados (para a pessoa da sessão)", async () => {
+  const encScores = (scores: object) => `enc[questionnaire_results.scores_enc.u-1](${JSON.stringify(scores)})`;
+  const conclusive = { ...all(-3), h2a: 3, h2b: 3, t1a: 3, t1b: 3 };
+  const conclusiveScores = { house1: -100, house2: 100, totem1: 100, totem2: -100 };
+  // Eixo 2 empatado (-1 e +1), sem desempate: resultado inconclusivo.
+  const tied = { ...all(-3), h2a: -1, h2b: 1 };
+
+  it("resultado conclusivo: o servidor pontua e manda ao banco casa, totem e notas cifrados e assinados (para a pessoa da sessão)", async () => {
     const { client, calls } = fakeClient();
-    const answers = { ...all("a"), h2a: "b", h2b: "b", t1a: "b", t1b: "b" };
-    expect(await submitQuestionnaire(client, { answers }, ctx)).toEqual({ ok: true, outcome: "recorded", houseId: "casa-b" });
+    const outcome = await submitQuestionnaire(client, { answers: conclusive }, ctx);
+    expect(outcome).toMatchObject({ ok: true, outcome: "recorded", houseId: "casa-b" });
+    const totemEnc = "enc[questionnaire_results.totem_enc.u-1](YV)";
     expect(calls).toEqual([
       {
         fn: "record_questionnaire_result",
         args: {
           p_term_version: "termo-1",
           p_house_key: "casa-b",
-          p_totem_enc: "enc[questionnaire_results.totem_enc.u-1](YV)",
+          p_totem_enc: totemEnc,
+          p_scores_enc: encScores(conclusiveScores),
           p_issued_at: 1000,
-          p_signature: "sig(result|u-1|termo-1|casa-b|enc[questionnaire_results.totem_enc.u-1](YV)|1000)",
+          p_signature: `sig(result|u-1|termo-1|casa-b|${totemEnc}|${encScores(conclusiveScores)}|1000)`,
         },
       },
     ]);
   });
 
-  it("nem totem nem respostas em texto puro vão ao banco: só os valores cifrados", async () => {
+  it("nem totem, nem notas, nem respostas em texto puro vão ao banco: só os valores cifrados", async () => {
     const { client, calls } = fakeClient();
-    await submitQuestionnaire(client, { answers: { ...all("a"), h2a: "b", h2b: "b", t1a: "b", t1b: "b" } }, ctx);
-    await submitQuestionnaire(client, { answers: all("both") }, ctx);
-    for (const call of calls) expect(Object.keys(call.args).filter((k) => k === "p_totem" || k === "p_answers")).toEqual([]);
+    await submitQuestionnaire(client, { answers: conclusive }, ctx);
+    await submitQuestionnaire(client, { answers: tied }, ctx);
+    for (const call of calls) expect(Object.keys(call.args).filter((k) => ["p_totem", "p_scores", "p_answers"].includes(k))).toEqual([]);
   });
 
-  it("a resposta ao navegador traz a casa, nunca o totem", async () => {
+  it("a resposta ao navegador traz a casa e o perfil só dos eixos da casa: nunca o totem nem as notas dos outros eixos", async () => {
     const { client } = fakeClient();
-    expect(JSON.stringify(await submitQuestionnaire(client, { answers: all("a") }, ctx))).not.toMatch(/AA|XV|totem/);
+    const outcome = await submitQuestionnaire(client, { answers: conclusive }, ctx);
+    expect(outcome).toEqual({
+      ok: true,
+      outcome: "recorded",
+      houseId: "casa-b",
+      chart: [
+        { key: "house1", label: "D1", poleA: "a1", poleB: "b1", score: -100 },
+        { key: "house2", label: "D2", poleA: "a2", poleB: "b2", score: 100 },
+      ],
+    });
+    expect(JSON.stringify(outcome)).not.toMatch(/YV|totem|D3|D4|a3|b4/);
   });
 
-  it("resultado inconclusivo: abre o pedido de análise com as respostas completas, cifradas e assinadas", async () => {
+  it("resultado inconclusivo: abre o pedido de análise com as respostas completas, cifradas e assinadas; sem perfil para o navegador", async () => {
     const { client, calls } = fakeClient();
-    const answers = all("both");
-    expect(await submitQuestionnaire(client, { answers }, ctx)).toEqual({ ok: true, outcome: "analysis" });
+    expect(await submitQuestionnaire(client, { answers: tied }, ctx)).toEqual({ ok: true, outcome: "analysis" });
+    const answersEnc = `enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(tied)})`;
     expect(calls).toEqual([
       {
         fn: "request_house_analysis",
         args: {
           p_term_version: "termo-1",
-          p_tied_axes: ["house1", "house2", "totem1", "totem2"],
-          p_answers_enc: `enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(answers)})`,
+          p_tied_axes: ["house2"],
+          p_answers_enc: answersEnc,
           p_issued_at: 1000,
-          p_signature: `sig(analysis|u-1|termo-1|house1,house2,totem1,totem2|enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(answers)})|1000)`,
+          p_signature: `sig(analysis|u-1|termo-1|house2|${answersEnc}|1000)`,
         },
       },
     ]);
   });
 
-  it("recusa, sem chamar o banco nem assinar, respostas incompletas, itens inventados, valores inválidos e campos a mais", async () => {
+  it("recusa, sem chamar o banco nem assinar, respostas incompletas, itens inventados, valores fora da escala e campos a mais", async () => {
     const { client, calls } = fakeClient();
-    const incomplete: Record<string, "a" | "b" | "both"> = all("a");
+    const incomplete: Record<string, number> = all(-3);
     delete incomplete.h1a;
     for (const input of [
       { answers: {} },
       { answers: incomplete },
-      { answers: { ...all("a"), zz: "a" } },
-      { answers: { ...all("a"), h1a: "talvez" } },
-      { answers: all("a"), houseId: "casa-a" },
-      { answers: all("a"), totem: "AB" },
+      { answers: { ...all(-3), zz: -1 } },
+      { answers: { ...all(-3), h1a: 0 } },
+      { answers: { ...all(-3), h1a: 4 } },
+      { answers: { ...all(-3), h1a: 1.5 } },
+      { answers: { ...all(-3), h1a: "a" } },
+      { answers: { ...all(-3), h1a: "talvez" } },
+      { answers: all(-3), houseId: "casa-a" },
+      { answers: all(-3), totem: "AB" },
       { houseId: "casa-a", totem: "AB" },
       "a",
     ]) {
@@ -230,13 +252,13 @@ describe("submitQuestionnaire", () => {
 
   it("casa fora da config é recusada", async () => {
     const { client, calls } = fakeClient();
-    expect(await submitQuestionnaire(client, { answers: all("a") }, { ...ctx, houseIds: ["outra"] })).toEqual({ ok: false, error: "failed" });
+    expect(await submitQuestionnaire(client, { answers: all(-3) }, { ...ctx, houseIds: ["outra"] })).toEqual({ ok: false, error: "failed" });
     expect(calls).toEqual([]);
   });
 
   it("traduz o erro do banco: sem permissão, e pedido renovado há pouco", async () => {
-    expect(await submitQuestionnaire(fakeClient({ error: { code: "42501" } }).client, { answers: all("a") }, ctx)).toEqual({ ok: false, error: "not_active" });
-    expect(await submitQuestionnaire(fakeClient({ error: { code: "54000" } }).client, { answers: all("both") }, ctx)).toEqual({
+    expect(await submitQuestionnaire(fakeClient({ error: { code: "42501" } }).client, { answers: all(-3) }, ctx)).toEqual({ ok: false, error: "not_active" });
+    expect(await submitQuestionnaire(fakeClient({ error: { code: "54000" } }).client, { answers: tied }, ctx)).toEqual({
       ok: false,
       error: "rate_limited",
     });

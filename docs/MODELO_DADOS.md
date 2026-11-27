@@ -385,14 +385,14 @@ navegador manda só as respostas. Com resultado conclusivo, o banco recebe só a
 
 ### `questionnaire_results` e `house_analysis_requests` (ADR 0014, #172)
 `questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
-`app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem_enc` (o totem, duas letras
+`app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem_enc`, `scores_enc` (as notas dos 4 eixos, JSON cifrado; nulo em resultado antigo) (o totem, duas letras
 maiúsculas, cifrado no servidor; o banco só confere o formato `v<n>.<iv>.<ct>`),
 `source` (`questionnaire`, pontuação no servidor do app; `analysis`, decidido pela coordenação
 nacional), `created_at`. Uma linha por pessoa, a mais recente.
 
 `house_analysis_requests`: `id`, `profile_id` (FK, cascata), `term_version`, `tied_axes` (eixos
-empatados: `house1`, `house2`, `totem1`, `totem2`), `answers_enc` (JSON item → `a`, `b` ou
-`both`, cifrado no servidor; até 8 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
+empatados: `house1`, `house2`, `totem1`, `totem2`), `answers_enc` (JSON item → intensidade
+-3, -2, -1, 1, 2 ou 3, cifrado no servidor; até 8 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
 `created_at`, `resolved_at`, `resolved_by` (nulo fora de `coordination` e se a conta de quem resolveu
 sair). `resolution`: `coordination`, `self`, `inactive` (pessoa bloqueada ou suspensa) ou
 `expired` (passou de 30 dias).
@@ -410,17 +410,17 @@ política e sem grant: só funções `security definer` leem.
 - **Quem lê** (RLS, `app.can_read_questionnaire_data`): a própria pessoa; a coordenação nacional
   (gestor da raiz ativo) sobre pessoa ativa; e um gestor com concessão ativa (abaixo) sobre pessoa
   ativa do escopo dele. Ninguém escreve pela API: só as funções abaixo.
-- **`record_questionnaire_result(termo, casa, totem_enc, emitido_em, assinatura)`:** a pessoa da
+- **`record_questionnaire_result(termo, casa, totem_enc, notas_enc, emitido_em, assinatura)`:** a pessoa da
   sessão (ativa, com o aceite daquela versão do termo; casa existente e ativa) grava o resultado
   conclusivo e fecha um pedido aberto. **Só com a assinatura do servidor do app** (HMAC-SHA256
-  sobre pessoa, termo, casa, totem cifrado e hora; vale 5 minutos; erro 42501 se faltar ou não bater):
+  sobre pessoa, termo, casa, totem e notas cifrados e hora; vale 5 minutos; erro 42501 se faltar ou não bater):
   chamar a API direto, sem a chave, não impõe resultado.
 - **`request_house_analysis(termo, eixos, respostas_enc, emitido_em, assinatura)`:** a pessoa da
   sessão abre (ou renova) o pedido do resultado inconclusivo e apaga o resultado anterior; também
   só com a assinatura (que cobre os eixos e o valor cifrado das respostas: é ela que garante que
   são as respostas completas e válidas, já que o banco não decifra). Valida os eixos e o formato do
   valor cifrado (erro 22023). Renovar um pedido aberto antes de 1 hora é recusado (54000). Gera `house_analysis_requested`.
-- **`resolve_house_analysis(pedido, casa, totem_enc, emitido_em, assinatura)`:** a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, ou de pessoa inativa, o pedido aparece como inexistente; o delegado também não resolve o de quem é gestor ativo na raiz ou na unidade da concessão ou acima dela), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa e totem cifrado; 5 minutos), nunca sobre o
+- **`resolve_house_analysis(pedido, casa, totem_enc, notas_enc, emitido_em, assinatura)`** (as notas o servidor refaz das respostas do pedido): a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, ou de pessoa inativa, o pedido aparece como inexistente; o delegado também não resolve o de quem é gestor ativo na raiz ou na unidade da concessão ou acima dela), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa, totem e notas cifrados e o **hash das respostas** que o servidor leu; 5 minutos; se o pedido mudou desde a leitura, recusa 40001), nunca sobre o
   próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Grava o resultado
   (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
   aceita a casa pelo fluxo normal (`accept_house`). A tela da coordenação para a fila ainda não
@@ -553,7 +553,7 @@ forma explícita; nenhum teste ou migration atual limpa o log.
 A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
-encerrados, aceites do termo do questionário, o resultado do questionário (casa e **totem**, cifrados e decifrados pelo servidor), os pedidos de
+encerrados, aceites do termo do questionário, o resultado do questionário (casa, **totem** e **notas por eixo**, cifrados e decifrados pelo servidor; formato 8 do arquivo), os pedidos de
 análise (com as respostas, se abertos, idem), as concessões de acesso que recebeu, papéis (com a casa do coordenador de casa),
 eventos do `audit_log` cujo alvo é a pessoa, os `house_accepted` e `questionnaire_consented` que
 ela fez (#132) e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor

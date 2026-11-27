@@ -54,6 +54,7 @@ const rows: OwnDataRows = {
   questionnaire_result: {
     house_key: "casa-um",
     totem_enc: "enc:totem",
+    scores_enc: "enc:notas",
     term_version: "termo-1",
     source: "questionnaire",
     created_at: "2026-11-19T11:25:00+00:00",
@@ -93,7 +94,8 @@ const plain: Record<string, string> = {
   "enc:redes": JSON.stringify(["https://exemplo.org/maria"]),
   "enc:quemviu": "Joana Coordena",
   "enc:totem": "AB",
-  "enc:respostas": JSON.stringify({ q01: "a", q02: "both" }),
+  "enc:respostas": JSON.stringify({ q01: -3, q02: 2 }),
+  "enc:notas": JSON.stringify({ house1: -40, house2: 75, totem1: 0, totem2: -100 }),
 };
 
 function fakeDecrypt() {
@@ -122,7 +124,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 7, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 8, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -150,6 +152,7 @@ describe("buildOwnDataExport", () => {
       resultadoDoQuestionario: {
         casaSugerida: "Casa Um",
         totem: "AB",
+        notasPorEixo: { eixo1: -40, eixo2: 75, eixo3: 0, eixo4: -100 },
         versaoDoTermo: "termo-1",
         origem: "questionnaire",
         em: "2026-11-19T11:25:00+00:00",
@@ -161,7 +164,7 @@ describe("buildOwnDataExport", () => {
           resolucao: null,
           versaoDoTermo: "termo-1",
           eixosEmpatados: ["house1"],
-          respostas: { q01: "a", q02: "both" },
+          respostas: { q01: -3, q02: 2 },
           criadoEm: "2026-11-19T11:26:00+00:00",
           resolvidoEm: null,
         },
@@ -199,9 +202,10 @@ describe("buildOwnDataExport", () => {
         // Totem e respostas do questionário (ADR 0014): cifrados na linha da própria pessoa.
         { table: "questionnaire_results", column: "totem_enc", rowId: USER },
         { table: "house_analysis_requests", column: "answers_enc", rowId: USER },
+        { table: "questionnaire_results", column: "scores_enc", rowId: USER },
       ]),
     );
-    expect(seen).toHaveLength(7);
+    expect(seen).toHaveLength(8);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {
@@ -316,6 +320,30 @@ describe("totem e respostas cifrados", () => {
     const { decrypt } = fakeDecrypt();
     const out = await build({ decrypt, rows: { ...rows, house_analysis_requests: [{ ...rows.house_analysis_requests[0]!, status: "resolved", answers_enc: null }] } });
     expect(out.pedidosDeAnalise[0]?.respostas).toBeNull();
+  });
+});
+
+describe("notas dos eixos", () => {
+  it("resultado antigo, sem notas: notasPorEixo nulo, sem tentar decifrar", async () => {
+    const { decrypt, seen } = fakeDecrypt();
+    const out = await build({ decrypt, rows: { ...rows, questionnaire_result: { ...rows.questionnaire_result!, scores_enc: null } } });
+    expect(out.resultadoDoQuestionario?.notasPorEixo).toBeNull();
+    expect(seen.map((c) => c.column)).not.toContain("scores_enc");
+  });
+
+  it("notas que não decifram ou com formato errado viram null, registrando só o nome da coluna", async () => {
+    for (const broken of ["enc:estragado", "enc:notas-ruins"]) {
+      const onDecryptError = vi.fn();
+      const decrypt = async (value: string) => {
+        if (value === "enc:notas-ruins") return JSON.stringify({ house1: "x" });
+        const out = plain[value];
+        if (out === undefined) throw new Error("decrypt_failed");
+        return out;
+      };
+      const out = await build({ rows: { ...rows, questionnaire_result: { ...rows.questionnaire_result!, scores_enc: broken } }, decrypt, onDecryptError });
+      expect(out.resultadoDoQuestionario?.notasPorEixo).toBeNull();
+      expect(onDecryptError.mock.calls.map((c) => c[0])).toEqual(["scores_enc"]);
+    }
   });
 });
 

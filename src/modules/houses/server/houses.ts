@@ -4,7 +4,7 @@
 // Toda entrada passa por Zod antes de ir ao banco, que confere de novo (R15).
 import "server-only";
 import { z } from "zod";
-import { QuestionnaireAnswerError, scoreQuestionnaire, type QuestionnaireConfig, type QuestionnaireResult } from "@/modules/questionnaire";
+import { answerValues, chartAxes, QuestionnaireAnswerError, scoreQuestionnaire, type QuestionnaireConfig, type QuestionnaireResult } from "@/modules/questionnaire";
 import type { CipherContext, HouseActionResult, HouseClient, HouseErrorCode, SubmitAnswersResult } from "../types";
 
 /** Código do Postgres/PostgREST → motivo exibido. Qualquer outro vira `failed`. */
@@ -62,6 +62,7 @@ export async function recordConsent(client: HouseClient, input: unknown, current
 
 /** Onde o totem e as respostas moram (viram o AAD da cifragem, ADR 0003 §3): a linha é a da pessoa. */
 export const totemContext = (profileId: string): CipherContext => ({ table: "questionnaire_results", column: "totem_enc", rowId: profileId });
+export const scoresContext = (profileId: string): CipherContext => ({ table: "questionnaire_results", column: "scores_enc", rowId: profileId });
 export const answersContext = (profileId: string): CipherContext => ({ table: "house_analysis_requests", column: "answers_enc", rowId: profileId });
 
 /** O que o envio das respostas precisa do servidor: o questionário real, a pessoa da sessão e a assinatura. */
@@ -81,11 +82,11 @@ export type SubmitContext = {
  * Pontua as respostas NO SERVIDOR e grava o resultado (ADR 0014 §1). O navegador manda só as
  * respostas; nunca casa, totem, versão do termo nem id. O resultado vai ao banco assinado, e o
  * banco só o aceita para a pessoa da sessão: pela API direta, o navegador não impõe resultado.
- * As respostas só são guardadas no resultado inconclusivo (pedido de análise). Totem e respostas
+ * As respostas só são guardadas no resultado inconclusivo (pedido de análise). Totem, notas e respostas
  * vão CIFRADOS (ADR 0003; AAD tabela.coluna.id-da-pessoa) e a assinatura cobre o valor cifrado.
  */
 export async function submitQuestionnaire(client: HouseClient, input: unknown, ctx: SubmitContext): Promise<SubmitAnswersResult> {
-  const parsed = z.strictObject({ answers: z.record(z.string(), z.enum(["a", "b", "both"])) }).safeParse(input);
+  const parsed = z.strictObject({ answers: z.record(z.string(), z.literal([...answerValues])) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "failed" };
   let result: QuestionnaireResult;
   try {
@@ -98,15 +99,19 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
   if (result.status === "ok") {
     if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
     const totemEnc = await ctx.encrypt(result.totem, totemContext(userId));
-    const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${nowSeconds}`);
+    const scoresEnc = await ctx.encrypt(JSON.stringify(result.scores), scoresContext(userId));
+    const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}`);
     const { error } = await client.rpc("record_questionnaire_result", {
       p_term_version: term,
       p_house_key: result.houseId,
       p_totem_enc: totemEnc,
+      p_scores_enc: scoresEnc,
       p_issued_at: nowSeconds,
       p_signature: signature,
     });
-    return error ? { ok: false, error: errorCode(error) } : { ok: true, outcome: "recorded", houseId: result.houseId };
+    if (error) return { ok: false, error: errorCode(error) };
+    // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.
+    return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
   }
   const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), answersContext(userId));
   const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${answersEnc}|${nowSeconds}`);

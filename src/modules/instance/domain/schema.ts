@@ -221,7 +221,13 @@ export const instanceConfigSchema = z.strictObject({
     /** Progresso do questionário, com `{current}` e `{total}` (ex.: "{current} de {total}"). */
     progress: text.refine((v) => v.includes("{current}") && v.includes("{total}"), "use {current} e {total}"),
     /** Botão de quem marca as duas alternativas (indecisão). */
-    bothButton: text,
+    /** Pergunta da escala de intensidade (leitor de tela) e o nome dos seis círculos, de "muito a" a "muito b". */
+    scaleLegend: text,
+    scaleOptions: z.tuple([text, text, text, text, text, text]),
+    nextButton: text,
+    finishButton: text,
+    /** Título do gráfico de aranha do perfil (eixos da casa). */
+    chartTitle: text,
     backButton: text,
     /** Título do resultado do questionário (a casa sugerida). */
     suggestedTitle: text,

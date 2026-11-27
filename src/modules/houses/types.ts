@@ -1,3 +1,4 @@
+import type { ChartAxis } from "@/modules/questionnaire";
 export type { FlowContext, FlowEvent, FlowState, JoinMethod, Step } from "./domain/flow";
 
 /** Onde o valor cifrado mora (AAD da decifragem, ADR 0003 §3). */
@@ -16,11 +17,12 @@ export type HouseErrorCode =
 export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCode };
 
 /**
- * Resposta ao envio das respostas do questionário (ADR 0014): a casa sugerida (nunca o totem) ou
- * a abertura do pedido de análise, quando o resultado foi inconclusivo.
+ * Resposta ao envio das respostas do questionário (ADR 0014): a casa sugerida e o perfil dos eixos
+ * da casa (nunca o totem nem as notas dos outros eixos) ou a abertura do pedido de análise,
+ * quando o resultado foi inconclusivo.
  */
 export type SubmitAnswersResult =
-  | { ok: true; outcome: "recorded"; houseId: string }
+  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[] }
   | { ok: true; outcome: "analysis" }
   | { ok: false; error: HouseErrorCode };
 

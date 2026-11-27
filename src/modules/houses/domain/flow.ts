@@ -1,4 +1,4 @@
-import type { Answer, Answers } from "@/modules/questionnaire";
+import type { Answer, Answers, ChartAxis } from "@/modules/questionnaire";
 
 /*
  * Fluxo da escolha da casa (#76, ADR 0008 §2 e §2.1). Puro: a tela só despacha eventos.
@@ -6,6 +6,7 @@ import type { Answer, Answers } from "@/modules/questionnaire";
  *   ask ─ sim ─▶ activities ─ atividade ─▶ presentation (self)
  *    └─ não ─▶ consent ─ recusa ─▶ activities
  *                 └─ aceita ─▶ question 1..N ─ última ─▶ submit ─ casa ─▶ presentation (questionnaire)
+ *                              (marcar um círculo e "próxima": resposta obrigatória, nenhuma de início)
  *                                                          └─ análise ─▶ analysis ─▶ activities
  *
  * As respostas vivem só neste estado, em memória (nunca no armazenamento do navegador). Ao fim
@@ -25,7 +26,8 @@ export type Step =
   | { kind: "submit" }
   /** Resultado inconclusivo: a coordenação nacional decide a casa. */
   | { kind: "analysis" }
-  | { kind: "presentation"; houseId: string; method: JoinMethod };
+  /** `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário. */
+  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[] };
 
 export type FlowState = { step: Step; answers: Answers };
 
@@ -33,8 +35,10 @@ export type FlowEvent =
   | { type: "knows"; value: boolean }
   | { type: "consent_accepted" }
   | { type: "consent_declined" }
+  /** Marca a intensidade da pergunta atual; só `next` avança. */
   | { type: "answer"; value: Answer }
-  | { type: "result_recorded"; houseId: string }
+  | { type: "next" }
+  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[] }
   | { type: "analysis_requested" }
   | { type: "submit_failed" }
   | { type: "activity_chosen"; houseId: string }
@@ -82,12 +86,12 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
       if (event.type === "consent_accepted") return at({ kind: "question", index: 0 }, answers);
       return state;
     case "question": {
-      if (event.type !== "answer") return state;
       const id = ctx.itemIds[step.index];
       if (id === undefined) return state;
-      const next = { ...answers, [id]: event.value };
-      if (step.index < last) return at({ kind: "question", index: step.index + 1 }, next);
-      return at({ kind: "submit" }, next);
+      if (event.type === "answer") return at(step, { ...answers, [id]: event.value });
+      // Resposta obrigatória: sem círculo marcado, "próxima" não faz nada.
+      if (event.type !== "next" || answers[id] === undefined) return state;
+      return step.index < last ? at({ kind: "question", index: step.index + 1 }, answers) : at({ kind: "submit" }, answers);
     }
     case "submit":
       return afterSubmit(state, event, last);
@@ -105,7 +109,9 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
 /** O servidor respondeu ao envio das respostas: segue para a casa, a análise, ou volta à última pergunta. */
 function afterSubmit(state: FlowState, event: FlowEvent, lastIndex: number): FlowState {
   const { answers } = state;
-  if (event.type === "result_recorded") return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire" }, answers);
+  if (event.type === "result_recorded") {
+    return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire", chart: event.chart }, answers);
+  }
   if (event.type === "analysis_requested") return at({ kind: "analysis" }, answers);
   if (event.type === "submit_failed") return at({ kind: "question", index: lastIndex }, answers);
   return state;

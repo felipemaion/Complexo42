@@ -5,7 +5,7 @@ import { decryptWith, emailBlindIndexWith, encryptWith, reencryptWith, whatsappB
 import { getEnv } from "../env";
 import { FieldCryptoError } from "./errors";
 import { getKeyring } from "./keys";
-import { signMessage } from "./result-signature";
+import { sha256Hex as sha256HexOf, signMessage } from "./result-signature";
 
 export { FieldCryptoError, type FieldCryptoErrorCode } from "./errors";
 export { keyVersionOf, normalizeE164, normalizeEmail, type FieldContext } from "./field";
@@ -42,3 +42,6 @@ export function signQuestionnaireMessage(message: string): string {
   return signMessage(key, message);
 }
 
+
+/** SHA-256 (hex) de um valor (o hash das respostas cifradas que a resolução do pedido assina). */
+export const sha256Hex = sha256HexOf;
