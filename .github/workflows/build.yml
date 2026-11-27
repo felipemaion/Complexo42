@@ -130,3 +130,7 @@ jobs:
     with:
       tag: ${{ needs.publicar.outputs.tag }}
       ambiente: ${{ needs.publicar.outputs.ambiente }}
+      # O digest identifica a imagem que ESTE build publicou e conferiu. A tag
+      # é ponteiro: entre publicar e implantar ela pode passar a apontar para
+      # outra imagem (#161). Quando o digest existe, é ele que vai pelo SSH.
+      digest: ${{ needs.publicar.outputs.digest }}

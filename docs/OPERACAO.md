@@ -528,11 +528,18 @@ todo o resto: tudo o que ele executa ou interpreta é conferido antes.
 
 ### As três entradas, e por que cada uma é tratada assim
 
-**A tag** chega por **argumento**, não por `SSH_ORIGINAL_COMMAND` — essa
-variável não sobrevive ao `sudo` (`env_reset`). É validada com `[[ =~ ]]` e
-**não** com `grep`: o `grep` casa por **linha**, então `sha-abc\nrm -rf /`
-passaria por um `^...$` olhando só a primeira linha. Isso foi medido, não
-suposto. Aceita `sha-<hex>`, `vAAAA.MM.DD[.n]` e `main`.
+**A referência da imagem** chega por **argumento**, não por
+`SSH_ORIGINAL_COMMAND` — essa variável não sobrevive ao `sudo` (`env_reset`).
+É validada com `[[ =~ ]]` e **não** com `grep`: o `grep` casa por **linha**,
+então `sha-abc\nrm -rf /` passaria por um `^...$` olhando só a primeira linha.
+Isso foi medido, não suposto. Aceita uma tag (`sha-<hex>`, `vAAAA.MM.DD[.n]`,
+`main`) **ou um digest** (`sha256:<64 hex>`).
+
+> **Por que digest (#161).** Tag é ponteiro, digest é conteúdo. Entre o build
+> e o deploy uma tag pode passar a apontar para outra imagem. O workflow manda
+> o digest que o build publicou **e conferiu**. A tag `sha-<curto>` também é
+> imutável por convenção nossa, então isto fecha uma janela, não corrige um
+> buraco aberto.
 
 > O forced-command restringe o **comando**, não o argumento.
 
@@ -591,16 +598,26 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 
 ### As quatro etapas, e por que nesta ordem
 
-1. `pull` da tag;
+1. `pull` da imagem;
 2. **migrations** — falhou, aborta e o app **não** é trocado;
 3. `up -d`;
-4. **smoke** em `/api/healthz`; falhou, volta para a tag anterior.
+4. **smoke** em `/api/healthz`; falhou, volta para a imagem anterior.
 
-A tag anterior vem do **ID** do container no ar (`compose ps -q`), não de um
-nome montado à mão nem de arquivo de estado: o sufixo `-app-1` é convenção do
-Compose, e arquivo mente quando alguém mexe à mão. Imagem presa por **digest**
-não tem tag para onde voltar, e `main` é **móvel** — nos dois casos o script
-diz que não há rollback possível em vez de fingir que fez.
+A imagem anterior vem do **ID** do container no ar (`compose ps -q`), não de
+um nome montado à mão nem de arquivo de estado: o sufixo `-app-1` é convenção
+do Compose, e arquivo mente quando alguém mexe à mão. O script guarda a
+**referência completa**, então voltar para uma imagem presa por digest é o
+melhor caso, não um impedimento.
+
+Recusa voltar para `:main` (móvel), para uma referência truncada (`repo:` sem
+tag, que um container sem imagem registrada produz) e para `repo` sem tag nem
+digest (`:latest` implícito). Nesses casos diz que não há rollback possível em
+vez de fingir que fez.
+
+**O compose usa `image: ${APP_IMAGEM}`**, a referência completa — antes era
+`ghcr.io/...:${APP_TAG}`, que não comporta digest, porque `@sha256:...` não
+entra depois de um `:`. **Quem mantiver uma cópia do compose fora deste
+repositório (a produção, por ADR 0009 §3) precisa da mesma mudança.**
 
 > **Migrations são expand/contract.** O rollback troca só o **app**; o banco
 > continua no schema novo. Uma migration que remove ou renomeia coluna torna o
@@ -658,8 +675,8 @@ trava aqui e o erro aparece no passo 2, antes de o app ser trocado.
 - `ALTER TYPE ... ADD VALUE` não pode ser usado na **mesma** transação que o
   criou; separe em duas migrations.
 
-Variáveis: `APP_TAG` (vem do `deploy.sh`), `IMAGEM`, `DB_CONTAINER` e,
-opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
+Variáveis: `APP_IMAGEM` (a referência completa, vem do `deploy.sh`),
+`DB_CONTAINER` e, opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
 
 Testes: `deploy/migra.test.sh` (25 asserções, dublê de `docker`) e
 `deploy/migra-integracao.test.sh` (12 asserções contra um Postgres de
@@ -679,10 +696,11 @@ vira escrita como root. Sai com 3 se outro deploy está em andamento.
 
 ### Registro
 
-Uma linha por execução em `data/logs/deploy.log`: data, tag, resultado
-(`ok`, `pull_falhou`, `migrations_falharam`, `rollback_ok=<tag>`,
-`rollback_falhou=<tag>`, `smoke_falhou_sem_rollback`, `up_falhou_sem_rollback`)
-e duração. O script recusa escrever se o log for link simbólico.
+Uma linha por execução em `data/logs/deploy.log`: data, **imagem**
+(referência completa — com digest a linha fica mais longa, e é o digest que
+identifica o que subiu), resultado (`ok`, `pull_falhou`,
+`migrations_falharam`, `rollback_ok=<imagem>`, `rollback_falhou=<imagem>`,
+`smoke_falhou_sem_rollback`, `up_falhou_sem_rollback`) e duração. O script recusa escrever se o log for link simbólico.
 
 ### Teste
 
@@ -699,6 +717,10 @@ Preferi `workflow_call` a `workflow_run`: ali os valores chegam explícitos em
 vez de serem garimpados do payload do evento. Escolher o ambiente errado por
 uma leitura equivocada do payload é o tipo de erro que só aparece quando algo
 vai para produção sem querer.
+
+O `build.yml` passa adiante **o digest** da imagem que publicou, além da
+tag; o `deploy.yml` manda o digest pelo SSH quando ele existe (no
+`workflow_dispatch` manual, onde não há, manda a tag).
 
 | Evento | Tags publicadas | Ambiente |
 |---|---|---|

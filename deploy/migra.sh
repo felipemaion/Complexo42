@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Aplica as migrations pendentes antes de trocar o app (issue #81, ADR 0009 §3).
-# Chamado pelo deploy.sh como $MIGRA com APP_TAG no ambiente. Sai != 0 em
+# Chamado pelo deploy.sh como $MIGRA com APP_IMAGEM no ambiente. Sai != 0 em
 # qualquer falha, e é isso que faz o deploy abortar com o app intacto.
 #
-# As migrations vêm DA IMAGEM da tag, não de um checkout no servidor: o deploy
-# recebe só a tag, e o schema tem de ser o que veio com ela.
+# As migrations vêm DA IMAGEM que o deploy vai subir -- a MESMA referência,
+# tag ou digest --, não de um checkout no servidor. O schema tem de ser o que
+# veio com aquela imagem, e com digest isso deixa de depender de um ponteiro.
 #
 # O psql roda DENTRO do container do banco (`docker exec`), sem `-h` e sem
 # senha. Isso NÃO é suposição: foi conferido no container do staging em
@@ -55,10 +56,9 @@ trap limpar EXIT
 if [ -n "$DE" ]; then
   cp -R "$DE" "$TMP/migrations"
 else
-  exige APP_TAG "a tag que o deploy pediu"
-  exige IMAGEM "o repositorio da imagem"
+  exige APP_IMAGEM "a imagem que o deploy pediu (tag ou digest)"
   CRIADO=migra-$$
-  docker create --name "$CRIADO" "$IMAGEM:$APP_TAG" > /dev/null
+  docker create --name "$CRIADO" "$APP_IMAGEM" > /dev/null
   docker cp "$CRIADO:/app/supabase/migrations" "$TMP/migrations"
   docker rm -f "$CRIADO" > /dev/null; CRIADO=
 fi

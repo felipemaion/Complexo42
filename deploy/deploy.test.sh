@@ -17,7 +17,7 @@ printf '#!/bin/sh\nexit 0\n' > "$BASE/migra.sh"; chmod +x "$BASE/migra.sh"
 
 cat > "$BASE/bin/docker" << 'DUBLE'
 #!/usr/bin/env bash
-printf 'APP_TAG=%s %s\n' "${APP_TAG:-}" "$*" >> "$STUB_CHAMADAS"
+printf 'APP_IMAGEM=%s %s\n' "${APP_IMAGEM:-}" "$*" >> "$STUB_CHAMADAS"
 [ "$1 $2" = "compose -p" ] && case "$*" in *" ps -q app") echo cid123; exit 0 ;; esac
 [ "$1 $2" = "inspect -f" ] && { printf 'ghcr.io/felipemaion/complexo42:%s\n' "${STUB_ANTERIOR-sha-9999999}"; exit 0; }
 case "$1" in
@@ -56,14 +56,21 @@ escreve_config
 
 echo "== a tag e a unica superficie de ataque"
 . "$SCRIPT" --funcoes; set +e
-for t in sha-abc1234 v2026.11.19 v2026.11.19.2 main; do
-  tag_valida "$t" && verifica "aceita $t" 0 || verifica "aceita $t" 1; done
-for t in 'sha-abc; rm -rf /' 'sha-abc$(id)' '../../etc' latest '' sha-ZZZ v2026-11-19; do
-  tag_valida "$t" && verifica "recusa '$t'" 1 || verifica "recusa '$t'" 0; done
+DIGEST=sha256:$(printf 'a%.0s' $(seq 1 64))
+for t in sha-abc1234 v2026.11.19 v2026.11.19.2 main "$DIGEST"; do
+  referencia_valida "$t" && verifica "aceita ${t:0:22}" 0 || verifica "aceita ${t:0:22}" 1; done
+for t in 'sha-abc; rm -rf /' 'sha-abc$(id)' '../../etc' latest '' sha-ZZZ v2026-11-19 \
+         sha256:abc 'sha256:ZZZ'; do
+  referencia_valida "$t" && verifica "recusa '${t:0:22}'" 1 || verifica "recusa '${t:0:22}'" 0; done
 HOSTIL=$'sha-abc1234\nrm -rf /'
-tag_valida "$HOSTIL" && verifica "recusa tag com QUEBRA DE LINHA (grep casava por linha)" 1 \
-                     || verifica "recusa tag com QUEBRA DE LINHA (grep casava por linha)" 0
-tag_reversivel main && verifica "nao volta para 'main', que e movel" 1 || verifica "nao volta para 'main', que e movel" 0
+referencia_valida "$HOSTIL" && verifica "recusa referencia com QUEBRA DE LINHA" 1 \
+                            || verifica "recusa referencia com QUEBRA DE LINHA" 0
+[ "$(imagem_de sha-abc1234)" = "ghcr.io/felipemaion/complexo42:sha-abc1234" ] && r=0 || r=1
+verifica "tag vira repo:tag" $r
+[ "$(imagem_de "$DIGEST")" = "ghcr.io/felipemaion/complexo42@$DIGEST" ] && r=0 || r=1
+verifica "digest vira repo@digest (com @, nao :)" $r
+imagem_reversivel "ghcr.io/felipemaion/complexo42:main" && verifica "nao volta para :main, que e movel" 1 || verifica "nao volta para :main, que e movel" 0
+imagem_reversivel "ghcr.io/felipemaion/complexo42@$DIGEST" && verifica "volta para digest, que e imutavel" 0 || verifica "volta para digest, que e imutavel" 1
 
 echo "== a interface e argumento, nao ambiente"
 roda "$HOSTIL"; [ $? = 2 ] && r=0 || r=1; verifica "tag hostil por argumento sai 2" $r
@@ -89,9 +96,19 @@ grep -q 'compose -p complexo42stg-app ' "$STUB_CHAMADAS" && r=0 || r=1
 verifica "usa projeto Compose PROPRIO do app" $r
 grep -q 'remove-orphans' "$STUB_CHAMADAS" && r=1 || r=0
 verifica "NUNCA passa --remove-orphans (derrubaria o banco)" $r
-grep -q 'APP_TAG=sha-abc1234 compose.*up -d' "$STUB_CHAMADAS" && r=0 || r=1
-verifica "sobe com APP_TAG = a tag nova" $r
+grep -q 'APP_IMAGEM=ghcr.io/felipemaion/complexo42:sha-abc1234 compose.*up -d' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "sobe com APP_IMAGEM = a imagem nova" $r
 tail -1 "$LOG" | grep -q 'resultado=ok' && r=0 || r=1; verifica "registra ok no deploy.log" $r
+
+echo "== deploy por digest, de ponta a ponta"
+DIG=sha256:$(printf 'b%.0s' $(seq 1 64))
+roda "$DIG"; verifica "deploy por digest sai 0" $?
+grep -q "pull ghcr.io/felipemaion/complexo42@$DIG" "$STUB_CHAMADAS" && r=0 || r=1
+verifica "faz pull por repo@digest" $r
+grep -q "APP_IMAGEM=ghcr.io/felipemaion/complexo42@$DIG compose.*up -d" "$STUB_CHAMADAS" && r=0 || r=1
+verifica "e sobe com a imagem presa por digest" $r
+tail -1 "$LOG" | grep -q "imagem=ghcr.io/felipemaion/complexo42@$DIG" && r=0 || r=1
+verifica "o log grava a imagem completa, nao so a tag" $r
 
 echo "== falhas, cada uma com seu registro"
 STUB_PULL=1 roda sha-abc1234; [ $? -ne 0 ] && r=0 || r=1; verifica "pull falhando derruba o deploy" $r
@@ -109,9 +126,9 @@ tail -1 "$LOG" | grep -qE 'resultado=rollback' && r=0 || r=1; verifica "e o up f
 echo "== smoke que falha volta para a tag anterior"
 STUB_SMOKE=falha_primeiro STUB_FALHAS=3 roda sha-abc1234; [ $? -ne 0 ] && r=0 || r=1
 verifica "smoke falhando derruba o deploy" $r
-grep -q 'APP_TAG=sha-9999999 compose.*up -d' "$STUB_CHAMADAS" && r=0 || r=1
-verifica "e sobe de novo com APP_TAG = a tag ANTERIOR" $r
-tail -1 "$LOG" | grep -q 'resultado=rollback_ok=sha-9999999' && r=0 || r=1
+grep -q 'APP_IMAGEM=ghcr.io/felipemaion/complexo42:sha-9999999 compose.*up -d' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "e sobe de novo com APP_IMAGEM = a ANTERIOR" $r
+tail -1 "$LOG" | grep -q 'resultado=rollback_ok=ghcr.io/felipemaion/complexo42:sha-9999999' && r=0 || r=1
 verifica "registra o rollback com a tag de destino" $r
 
 STUB_ANTERIOR= STUB_SMOKE=falha_sempre roda sha-abc1234

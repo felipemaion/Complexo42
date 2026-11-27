@@ -5,7 +5,8 @@
 # RODA COMO ROOT, por sudo, a partir de um forced-command. Isso define todo o
 # desenho de segurança abaixo:
 #
-#   - A TAG é o único dado que atravessa o SSH, e chega por ARGUMENTO. Não se
+#   - A REFERÊNCIA (tag ou digest) é o único dado que atravessa o SSH, e
+#     chega por ARGUMENTO. Não se
 #     lê SSH_ORIGINAL_COMMAND aqui: ele não sobrevive ao sudo (env_reset).
 #   - Os CAMINHOS vêm de um arquivo de configuração do root, nunca do
 #     ambiente. Caminho vindo do ambiente, com sudo que preserva env, é
@@ -17,7 +18,7 @@
 # As conferências de dono só valem quando o processo é root — fora disso não
 # há privilégio para escalar, e é assim que o teste roda sem ser root.
 #
-# Uso: deploy.sh --config <arquivo> <tag>
+# Uso: deploy.sh --config <arquivo> <tag|sha256:digest>
 set -euo pipefail
 umask 077
 SOU_ROOT=0; [ "$(id -u)" -eq 0 ] && SOU_ROOT=1
@@ -36,19 +37,44 @@ IMAGEM_PADRAO=ghcr.io/felipemaion/complexo42
 agora() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 log() { printf '%s %s\n' "$(agora)" "$*" >&2; }
 
-# ── a tag, única entrada vinda de fora ──
+# ── a referência, única entrada vinda de fora ──
+# Uma TAG (`sha-<hex>`, `vAAAA.MM.DD`, `main`) ou um DIGEST (`sha256:<64hex>`).
+# Digest é o que o build publicou de fato; tag é um ponteiro que pode passar a
+# apontar para outra imagem entre o build e o deploy (#161).
+#
 # `[[ =~ ]]` e NÃO `grep`: grep casa por LINHA, então "sha-abc1234\nrm -rf /"
 # passaria pelo ^...$ olhando só a primeira linha. Medido.
-tag_valida() {
+referencia_valida() {
   [[ $1 =~ ^sha-[0-9a-f]{7,40}$ ]] && return 0
   [[ $1 =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] && return 0
   [[ $1 == main ]] && return 0
+  [[ $1 =~ ^sha256:[0-9a-f]{64}$ ]] && return 0
   return 1
 }
 
-# Tag para a qual FAZ SENTIDO voltar: `main` é móvel (hoje aponta para outro
-# commit), e imagem presa por digest não tem tag para reusar.
-tag_reversivel() { tag_valida "$1" && [ "$1" != main ]; }
+# O que o `docker` recebe: digest separa com `@`, tag com `:`.
+imagem_de() {
+  local repo=${IMAGEM:-$IMAGEM_PADRAO}
+  case "$1" in
+    sha256:*) printf '%s@%s' "$repo" "$1" ;;
+    *)        printf '%s:%s' "$repo" "$1" ;;
+  esac
+}
+
+# Imagem para a qual FAZ SENTIDO voltar. Não basta ser não-vazia: um container
+# sem imagem registrada devolve algo como `repo:` (dois-pontos sem tag), e
+# subir isso falharia de um jeito confuso. `:main` é móvel -- voltar para ela
+# devolveria sabe-se lá qual build. `repo` sem nada vira `:latest` implícito.
+imagem_reversivel() {
+  case "$1" in
+    "")          return 1 ;;
+    *@sha256:*)  return 0 ;;   # digest: imutável, o melhor destino
+    *:main)      return 1 ;;   # móvel
+    *:)          return 1 ;;   # truncada, sem tag
+    *:*)         return 0 ;;   # tag qualquer, imutável por convenção nossa
+    *)           return 1 ;;   # sem tag nem digest
+  esac
+}
 
 modo_e_dono() { stat -c '%u %a' "$1" 2> /dev/null || stat -f '%u %Lp' "$1"; }
 
@@ -78,9 +104,9 @@ case "${1:-}" in --funcoes) return 0 2> /dev/null || exit 0 ;; esac
 [ "${1:-}" = --config ] || { log "uso: deploy.sh --config <arquivo> <tag>"; exit 2; }
 CONFIG=${2:?falta o caminho do arquivo de configuracao}
 shift 2
-TAG=${1:?falta a tag}
+REFERENCIA=${1:?falta a referencia (tag ou digest)}
 [ $# -eq 1 ] || { log "ERRO: argumentos a mais"; exit 2; }
-tag_valida "$TAG" || { log "ERRO: tag recusada"; exit 2; }
+referencia_valida "$REFERENCIA" || { log "ERRO: referencia recusada"; exit 2; }
 
 confere "$CONFIG" "o arquivo de configuracao"
 # shellcheck source=/dev/null
@@ -111,7 +137,9 @@ dc() {
   docker compose -p "$APP_PROJETO" --env-file "$ENV_FILE" -f "$COMPOSE_APP" \
     --project-directory "$PROJECT_DIR" "$@"
 }
-registra() { printf '%s tag=%s resultado=%s segundos=%s\n' "$(agora)" "$TAG" "$1" "$2" >> "$REGISTRO"; }
+# Grava a IMAGEM completa, não só a tag: com digest, o que identifica o que
+# subiu é o digest. A linha fica mais longa e continua greppável.
+registra() { printf '%s imagem=%s resultado=%s segundos=%s\n' "$(agora)" "$IMAGEM_ALVO" "$1" "$2" >> "$REGISTRO"; }
 
 smoke() {
   local i
@@ -125,18 +153,19 @@ smoke() {
   return 1
 }
 
-# Tag no ar: pelo ID do container, não por nome montado à mão -- o sufixo
-# "-app-1" é convenção do Compose, não garantia.
-tag_no_ar() {
-  local id img
+# Imagem no ar: pelo ID do container, não por nome montado à mão -- o sufixo
+# "-app-1" é convenção do Compose, não garantia. Devolve a referência COMPLETA,
+# como o Docker a guarda. Antes recortávamos a tag com `${img##*:}` e
+# desistíamos quando havia `@`; agora digest é cidadão de primeira classe e o
+# rollback não precisa remontar string nenhuma.
+imagem_no_ar() {
+  local id
   id=$(dc ps -q app 2> /dev/null) || return 0
   [ -n "$id" ] || return 0
-  img=$(docker inspect -f '{{.Config.Image}}' "$id" 2> /dev/null) || return 0
-  case "$img" in *@*) return 0 ;; esac   # preso por digest: não há tag para voltar
-  printf %s "${img##*:}"
+  docker inspect -f '{{.Config.Image}}' "$id" 2> /dev/null || return 0
 }
 
-sobe() { APP_TAG="$1" dc up -d --no-deps app; }   # sem --remove-orphans: apagaria o banco
+sobe() { APP_IMAGEM="$1" dc up -d --no-deps app; }   # sem --remove-orphans: apagaria o banco
 
 inicio=$(date +%s)
 decorrido() { echo $(( $(date +%s) - inicio )); }
@@ -145,23 +174,24 @@ exec 9> "$TRAVA" || { log "ERRO: nao consegui abrir a trava $TRAVA"; exit 4; }
 command -v flock > /dev/null || { log "ERRO: flock nao esta instalado"; exit 4; }
 flock -n 9 || { log "ERRO: outro deploy em andamento"; exit 3; }
 
-ANTERIOR=$(tag_no_ar)
-log "inicio tag=$TAG anterior=${ANTERIOR:-nenhuma}"
+IMAGEM_ALVO=$(imagem_de "$REFERENCIA")
+ANTERIOR=$(imagem_no_ar)
+log "inicio imagem=$IMAGEM_ALVO anterior=${ANTERIOR:-nenhuma}"
 
 log "1/4 pull"
-if ! docker pull "$IMAGEM:$TAG"; then
+if ! docker pull "$IMAGEM_ALVO"; then
   log "ERRO: pull falhou"; registra pull_falhou "$(decorrido)"; exit 1
 fi
 
 # 2/4 ANTES do up: migration quebrada não pode conviver com app novo.
 log "2/4 migrations"
-if ! APP_TAG="$TAG" "$MIGRA"; then
+if ! APP_IMAGEM="$IMAGEM_ALVO" "$MIGRA"; then
   log "ERRO: migrations falharam -- app NAO foi trocado"
   registra migrations_falharam "$(decorrido)"; exit 1
 fi
 
 volta() { # volta <motivo>
-  if [ -n "$ANTERIOR" ] && tag_reversivel "$ANTERIOR" && [ "$ANTERIOR" != "$TAG" ]; then
+  if imagem_reversivel "$ANTERIOR" && [ "$ANTERIOR" != "$IMAGEM_ALVO" ]; then
     log "rollback para $ANTERIOR"
     if sobe "$ANTERIOR" && smoke > /dev/null; then
       log "rollback saudavel"; registra "rollback_ok=$ANTERIOR" "$(decorrido)"
@@ -169,13 +199,13 @@ volta() { # volta <motivo>
       log "ALERTA: rollback nao responde"; registra "rollback_falhou=$ANTERIOR" "$(decorrido)"
     fi
   else
-    log "ALERTA: sem tag anterior reversivel"; registra "${1}_sem_rollback" "$(decorrido)"
+    log "ALERTA: sem imagem anterior reversivel"; registra "${1}_sem_rollback" "$(decorrido)"
   fi
   exit 1
 }
 
 log "3/4 up"
-if ! sobe "$TAG"; then log "ERRO: up falhou"; volta up_falhou; fi
+if ! sobe "$IMAGEM_ALVO"; then log "ERRO: up falhou"; volta up_falhou; fi
 
 log "4/4 smoke"
 if segs=$(smoke); then
