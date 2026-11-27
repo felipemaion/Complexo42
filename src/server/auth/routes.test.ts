@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decideRoute, HOME_PATH, isPublicPath, needsNoStore, safeNextPath } from "./routes";
+import { decideRoute, HOME_PATH, isPublicPath, needsNoStore, safeNextPath, waitlistPageTarget, WAITLIST_PATH } from "./routes";
 
 describe("decideRoute (#9)", () => {
   it("sem sessão, rota protegida vai para /entrar guardando o destino", () => {
@@ -85,5 +85,20 @@ describe("needsNoStore (#9, L3)", () => {
     expect(needsNoStore("/auth/callback", false)).toBe(true);
     expect(needsNoStore("/inicio", true)).toBe(true);
     expect(needsNoStore("/", false)).toBe(false);
+  });
+});
+
+describe("waitlistPageTarget (#195): quem abre /espera já liberado vai para dentro", () => {
+  it("o portão de acesso deixou passar (ativo): vai para a página inicial, não fica na espera", () => {
+    expect(waitlistPageTarget(null)).toBe(HOME_PATH);
+  });
+
+  it("o portão manda para a espera (ainda aguardando): fica na página", () => {
+    expect(waitlistPageTarget(WAITLIST_PATH)).toBeNull();
+  });
+
+  it("bloqueado ou falha na checagem: segue o destino do portão (encerra a sessão)", () => {
+    expect(waitlistPageTarget("/auth/sair?motivo=blocked")).toBe("/auth/sair?motivo=blocked");
+    expect(waitlistPageTarget("/auth/sair?motivo=failed")).toBe("/auth/sair?motivo=failed");
   });
 });

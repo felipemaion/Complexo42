@@ -11,7 +11,7 @@ import { getAuthConfig, type AuthConfig } from "./config";
 import { consentRedirect } from "./consent";
 import { onFirstLogin } from "./first-login";
 import { maskEmail } from "./mask";
-import { LOGIN_PATH, SIGNOUT_PATH, WAITLIST_PATH } from "./routes";
+import { LOGIN_PATH, SIGNOUT_PATH, WAITLIST_PATH, waitlistPageTarget } from "./routes";
 
 // Sessão nas páginas, server actions e rotas (#9). O cliente usa a chave anon + o JWT do
 // usuário que está no cookie: a RLS continua valendo (R14).
@@ -131,6 +131,16 @@ export async function accessRedirect(client: AuthClient, userId: string): Promis
   if (decision === "waitlist") return WAITLIST_PATH;
   if (decision === "blocked") return `${SIGNOUT_PATH}?motivo=blocked`;
   return null;
+}
+
+/**
+ * Para onde /espera manda quem a abre (#195), ou null para ficar. Sem sessão a página segue pública
+ * (só texto fixo); com sessão, o portão de acesso decide: quem já foi liberado vai para dentro.
+ */
+export async function waitlistPageRedirect(): Promise<string | null> {
+  const session = await getSession();
+  if (!session) return null;
+  return waitlistPageTarget(await accessRedirect(session.client, session.user.id));
 }
 
 /**

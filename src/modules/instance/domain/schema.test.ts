@@ -8,7 +8,7 @@ const valid = {
   colors: { primary: "#000000", secondary: "#FFFFFF" },
   roleLabels: Object.fromEntries(roleKeys.map((k) => [k, `rótulo ${k}`])),
   home: { title: "Título", message: "Mensagem" },
-  waitlist: { title: "Espera", message: "Mensagem de espera" },
+  waitlist: { title: "Espera", message: "Mensagem de espera", signOutButton: "Sair" },
   auth: {
     title: "t",
     intro: "t",
@@ -281,7 +281,7 @@ describe("parseInstanceConfig", () => {
     expect(fieldsOf({ ...valid, extra: 1 })).toEqual(["(raiz)"]);
     expect(fieldsOf({ ...valid, roleLabels: { ...valid.roleLabels, student: "x" } })).toEqual(["roleLabels"]);
     expect(fieldsOf({ ...valid, houses: [] })).toEqual(["houses"]);
-    expect(fieldsOf({ ...valid, waitlist: { title: "Espera", message: " " } })).toEqual(["waitlist.message"]);
+    expect(fieldsOf({ ...valid, waitlist: { title: "Espera", message: " ", signOutButton: "Sair" } })).toEqual(["waitlist.message"]);
   });
 
   it("recusa id de casa repetido, id fora do padrão e vídeo sem https", () => {
