@@ -473,15 +473,29 @@ apenas a Cloudflare alcança a origem).
 (listadas no `.env.example`): sem variável, fora de produção, vale a que sempre
 passa. O E2E as define no `playwright.config.ts`.
 
-**CSP (#86).** Quando a CSP entrar, ela precisa liberar o Turnstile:
+**CSP (#152).** O proxy (`src/proxy.ts`) põe a CSP em toda página, com um nonce
+novo a cada requisição (`src/server/csp.ts`); por isso toda página é montada na
+hora (o build lista as rotas como `ƒ`). Ela libera só o Turnstile, em toda
+página e não só em `/entrar`: um redirect de server action chega a `/entrar`
+sem recarregar, e aí vale a CSP da página anterior.
 
 | Diretiva | Origem |
 |---|---|
-| `script-src` | `https://challenges.cloudflare.com` |
+| `script-src` | `'self'`, o nonce, `'strict-dynamic'` e `https://challenges.cloudflare.com` |
 | `frame-src` | `https://challenges.cloudflare.com` |
+| `connect-src` | `'self'` (o navegador nunca fala direto com o Supabase) |
 
 A chamada ao siteverify parte do servidor, não do navegador, então não entra
-em `connect-src`.
+em `connect-src`. Para estrear num ambiente sem risco, suba com
+`CSP_REPORT_ONLY=1`: o navegador só avisa no console o que bloquearia
+(`Content-Security-Policy-Report-Only`). Sem avisos depois de usar as telas,
+tire a variável e reinicie: com ela ligada, a CSP não bloqueia nada, então não
+a deixe em produção. Para conferir: `curl -sI https://<domínio>/entrar` mostra
+o cabeçalho, com um nonce diferente a cada chamada.
+
+A única página pronta no build é a de erro geral do Next (`/_global-error`), que
+só aparece se o próprio layout raiz quebrar. Sem nonce, ela abre sem os scripts:
+o texto aparece, mas o botão de tentar de novo não responde; recarregar resolve.
 
 ## Backup cifrado e restauração (#84)
 
