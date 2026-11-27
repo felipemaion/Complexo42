@@ -19,7 +19,26 @@ supabase/config.toml
 supabase/seed.sql
 supabase/templates
 supabase/tests
-deploy
+# De `deploy/` entram SO os arquivos de infra que o deploy sincroniza no
+# servidor (ADR 0015, #186): compose do Supabase, kong.yml e initdb/. Mesma
+# regra do `supabase/` acima -- irmaos excluidos um a um, nunca a pasta com
+# `!deploy/...` depois, que nao reinclui nada.
+#
+# Os SCRIPTS de deploy (deploy.sh, migra.sh, backup.sh...) ficam de FORA de
+# proposito: eles rodam no host, como root, e nao tem o que fazer dentro da
+# imagem do app -- que roda sem privilegio e com o disco so leitura.
+deploy/*.test.sh
+deploy/backup.sh
+deploy/deploy.sh
+deploy/enviar-backup.sh
+deploy/env.example
+deploy/gen-secrets.sh
+deploy/migra.sh
+deploy/restore-test.sh
+# O compose do APP tambem fica fora: e o arquivo que o proprio deploy.sh usa
+# para subir o container. Sincroniza-lo no meio de um deploy seria trocar o
+# chao enquanto se anda nele; entra em issue propria se fizer falta.
+deploy/docker-compose.app.yml
 docs
 scripts
 tests

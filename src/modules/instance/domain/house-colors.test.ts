@@ -11,6 +11,8 @@ const darkBackground = "#111111";
  * é texto na cor do tema, dentro de um retângulo com fundo opaco.
  */
 const minGraphicContrast = 2.5;
+/** WCAG 1.4.3: texto normal. */
+const minTextContrast = 4.5;
 
 function luminance(hex: string): number {
   const [red, green, blue] = [1, 3, 5].map((start) => {
@@ -49,5 +51,11 @@ describe("cores das casas (#201)", () => {
     const broken = { ...instance, houses: instance.houses.map((house, index) => (index === 0 ? { ...house, color: { light: "vermelho", dark: "#ffffff" } } : house)) };
     expect(() => parseInstanceConfig(broken)).toThrow(/houses\.0\.color\.light/);
     expect(() => parseInstanceConfig(broken)).not.toThrow(/vermelho/);
+  });
+
+  it("o nome da casa usa o texto normal do tema, com contraste de pelo menos 4,5:1 sobre o fundo do retângulo (cor da casa só na borda e na zona)", () => {
+    // Texto e fundo padrão de cada tema (`color-scheme: light dark`): o retângulo do nome usa o fundo (Canvas).
+    expect(contrast("#000000", lightBackground)).toBeGreaterThanOrEqual(minTextContrast);
+    expect(contrast("#ffffff", darkBackground)).toBeGreaterThanOrEqual(minTextContrast);
   });
 });

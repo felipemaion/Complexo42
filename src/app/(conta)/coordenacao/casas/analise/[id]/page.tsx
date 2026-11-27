@@ -66,9 +66,9 @@ export default async function CasePage({
           {text.queue.chartTitle}
         </h2>
         <SpiderChart
-          axes={crossOrder(opened.chart)}
+          chart={crossOrder(opened.chart)}
           title={text.queue.chartTitle}
-          houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentLabel: text.queue.chartCurrentHouse }}
+          houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentHouseId: opened.houseId ?? undefined, currentLabel: text.queue.chartCurrentHouse }}
         />
       </section>
       <section className="flex flex-col gap-3" aria-labelledby="case-answers-title">
@@ -87,17 +87,27 @@ export default async function CasePage({
       <form action={resolveCaseAction} className="flex flex-col gap-4">
         <h2 className="text-2xl font-bold">{text.queue.resolveTitle}</h2>
         <input type="hidden" name="pedido" value={opened.requestId} />
-        <label className="flex flex-col gap-1 text-lg font-semibold">
-          {text.queue.houseLabel}
-          <select name="casa" required defaultValue="" className={field}>
-            <option value="" disabled />
-            {instance.houses.map((house) => (
-              <option key={house.id} value={house.id}>
-                {house.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {opened.houseId !== null ? (
+          // Pedido de totem: a casa já saiu pelos eixos da casa; o banco só aceita a do resultado.
+          <>
+            <input type="hidden" name="casa" value={opened.houseId} />
+            <p className="text-lg" data-testid="case-house-fixed">
+              {fill(text.queue.totemOnlyNotice, { house: instance.houses.find((house) => house.id === opened.houseId)?.name ?? opened.houseId })}
+            </p>
+          </>
+        ) : (
+          <label className="flex flex-col gap-1 text-lg font-semibold">
+            {text.queue.houseLabel}
+            <select name="casa" required defaultValue="" className={field}>
+              <option value="" disabled />
+              {instance.houses.map((house) => (
+                <option key={house.id} value={house.id}>
+                  {house.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-lg font-semibold">
           {text.queue.totemLabel}
           <select name="totem" required defaultValue="" className={field}>

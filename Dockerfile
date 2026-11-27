@@ -35,6 +35,10 @@ COPY --from=build /app/.next/static ./.next/static
 # verdade, que diverge em silêncio. São arquivos .sql já públicos e o
 # container do app não os lê -- quem lê é o passo de migrations do deploy.
 COPY --from=build /app/supabase/migrations ./supabase/migrations
+# Infra que o deploy sincroniza no servidor (ADR 0015): a imagem e a fonte, e
+# o deploy compara sha256 antes de trocar. Sao arquivos ja publicos, e o
+# container do app nao os le -- quem le e o passo de sincronia do deploy.
+COPY --from=build /app/deploy ./deploy
 # Único diretório gravável da imagem: os logs, montados como volume no servidor.
 # O resto roda com o sistema de arquivos só leitura (`read_only` + tmpfs em /tmp).
 RUN mkdir -p data/logs && chown node:node data/logs

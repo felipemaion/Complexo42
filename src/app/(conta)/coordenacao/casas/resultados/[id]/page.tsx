@@ -38,7 +38,7 @@ export default async function ResultPage({ params }: Readonly<{ params: Promise<
         <dt className="font-semibold">{text.results.houseLabel}</dt>
         <dd data-testid="result-house">{houseName(result.houseId)}</dd>
         <dt className="font-semibold">{text.results.totemLabel}</dt>
-        <dd data-testid="result-totem">{totemLabel(deps.questionnaire, result.totem)}</dd>
+        <dd data-testid="result-totem">{result.totem !== null ? totemLabel(deps.questionnaire, result.totem) : result.totemState === "undecided" ? text.results.totemUndecided : text.results.totemPending}</dd>
         <dt className="font-semibold">{text.results.dateLabel}</dt>
         <dd>{shortDate(result.createdAt)}</dd>
       </dl>
@@ -48,7 +48,7 @@ export default async function ResultPage({ params }: Readonly<{ params: Promise<
             {text.results.chartTitle}
           </h2>
           <SpiderChart
-            axes={crossOrder(result.chart)}
+            chart={crossOrder(result.chart)}
             title={text.results.chartTitle}
             houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentHouseId: result.houseId, currentLabel: text.results.chartCurrentHouse }}
           />

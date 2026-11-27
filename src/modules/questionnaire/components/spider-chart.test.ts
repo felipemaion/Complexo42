@@ -21,7 +21,7 @@ const houses: ChartHouses = {
   currentHouseId: "casa-2",
   currentLabel: "sua casa",
 };
-const render = (axes: readonly ChartAxis[], withHouses?: ChartHouses) => renderToStaticMarkup(createElement(SpiderChart, { axes, title: "Perfil", houses: withHouses }));
+const render = (axes: readonly ChartAxis[], withHouses?: ChartHouses) => renderToStaticMarkup(createElement(SpiderChart, { chart: axes, title: "Perfil", houses: withHouses }));
 
 describe("SpiderChart com as zonas das casas", () => {
   it("desenha uma zona por casa, com o nome dentro, e a legenda das quatro", () => {
@@ -47,6 +47,16 @@ describe("SpiderChart com as zonas das casas", () => {
     const html = render(houseAxes, houses);
     expect(html.indexOf('data-testid="house-zone-label"')).toBeGreaterThan(html.lastIndexOf("<circle"));
     expect(html.match(/data-testid="house-zone-label"><rect[^>]*fill:Canvas;stroke:light-dark\(/g)).toHaveLength(4);
+  });
+
+  it("o nome da casa é texto normal do tema (currentColor); a cor da casa fica só na borda e na zona", () => {
+    const html = render(houseAxes, houses);
+    const labels = html.match(/data-testid="house-zone-label">.*?<\/g>/g) ?? [];
+    expect(labels).toHaveLength(4);
+    for (const label of labels) {
+      expect(label).toMatch(/<text[^>]*fill="currentColor"/);
+      expect(label.match(/light-dark\(/g)).toHaveLength(1); // só a borda do retângulo
+    }
   });
 
   it("a cor muda com o tema: light-dark() com a cor clara e a escura da casa", () => {

@@ -59,11 +59,12 @@ describe("a chave do questionário não chega ao navegador (ADR 0014 §1)", () =
     for (const dir of CLIENT_DIRS) {
       for (const file of readdirSync(dir).filter((f) => f.endsWith(".tsx"))) {
         const source = readFileSync(join(dir, file), "utf8");
-        // `houseByPoles` ficou de fora da lista (#201, decisão do gestor): o mapa polos → casa chega à tela
-        // só com o resultado, para as zonas coloridas do gráfico. A pontuação, a config completa e os
-        // desempates continuam só no servidor, e a página não recebe o mapa antes das respostas
-        // (`toPublicQuestionnaire`, conferido no teste abaixo).
-        expect(source, file).not.toMatch(/scoreQuestionnaire|QuestionnaireConfig|tieBreakItems/);
+        // Só o tipo `HouseByPoles` (import type) e o payload `byPoles` podem aparecer: o mapa polos → casa chega à tela só com o
+        // resultado (#201, decisão do gestor), com o nome `byPoles`. A chave (itens, eixos, letras, desempates,
+        // nomes dos totens) e a config completa nunca chegam aos componentes.
+        expect(source, file).not.toMatch(
+          /scoreQuestionnaire|QuestionnaireConfig|getQuestionnaire|houseByPoles|\baxes\b|itemIds|\bletters\b|totemLabels|tieBreak/,
+        );
       }
     }
   });

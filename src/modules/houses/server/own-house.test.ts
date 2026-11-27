@@ -56,7 +56,7 @@ describe("readOwnHouseCard", () => {
   it("com resultado: a casa, o gráfico só dos eixos 1 e 2 e o mapa das casas", async () => {
     const { client } = fake({ questionnaire_results: { data: { house_key: HOUSE_A, scores_enc: encScores } } });
     const card = await readOwnHouseCard(client, USER, deps);
-    expect(card).toMatchObject({ kind: "house", houseId: HOUSE_A, isAccepted: false, houseByPoles: questionnaire.houseByPoles });
+    expect(card).toMatchObject({ kind: "house", houseId: HOUSE_A, isAccepted: false, byPoles: questionnaire.houseByPoles });
     if (card.kind !== "house") return;
     expect(card.chart?.map((axis) => axis.key)).toEqual(["house1", "house2"]);
   });

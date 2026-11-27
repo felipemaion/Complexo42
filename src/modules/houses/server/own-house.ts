@@ -10,7 +10,7 @@ import { scoresContext, readAcceptedHouse } from "./houses";
 
 export type OwnHouseCard =
   | { kind: "invite" }
-  | { kind: "house"; houseId: string; isAccepted: boolean; chart: ChartAxis[] | null; houseByPoles: HouseByPoles };
+  | { kind: "house"; houseId: string; isAccepted: boolean; chart: ChartAxis[] | null; byPoles: HouseByPoles };
 
 export type OwnHouseDeps = {
   crypto: { decrypt(value: string, context: CipherContext): Promise<string> };
@@ -45,5 +45,5 @@ export async function readOwnHouseCard(client: HouseClient, userId: string, deps
       chart = null;
     }
   }
-  return { kind: "house", houseId: card.houseId, isAccepted: card.isAccepted, chart, houseByPoles: questionnaire.houseByPoles };
+  return { kind: "house", houseId: card.houseId, isAccepted: card.isAccepted, chart, byPoles: questionnaire.houseByPoles };
 }

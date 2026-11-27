@@ -36,9 +36,9 @@ export function OwnHouse({ card, houses, text }: Readonly<Props>) {
       <p className="text-lg">{house.description}</p>
       {card.chart && (
         <SpiderChart
-          axes={card.chart}
+          chart={card.chart}
           title={text.chartTitle}
-          houses={{ byPoles: card.houseByPoles, houses, currentHouseId: card.houseId, currentLabel: text.chartCurrentHouse }}
+          houses={{ byPoles: card.byPoles, houses, currentHouseId: card.houseId, currentLabel: text.chartCurrentHouse }}
         />
       )}
     </section>

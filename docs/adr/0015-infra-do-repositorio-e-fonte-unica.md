@@ -111,3 +111,32 @@ rígida, verificação em cada um — executada por alguém que precisa lembrar 
 servidor onde o erro só aparece depois. O item 6 da decisão continua valendo: a recriação do
 volume segue manual, porque automatizá-la seria automatizar perda de dados. O que o deploy passa
 a cobrir são os passos 2 e a detecção de que ele é necessário.
+
+## Risco residual: o conteúdo do compose, não os caminhos
+
+A lista de arquivos que o deploy grava como root é **fixa no `deploy.sh`** — a imagem é a
+fonte do **conteúdo**, nunca dos **caminhos** (ver `docs/OPERACAO.md`, "A sincronia da
+infra"). Isso fecha a escalada por caminho: a imagem não pode fazer o root sobrescrever o
+aplicador de migrations, que a etapa seguinte executa.
+
+**O que esta decisão não fecha, e é preciso dizer em voz alta:** quem controla o que entra na
+imagem controla o **conteúdo** desses quatro arquivos. E o `docker-compose.supabase.yml`
+descreve containers que sobem **como root no host**. Um compose com `privileged: true`, com
+`/var/run/docker.sock` montado, com `- /:/host` ou com `pid: host` é saída do container para a
+máquina — sem precisar de nenhuma falha de software.
+
+Isso é **inerente** a "a infra do repositório é a fonte única". Não é um defeito da
+implementação: é o preço da decisão, e o preço é aceitável porque o que protege esse conteúdo é
+o mesmo que protege o resto do código — revisão de PR, `main` protegida, ancestralidade provada
+no build e implantação por digest. Quem consegue mesclar um compose malicioso na `main` também
+consegue mesclar um `src/` malicioso.
+
+Três consequências práticas:
+
+1. **Mudança no `docker-compose.supabase.yml` é mudança de privilégio**, e merece a mesma
+   atenção de revisão que uma mudança no `deploy.sh` — não a de um arquivo de configuração.
+2. **O CI tem um grep de sanidade** (`privileged`, `docker.sock`, `- /:`, `cap_add`,
+   `pid: host`, `network_mode: host`). Ele não substitui a revisão; pega a regressão óbvia e
+   obriga quem precisa de um desses a tirá-lo da lista deliberadamente, em PR.
+3. **Não estender a lista sem este raciocínio.** Cada arquivo novo nela é uma superfície nova
+   que a imagem passa a controlar no host.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "./flow";
 
-const ctx: FlowContext = { itemIds: ["q1", "q2", "q3"] };
+const ctx: FlowContext = { questionIds: ["q1", "q2", "q3"] };
 const chart = [{ key: "house1", label: "D1", poleA: "a1", poleB: "b1", score: -40 }] as const;
 const answerAll: FlowEvent[] = [
   { type: "consent_accepted" },
@@ -96,9 +96,9 @@ describe("fluxo da escolha da casa", () => {
     });
 
     it("o mapa das casas do resultado (#201) vai junto para a apresentação, para as zonas coloridas do gráfico", () => {
-      const houseByPoles = { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" };
-      const step = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-x", chart, houseByPoles }, ctx).step;
-      expect(step).toEqual({ kind: "presentation", houseId: "casa-x", method: "questionnaire", chart, houseByPoles });
+      const byPoles = { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" };
+      const step = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-x", chart, byPoles }, ctx).step;
+      expect(step).toEqual({ kind: "presentation", houseId: "casa-x", method: "questionnaire", chart, byPoles });
     });
 
     it("o servidor abriu o pedido de análise: segue para a análise, sem casa atribuída", () => {
@@ -112,10 +112,22 @@ describe("fluxo da escolha da casa", () => {
       expect(nextFlow(asking, { type: "analysis_requested" }, ctx)).toBe(asking);
     });
 
-    it("falha ao enviar volta à última pergunta, mantendo as respostas", () => {
+    it("falha ao enviar volta à última pergunta, mantendo as respostas e guardando o motivo da recusa (#199)", () => {
       const submitting = run(answerAll);
-      const failed = nextFlow(submitting, { type: "submit_failed" }, ctx);
-      expect(failed).toEqual({ step: { kind: "question", index: 2 }, answers: { q1: -3, q2: 1, q3: 3 } });
+      const failed = nextFlow(submitting, { type: "submit_failed", error: "failed" }, ctx);
+      expect(failed).toEqual({ step: { kind: "question", index: 2 }, answers: { q1: -3, q2: 1, q3: 3 }, refusal: { error: "failed" } });
+    });
+
+    it("a recusa por limite guarda o tempo restante", () => {
+      const failed = nextFlow(run(answerAll), { type: "submit_failed", error: "rate_limited", retryAfterSeconds: 1500 }, ctx);
+      expect(failed.refusal).toEqual({ error: "rate_limited", retryAfterSeconds: 1500 });
+    });
+
+    it("a recusa some quando a pessoa age (muda a resposta, avança ou volta)", () => {
+      const failed = nextFlow(run(answerAll), { type: "submit_failed", error: "failed" }, ctx);
+      expect(nextFlow(failed, { type: "answer", value: -1 }, ctx).refusal).toBeUndefined();
+      expect(nextFlow(failed, { type: "back" }, ctx).refusal).toBeUndefined();
+      expect(nextFlow(failed, { type: "next" }, ctx).refusal).toBeUndefined();
     });
 
     it("durante o envio, voltar não faz nada", () => {

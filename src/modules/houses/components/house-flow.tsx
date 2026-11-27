@@ -14,6 +14,7 @@ import { IntensityScale } from "@/modules/questionnaire/components/intensity-sca
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import type { PublicQuestionnaire } from "@/modules/questionnaire";
 import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent } from "../domain/flow";
+import { refusalMessage } from "../domain/refusal";
 import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
 import { HousePresentation, type HouseView } from "./house-presentation";
@@ -35,7 +36,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const [pending, startTransition] = useTransition();
 
   const ctx = useMemo<FlowContext>(
-    () => ({ itemIds: questionnaire.items.map((item) => item.id) }),
+    () => ({ questionIds: questionnaire.items.map((item) => item.id) }),
     [questionnaire],
   );
   const dispatch = (event: FlowEvent) => {
@@ -60,10 +61,9 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
     void (async () => {
       const response = await submitAnswersAction({ answers });
       if (cancelled) return;
-      if (!response.ok) {
-        setError(response.error);
-        dispatch({ type: "submit_failed" });
-      } else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, houseByPoles: response.houseByPoles });
+      // A recusa vai no estado do fluxo (#199): setError e dispatch na mesma hora apagariam o motivo.
+      if (!response.ok) dispatch({ type: "submit_failed", error: response.error, retryAfterSeconds: response.retryAfterSeconds });
+      else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles });
       else dispatch({ type: "analysis_requested" });
     })();
     return () => {
@@ -186,11 +186,11 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
                 {text.chartTitle}
               </h2>
               <SpiderChart
-                axes={step.chart}
+                chart={step.chart}
                 title={text.chartTitle}
                 houses={
-                  step.houseByPoles && {
-                    byPoles: step.houseByPoles,
+                  step.byPoles && {
+                    byPoles: step.byPoles,
                     houses,
                     currentHouseId: step.houseId,
                     currentLabel: text.chartCurrentHouse,
@@ -227,9 +227,9 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   return (
     <div className="flex flex-col gap-4">
       {body}
-      {error && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
-          {text.errors[error]}
+      {(state.refusal || error) && (
+        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg" data-testid="refusal-message">
+          {state.refusal ? refusalMessage(text, state.refusal) : text.errors[error!]}
         </p>
       )}
     </div>

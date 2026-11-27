@@ -3,7 +3,8 @@
 // vale a intensidade do polo (0 a 100). Com `houses`, desenha as zonas coloridas das casas (#201):
 // o quadrante entre os polos dos eixos 1 e 2 que formam cada casa, com o nome dentro e a legenda.
 // Só apresentação: a geometria vem de domain/chart.ts.
-import { chartSpokes, houseZones, spokePoint, type ChartAxis, type HouseByPoles } from "../domain/chart";
+import { chartSpokes, houseZones, spokePoint, type ChartAxis } from "../domain/chart";
+import type { HouseByPoles } from "../domain/chart";
 
 /** Uma casa na legenda e nas zonas: cor clara e escura (CSS `light-dark()`, segue o tema do aparelho). */
 export type ChartHouse = { id: string; name: string; color: { light: string; dark: string } };
@@ -19,7 +20,7 @@ export type ChartHouses = {
 };
 
 type Props = {
-  axes: readonly ChartAxis[];
+  chart: readonly ChartAxis[];
   /** Título lido pelo leitor de tela (ex.: "Seu perfil"). */
   title: string;
   houses?: ChartHouses;
@@ -44,8 +45,8 @@ const otherZoneOpacity = 0.1;
 const pointsOf = (points: readonly { x: number; y: number }[]) => points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
 const colorOf = (color: ChartHouse["color"]) => `light-dark(${color.light}, ${color.dark})`;
 
-export function SpiderChart({ axes, title, houses }: Readonly<Props>) {
-  const spokes = chartSpokes(axes);
+export function SpiderChart({ chart, title, houses }: Readonly<Props>) {
+  const spokes = chartSpokes(chart);
   const count = spokes.length;
   const zones = houses ? houseZones(spokes, houses.byPoles, { center, radius, labelRadius: zoneLabelRadius }) : [];
   const houseById = new Map(houses?.houses.map((house) => [house.id, house]));
@@ -142,7 +143,7 @@ export function SpiderChart({ axes, title, houses }: Readonly<Props>) {
       )}
       <figcaption className="sr-only">
         <ul>
-          {axes.map((axis) => (
+          {chart.map((axis) => (
             <li key={axis.key}>
               {axis.label}: {axis.score < 0 ? `${axis.poleA} ${-axis.score}` : axis.score > 0 ? `${axis.poleB} ${axis.score}` : `${axis.poleA} 0, ${axis.poleB} 0`}
             </li>

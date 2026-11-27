@@ -22,9 +22,10 @@ export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCod
  * quando o resultado foi inconclusivo.
  */
 export type SubmitAnswersResult =
-  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; houseByPoles: HouseByPoles }
+  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; byPoles: HouseByPoles }
   | { ok: true; outcome: "analysis" }
-  | { ok: false; error: HouseErrorCode };
+  /** `retryAfterSeconds`: só no limite de renovação do pedido de análise, quando o tempo restante é conhecido. */
+  | { ok: false; error: HouseErrorCode; retryAfterSeconds?: number };
 
 /**
  * O subconjunto do cliente do Supabase que este módulo usa: **o cliente do servidor com o JWT

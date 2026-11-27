@@ -54,6 +54,7 @@ const rows: OwnDataRows = {
   questionnaire_result: {
     house_key: "casa-um",
     totem_enc: "enc:totem",
+    totem_state: "decided",
     scores_enc: "enc:notas",
     term_version: "termo-1",
     source: "questionnaire",
@@ -152,6 +153,7 @@ describe("buildOwnDataExport", () => {
       resultadoDoQuestionario: {
         casaSugerida: "Casa Um",
         totem: "AB",
+        situacaoDoTotem: "decided",
         notasPorEixo: { eixo1: -40, eixo2: 75, eixo3: 0, eixo4: -100 },
         versaoDoTermo: "termo-1",
         origem: "questionnaire",
@@ -314,6 +316,17 @@ describe("totem e respostas cifrados", () => {
     expect(out.resultadoDoQuestionario?.totem).toBeNull();
     expect(out.pedidosDeAnalise[0]?.respostas).toBeNull();
     expect(onDecryptError.mock.calls.map((c) => c[0])).toEqual(["totem_enc", "answers_enc"]);
+  });
+
+  it.each(["pending", "undecided"] as const)("totem %s (nulo no banco, #197): sai nulo com a situação explícita, sem decifrar nem registrar erro", async (totemState) => {
+    const { decrypt, seen } = fakeDecrypt();
+    const onDecryptError = vi.fn();
+    const pending = { ...rows, questionnaire_result: { ...rows.questionnaire_result!, totem_enc: null, totem_state: totemState } };
+    const out = await build({ rows: pending, decrypt, onDecryptError });
+    expect(out.resultadoDoQuestionario?.totem).toBeNull();
+    expect(out.resultadoDoQuestionario?.situacaoDoTotem).toBe(totemState);
+    expect(seen).not.toContainEqual({ table: "questionnaire_results", column: "totem_enc", rowId: USER });
+    expect(onDecryptError).not.toHaveBeenCalledWith("totem_enc", expect.anything());
   });
 
   it("pedido resolvido (sem respostas) fica com respostas nulas, sem tentar decifrar", async () => {
