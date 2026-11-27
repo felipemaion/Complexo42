@@ -6,7 +6,7 @@ import { parseInstanceConfig } from "./schema";
 const lightBackground = "#ffffff";
 const darkBackground = "#111111";
 /**
- * Contraste mínimo da cor da casa contra o fundo. A cor oficial de Alexandria (amarelo, #c99a06) tem
+ * Contraste mínimo da cor da casa contra o fundo. A cor oficial amarela da instância (#c99a06) tem
  * 2,6:1 no claro, abaixo dos 3:1 do WCAG 1.4.11; o que importa nunca depende só da cor: o nome da casa
  * é texto na cor do tema, dentro de um retângulo com fundo opaco.
  */
