@@ -173,6 +173,11 @@ export const instance = parseInstanceConfig({
     videosTitle: "Vídeos",
     acceptButton: "Aceitar",
     chooseOtherButton: "Escolher outra casa",
+    submitting: "Calculando o seu resultado...",
+    analysisTitle: "Vamos analisar o seu resultado",
+    analysisMessage:
+      "O seu resultado não indicou uma casa com clareza. A coordenação nacional vai analisar as suas respostas e definir a casa. Enquanto isso, se preferir, você pode escolher a casa direto.",
+    analysisChooseButton: "Escolher a casa direto",
     acceptedTitle: "Sua casa",
     homeLink: "Escolher sua casa",
     errors: {

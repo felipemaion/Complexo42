@@ -21,6 +21,13 @@
 Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe, casa,
 habilidades, missões, pontos e badges.
 
+O **totem** (ADR 0012) é dado pessoal, também em texto puro e em tabela de leitura restrita:
+`questionnaire_results.totem`. Aparece em "Baixar meus dados" (LGPD art. 18) e nunca na tela da
+casa. Quem lê: a própria pessoa e a coordenação nacional (gestor da raiz). [?] Se mais alguém da
+coordenação (casa, território) deve ver o totem: o padrão é que ninguém além da coordenação
+nacional veja. As **respostas** do questionário só existem em `house_analysis_requests.answers`,
+com o pedido de análise aberto, e são apagadas ao resolver (abaixo).
+
 > **"Feitos" = entregas de missão validadas** (ADR 0006). Não existe campo de texto livre
 > para isso.
 
@@ -47,6 +54,8 @@ profiles ───────┼─< unit_members >── units
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
+questionnaire_results (1:1 com profiles: casa sugerida e totem; só a pessoa e a coordenação nacional leem, ADR 0012)
+house_analysis_requests (fila do resultado inconclusivo; as respostas só existem com o pedido aberto, ADR 0012)
 consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
 missions ─< mission_steps
@@ -267,7 +276,8 @@ coordenadores; quem já está na casa continua.
 `house_members`: `id`, `profile_id`, `house_key`, `join_method` (`self`, `questionnaire`),
 `consent_version` null (só pelo questionário), `joined_at`, `accepted_at` null, `left_at` null,
 `ended_by` null. Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
-guarda-se só a casa sugerida.
+guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionnaire_results`
+(que a coordenação de território e de casa **não** leem).
 
 - **O vínculo de casa só conta com `accepted_at`:** sem aceite, não dá visão a quem coordena a
   casa nem entra em "mesma casa". A pessoa continua lendo o próprio vínculo.
@@ -309,8 +319,37 @@ precisa existir; repetir a versão mantém a primeira data e não gera outro
 `app.questionnaire_term_versions` (`version` PK, `created_at`): as versões do termo que
 existem. Entram só por migration ou seed (sem grant para a API); a versão do arquivo do
 questionário instalado no servidor precisa estar aqui. RLS: só o
-titular lê; sem grant de escrita. **As respostas do questionário nunca chegam ao banco**: a
-pontuação roda no aparelho e só a casa vai ao servidor.
+titular lê; sem grant de escrita. **A pontuação roda no aparelho**: com resultado conclusivo, só
+a casa e o totem vão ao servidor. As respostas só chegam ao banco no resultado inconclusivo
+(`house_analysis_requests`, abaixo).
+
+### `questionnaire_results` e `house_analysis_requests` (ADR 0012, #172)
+`questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
+`app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem` (duas letras maiúsculas),
+`source` (`questionnaire`, pontuação no aparelho; `analysis`, decidido pela coordenação
+nacional), `created_at`. Uma linha por pessoa, a mais recente.
+
+`house_analysis_requests`: `id`, `profile_id` (FK, cascata), `term_version`, `tied_axes` (eixos
+empatados: `house1`, `house2`, `totem1`, `totem2`), `answers` (jsonb: item → `a`, `b` ou `both`,
+até 4 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
+`created_at`, `resolved_at`, `resolved_by` (nulo em `self` e se a conta de quem resolveu sair).
+Um pedido aberto por pessoa. **As respostas existem só com o pedido aberto** (o banco recusa
+`answers` em pedido resolvido): são apagadas quando a coordenação nacional resolve, quando a
+pessoa aceita uma casa (gatilho em `house_members`) ou quando refaz o questionário com resultado
+conclusivo. A linha resolvida fica, sem respostas.
+
+- **Quem lê** (RLS, `app.can_read_questionnaire_data`): a própria pessoa e a coordenação nacional
+  (gestor da raiz ativo) sobre pessoa ativa. Ninguém escreve pela API: só as funções abaixo.
+- **`record_questionnaire_result(termo, casa, totem)`:** a própria pessoa (ativa, com o aceite
+  daquela versão do termo; casa existente e ativa) grava o resultado conclusivo e fecha um
+  pedido aberto.
+- **`request_house_analysis(termo, eixos, respostas)`:** a própria pessoa abre (ou renova) o
+  pedido do resultado inconclusivo e apaga o resultado anterior. Valida os eixos, o formato das
+  respostas e o tamanho (erro 54000). Gera `house_analysis_requested`.
+- **`resolve_house_analysis(pedido, casa, totem)`:** só a coordenação nacional. Grava o resultado
+  (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
+  aceita a casa pelo fluxo normal (`accept_house`). A tela da coordenação para a fila ainda não
+  existe (issue de seguimento).
 
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`,
@@ -393,7 +432,7 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
 `access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`,
-`member_blocked`, `member_unblocked`),
+`member_blocked`, `member_unblocked`, `house_analysis_requested`, `house_analysis_resolved`),
 `target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
@@ -402,6 +441,9 @@ automática na importação), em `house_accepted` (a forma de entrada: `self` ou
 eventos é obrigatório. Em `member_blocked` é opcional (`impersonation`, `conduct` ou `other`). Em `contact_viewed`, `actor_id` é quem viu e `target_id` a pessoa vista. `term_version` é a versão do termo do questionário: obrigatória em
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
 `actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória; só neste evento).
+Em `house_analysis_requested`, ator e alvo são a pessoa; em `house_analysis_resolved`, o ator é a
+coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, o totem nem a casa;
+a coordenação nacional os lê.
 Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca
 respostas do questionário.
 **Nunca contém dados pessoais em claro.** Quem lê (`app.can_read_audit(evento, alvo, ator,
@@ -419,7 +461,8 @@ forma explícita; nenhum teste ou migration atual limpa o log.
 A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
-encerrados, aceites do termo do questionário, papéis (com a casa do coordenador de casa),
+encerrados, aceites do termo do questionário, o resultado do questionário (casa e **totem**), os pedidos de
+análise (com as respostas, se abertos), papéis (com a casa do coordenador de casa),
 eventos do `audit_log` cujo alvo é a pessoa, os `house_accepted` e `questionnaire_consented` que
 ela fez (#132) e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor
 decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.
@@ -456,7 +499,7 @@ A pessoa exclui a própria conta pelo link da página inicial (ou da tela de esp
   aberto não bastam.
 - **O que some:** `auth.users` e, em cascata, sessões, identidades e tokens do GoTrue,
   `profiles`, `profile_contacts`, `unit_members`, `house_members` e `role_assignments` da pessoa,
-  `access_waitlist_hmac`, `questionnaire_consents`, `consent_acceptances`, `app.profile_save_attempts` e `app.member_block_attempts`. A função
+  `access_waitlist_hmac`, `questionnaire_consents`, `questionnaire_results`, `house_analysis_requests`, `consent_acceptances`, `app.profile_save_attempts` e `app.member_block_attempts`. A função
   apaga também o rastro do GoTrue com e-mail e IP (`auth.audit_log_entries`, pelo id ou pelo
   e-mail exato da conta, lido antes de apagar) e o `auth.flow_state`. Depois, a sessão é encerrada e a pessoa vê `/conta-excluida`.
 - **O que fica dos outros:** quando a pessoa aparece no dado de outra

@@ -3,15 +3,17 @@
 // fluxo está em domain/flow.ts, e quem fala com o banco são as server actions.
 //
 // Privacidade: as respostas do questionário ficam só no estado deste componente, em memória.
-// Não vão para a rede, para o localStorage/sessionStorage nem para a URL. A pontuação roda
-// aqui (`scoreQuestionnaire`, #91), e só a casa aceita (com a forma de entrada) e a versão do
-// termo vão ao servidor. tests/house-privacy.test.ts e e2e/house-live.spec.ts conferem.
+// Não vão para o localStorage/sessionStorage nem para a URL. A pontuação roda aqui
+// (`scoreQuestionnaire`, #172): com resultado conclusivo, vão ao servidor só a casa sugerida e o
+// totem, a casa aceita (com a forma de entrada) e a versão do termo. Só no resultado
+// inconclusivo as respostas vão, no pedido de análise da coordenação nacional (ADR 0012 §3).
+// tests/house-privacy.test.ts e e2e/house-live.spec.ts conferem.
 import { useRouter } from "next/navigation";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { InstanceConfig } from "@/modules/instance";
 import { scoreQuestionnaire, type Answer, type QuestionnaireConfig } from "@/modules/questionnaire";
 import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent } from "../domain/flow";
-import { acceptHouseAction, recordConsentAction } from "../server/actions";
+import { acceptHouseAction, recordConsentAction, recordResultAction, requestAnalysisAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
 import { HousePresentation, type HouseView } from "./house-presentation";
 
@@ -33,7 +35,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const ctx = useMemo<FlowContext>(
     () => ({
       itemIds: questionnaire.items.map((item) => item.id),
-      suggest: (answers) => scoreQuestionnaire(questionnaire, answers).houseId,
+      score: (answers) => scoreQuestionnaire(questionnaire, answers),
     }),
     [questionnaire],
   );
@@ -49,6 +51,33 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       else setError(result.error);
     });
 
+  // Depois da última pergunta o resultado vai ao servidor: casa e totem, ou o pedido de análise.
+  // As ações são idempotentes, então repetir o efeito (modo estrito do React) não duplica nada.
+  const { step } = state;
+  const answers = state.answers;
+  useEffect(() => {
+    if (step.kind !== "submit") return;
+    const { result } = step;
+    let cancelled = false;
+    void (async () => {
+      const response =
+        result.status === "ok"
+          ? await recordResultAction({ houseId: result.houseId, totem: result.totem })
+          : await requestAnalysisAction({ axes: result.axes, answers });
+      if (cancelled) return;
+      if (response.ok) dispatch({ type: result.status === "ok" ? "result_recorded" : "analysis_requested" });
+      else {
+        setError(response.error);
+        dispatch({ type: "submit_failed" });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // `dispatch` só troca o estado; o efeito roda uma vez por entrada no passo "submit".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const acceptHouse = (houseId: string, joinMethod: "self" | "questionnaire") =>
     startTransition(async () => {
       const result = await acceptHouseAction({ houseId, joinMethod });
@@ -61,7 +90,6 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       ← {text.backButton}
     </button>
   );
-  const { step } = state;
 
   let body: React.ReactNode;
   switch (step.kind) {
@@ -146,6 +174,25 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       );
       break;
     }
+    case "submit":
+      body = (
+        <p className="text-lg font-semibold" role="status">
+          {text.submitting}
+        </p>
+      );
+      break;
+    case "analysis":
+      body = (
+        <>
+          {back}
+          <h2 className="text-2xl font-bold">{text.analysisTitle}</h2>
+          <p className="text-lg">{text.analysisMessage}</p>
+          <button type="button" className={primary} onClick={() => dispatch({ type: "choose_other" })}>
+            {text.analysisChooseButton}
+          </button>
+        </>
+      );
+      break;
     case "presentation": {
       const house = houses.find((h) => h.id === step.houseId);
       body = (

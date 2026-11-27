@@ -108,7 +108,8 @@ dos responsáveis, art. 14]**
    a caixa de aceite própria, sem vir marcada.
 2. **Base legal:** consentimento (art. 7º, I). Avaliar se alguma finalidade, como as listas
    da coordenação, cabe melhor em outra base.
-3. **Questionário de temperamento:** o termo próprio do questionário (#91) é separado, e só a
-   casa sugerida é guardada.
+3. **Questionário das casas:** o termo próprio do questionário (#91) é separado. Só a casa
+   sugerida e o totem são guardados; as respostas só saem do aparelho se o resultado for
+   inconclusivo, e são apagadas ao resolver (ADR 0012). O texto do termo precisa dizer isso.
 4. **Exportação de listas pela coordenação:** o item **[decidir]** está no texto para não
    ser preciso pedir novo aceite depois. Se não for usado, remova antes do `v1`.

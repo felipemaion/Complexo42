@@ -50,7 +50,7 @@ describe("loadQuestionnaire", () => {
   });
 
   it("arquivo com campo inválido falha com o nome do campo", () => {
-    const read = () => JSON.stringify({ ...example, houseByTemperament: { ...example.houseByTemperament, SJ: "nenhuma" } });
-    expect(fieldsOf(() => loadQuestionnaire("/srv/q.json", read, houseIds))).toEqual(["houseByTemperament.SJ"]);
+    const read = () => JSON.stringify({ ...example, houseByPoles: { ...example.houseByPoles, ab: "nenhuma" } });
+    expect(fieldsOf(() => loadQuestionnaire("/srv/q.json", read, houseIds))).toEqual(["houseByPoles.ab"]);
   });
 });

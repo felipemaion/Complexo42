@@ -33,11 +33,13 @@ describe("respostas do questionário só no aparelho", () => {
     for (const file of files) expect([file, findForbidden(readFileSync(join(CLIENT_DIR, file), "utf8"))]).toEqual([file, []]);
   });
 
-  it("as únicas chamadas ao servidor levam a casa e a forma de entrada, ou a versão do termo", () => {
+  it("as únicas chamadas ao servidor levam a casa, o totem, a forma de entrada ou a versão do termo; só o pedido de análise leva respostas", () => {
     const flow = readFileSync(join(CLIENT_DIR, "house-flow.tsx"), "utf8");
     const calls = [...flow.matchAll(/await (\w+Action)\(([^)]*)\)/g)].map((m) => `${m[1]}(${m[2]})`);
     expect(calls).toEqual([
       "recordConsentAction({ termVersion: questionnaire.consentTermVersion })",
+      "recordResultAction({ houseId: result.houseId, totem: result.totem })",
+      "requestAnalysisAction({ axes: result.axes, answers })",
       "acceptHouseAction({ houseId, joinMethod })",
     ]);
   });

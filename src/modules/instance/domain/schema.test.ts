@@ -109,6 +109,10 @@ const valid = {
     videosTitle: "t",
     acceptButton: "t",
     chooseOtherButton: "t",
+    submitting: "t",
+    analysisTitle: "t",
+    analysisMessage: "t",
+    analysisChooseButton: "t",
     acceptedTitle: "t",
     homeLink: "t",
     errors: {

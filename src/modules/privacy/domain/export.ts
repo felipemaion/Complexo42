@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 3;
+export const exportFormatVersion = 4;
 
 const timestamp = z.string().min(1);
 
@@ -70,6 +70,31 @@ export const ownDataRowsSchema = z.object({
   ),
   /** Aceites do termo do questionário (versão e data; nunca as respostas). */
   questionnaire_consents: z.array(z.object({ term_version: z.string(), consented_at: timestamp })),
+  /**
+   * Resultado do questionário (ADR 0012, #172): a casa sugerida e o totem. O totem é interno e só
+   * aparece aqui (LGPD art. 18), nunca na tela da casa. Nulo sem resultado (ou com análise aberta).
+   */
+  questionnaire_result: z
+    .object({
+      house_key: z.string(),
+      totem: z.string(),
+      term_version: z.string(),
+      source: z.string(),
+      created_at: timestamp,
+    })
+    .nullable(),
+  /** Pedidos de análise do resultado inconclusivo; as respostas só existem com o pedido aberto. */
+  house_analysis_requests: z.array(
+    z.object({
+      status: z.string(),
+      resolution: z.string().nullable(),
+      term_version: z.string(),
+      tied_axes: z.array(z.string()),
+      answers: z.record(z.string(), z.string()).nullable(),
+      created_at: timestamp,
+      resolved_at: timestamp.nullable(),
+    }),
+  ),
   /** Aceites do termo de consentimento (#11): versão e data. */
   consent_acceptances: z.array(z.object({ version: z.string(), accepted_at: timestamp })),
   roles: z.array(
@@ -137,6 +162,24 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  /** Casa sugerida e totem (ADR 0012). O totem é interno: só aparece neste arquivo. */
+  resultadoDoQuestionario: {
+    casaSugerida: string;
+    totem: string;
+    versaoDoTermo: string;
+    origem: string;
+    em: string;
+  } | null;
+  /** Pedidos de análise do resultado inconclusivo; `respostas` só com o pedido aberto. */
+  pedidosDeAnalise: {
+    situacao: string;
+    resolucao: string | null;
+    versaoDoTermo: string;
+    eixosEmpatados: string[];
+    respostas: Record<string, string> | null;
+    criadoEm: string;
+    resolvidoEm: string | null;
+  }[];
   papeis: {
     papel: string;
     unidade: string;
@@ -251,6 +294,22 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       entrouEm: h.joined_at,
       aceitaEm: h.accepted_at,
       saiuEm: h.left_at,
+    })),
+    resultadoDoQuestionario: rows.questionnaire_result && {
+      casaSugerida: houseName(rows.questionnaire_result.house_key) ?? rows.questionnaire_result.house_key,
+      totem: rows.questionnaire_result.totem,
+      versaoDoTermo: rows.questionnaire_result.term_version,
+      origem: rows.questionnaire_result.source,
+      em: rows.questionnaire_result.created_at,
+    },
+    pedidosDeAnalise: rows.house_analysis_requests.map((q) => ({
+      situacao: q.status,
+      resolucao: q.resolution,
+      versaoDoTermo: q.term_version,
+      eixosEmpatados: q.tied_axes,
+      respostas: q.answers,
+      criadoEm: q.created_at,
+      resolvidoEm: q.resolved_at,
     })),
     termosDeConsentimento: rows.consent_acceptances.map((c) => ({ versao: c.version, aceitoEm: c.accepted_at })),
     termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),

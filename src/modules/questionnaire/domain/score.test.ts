@@ -1,141 +1,163 @@
 import { describe, expect, it } from "vitest";
-import { parseQuestionnaire, type QuestionnaireConfig } from "./schema";
+import { parseQuestionnaire } from "./schema";
 import { QuestionnaireAnswerError, scoreQuestionnaire, type Answer, type Answers } from "./score";
 
-// Questionário de teste: dois itens por eixo (permite empate). No segundo item de cada eixo a
-// alternativa `a` marca o polo oposto, para provar que a contagem segue o config e não a letra.
+// Questionário de teste. Itens intercalados de propósito (a ordem de apresentação não é a ordem
+// dos eixos). Eixos 1 e 2: três itens (empate só com "as duas"); totem: dois itens cada, para
+// permitir empate 1 × 1.
 const raw = {
   version: "teste",
   consentTermVersion: "termo-teste",
   consentTerm: "termo de teste",
-  houseByTemperament: { NF: "casa-nf", SJ: "casa-sj", NT: "casa-nt", SP: "casa-sp" },
-  items: [
-    { id: "ei1", text: "x", axis: "EI", a: { text: "x", pole: "E" }, b: { text: "x", pole: "I" } },
-    { id: "ei2", text: "x", axis: "EI", a: { text: "x", pole: "I" }, b: { text: "x", pole: "E" } },
-    { id: "sn1", text: "x", axis: "SN", a: { text: "x", pole: "S" }, b: { text: "x", pole: "N" } },
-    { id: "sn2", text: "x", axis: "SN", a: { text: "x", pole: "N" }, b: { text: "x", pole: "S" } },
-    { id: "tf1", text: "x", axis: "TF", a: { text: "x", pole: "T" }, b: { text: "x", pole: "F" } },
-    { id: "tf2", text: "x", axis: "TF", a: { text: "x", pole: "F" }, b: { text: "x", pole: "T" } },
-    { id: "jp1", text: "x", axis: "JP", a: { text: "x", pole: "J" }, b: { text: "x", pole: "P" } },
-    { id: "jp2", text: "x", axis: "JP", a: { text: "x", pole: "P" }, b: { text: "x", pole: "J" } },
-  ],
+  items: ["h1a", "h2a", "t1a", "t2a", "h1b", "h2b", "t1b", "t2b", "h1c", "h2c"].map((id) => ({
+    id,
+    text: "x",
+    a: { text: "x" },
+    b: { text: "x" },
+  })),
+  axes: {
+    house1: { itemIds: ["h1a", "h1b", "h1c"], tieBreakItems: ["h1a", "h1b"] },
+    house2: { itemIds: ["h2a", "h2b", "h2c"], tieBreakItems: [] },
+    totem1: { itemIds: ["t1a", "t1b"], tieBreakItems: [], letters: { a: "X", b: "Y" } },
+    totem2: { itemIds: ["t2a", "t2b"], tieBreakItems: [], letters: { a: "V", b: "W" } },
+  },
+  houseByPoles: { aa: "casa-1", ab: "casa-2", ba: "casa-3", bb: "casa-4" },
 };
-const houses = ["casa-nf", "casa-sj", "casa-nt", "casa-sp"];
+const houses = ["casa-1", "casa-2", "casa-3", "casa-4"];
 const config = parseQuestionnaire(raw, houses);
 
-/** Respostas que marcam os polos pedidos nos dois itens de cada eixo. */
-function pure(pick: { EI: "E" | "I"; SN: "S" | "N"; TF: "T" | "F"; JP: "J" | "P" }): Answers {
+type Pick = { h1: Answer; h2: Answer; t1: Answer; t2: Answer };
+
+/** Respostas em que todos os itens de cada eixo recebem a resposta pedida. */
+function answersFor(pick: Pick): Answers {
+  const byAxis = { house1: pick.h1, house2: pick.h2, totem1: pick.t1, totem2: pick.t2 } as const;
   const answers: Record<string, Answer> = {};
-  for (const item of config.items) answers[item.id] = item.a.pole === pick[item.axis] ? "a" : "b";
+  for (const [axis, value] of Object.entries(byAxis)) {
+    for (const id of config.axes[axis as keyof typeof byAxis].itemIds) answers[id] = value;
+  }
   return answers;
 }
-
-const all = (answer: Answer): Answers => Object.fromEntries(config.items.map((i) => [i.id, answer]));
+const base: Pick = { h1: "a", h2: "a", t1: "a", t2: "a" };
 
 describe("scoreQuestionnaire", () => {
   it.each([
-    [{ EI: "E", SN: "N", TF: "F", JP: "J" }, "NF", "casa-nf"],
-    [{ EI: "I", SN: "S", TF: "T", JP: "J" }, "SJ", "casa-sj"],
-    [{ EI: "E", SN: "N", TF: "T", JP: "P" }, "NT", "casa-nt"],
-    [{ EI: "I", SN: "S", TF: "F", JP: "P" }, "SP", "casa-sp"],
-  ] as const)("respostas puras %o levam a %s", (pick, temperament, houseId) => {
-    expect(scoreQuestionnaire(config, pure(pick))).toEqual({ temperament, houseId });
+    ["a", "a", "casa-1"],
+    ["a", "b", "casa-2"],
+    ["b", "a", "casa-3"],
+    ["b", "b", "casa-4"],
+  ] as const)("eixo 1 = %s e eixo 2 = %s levam à %s", (h1, h2, houseId) => {
+    expect(scoreQuestionnaire(config, answersFor({ ...base, h1, h2 }))).toMatchObject({ status: "ok", houseId });
   });
 
-  it("E/I não muda a casa", () => {
-    const base = { SN: "S", TF: "T", JP: "J" } as const;
-    expect(scoreQuestionnaire(config, pure({ ...base, EI: "E" }))).toEqual(scoreQuestionnaire(config, pure({ ...base, EI: "I" })));
+  it.each([
+    ["a", "a", "XV"],
+    ["a", "b", "XW"],
+    ["b", "a", "YV"],
+    ["b", "b", "YW"],
+  ] as const)("eixo 3 = %s e eixo 4 = %s levam ao totem %s", (t1, t2, totem) => {
+    expect(scoreQuestionnaire(config, answersFor({ ...base, t1, t2 }))).toMatchObject({ status: "ok", totem });
   });
 
-  it("T/F não importa com S, e J/P não importa com N (derivação de Keirsey)", () => {
-    expect(scoreQuestionnaire(config, pure({ EI: "E", SN: "S", TF: "F", JP: "J" })).temperament).toBe("SJ");
-    expect(scoreQuestionnaire(config, pure({ EI: "E", SN: "N", TF: "T", JP: "J" })).temperament).toBe("NT");
+  it("a casa não depende do totem e o totem não depende da casa", () => {
+    const first = scoreQuestionnaire(config, answersFor({ h1: "a", h2: "b", t1: "b", t2: "a" }));
+    const second = scoreQuestionnaire(config, answersFor({ h1: "a", h2: "b", t1: "a", t2: "b" }));
+    expect(first).toEqual({ status: "ok", houseId: "casa-2", totem: "YV" });
+    expect(second).toEqual({ status: "ok", houseId: "casa-2", totem: "XW" });
   });
 
-  describe("empate", () => {
-    // Um ponto para cada polo no eixo testado (1 × 1): `a` nos dois itens, que têm polos invertidos.
-    const tie = (axis: "SN" | "TF" | "JP", base: Answers): Answers => ({ ...base, [`${axis.toLowerCase()}1`]: "a", [`${axis.toLowerCase()}2`]: "a" });
-
-    it("regra padrão (I, N, F, P) quando o config não define outra", () => {
-      expect(config.tieBreak).toEqual({ EI: "I", SN: "N", TF: "F", JP: "P" });
-    });
-
-    it("no eixo S/N vence N pela regra padrão", () => {
-      const answers = tie("SN", pure({ EI: "E", SN: "S", TF: "T", JP: "J" }));
-      expect(scoreQuestionnaire(config, answers).temperament).toBe("NT");
-    });
-
-    it("no eixo T/F vence F pela regra padrão", () => {
-      const answers = tie("TF", pure({ EI: "E", SN: "N", TF: "T", JP: "J" }));
-      expect(scoreQuestionnaire(config, answers).temperament).toBe("NF");
-    });
-
-    it("no eixo J/P vence P pela regra padrão", () => {
-      const answers = tie("JP", pure({ EI: "E", SN: "S", TF: "T", JP: "J" }));
-      expect(scoreQuestionnaire(config, answers).temperament).toBe("SP");
-    });
-
-    it("no eixo E/I o empate não altera a casa", () => {
-      const base = pure({ EI: "E", SN: "S", TF: "T", JP: "J" });
-      expect(scoreQuestionnaire(config, { ...base, ei1: "a", ei2: "a" })).toEqual(scoreQuestionnaire(config, base));
-    });
-
-    it("segue a regra do config quando ela muda", () => {
-      const custom = parseQuestionnaire({ ...raw, tieBreak: { EI: "E", SN: "S", TF: "T", JP: "J" } }, houses);
-      expect(scoreQuestionnaire(custom, tie("SN", pure({ EI: "E", SN: "N", TF: "F", JP: "P" }))).temperament).toBe("SP");
-      expect(scoreQuestionnaire(custom, tie("JP", pure({ EI: "E", SN: "S", TF: "F", JP: "P" }))).temperament).toBe("SJ");
-      expect(scoreQuestionnaire(custom, tie("TF", pure({ EI: "E", SN: "N", TF: "F", JP: "P" }))).temperament).toBe("NT");
-    });
+  it("conta só os itens do eixo, na ordem do config (não 1..n)", () => {
+    // h1a, h1b, h1c = "b" e todo o resto "a": a casa só muda se a contagem seguir `itemIds`.
+    const answers: Record<string, Answer> = { ...answersFor(base), h1a: "b", h1b: "b", h1c: "b" };
+    expect(scoreQuestionnaire(config, answers)).toMatchObject({ houseId: "casa-3" });
   });
 
   describe('"as duas"', () => {
-    it("em todos os itens empata todos os eixos e cai na regra de desempate (NF)", () => {
-      expect(scoreQuestionnaire(config, all("both"))).toEqual({ temperament: "NF", houseId: "casa-nf" });
+    it("vale um ponto para cada polo e deixa a maioria decidir", () => {
+      // eixo 1: a + both + both = a 3, b 2 → a
+      expect(scoreQuestionnaire(config, { ...answersFor(base), h1b: "both", h1c: "both" })).toMatchObject({ houseId: "casa-1" });
+      // eixo 1: b + both + both = a 2, b 3 → b
+      expect(scoreQuestionnaire(config, { ...answersFor(base), h1a: "b", h1b: "both", h1c: "both" })).toMatchObject({ houseId: "casa-3" });
+    });
+  });
+
+  describe("empate e desempate", () => {
+    it("empate no eixo 1 desempata pelos tieBreakItems do próprio eixo", () => {
+      // a, b, both no eixo 1: a 2 × b 2 → empate; nos itens h1a e h1b, a 1 × b 1 → ainda empata
+      const stillTied = { ...answersFor(base), h1a: "a", h1b: "b", h1c: "both" } as const;
+      expect(scoreQuestionnaire(config, stillTied)).toEqual({ status: "inconclusive", axes: ["house1"] });
+      // h1a = both, h1b = a, h1c = b → a 2 × b 2; desempate (h1a, h1b): a 2 × b 1 → a
+      const broken = { ...answersFor(base), h1a: "both", h1b: "a", h1c: "b" } as const;
+      expect(scoreQuestionnaire(config, broken)).toMatchObject({ status: "ok", houseId: "casa-1" });
+      // h1a = b, h1b = both, h1c = a → a 2 × b 2; desempate: a 1 × b 2 → b
+      const brokenToB = { ...answersFor(base), h1a: "b", h1b: "both", h1c: "a" } as const;
+      expect(scoreQuestionnaire(config, brokenToB)).toMatchObject({ status: "ok", houseId: "casa-3" });
     });
 
-    it("conta meio ponto para cada polo: 1 + ½ vence ½", () => {
-      // sn1 = S (1 ponto), sn2 = as duas (½ S, ½ N) → S 1,5 × N 0,5.
-      const answers = { ...pure({ EI: "E", SN: "N", TF: "T", JP: "J" }), sn1: "a", sn2: "both" } as const;
-      expect(scoreQuestionnaire(config, answers).temperament).toBe("SJ");
+    it("empate no eixo 2 sem tieBreakItems é inconclusivo e nenhuma casa é atribuída", () => {
+      const tie = { ...answersFor(base), h2a: "a", h2b: "b", h2c: "both" } as const;
+      expect(scoreQuestionnaire(config, tie)).toEqual({ status: "inconclusive", axes: ["house2"] });
+    });
+
+    it.each([
+      ["eixo 3", { t1a: "a", t1b: "b" }, ["totem1"]],
+      ["eixo 4", { t2a: "a", t2b: "b" }, ["totem2"]],
+      ["eixos 3 e 4", { t1a: "a", t1b: "b", t2a: "both", t2b: "both" }, ["totem1", "totem2"]],
+    ] as const)("empate no %s é inconclusivo", (_name, override, axes) => {
+      expect(scoreQuestionnaire(config, { ...answersFor(base), ...override })).toEqual({ status: "inconclusive", axes });
+    });
+
+    it("lista todos os eixos empatados", () => {
+      const answers = { ...answersFor(base), h2a: "both", h2b: "both", h2c: "both", t1a: "b", t1b: "a" } as const;
+      expect(scoreQuestionnaire(config, answers)).toEqual({ status: "inconclusive", axes: ["house2", "totem1"] });
+    });
+
+    it("tudo como \"as duas\" é inconclusivo em todos os eixos", () => {
+      expect(scoreQuestionnaire(config, Object.fromEntries(config.items.map((i) => [i.id, "both"])))).toEqual({
+        status: "inconclusive",
+        axes: ["house1", "house2", "totem1", "totem2"],
+      });
     });
   });
 
   describe("respostas inválidas", () => {
-    it("resposta faltando gera erro com o id do item", () => {
-      const answers: Record<string, Answer> = { ...pure({ EI: "E", SN: "N", TF: "T", JP: "J" }) };
-      delete answers.tf2;
-      expect(() => scoreQuestionnaire(config, answers)).toThrow(QuestionnaireAnswerError);
-      expect(() => scoreQuestionnaire(config, answers)).toThrow("item sem resposta): tf2");
+    const complete = answersFor(base);
+    const codeOf = (answers: unknown): [string, string[]] | null => {
       try {
-        scoreQuestionnaire(config, answers);
+        scoreQuestionnaire(config, answers as Answers);
       } catch (err) {
-        expect(err).toMatchObject({ code: "missing_answer", itemIds: ["tf2"] });
+        if (err instanceof QuestionnaireAnswerError) return [err.code, err.itemIds];
+        throw err;
       }
+      return null;
+    };
+
+    it("item sem resposta", () => {
+      const partial: Record<string, Answer> = { ...complete };
+      delete partial.h2c;
+      expect(codeOf(partial)).toEqual(["missing_answer", ["h2c"]]);
     });
 
-    it("nenhuma resposta lista todos os itens", () => {
-      expect(() => scoreQuestionnaire(config, {})).toThrow(config.items.map((i) => i.id).join(", "));
+    it("resposta para item que não existe", () => {
+      expect(codeOf({ ...complete, zz: "a" })).toEqual(["unknown_item", ["zz"]]);
     });
 
-    it("resposta para item inexistente é rejeitada", () => {
-      expect(() => scoreQuestionnaire(config, { ...all("a"), extra: "a" })).toThrow(/item inexistente\): extra/);
+    it("resposta diferente de a, b ou both", () => {
+      expect(codeOf({ ...complete, h1a: "c" })).toEqual(["invalid_answer", ["h1a"]]);
+      expect(codeOf({ ...complete, h1a: 1 })).toEqual(["invalid_answer", ["h1a"]]);
     });
 
-    it("valor fora de a, b ou both é rejeitado", () => {
-      const answers = { ...all("a"), jp1: "c" } as unknown as Answers;
-      expect(() => scoreQuestionnaire(config, answers)).toThrow(/a, b ou both\): jp1/);
+    it("a mensagem do erro cita só os ids dos itens", () => {
+      const secret = { ...complete, h1a: "segredo" } as unknown as Answers;
+      expect(() => scoreQuestionnaire(config, secret)).toThrow(/h1a/);
+      expect(() => scoreQuestionnaire(config, secret)).not.toThrow(/segredo/);
     });
   });
 
-  it("o retorno contém só temperament e houseId (as respostas não saem da função)", () => {
-    const result = scoreQuestionnaire(config, pure({ EI: "I", SN: "S", TF: "F", JP: "P" }));
-    expect(Object.keys(result).sort()).toEqual(["houseId", "temperament"]);
-  });
-
-  it("não altera as respostas nem o config recebidos", () => {
-    const answers = Object.freeze(pure({ EI: "I", SN: "N", TF: "T", JP: "P" }));
-    const before = JSON.stringify(config);
-    scoreQuestionnaire(config as QuestionnaireConfig, answers);
-    expect(JSON.stringify(config)).toBe(before);
+  it("é pura: não altera as respostas nem o config", () => {
+    const answers = answersFor(base);
+    const frozen = structuredClone(answers);
+    scoreQuestionnaire(config, answers);
+    expect(answers).toEqual(frozen);
+    expect(scoreQuestionnaire(config, answers)).toEqual(scoreQuestionnaire(config, answers));
   });
 });

@@ -214,6 +214,13 @@ export const instanceConfigSchema = z.strictObject({
     videosTitle: text,
     acceptButton: text,
     chooseOtherButton: text,
+    /** Enquanto o resultado é enviado ao servidor, logo depois da última pergunta. */
+    submitting: text,
+    /** Resultado inconclusivo (ADR 0012): a coordenação nacional vai analisar. */
+    analysisTitle: text,
+    analysisMessage: text,
+    /** Botão para escolher a casa direto, sem esperar a análise. */
+    analysisChooseButton: text,
     /** Tela de quem já aceitou a casa. */
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */

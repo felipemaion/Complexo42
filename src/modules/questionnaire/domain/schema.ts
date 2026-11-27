@@ -1,78 +1,55 @@
 import { z } from "zod";
 
 /*
- * Formato do questionário das casas (ADR 0008 §2.1, #91). Este arquivo é puro: roda no
- * servidor (validação na subida) e no navegador (a pontuação acontece no dispositivo).
+ * Formato do questionário das casas (ADR 0012, #172; antes ADR 0008 §2.1, #91). Este arquivo é
+ * puro: roda no servidor (validação na subida) e no navegador (a pontuação acontece no
+ * dispositivo).
  *
- * O texto real das perguntas não entra no repositório: em desenvolvimento usa-se
+ * Quatro eixos, cada um com a sua lista de itens (o config diz quais itens contam para qual
+ * eixo, não a ordem de apresentação). Em todo item a alternativa "a" marca o polo "a" do eixo
+ * e a "b" marca o polo "b". Os eixos 1 e 2 definem a casa; os eixos 3 e 4, o totem.
+ *
+ * O texto real das perguntas e a chave real não entram no repositório: em desenvolvimento usa-se
  * `config/questionnaire.example.json`, fictício; em produção, o arquivo de QUESTIONNAIRE_PATH.
  */
 
-/** Eixos do modelo de Keirsey, cada um com seus dois polos. */
-export const axes = {
-  EI: ["E", "I"],
-  SN: ["S", "N"],
-  TF: ["T", "F"],
-  JP: ["J", "P"],
-} as const;
+/** Eixo 1 e eixo 2 definem a casa; totem1 e totem2 (eixos 3 e 4) definem o totem. */
+export const axisKeys = ["house1", "house2", "totem1", "totem2"] as const;
+export type Axis = (typeof axisKeys)[number];
 
-export type Axis = keyof typeof axes;
-export type Pole = (typeof axes)[Axis][number];
-
-export const axisKeys = ["EI", "SN", "TF", "JP"] as const satisfies readonly Axis[];
-export const poles = ["E", "I", "S", "N", "T", "F", "J", "P"] as const satisfies readonly Pole[];
-
-/** Temperamentos de Keirsey: S se divide por J/P, N por T/F. E/I não define o temperamento. */
-export const temperaments = ["NF", "SJ", "NT", "SP"] as const;
-export type Temperament = (typeof temperaments)[number];
-
-/**
- * Regra de desempate padrão: em empate num eixo, vence o polo indicado aqui. Segue a convenção
- * usual dos inventários tipológicos (I, N, F, P) até o stakeholder definir outra (pergunta 75).
- */
-export const defaultTieBreak = { EI: "I", SN: "N", TF: "F", JP: "P" } as const satisfies Record<Axis, Pole>;
+export const poles = ["a", "b"] as const;
+export type Pole = (typeof poles)[number];
 
 const text = z.string().trim().min(1);
 const slug = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "id em minúsculas, números e hífens");
-const pole = z.enum(poles);
+const totemLetter = z.string().regex(/^[A-Z]$/, "uma letra maiúscula");
 
-const alternativeSchema = z.strictObject({
+const alternativeSchema = z.strictObject({ text });
+
+const itemSchema = z.strictObject({
+  id: slug,
   text,
-  /** Polo que esta alternativa marca no eixo do item. */
-  pole,
+  a: alternativeSchema,
+  b: alternativeSchema,
 });
 
-const itemSchema = z
-  .strictObject({
-    id: slug,
-    text,
-    axis: z.enum(axisKeys),
-    a: alternativeSchema,
-    b: alternativeSchema,
-  })
-  .superRefine((item, ctx) => {
-    const allowed: readonly Pole[] = axes[item.axis];
-    for (const key of ["a", "b"] as const) {
-      if (!allowed.includes(item[key].pole)) {
-        ctx.addIssue({ code: "custom", message: "polo não pertence ao eixo do item", path: [key, "pole"] });
-      }
-    }
-    if (item.a.pole === item.b.pole) {
-      ctx.addIssue({ code: "custom", message: "as alternativas precisam marcar polos opostos", path: ["b", "pole"] });
-    }
-  });
-
-const tieBreakSchema = z.strictObject({
-  EI: z.enum(axes.EI),
-  SN: z.enum(axes.SN),
-  TF: z.enum(axes.TF),
-  JP: z.enum(axes.JP),
+const axisShape = {
+  /** Ids dos itens que contam para este eixo. */
+  itemIds: z.array(slug).min(1),
+  /**
+   * Itens que desempatam o eixo (subconjunto de `itemIds`, indicado pelo stakeholder). Sem eles,
+   * o empate deixa o resultado inconclusivo. Vale por eixo.
+   */
+  tieBreakItems: z.array(slug).default([]),
+};
+const houseAxisSchema = z.strictObject(axisShape);
+const totemAxisSchema = z.strictObject({
+  ...axisShape,
+  /** Letra que cada polo acrescenta ao totem. */
+  letters: z.strictObject({ a: totemLetter, b: totemLetter }),
 });
 
-const houseByTemperamentShape = Object.fromEntries(temperaments.map((t) => [t, slug])) as Record<
-  Temperament,
-  typeof slug
->;
+const houseByPolesShape = { aa: slug, ab: slug, ba: slug, bb: slug };
 
 export const questionnaireSchema = z
   .strictObject({
@@ -85,24 +62,49 @@ export const questionnaireSchema = z
      * perguntas, o texto real fica fora do repositório (no arquivo de QUESTIONNAIRE_PATH).
      */
     consentTerm: text,
-    /** Regra de desempate por eixo: o polo que vence em caso de empate. */
-    tieBreak: tieBreakSchema.default(defaultTieBreak),
-    /** Casa sugerida para cada temperamento (id de uma casa de config/instance.ts). */
-    houseByTemperament: z.strictObject(houseByTemperamentShape),
+    /** Itens na ordem em que aparecem para a pessoa. */
     items: z.array(itemSchema).min(1),
+    axes: z.strictObject({
+      house1: houseAxisSchema,
+      house2: houseAxisSchema,
+      totem1: totemAxisSchema,
+      totem2: totemAxisSchema,
+    }),
+    /**
+     * Casa sugerida para cada par de polos (eixo 1, eixo 2): `ab` é "a" no eixo 1 e "b" no eixo 2.
+     * Id de uma casa de config/instance.ts; as quatro casas são distintas.
+     */
+    houseByPoles: z.strictObject(houseByPolesShape),
   })
   .superRefine((config, ctx) => {
-    const seen = new Set<string>();
+    const issue = (message: string, path: (string | number)[]) => ctx.addIssue({ code: "custom", message, path });
+    const itemIds = new Set<string>();
     config.items.forEach((item, index) => {
-      if (seen.has(item.id)) ctx.addIssue({ code: "custom", message: "id de item repetido", path: ["items", index, "id"] });
-      seen.add(item.id);
+      if (itemIds.has(item.id)) issue("id de item repetido", ["items", index, "id"]);
+      itemIds.add(item.id);
     });
-    // E/I é opcional (pergunta 77); os outros três eixos definem o temperamento.
-    for (const axis of ["SN", "TF", "JP"] as const) {
-      if (!config.items.some((item) => item.axis === axis)) {
-        ctx.addIssue({ code: "custom", message: `nenhum item no eixo ${axis}`, path: ["items"] });
-      }
+
+    const axisOfItem = new Map<string, Axis>();
+    for (const axis of axisKeys) {
+      const { itemIds: ids, tieBreakItems } = config.axes[axis];
+      ids.forEach((id, index) => {
+        if (!itemIds.has(id)) return issue("item inexistente", ["axes", axis, "itemIds", index]);
+        if (axisOfItem.has(id)) return issue("item em mais de um eixo (ou repetido no eixo)", ["axes", axis, "itemIds", index]);
+        axisOfItem.set(id, axis);
+      });
+      tieBreakItems.forEach((id, index) => {
+        if (!ids.includes(id)) issue("item de desempate fora do eixo", ["axes", axis, "tieBreakItems", index]);
+      });
     }
+    config.items.forEach((item, index) => {
+      if (!axisOfItem.has(item.id)) issue("item sem eixo", ["items", index, "id"]);
+    });
+
+    for (const axis of ["totem1", "totem2"] as const) {
+      const { a, b } = config.axes[axis].letters;
+      if (a === b) issue("os dois polos do totem precisam de letras diferentes", ["axes", axis, "letters"]);
+    }
+    if (new Set(Object.values(config.houseByPoles)).size !== 4) issue("as quatro casas precisam ser distintas", ["houseByPoles"]);
   });
 
 export type QuestionnaireConfig = z.infer<typeof questionnaireSchema>;
@@ -127,9 +129,9 @@ export function parseQuestionnaire(raw: unknown, houseIds: readonly string[]): R
       ...new Set(result.error.issues.map((issue) => issue.path.join(".") || "(raiz)")),
     ]);
   }
-  const unknown = temperaments
-    .filter((t) => !houseIds.includes(result.data.houseByTemperament[t]))
-    .map((t) => `houseByTemperament.${t}`);
+  const unknown = (Object.keys(houseByPolesShape) as (keyof typeof houseByPolesShape)[])
+    .filter((poles) => !houseIds.includes(result.data.houseByPoles[poles]))
+    .map((poles) => `houseByPoles.${poles}`);
   if (unknown.length > 0) throw new QuestionnaireConfigError(unknown);
   return Object.freeze(result.data);
 }

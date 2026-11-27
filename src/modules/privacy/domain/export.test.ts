@@ -49,6 +49,24 @@ const rows: OwnDataRows = {
     },
   ],
   questionnaire_consents: [{ term_version: "termo-1", consented_at: "2026-11-19T11:20:00+00:00" }],
+  questionnaire_result: {
+    house_key: "casa-um",
+    totem: "AB",
+    term_version: "termo-1",
+    source: "questionnaire",
+    created_at: "2026-11-19T11:25:00+00:00",
+  },
+  house_analysis_requests: [
+    {
+      status: "open",
+      resolution: null,
+      term_version: "termo-1",
+      tied_axes: ["house1"],
+      answers: { q01: "a", q02: "both" },
+      created_at: "2026-11-19T11:26:00+00:00",
+      resolved_at: null,
+    },
+  ],
   consent_acceptances: [{ version: "v1", accepted_at: "2026-11-19T11:00:00+00:00" }],
   roles: [
     { role: "spokesperson", unit_name: "Equipe 1", unit_type: "Equipe", house_key: null, granted_at: "2026-11-19T13:00:00+00:00", revoked_at: null },
@@ -98,7 +116,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 3, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 4, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -120,6 +138,24 @@ describe("buildOwnDataExport", () => {
           entrouEm: "2026-11-19T11:30:00+00:00",
           aceitaEm: "2026-11-19T11:30:00+00:00",
           saiuEm: null,
+        },
+      ],
+      resultadoDoQuestionario: {
+        casaSugerida: "Casa Um",
+        totem: "AB",
+        versaoDoTermo: "termo-1",
+        origem: "questionnaire",
+        em: "2026-11-19T11:25:00+00:00",
+      },
+      pedidosDeAnalise: [
+        {
+          situacao: "open",
+          resolucao: null,
+          versaoDoTermo: "termo-1",
+          eixosEmpatados: ["house1"],
+          respostas: { q01: "a", q02: "both" },
+          criadoEm: "2026-11-19T11:26:00+00:00",
+          resolvidoEm: null,
         },
       ],
       termosDeConsentimento: [{ versao: "v1", aceitoEm: "2026-11-19T11:00:00+00:00" }],
@@ -215,6 +251,8 @@ describe("buildOwnDataExport", () => {
         memberships: [],
         house_memberships: [],
         questionnaire_consents: [],
+        questionnaire_result: null,
+        house_analysis_requests: [],
         consent_acceptances: [],
         roles: [],
         audit_events: [],
@@ -230,6 +268,8 @@ describe("buildOwnDataExport", () => {
       casas: [],
       termosDeConsentimento: [],
       termosDoQuestionario: [],
+      resultadoDoQuestionario: null,
+      pedidosDeAnalise: [],
       papeis: [],
       registrosSobreVoce: [],
       quemViuSeuContato: [],

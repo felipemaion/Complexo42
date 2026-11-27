@@ -86,24 +86,23 @@
 73. **Questionário das casas:** a licença permite usá-lo na plataforma?
 74. **Tamanho da equipe** (cerca de 12?) e **duração do ciclo** (4 meses?).
 
-### Questionário das casas (recebido em 2026-11-18, ADR 0008 §2.1)
+### Questionário das casas (chave nova de 2026-11-25, ADR 0012)
 
-75. **Chave de correção:**
-    - qual alternativa conta para qual polo em cada pergunta?
-    - como desempatar um eixo (por exemplo, 4 × 4)?
-    - o que vale quando a pessoa marca "as duas"?
-76. **Do temperamento à casa:** nossa hipótese é
-    - idealista (NF) → porta-vozes;
-    - guardião (SJ) → coordenação de equipe;
-    - racional (NT) → intelectuais;
-    - artesão (SP) → produção.
+Chave recebida: 28 perguntas, quatro eixos (dois para a casa, dois para o totem) e
+desempate só no eixo 1. As perguntas 75 a 78 da versão anterior (temperamentos) ficam
+substituídas pelas abaixo.
 
-    Confere?
-77. **Extroversão × introversão:** esse eixo não define o temperamento. As cinco perguntas
-    dele continuam? Sem elas, o questionário fica mais curto e coleta menos.
+75. ✅ *(chave de 2026-11-25)* **Chave de correção:** itens por eixo e a casa pela interseção dos
+    eixos 1 e 2 estão no arquivo recebido. "As duas" conta para os dois polos.
+76. [?] **Itens de desempate do eixo 1:** quais são os dois itens (do próprio eixo 1) que
+    desempatam? A chave recebida não os traz; enquanto isso, qualquer empate no eixo 1 dá
+    resultado inconclusivo.
+77. [?] **Desempate dos eixos 2, 3 e 4:** há itens de desempate também nesses eixos? Sem regra,
+    o empate deixa o resultado inconclusivo e abre um pedido de análise.
 78. **Termo de consentimento:** podemos adaptá-lo assim?
-    - **Resultado:** só a própria pessoa vê o temperamento. A plataforma guarda apenas a
-      casa sugerida.
+    - **Resultado:** a pessoa vê só a casa. A plataforma guarda a casa sugerida e o totem (interno).
+    - **Respostas:** só saem do aparelho se o resultado for inconclusivo, para a coordenação
+      nacional analisar, e são apagadas ao resolver. O texto atual não diz isso [?].
     - **Assinatura e e-mail:** dão lugar a um aceite na tela, registrado com data e versão.
     - **Desistência:** vira o botão "escolher outra casa".
 79. **Licença:** quem detém os direitos das perguntas e da adaptação? Até a resposta, o texto
@@ -112,6 +111,14 @@
     e a coordenação do escopo veem o perfil (ADR 0002). *Recomendação:* manter assim no piloto,
     porque o contato já tem a regra própria (ADR 0010); abrir a visão entre colegas de equipe só
     se a coordenação sentir falta.
+81. [?] **Quem vê o totem:** hoje só a própria pessoa (no arquivo "Baixar meus dados") e a
+    coordenação nacional. Coordenadores de casa e de território devem ver?
+82. [?] **Prazo para trocar de casa:** a pessoa pode escolher outra casa depois de aceitar? Depois
+    de quanto tempo? Hoje, depois de aceitar, só a coordenação troca.
+83. [?] **Quem resolve a fila de análise** (resultado inconclusivo): só a coordenação nacional?
+    Em quanto tempo? E o que fazer com quem não quer esperar (hoje pode escolher a casa direto)?
+84. [?] **Ids reais das casas:** a ligação das casas 1 a 4 aos polos usa os ids de `config/instance.ts`;
+    falta a config real da instância para fechar o mapa do arquivo privado.
 
 ## Novas perguntas (após as definições)
 

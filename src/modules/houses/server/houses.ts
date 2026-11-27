@@ -1,8 +1,10 @@
-// Escolha e aceite da casa no servidor (#76, ADR 0008 §2 e §2.1). Recebe só o id da casa e a
-// forma de entrada, ou a versão do termo: as respostas do questionário nunca chegam aqui.
+// Escolha e aceite da casa no servidor (#76, ADR 0008 §2 e §2.1). Recebe o id da casa e a forma
+// de entrada, a versão do termo, ou o resultado do questionário (casa e totem). As respostas só
+// chegam no pedido de análise do resultado inconclusivo (ADR 0012).
 // Toda entrada passa por Zod antes de ir ao banco, que confere de novo (R15).
 import "server-only";
 import { z } from "zod";
+import { axisKeys } from "@/modules/questionnaire";
 import type { HouseActionResult, HouseClient, HouseErrorCode } from "../types";
 
 /** Código do Postgres/PostgREST → motivo exibido. Qualquer outro vira `failed`. */
@@ -54,6 +56,57 @@ export async function recordConsent(client: HouseClient, input: unknown, current
   if (!parsed.success) return { ok: false, error: "failed" };
   if (parsed.data.termVersion !== currentVersion) return { ok: false, error: "stale_consent" };
   const { error } = await client.rpc("record_questionnaire_consent", { p_term_version: currentVersion });
+  return error ? { ok: false, error: errorCode(error) } : { ok: true };
+}
+
+/**
+ * Grava o resultado conclusivo do questionário: a casa sugerida e o totem (ADR 0012). `input`
+ * vem do navegador; as respostas nunca vêm junto. A versão do termo é a do servidor.
+ */
+export async function recordQuestionnaireResult(
+  client: HouseClient,
+  input: unknown,
+  houseIds: readonly string[],
+  termVersion: string,
+): Promise<HouseActionResult> {
+  const parsed = z
+    .strictObject({
+      houseId: z.string().refine((id) => houseIds.includes(id)),
+      totem: z.string().regex(/^[A-Z]{2}$/),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "failed" };
+  const { error } = await client.rpc("record_questionnaire_result", {
+    p_term_version: termVersion,
+    p_house_key: parsed.data.houseId,
+    p_totem: parsed.data.totem,
+  });
+  return error ? { ok: false, error: errorCode(error) } : { ok: true };
+}
+
+/**
+ * Pede a análise da coordenação nacional quando o resultado é inconclusivo (ADR 0012 §3). É o
+ * único caso em que as respostas saem do aparelho: o banco as guarda só com o pedido aberto.
+ * Os ids dos itens precisam ser os do questionário carregado no servidor.
+ */
+export async function requestHouseAnalysis(
+  client: HouseClient,
+  input: unknown,
+  itemIds: readonly string[],
+  termVersion: string,
+): Promise<HouseActionResult> {
+  const parsed = z
+    .strictObject({
+      axes: z.array(z.enum(axisKeys)).min(1).max(axisKeys.length),
+      answers: z.record(z.string().refine((id) => itemIds.includes(id)), z.enum(["a", "b", "both"])),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, error: "failed" };
+  const { error } = await client.rpc("request_house_analysis", {
+    p_term_version: termVersion,
+    p_tied_axes: parsed.data.axes,
+    p_answers: parsed.data.answers,
+  });
   return error ? { ok: false, error: errorCode(error) } : { ok: true };
 }
 

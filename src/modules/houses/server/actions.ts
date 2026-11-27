@@ -1,12 +1,13 @@
 "use server";
-// Server actions da escolha da casa (#76). O navegador manda só `{ houseId, joinMethod }` ou
-// `{ termVersion }`; as respostas do questionário ficam no aparelho (ADR 0008 §2.1). O cliente
+// Server actions da escolha da casa (#76). O navegador manda `{ houseId, joinMethod }`,
+// `{ termVersion }` ou o resultado (`{ houseId, totem }`); as respostas do questionário ficam no
+// aparelho, salvo no pedido de análise do resultado inconclusivo (ADR 0012). O cliente
 // do Supabase é o da sessão, com o JWT de quem está logado (R14).
 import { instance } from "@config/instance";
 import { requireUser } from "@/server/auth/session";
 import { log } from "@/server/log";
 import type { HouseActionResult } from "../types";
-import { acceptHouse, recordConsent } from "./houses";
+import { acceptHouse, recordConsent, recordQuestionnaireResult, requestHouseAnalysis } from "./houses";
 import { getQuestionnaire } from "./questionnaire";
 import { sessionHouseClient } from "./session";
 
@@ -31,4 +32,22 @@ export async function recordConsentAction(input: unknown): Promise<HouseActionRe
   const client = await sessionHouseClient();
   if (!client) return { ok: false, error: "failed" };
   return logged("questionnaire_consent_refused", await recordConsent(client, input, getQuestionnaire().consentTermVersion));
+}
+
+export async function recordResultAction(input: unknown): Promise<HouseActionResult> {
+  await requireUser();
+  const client = await sessionHouseClient();
+  if (!client) return { ok: false, error: "failed" };
+  const questionnaire = getQuestionnaire();
+  const houseIds = instance.houses.map((h) => h.id);
+  return logged("questionnaire_result_refused", await recordQuestionnaireResult(client, input, houseIds, questionnaire.consentTermVersion));
+}
+
+export async function requestAnalysisAction(input: unknown): Promise<HouseActionResult> {
+  await requireUser();
+  const client = await sessionHouseClient();
+  if (!client) return { ok: false, error: "failed" };
+  const questionnaire = getQuestionnaire();
+  const itemIds = questionnaire.items.map((item) => item.id);
+  return logged("house_analysis_refused", await requestHouseAnalysis(client, input, itemIds, questionnaire.consentTermVersion));
 }
