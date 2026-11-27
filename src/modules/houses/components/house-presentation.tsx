@@ -5,6 +5,8 @@ export type HouseView = {
   id: string;
   name: string;
   description: string;
+  /** Cor da casa no gráfico (#201): `light` e `dark`, CSS `light-dark()`. */
+  color: { light: string; dark: string };
   activities: readonly string[];
   firstSteps: { text: string; videoUrls: readonly string[] };
 };

@@ -117,6 +117,7 @@ const valid = {
     nextButton: "t",
     finishButton: "t",
     chartTitle: "t",
+    chartCurrentHouse: "t",
     backButton: "t",
     suggestedTitle: "t",
     chosenTitle: "t",
@@ -128,6 +129,7 @@ const valid = {
     analysisTitle: "t",
     analysisMessage: "t",
     analysisChooseButton: "t",
+    inviteMessage: "t",
     acceptedTitle: "t",
     homeLink: "t",
     rateLimitedWait: "{minutes}",
@@ -147,11 +149,11 @@ const valid = {
       title: "t", intro: "t", houseFilterLabel: "t", houseFilterAll: "t", filterButton: "t", empty: "t",
       columnPerson: "t", columnHouse: "t", columnDate: "t", openLink: "t",
       truncated: "{count}", detailTitle: "{name}", houseLabel: "t", totemLabel: "t", dateLabel: "t",
-      chartTitle: "t", totemPending: "t", totemUndecided: "t", noScores: "t", unreadableOne: "t", backLink: "t",
+      chartTitle: "t", chartCurrentHouse: "t", totemPending: "t", totemUndecided: "t", noScores: "t", unreadableOne: "t", backLink: "t",
     },
     queue: {
       title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", kindTotem: "t", openLink: "t",
-      truncated: "{count}", unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t",
+      truncated: "{count}", unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t", chartCurrentHouse: "t",
       resolveTitle: "t", totemOnlyNotice: "{house}", houseLabel: "t", totemLabel: "t", totemOption: "{label}{description}",
       resolveButton: "t", resolvedNotice: "t", unreadableOne: "t", backLink: "t",
     },
@@ -236,8 +238,8 @@ const valid = {
     },
   },
   houses: [
-    { id: "a", name: "A", description: "d", activities: ["x"], firstSteps: { text: "t", videoUrls: ["https://v.example/1"] } },
-    { id: "b", name: "B", description: "d", activities: ["y"], firstSteps: { text: "t" } },
+    { id: "a", name: "A", color: { light: "#c0392b", dark: "#f0786b" }, description: "d", activities: ["x"], firstSteps: { text: "t", videoUrls: ["https://v.example/1"] } },
+    { id: "b", name: "B", color: { light: "#2563c9", dark: "#7aa8f5" }, description: "d", activities: ["y"], firstSteps: { text: "t" } },
   ],
 };
 

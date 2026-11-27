@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { instance } from "@config/instance";
 import example from "@config/questionnaire.example.json";
-import { chartAxes, chartSpokes, spokePoint } from "./chart";
+import { chartAxes, chartSpokes, crossOrder, houseZones, spokePoint } from "./chart";
 import { parseQuestionnaire } from "./schema";
 
 const config = parseQuestionnaire(example, instance.houses.map((house) => house.id));
@@ -91,5 +91,76 @@ describe("spokePoint", () => {
   it("o raio é a distância do centro", () => {
     const point = spokePoint(3, 8, 70, center);
     expect(Math.hypot(point.x - center.x, point.y - center.y)).toBeCloseTo(70);
+  });
+});
+
+describe("crossOrder (visão da coordenação, #201)", () => {
+  const four = chartAxes(config, scores, ["house1", "house2", "totem1", "totem2"]);
+
+  it("põe os eixos da casa em cruz e os do totem nas diagonais: raios a1, a3, a2, a4, b1, b3, b2, b4", () => {
+    expect(chartSpokes(crossOrder(four)).map((spoke) => `${spoke.side}:${spoke.axis}`)).toEqual([
+      "a:house1", "a:totem1", "a:house2", "a:totem2", "b:house1", "b:totem1", "b:house2", "b:totem2",
+    ]);
+  });
+
+  it("os eixos da casa ficam a 90° entre si (raios 0, 2, 4 e 6 de 8)", () => {
+    const spokes = chartSpokes(crossOrder(four));
+    const houseIndexes = spokes.flatMap((spoke, index) => (spoke.axis.startsWith("house") ? [index] : []));
+    expect(houseIndexes).toEqual([0, 2, 4, 6]);
+  });
+
+  it("só com os dois eixos da casa, a ordem não muda; não altera o que recebeu", () => {
+    const two = chartAxes(config, scores, ["house1", "house2"]);
+    expect(crossOrder(two)).toEqual(two);
+    const before = [...four];
+    crossOrder(four);
+    expect(four).toEqual(before);
+  });
+});
+
+describe("houseZones (zonas coloridas das casas, #201)", () => {
+  const byPoles = { aa: "casa-aa", ab: "casa-ab", ba: "casa-ba", bb: "casa-bb" };
+  const geometry = { center: { x: 180, y: 180 }, radius: 100, labelRadius: 70 };
+  const zonesOf = (keys: readonly ("house1" | "house2" | "totem1" | "totem2")[]) => {
+    const axes = chartAxes(config, scores, keys);
+    return houseZones(chartSpokes(keys.length === 4 ? crossOrder(axes) : axes), byPoles, geometry);
+  };
+
+  it("são quatro, uma por casa do mapa, seguindo os polos: (a,a), (b,a), (b,b), (a,b) em volta do gráfico", () => {
+    expect(zonesOf(["house1", "house2"]).map((zone) => [zone.polesKey, zone.houseId])).toEqual([
+      ["aa", "casa-aa"],
+      ["ba", "casa-ba"],
+      ["bb", "casa-bb"],
+      ["ab", "casa-ab"],
+    ]);
+  });
+
+  it("a casa de cada zona vem do mapa da config, não do código", () => {
+    const swapped = { aa: "x", ab: "y", ba: "z", bb: "w" };
+    const axes = chartAxes(config, scores, ["house1", "house2"]);
+    expect(houseZones(chartSpokes(axes), swapped, geometry).map((zone) => zone.houseId)).toEqual(["x", "z", "w", "y"]);
+  });
+
+  it("o quadrante (a,a) vai do raio a1 (cima) ao raio a2 (direita): rótulo no canto de cima à direita", () => {
+    const [aa] = zonesOf(["house1", "house2"]);
+    expect(aa!.path).toBe("M180,180 L180,80 A100,100 0 0 1 280,180 Z");
+    expect(aa!.label.x).toBeGreaterThan(180);
+    expect(aa!.label.y).toBeLessThan(180);
+  });
+
+  it("com os 8 raios da coordenação os quadrantes são os mesmos (raios 0, 2, 4 e 6)", () => {
+    expect(zonesOf(["house1", "house2", "totem1", "totem2"]).map((zone) => zone.path)).toEqual(
+      zonesOf(["house1", "house2"]).map((zone) => zone.path),
+    );
+  });
+
+  it("os rótulos ficam cada um no seu quadrante, a 70% do raio das pontas", () => {
+    const labels = zonesOf(["house1", "house2"]).map((zone) => [Math.sign(zone.label.x - 180), Math.sign(zone.label.y - 180)]);
+    expect(labels).toEqual([[1, -1], [1, 1], [-1, 1], [-1, -1]]);
+  });
+
+  it("sem os dois eixos da casa não há zonas", () => {
+    expect(zonesOf(["totem1", "totem2"])).toEqual([]);
+    expect(zonesOf(["house1"])).toEqual([]);
   });
 });

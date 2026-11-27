@@ -155,7 +155,12 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   expect(await viewedEvents(first.id)).toEqual([]);
   await page.locator(`a[href="/coordenacao/casas/resultados/${first.id}"]`).click();
   await expect(page.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
-  await expect(page.getByTestId("spider-chart").locator("svg text")).toHaveCount(8);
+  await expect(page.getByTestId("spider-chart").locator("svg text")).toHaveCount(12); // 8 polos + 4 casas nas zonas (#201)
+  await expect(page.getByTestId("spider-chart").getByTestId("house-zone")).toHaveCount(4);
+  // Ordem em cruz (#201): raios a1, a3, a2, a4, b1, b3, b2, b4 (os 8 primeiros textos são os polos).
+  const { house1, totem1, house2, totem2 } = questionnaire.axes;
+  const crossLabels = [house1.poleLabels.a, totem1.poleLabels.a, house2.poleLabels.a, totem2.poleLabels.a, house1.poleLabels.b, totem1.poleLabels.b, house2.poleLabels.b, totem2.poleLabels.b];
+  expect((await page.getByTestId("spider-chart").locator("svg text").allTextContents()).slice(0, 8)).toEqual(crossLabels);
   for (const axis of Object.values(questionnaire.axes)) {
     for (const label of [axis.poleLabels.a, axis.poleLabels.b]) await expect(page.getByTestId("spider-chart").locator("svg text", { hasText: label })).toHaveCount(1);
   }
@@ -172,7 +177,8 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   await expect(page.getByTestId("case-answer")).toHaveCount(questionnaire.items.length);
   await expect(page.getByTestId("case-answer").first()).toContainText(/(Totalmente|Na maior parte das vezes|Um pouco mais): .+\.$/);
   await expect(page.getByText(/^\s*[ab]\)/)).toHaveCount(0);
-  await expect(page.getByTestId("spider-chart").locator("svg text")).toHaveCount(8);
+  await expect(page.getByTestId("spider-chart").locator("svg text")).toHaveCount(12); // 8 polos + 4 casas nas zonas (#201)
+  await expect(page.getByTestId("spider-chart").getByTestId("house-zone")).toHaveCount(4);
 
   // Resolver: escolhe a casa e o totem; o caso sai da fila e a pessoa passa a ter resultado.
   await page.locator('select[name="casa"]').selectOption({ index: 1 });
@@ -210,7 +216,8 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   expect((await statePage.goto(`/coordenacao/casas/resultados/${outside.id}`))?.status()).toBe(404);
   expect((await statePage.goto("/coordenacao/casas/delegacoes"))?.status()).toBe(404);
   await statePage.goto(`/coordenacao/casas/resultados/${first.id}`);
-  await expect(statePage.getByTestId("spider-chart").locator("svg text")).toHaveCount(8);
+  await expect(statePage.getByTestId("spider-chart").locator("svg text")).toHaveCount(12); // 8 polos + 4 casas nas zonas (#201)
+  await expect(statePage.getByTestId("spider-chart").getByTestId("house-zone")).toHaveCount(4);
   expect((await viewedEvents(first.id)).map((event) => event.actor_id)).toEqual(expect.arrayContaining([root.id, state.id]));
 
   // Revogada a delegação, o delegado volta a receber 404.

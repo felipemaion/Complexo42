@@ -209,6 +209,7 @@ describe("submitQuestionnaire", () => {
         { key: "house1", label: "D1", poleA: "a1", poleB: "b1", score: -100 },
         { key: "house2", label: "D2", poleA: "a2", poleB: "b2", score: 100 },
       ],
+      byPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
     });
     expect(JSON.stringify(outcome)).not.toMatch(/YV|totem|D3|D4|a3|b4/);
   });
@@ -237,6 +238,11 @@ describe("submitQuestionnaire", () => {
     const totemTied = { ...all(-3), h2a: 3, h2b: 3, t1a: -1, t1b: 1 };
     const outcome = await submitQuestionnaire(client, { answers: totemTied }, ctx);
     expect(outcome).toMatchObject({ ok: true, outcome: "recorded", houseId: "casa-b" });
+    // I2 (#202): também com o totem pendente a pessoa vê as zonas (o mapa das casas) e o gráfico dos eixos da casa.
+    expect(outcome).toMatchObject({
+      byPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
+      chart: [{ key: "house1" }, { key: "house2" }],
+    });
     expect(JSON.stringify(outcome)).not.toMatch(/totem|D3|D4/);
     const scores = encScores({ house1: -100, house2: 100, totem1: 0, totem2: -100 });
     const answersEnc = `enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(totemTied)})`;
