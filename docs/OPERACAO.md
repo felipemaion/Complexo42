@@ -184,6 +184,14 @@ A porta 25 é bloqueada no servidor, então o GoTrue só envia por relay SMTP
 externo. Enquanto o cadastro estiver fechado (`GOTRUE_DISABLE_SIGNUP=true`,
 até #87 e #26), as variáveis `SMTP_*` ficam vazias e nenhum e-mail sai.
 
+**O link do e-mail sai de `API_EXTERNAL_URL`, não de `SITE_URL`.** O GoTrue
+concatena `API_EXTERNAL_URL` com `MAILER_URLPATHS_CONFIRMATION` (default
+`/verify`), e o Auth está publicado sob `/auth/v1`. Por isso o compose põe
+`${SITE_URL}/auth/v1` ali, e **não** a raiz do site: com a raiz, o e-mail sai
+apontando para o app, o middleware redireciona para o login levando o token na
+query string, e o login nunca acontece. É uma falha que nenhum teste pega — só
+aparece com o GoTrue de verdade montando o e-mail —, então o CI trava a linha.
+
 ## O que está exposto
 
 Só `/auth/v1/*`, publicado pelo proxy reverso. `/rest/v1` responde 404 de
@@ -642,6 +650,14 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 
 O compose do Supabase, o `kong.yml` e o `initdb/` **viajam na imagem** e o
 deploy os sincroniza no servidor. A imagem é a fonte; o servidor é cópia.
+
+> **Sincronizar o arquivo não reinicia o Supabase.** O deploy faz `up -d` no
+> projeto **do app**; o projeto do Supabase é outro. Mudar
+> `docker-compose.supabase.yml` num PR deixa o arquivo novo no servidor com os
+> containers antigos rodando a configuração antiga — o deploy passa **verde** e
+> o comportamento não muda. Aplicar exige `up -d` no projeto do Supabase, à
+> mão, pelo dono do servidor. Vale para qualquer variável de ambiente do
+> `auth`, `rest` ou `kong`.
 
 **Quais arquivos — e a lista está no `deploy.sh`, não na imagem.** São
 exatamente quatro: `docker-compose.supabase.yml`, `kong.yml`,
