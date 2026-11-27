@@ -1,13 +1,13 @@
 # ADR 0013: Núcleos, uma árvore de grupos fora do território
 
-- **Status:** Proposto. É decisão do gestor de 2026-11-24, com as respostas dele no mesmo dia.
-  Os itens marcados com [?] dependem do stakeholder (`PERGUNTAS_STAKEHOLDER.md`, 91 a 93), e
-  cada um traz o **padrão conservador** que vale até a resposta.
-- **Data:** 2026-11-24
+- **Status:** Aceito (pelo gestor, em 2026-11-27). Decisão do gestor de 2026-11-24, fechada com
+  as respostas de 2026-11-27. Só as perguntas 91 a 93 seguem com [?] (`PERGUNTAS_STAKEHOLDER.md`),
+  e cada uma traz o **padrão conservador** que vale até a resposta.
+- **Data:** 2026-11-24 (aceito em 2026-11-27)
 - **Numeração:** o 0012 está reservado pela issue #136.
 - **Complementa:** ADR 0005 (árvore `ltree`), 0006 (missões e pontos), 0007 (medalhas), 0010
-  (contato) e 0011 (casa fora do território). Se aceito, o 0010 ganha a linha do coordenador
-  de núcleo.
+  (contato) e 0011 (casa fora do território). O 0010 ganha a linha do coordenador de núcleo
+  (contato só para o topo, §5).
 
 ## Contexto
 
@@ -56,9 +56,11 @@ accepted_at null, left_at null, ended_by null)`, no molde de `house_members` (AD
   - Se o principal for encerrado ou arquivado, o vínculo aberto e aceito **mais antigo** vira o
     principal. Sem vínculo aberto, a pessoa não tem principal.
 - **Só conta com `accepted_at`.** Sem aceite, o vínculo não dá visão a ninguém.
-- **Encerrar não apaga:** `left_at` guarda o histórico. A pessoa sai quando quiser. Se outra
-  pessoa encerrou o vínculo, ela não volta sozinha: a volta é decisão de quem tem o nível de
-  topo naquele núcleo ou acima.
+- **Encerrar não apaga:** `left_at` guarda o histórico. A pessoa sai quando quiser. **Quem pode
+  encerrar o vínculo de outra pessoa:** o topo do próprio núcleo e o topo de qualquer núcleo
+  **acima** dele (§5), com `circle_member_removed` na auditoria. Se outra pessoa encerrou, a
+  pessoa não volta sozinha: o novo pedido é decidido por quem encerrou ou por um topo acima
+  dele.
 - Só `access_status` e `status` `active` entram, veem e são vistos (ADR 0008 §1).
 
 ### 3. Entrada por pedido e aprovação
@@ -71,9 +73,10 @@ circle_join_requests(id, circle_id, profile_id, status, requested_at, decided_by
 
 - A pessoa **pede**; quem aprova **aprova ou recusa**. Aprovar cria o vínculo, com
   `join_method = 'request'`, e a pessoa o aceita. Um pedido pendente por pessoa e núcleo.
-- **Quem aprova a entrada num núcleo:** quem está no **nível de topo** daquele núcleo **ou de
-  qualquer núcleo acima dele** na árvore. Para o subnúcleo, vale o coordenador dele ou o de
-  qualquer ancestral. Níveis intermediários não aprovam (§4). Ninguém aprova o próprio pedido.
+- **Quem aprova a entrada num núcleo:** **só quem está no nível de topo do próprio núcleo.**
+  Para entrar num subnúcleo, aprova o coordenador **dele**; os coordenadores de núcleos **acima
+  não aprovam** a entrada. Níveis intermediários também não (§4). Ninguém aprova o próprio
+  pedido. Os de cima podem **remover** quem já entrou (§2), mas não decidem quem entra.
 - **Sem diretório:** a pessoa não lista núcleos. Ela chega ao núcleo por um **link de pedido**
   que o coordenador compartilha; o link só abre a tela de pedir, e não dá entrada.
 - **Para pedir um subnúcleo, não é preciso ser membro do pai** [?] (pergunta 92, padrão).
@@ -101,7 +104,8 @@ Seja **X** quem vê ou aprova, com nível L no núcleo N, e **Y** o alvo, com v�
 |---|---|
 | **Ver o perfil de Y** (nome, habilidades, medalhas) | **Topo de N:** vê todos os membros ativos de N **e dos subnúcleos abaixo** (`M.path <@ N.path`), de qualquer nível. **Nível intermediário de N:** vê só quem está em N, em nível **abaixo do seu**. **Nível mais baixo:** só vê a si |
 | **Ver o contato de Y** (ADR 0010) | Só o **topo**, no escopo acima (N e abaixo), ao clicar, com `contact_viewed` e o limite por hora. Intermediário e colegas **não** veem contato |
-| **Aprovar um pedido para M** | Topo de M **ou** de qualquer ancestral de M (`N.path @> M.path`) |
+| **Aprovar um pedido para M** | **Só o topo de M.** Topo de ancestral de M **não** aprova |
+| **Remover alguém de M** (encerrar o vínculo, auditado) | Topo de M **ou** de qualquer ancestral de M (`N.path @> M.path`) |
 | **Conceder nível em M** | Topo de M ou de ancestral de M, abaixo do topo (§4) |
 | **Registrar reunião e presença de M** (§6) | Topo de M; o de ancestral só vê |
 
@@ -168,6 +172,10 @@ circle_attendance(meeting_id, profile_id, registered_by)          -- só quem es
 | 92 | Para pedir um subnúcleo, é preciso ser membro do núcleo pai? | Não |
 | 93 | Núcleos entram em algum placar (de núcleos ou de turmas)? | Não |
 
+**Respondidas pelo gestor em 2026-11-27:** entrada num subnúcleo só pelo coordenador dele, e os
+de cima podem remover (§3, §5); contato só para o topo (§5); entrada por link de pedido, sem
+diretório (§3); presença registrada pelo coordenador, e ninguém registra a própria (§6).
+
 **Respondidas pelo gestor em 2026-11-24:** vários núcleos com um principal (§2); entrada por
 pedido aprovado (§3); sem diretório por enquanto (§3); núcleo independente da casa (§1);
 reuniões com pauta e presença, e a presença conta pontos (§6); subnúcleos permitidos (§1);
@@ -191,9 +199,11 @@ níveis de cargo configuráveis (§4); as duas hierarquias valem juntas (§5).
   livro-razão de pontos (ADR 0006).
 - (−) Terceiro eixo de vínculo e duas hierarquias combinadas: matriz de permissões nova e
   revisão adversarial (R16), com casos "outro núcleo → negado", "subnúcleo vê o pai → negado",
-  "intermediário vê contato → negado", "coordenação territorial → negado" e "aprovar o próprio
-  pedido → negado".
+  "intermediário vê contato → negado", "coordenação territorial → negado", "aprovar o próprio
+  pedido → negado", "topo de núcleo acima aprova entrada → negado" e "topo de núcleo acima
+  remove → permitido, e auditado".
 - (−) Presença é dado novo, pauta é texto livre e o vínculo pode revelar convicção: termo de
   consentimento e parecer jurídico antes do lançamento.
-- (−) Nada disso existe em código: as issues #168 a #170 ficam bloqueadas até o stakeholder
-  responder as perguntas 91 a 93 e o jurídico opinar.
+- (−) Nada disso existe em código: as issues #168 a #170 ficam bloqueadas porque dependem de
+  missões e pontos (ADR 0006) e do parecer jurídico. As perguntas 91 a 93 seguem com o padrão
+  conservador até a resposta.

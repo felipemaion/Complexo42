@@ -48,7 +48,7 @@ unit_types ─< units (árvore: nacional > estado > [região] > turma, via ltree
 profiles ───────┼─< unit_members >── units
    │            ├─< role_assignments >── units   (papel vale na unidade e abaixo dela)
    │            ├─< house_members >── houses     (casa nacional, fora da árvore; ADR 0011)
-   │            ├─< circle_members >── circles   (árvore de núcleos, fora do território; PROPOSTO, ADR 0013)
+   │            ├─< circle_members >── circles   (árvore de núcleos, fora do território; ADR 0013, aceito, sem migration ainda)
    │            ├─< profile_skills >── skills
    │            ├─< mission_run_members >── mission_runs
    │            └─< profile_badges >── badges
@@ -301,8 +301,9 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   pessoa encerrou o vínculo de casa, a pessoa não volta sozinha, nem para a mesma casa nem para
   outra (erro C7602): a volta é decisão da coordenação.
 
-### `circles`, `circle_members` e reuniões (PROPOSTO, ADR 0013)
-Nada disso existe em migration: depende das perguntas 91 a 93 e do parecer jurídico. O núcleo é
+### `circles`, `circle_members` e reuniões (ADR 0013, aceito)
+Nada disso existe em migration ainda: depende de missões e pontos (ADR 0006), do parecer jurídico e, nos
+detalhes das perguntas 91 a 93, do padrão conservador. O núcleo é
 uma **árvore própria**, fora do território e da casa; os rótulos ("Núcleo", "Subnúcleo" e os
 níveis de cargo) vêm de `config/` (R17).
 
@@ -314,11 +315,13 @@ níveis de cargo) vêm de `config/` (R17).
   Várias por pessoa; **um principal** (índice único parcial por pessoa, entre vínculos abertos e
   aceitos). Só conta com aceite; encerrar guarda histórico.
 - `circle_join_requests`: `id`, `circle_id`, `profile_id`, `status` (`pending`, `approved`,
-  `rejected`), `requested_at`, `decided_by` null, `decided_at` null. Aprova o topo do núcleo ou
-  de um núcleo acima.
+  `rejected`), `requested_at`, `decided_by` null, `decided_at` null. **Só o topo do próprio
+  núcleo aprova** a entrada; o topo de núcleo acima não.
 - **Visão (duas hierarquias):** o nível de topo vê o núcleo e os subnúcleos abaixo (`path <@`),
   com contato pelo ADR 0010; nível intermediário vê só quem está abaixo dele no mesmo núcleo, sem
-  contato; o mais baixo vê só a si. Sem vista para cima nem para os lados. Sem escopo territorial.
+  contato; o mais baixo vê só a si. O topo de núcleo **acima** também pode **remover** pessoas do núcleo e dos
+  subnúcleos abaixo (encerra o vínculo, `circle_member_removed` no `audit_log`). Sem vista para
+  cima nem para os lados. Sem escopo territorial.
 - `circle_meetings` (`circle_id`, `held_on`, `title`, `agenda` null, ≤ 500) e
   `circle_attendance` (`meeting_id`, `profile_id`, `registered_by`): presença é dado pessoal
   mínimo. Cada presença gera **um lançamento individual** em `points_ledger` (`circle_id`,
