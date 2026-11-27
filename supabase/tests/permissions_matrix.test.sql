@@ -902,6 +902,10 @@ insert into public.houses (key, active) select 'g-' || profile_id::text, true fr
 insert into public.house_members (profile_id, house_key, join_method, accepted_at)
 select r.profile_id, 'g-' || r.profile_id::text, 'self', now() from (select profile_id from public.role_assignments union select id from people where name in ('stu_a', 'stu_sp', 'stu_moved')) as r
 where not exists (select 1 from public.house_members as h where h.profile_id = r.profile_id and h.left_at is null) on conflict do nothing;
+-- As casas de fixture (leitura rígida: a asserção das casas visíveis as lista, nenhuma 'g-' alheia some do conjunto esperado).
+create temp table fixture_houses (key text primary key);
+insert into fixture_houses select key from public.houses where key like 'g-%';
+grant select on fixture_houses to authenticated;
 -- Quem salva o próprio perfil pela função precisa da casa aceita (ADR 0017): o coordenador do teste a tem.
 insert into public.house_members (profile_id, house_key, join_method, accepted_at)
 select id, 'casa-t1', 'self', now() from people where name = 'team_a_mon' and not exists (select 1 from public.house_members h where h.profile_id = people.id and h.left_at is null);
@@ -1453,14 +1457,14 @@ select is_empty(
 set local role authenticated;
 select pg_temp.login('house_mon');
 select set_eq(
-  $$ select profile_id, house_key from public.house_members where house_key not like 'g-%' $$,
+  $$ select profile_id, house_key from public.house_members where not (profile_id = (select auth.uid()) and house_key like 'g-%') $$,
   $$ select id, 'casa-t1'::text from people where name in ('stu_ah', 'stu_bh') $$,
   'coordenador da casa 1 no ABC lê os vínculos aceitos da casa 1 de quem é do ABC e está ativo (não o histórico de outra casa)'
 );
 select is_empty($$ select 1 from app.my_scopes() $$,
   'coordenador de casa não tem escopo territorial (my_scopes vazio)');
 select is_empty(
-  $$ select 1 from public.house_members where house_key <> 'casa-t1' and house_key not like 'g-%' $$,
+  $$ select 1 from public.house_members where house_key <> 'casa-t1' and not (profile_id = (select auth.uid()) and house_key like 'g-%') $$,
   'coordenador da casa 1 NÃO lê os vínculos da casa 2'
 );
 select set_eq(
@@ -1540,10 +1544,9 @@ select set_eq(
   'vínculo de casa sem aceite: não é membro de verdade e não vê unidade nenhuma (ADR 0017; a casa também não é unidade)'
 );
 select set_eq(
-  $$ select key from public.houses where key not like 'g-%' $$,
-  array['esparta', 'atenas', 'alexandria', 'siracusa',
-        'casa-t1', 'casa-t2', 'casa-off'],
-  'quem está ativo lê as chaves das casas (sem dado pessoal)'
+  $$ select key from public.houses $$,
+  $$ select unnest(array['esparta', 'atenas', 'alexandria', 'siracusa', 'casa-t1', 'casa-t2', 'casa-off']) union select key from fixture_houses $$,
+  'quem está ativo lê as chaves das casas (sem dado pessoal), as de fixture inclusive (conjunto rígido)'
 );
 select throws_ok(
   $$ insert into public.houses (key) values ('casa-nova') $$,
@@ -1562,15 +1565,16 @@ select is_empty($$ select 1 from public.house_members $$, 'quem está na espera 
 select is_empty($$ select 1 from public.houses $$, 'quem está na espera NÃO lê as casas');
 
 select pg_temp.login('spokes_a');
-select is_empty($$ select 1 from public.house_members where house_key not like 'g-%' $$,
+select is_empty($$ select 1 from public.house_members where not (profile_id = (select auth.uid()) and house_key like 'g-%') $$,
   'porta-voz NÃO lê vínculos de casa (não é coordenação)');
 
 -- Gestor de SP: a coordenação territorial lê vínculos de casa (de qualquer casa) e
 -- house_accepted de quem está no seu território; não o termo
 select pg_temp.login('sp_mgr');
 select set_eq(
-  $$ select profile_id from public.house_members where house_key not like 'g-%' $$,
-  $$ select id from people where name in ('stu_ah', 'stu_ah2', 'stu_bh', 'stu_hleft', 'stu_ch') $$,
+  $$ select profile_id from public.house_members where not (profile_id = (select auth.uid()) and house_key like 'g-%') $$,
+  -- stu_a e stu_sp (em SP) entram pela casa de fixture (ADR 0017): a leitura é rígida, só o vínculo do próprio gestor fica de fora.
+  $$ select id from people where name in ('stu_ah', 'stu_ah2', 'stu_bh', 'stu_hleft', 'stu_ch', 'stu_a', 'stu_sp') $$,
   'gestor de SP lê os vínculos de casa aceitos (inclusive o histórico) de quem está em SP e ativo'
 );
 select set_eq(
@@ -1719,6 +1723,7 @@ insert into public.role_assignments (profile_id, role, unit_id)
 values (pg_temp.person('root_mgr2'), 'manager', pg_temp.unit('br'));
 -- (ADR 0017) o novo manager da raiz também precisa da casa aceita para valer como membro.
 insert into public.houses (key, active) values ('g-root2', true) on conflict do nothing;
+insert into fixture_houses values ('g-root2') on conflict do nothing;
 insert into public.house_members (profile_id, house_key, join_method, accepted_at) values (pg_temp.person('root_mgr2'), 'g-root2', 'self', now()) on conflict do nothing;
 set local role authenticated;
 select pg_temp.login('sp_mgr');

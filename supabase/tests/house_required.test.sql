@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(10);
+select plan(14);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -48,6 +48,26 @@ select is(public.save_own_profile(pg_temp.enc('e3'), 3550308, null, pg_temp.enc(
 select pg_temp.login('00000000-0000-0000-0000-0000000000e4');
 select is(public.save_own_profile(pg_temp.enc('e4'), 3550308, null, pg_temp.enc('wa'), repeat('4', 64), null, null), 'saved',
   'sem linha ainda (fora da lista): cria o perfil, como hoje');
+
+-- Quem coordena e fica sem casa PERDE a coordenação até ter casa (ADR 0017: ninguém vê nada sem casa).
+reset role;
+insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000e5');
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version, status, access_status)
+values ('00000000-0000-0000-0000-0000000000e5', pg_temp.enc('e5'), 3550308, 'v1', 'active', 'active');
+insert into public.consent_acceptances (user_id, version) values ('00000000-0000-0000-0000-0000000000e5', 'v1');
+insert into public.role_assignments (profile_id, role, unit_id)
+select '00000000-0000-0000-0000-0000000000e5', 'manager', id from public.units where path::text = 'br';
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values ('00000000-0000-0000-0000-0000000000e5', 'casa-t1', 'self', now());
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000e5');
+select is(app.manages_root(), true, 'o gestor da raiz com casa aceita coordena');
+reset role;
+update public.house_members set left_at = now() where profile_id = '00000000-0000-0000-0000-0000000000e5';
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000e5');
+select is(app.manages_root(), false, 'sem casa (vínculo encerrado), o gestor da raiz perde a coordenação');
+select is_empty($$ select 1 from app.my_scopes() $$, '... e não tem escopo de dados (my_scopes vazio)');
+select is((select count(*)::int from public.units), 0, '... nem lê a estrutura');
 
 select * from finish();
 rollback;
