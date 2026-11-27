@@ -397,6 +397,48 @@ por causa do envio da lista de autorizados (`/coordenacao/autorizados`, até 1,5
 O limite vale para todas as actions, inclusive as sem login: o proxy de borda pode
 baixá-lo por rota e deixar os 2 MB só para `/coordenacao/autorizados`.
 
+## Senha opcional (ADR 0018, #242)
+
+Quem não entra pelo Google pode criar uma senha em `/senha` ou no perfil e entrar sem e-mail.
+**Passo OBRIGATÓRIO pós-merge do #247, antes de liberar a senha.** O Kong do servidor é DB-less
+e só lê o `deploy/kong.yml` na partida, e o deploy NÃO o recria: sem recriar, a regra nova não
+vale e o login por senha fica aberto ao público (`/auth/v1/token`). Para aplicar (o agente do
+servidor executa e mede):
+
+1. **Recriar o `kong` e o `auth`** (o `auth` pelas variáveis `GOTRUE_PASSWORD_*` e
+   `GOTRUE_SECURITY_UPDATE_PASSWORD_*` do compose; o `kong` pelo `kong.yml`):
+   `docker compose up -d --force-recreate kong auth` (no compose do Supabase). Esperar os dois
+   saudáveis. Conferir o ambiente do `auth` carregado, e não o arquivo:
+   `docker compose exec auth env | grep -E 'GOTRUE_(PASSWORD|SECURITY_UPDATE_PASSWORD)'`.
+2. **Verificar DE FORA, por medição** (da máquina de quem opera, pelo endereço público; trocar
+   `$SITE`). Ler o arquivo não vale: só o curl prova o que o Kong em execução faz.
+   ```
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST "$SITE/auth/v1/token?grant_type=password"   # 404
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST "$SITE/auth/v1/signup"                        # 404
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST "$SITE/auth/v1/recover"                       # 404
+   curl -s -o /dev/null -w '%{http_code}\n' -X POST "$SITE/auth/v1/otp"                           # 404
+   curl -s -o /dev/null -w '%{http_code}\n' "$SITE/auth/v1/verify"                                # NAO 404
+   curl -s -o /dev/null -w '%{http_code}\n' "$SITE/auth/v1/authorize?provider=google"             # NAO 404
+   ```
+   Os quatro primeiros têm de dar **404**; `/verify` e `/authorize` têm de **passar** (qualquer
+   código diferente de 404, em geral 400 ou 302). Repetir `//auth/v1/token`, `/auth/v1/%74oken` e
+   `//auth/v1/signup`. Se `/token` não der 404, o Kong não foi recriado ou o proxy não põe
+   `X-Forwarded-For`: **não liberar a senha** e voltar a este passo.
+3. Depois do passo obrigatório: o link por e-mail e o Google continuam entrando (testar um login de cada). O HIBP consulta `api.pwnedpasswords.com` (HTTPS de saída, por k-anonimato). Conferir que o
+   `auth` alcança a API; com ela fora, o GoTrue deixa passar e vale só a lista local do app.
+4. A recuperação usa o modelo `recovery` servido pelo app (`/emails/recovery`, #238), com
+   `{{ .ConfirmationURL }}`: o link passa por `/auth/v1/verify` e volta por `/auth/callback?next=/senha`,
+   o que só funciona no mesmo navegador que pediu (PKCE). No local, `supabase/templates/recovery.html`
+   leva a `/auth/confirmar` (qualquer navegador). Conferir a recuperação ponta a ponta no staging.
+5. O login por senha pelo app deve continuar funcionando depois do passo 2 (o app fala com o Kong
+   interno, sem `X-Forwarded-For`; `SUPABASE_URL` do app é o Kong interno, nunca a URL pública).
+   Medir também a recuperação sem senha atual no v2.198.
+6. Medir por alguns dias: e-mails enviados por login (a cota do relay) e a taxa de "senha errada".
+   O GoTrue não limita `/token` por IP: por isso ele só atende o app (item 5).
+
+Voltar atrás: apagar as quatro chaves `GOTRUE_PASSWORD_*` e `GOTRUE_SECURITY_UPDATE_PASSWORD_*`
+volta aos padrões do GoTrue; as senhas já criadas continuam valendo.
+
 ## Cloudflare Turnstile no login por e-mail (#116)
 
 O formulário "Receber link por e-mail" de `/entrar` tem o widget do Turnstile
