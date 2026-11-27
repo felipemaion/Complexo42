@@ -205,11 +205,19 @@ Por isso o compose define os **quatro** caminhos como `/auth/v1/verify`. São
 quatro porque o magic link reusa o de **recovery**, não o de confirmation —
 deixar um de fora quebra um fluxo só, em silêncio.
 
-O `API_EXTERNAL_URL` com `/auth/v1` serve a outra coisa: o **callback do
-OAuth**, que o GoTrue monta por concatenação de string. Com a raiz do site, o
-callback sairia `{site}/callback`, fora do que o proxy roteia. Hoje é inerte
-porque nenhum provedor externo está ligado — e é por isso que precisa estar
-certo antes de ligar o Google.
+O `API_EXTERNAL_URL` com `/auth/v1` serve a outras três coisas, e **nenhuma
+delas é o Google**. Na v2.198.0 a chave é lida em exatamente três pontos: a
+base do e-mail (`middleware.go:385`, onde o `/auth/v1` é irrelevante porque os
+`MAILER_URLPATHS_*` são absolutos), os metadados SAML (`saml.go:60`,
+desligado), e o callback de OAuth **customizado** (`external.go:711`, prefixo
+`custom:`), que é concatenação de string — com a raiz do site sairia
+`{site}/callback`, fora do que o proxy roteia.
+
+> **Provedor embutido não usa essa base.** Google, GitHub e companhia exigem o
+> próprio `GOTRUE_EXTERNAL_<PROVEDOR>_REDIRECT_URI`, e ele é **obrigatório**: o
+> GoTrue recusa a configuração com `missing redirect URI` se o provedor estiver
+> ligado e a chave vazia. Para este ambiente, o valor a cadastrar no provedor e
+> na chave é `<SITE_URL>/auth/v1/callback`.
 
 Nada disso aparece em teste: o link só é montado com o GoTrue de verdade
 enviando e-mail. Então o CI trava as cinco linhas.
@@ -218,6 +226,22 @@ enviando e-mail. Então o CI trava as cinco linhas.
 > `https://site/`, o callback sai `https://site//auth/v1/callback` e o
 > `URI_ALLOW_LIST` sai `https://site//**`. O `gen-secrets.sh` normaliza, mas
 > configuração escrita à mão no servidor não passa por ele — conferir.
+
+### E-mails em português (templates do GoTrue)
+
+O e-mail de login sai em português porque o GoTrue busca cada template **no app**, pela rede interna
+(`${APP_INTERNAL_URL}`, padrão `http://app:3000`, o alias do app na rede `interna`), nas rotas públicas e
+estáticas `/emails/<nome>` (`magic-link`, `confirmation`, `recovery`, `invite`, `email-change`; sem sessão, sem
+dado pessoal). O compose define os cinco `GOTRUE_MAILER_TEMPLATES_*` e os cinco `GOTRUE_MAILER_SUBJECTS_*` (os
+assuntos são os de `config/instance.ts`). O texto e o nome do app vêm da config da instância.
+
+**Falha silenciosa:** se a URL de um template não responde (app fora do ar, alias errado, rota que passou a
+exigir sessão), o GoTrue **cai no template padrão em inglês** e o login continua funcionando: ninguém percebe. Três
+travas: (1) o teste `tests/gotrue-email-templates.test.ts` e o passo de CI "define templates e assuntos" exigem as
+dez chaves, ancoradas; (2) o teste da rota confere o 200 e o conteúdo; (3) **no teste de fumaça do login, compare
+o ASSUNTO do e-mail recebido com o configurado** (por exemplo "Seu link de entrada" para o link de entrada): assunto
+em inglês (ou o padrão do GoTrue) significa que o template não foi buscado. Depois de mudar o compose, recrie só o
+`auth`; mudar o texto de um template só exige redeploy do app (o GoTrue busca de novo, com cache curto).
 
 ## O que está exposto
 

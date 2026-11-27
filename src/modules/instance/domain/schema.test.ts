@@ -30,6 +30,14 @@ const valid = {
     confirmButton: "t",
     errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t", legacy_link: "t" },
   },
+  emails: {
+    expires: "t",
+    fallback: "t",
+    footer: "t",
+    templates: Object.fromEntries(
+      ["magic-link", "confirmation", "recovery", "invite", "email-change"].map((kind) => [kind, { subject: "t", heading: "t", intro: "t", button: "t" }]),
+    ),
+  },
   profile: {
     title: "t",
     intro: "t",

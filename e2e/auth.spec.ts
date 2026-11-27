@@ -184,3 +184,41 @@ test("rota protegida com credencial na query: o /entrar guarda só o caminho", a
   await expect(page).toHaveURL(/\/entrar\?next=%2Finicio$/);
   expect(page.url()).not.toMatch(/segredo|code=|access_token/);
 });
+
+// /entrar: o bloco (logo, nome do app e formulário) fica centralizado e o logo em destaque, sem layout shift
+// (largura e altura no HTML). Desktop 160–200 px; celular ~120 px.
+for (const [width, height, min, max] of [
+  [1280, 900, 160, 200],
+  [390, 844, 110, 140],
+] as const) {
+  test(`/entrar centraliza o logo e o formulário e dá destaque ao logo (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/entrar");
+    const logo = page.getByTestId("app-logo");
+    await expect(logo).toBeVisible();
+    const logoBox = (await logo.boundingBox())!;
+    expect(logoBox.width).toBeGreaterThanOrEqual(min);
+    expect(logoBox.width).toBeLessThanOrEqual(max);
+    expect(Math.abs(logoBox.x + logoBox.width / 2 - width / 2)).toBeLessThanOrEqual(2);
+    const name = (await page.getByTestId("app-name").boundingBox())!;
+    expect(Math.abs(name.x + name.width / 2 - width / 2)).toBeLessThanOrEqual(2);
+    const field = (await page.getByLabel(/e-?mail/i).first().boundingBox())!;
+    expect(Math.abs(field.x + field.width / 2 - width / 2)).toBeLessThanOrEqual(2);
+    // Sem layout shift: o navegador já sabe o tamanho antes de baixar a imagem.
+    expect(await logo.getAttribute("width")).toBeTruthy();
+    expect(await logo.getAttribute("height")).toBeTruthy();
+    expect(await logo.getAttribute("srcset")).toContain("512w");
+  });
+}
+// Os templates de e-mail do GoTrue são buscados pela rede interna, sem sessão: a rota não pode pedir login.
+test("templates de e-mail respondem 200 sem sessão, em português, com as variáveis do GoTrue", async ({ request }) => {
+  for (const kind of ["magic-link", "confirmation", "recovery", "invite", "email-change"]) {
+    const response = await request.get(`/emails/${kind}`, { maxRedirects: 0 });
+    expect(response.status(), kind).toBe(200);
+    expect(response.headers()["content-type"], kind).toContain("text/html");
+    const body = await response.text();
+    expect(body, kind).toContain("{{ .ConfirmationURL }}");
+    expect(body, kind).toContain('lang="pt-BR"');
+  }
+  expect((await request.get("/emails/nao-existe", { maxRedirects: 0 })).status()).toBe(404);
+});
