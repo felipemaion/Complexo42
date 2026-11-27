@@ -153,6 +153,17 @@ describe("fila de espera", () => {
     });
   });
 
+  it("pessoa de perfil incompleto (ADR 0017: bloqueada e desbloqueada volta à espera sem nome, município nem UF): a fila a mostra, sem derrubar a página", async () => {
+    const decrypt = vi.fn(async () => "Maria");
+    const incomplete = { ...row(2), display_name_enc: null, municipality_code: null, state_code: null };
+    const page = await listWaitlist(fakeClient([row(1), incomplete]).client, {}, decrypt);
+    expect(page.entries).toEqual([
+      { profileId: row(1).profile_id, displayName: "Maria", municipalityCode: 3550308, stateCode: "SP", createdAt: row(1).created_at },
+      { profileId: incomplete.profile_id, displayName: null, municipalityCode: null, stateCode: null, createdAt: incomplete.created_at },
+    ]);
+    expect(decrypt).toHaveBeenCalledTimes(1);
+  });
+
   it("nome que não decifra vem como null, não derruba a página e vai para o log só com código e id", async () => {
     const warn = vi.spyOn(log, "warn").mockImplementation(() => {});
     let n = 0;

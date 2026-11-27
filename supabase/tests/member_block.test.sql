@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(75);
+select plan(79);
 
 -- Unidades do seed (br > sp > abc; br > mg), lidas como dono antes de trocar de papel.
 create temp table unit_ids (slug text primary key, id uuid not null);
@@ -332,6 +332,23 @@ select pg_temp.login('sp_mgr');
 select throws_ok($$ select app.account_by_email('member2@exemplo.org') $$, '42501', null,
   'ninguém consulta conta por e-mail pela API');
 reset role;
+
+-- Perfil incompleto (ADR 0017): bloquear e desbloquear quem tem a linha incompleta a põe na espera sem nome, município
+-- nem UF, e a fila de espera continua a listá-la (a coordenação não a perde; a página não quebra).
+reset role;
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-0000000000f1', 'incompleto@exemplo.org');
+insert into public.profiles (id, status, access_status) values ('00000000-0000-0000-0000-0000000000f1', 'active', 'active');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select public.block_member('incompleto@exemplo.org') $$, 'a coordenação nacional bloqueia quem tem perfil incompleto');
+select lives_ok($$ select public.unblock_member('incompleto@exemplo.org') $$, '... e o desbloqueio o põe na espera');
+select results_eq(
+  $$ select display_name_enc is null, municipality_code is null, state_code is null
+     from public.list_waitlist(200) where profile_id = '00000000-0000-0000-0000-0000000000f1' $$,
+  $$ values (true, true, true) $$,
+  'a fila de espera lista a pessoa de perfil incompleto, com nome, município e UF nulos');
+reset role;
+select is((select access_status from public.profiles where id = '00000000-0000-0000-0000-0000000000f1'), 'waitlisted', 'em waitlisted (a linha incompleta não aparece pela RLS de perfis, só pela função da fila)');
 
 select * from finish();
 rollback;
