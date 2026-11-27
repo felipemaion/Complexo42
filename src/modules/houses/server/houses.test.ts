@@ -201,7 +201,7 @@ describe("submitQuestionnaire", () => {
     expect(sent.startsWith("enc[questionnaire_results.answers_enc.u-1](")).toBe(true);
     expect(JSON.parse(sent.slice("enc[questionnaire_results.answers_enc.u-1](".length, -1))).toEqual(conclusive);
     expect(JSON.stringify(outcome)).not.toContain("answers_enc");
-    expect(signed.every((m) => !m.includes('"h1a"'))).toBe(true);
+    expect(signed.at(-1)).toContain(`|${sent}`); // a assinatura cobre o valor cifrado
   });
 
   it("nem totem, nem notas em texto puro vão ao banco: só os valores cifrados", async () => {

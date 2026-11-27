@@ -66,6 +66,8 @@ export async function recordConsent(client: HouseClient, input: unknown, current
 /** Onde o totem e as respostas moram (viram o AAD da cifragem, ADR 0003 §3): a linha é a da pessoa. */
 export const totemContext = (profileId: string): CipherContext => ({ table: "questionnaire_results", column: "totem_enc", rowId: profileId });
 export const scoresContext = (profileId: string): CipherContext => ({ table: "questionnaire_results", column: "scores_enc", rowId: profileId });
+/** As últimas respostas do questionário moram no resultado (#256): AAD com a linha da pessoa. */
+export const savedAnswersContext = (profileId: string): CipherContext => ({ table: "questionnaire_results", column: "answers_enc", rowId: profileId });
 export const answersContext = (profileId: string): CipherContext => ({ table: "house_analysis_requests", column: "answers_enc", rowId: profileId });
 
 /** O que o envio das respostas precisa do servidor: o questionário real, a pessoa da sessão e a assinatura. */
@@ -102,7 +104,9 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
   if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
   const totemEnc = await ctx.encrypt(result.totem, totemContext(userId));
   const scoresEnc = await ctx.encrypt(JSON.stringify(result.scores), scoresContext(userId));
-  const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}`);
+  // A última resposta válida fica guardada, cifrada (AAD da linha da pessoa), para a troca de casa; a assinatura a cobre.
+  const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), savedAnswersContext(userId));
+  const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}|${answersEnc}`);
   const { error } = await client.rpc("record_questionnaire_result", {
     p_term_version: term,
     p_house_key: result.houseId,
@@ -110,6 +114,7 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     p_scores_enc: scoresEnc,
     p_issued_at: nowSeconds,
     p_signature: signature,
+    p_answers_enc: answersEnc,
   });
   if (error) return refusedSubmit(client, error, ctx);
   // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.

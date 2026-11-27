@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 9;
+export const exportFormatVersion = 10;
 
 const timestamp = z.string().min(1);
 
@@ -89,6 +89,8 @@ export const ownDataRowsSchema = z.object({
       totem_state: z.enum(["decided", "pending", "undecided"]),
       /** Notas dos 4 eixos (JSON cifrado, ADR 0003); nulo em resultado antigo, de antes da escala. */
       scores_enc: z.string().nullable(),
+      /** Últimas respostas do questionário (JSON cifrado, #256); nulo em resultado anterior ou decidido pela coordenação. */
+      answers_enc: z.string().nullable().optional(),
       term_version: z.string(),
       source: z.string(),
       created_at: timestamp,
@@ -188,6 +190,8 @@ export type OwnDataExport = {
     totem: string | null;
     /** Situação do totem: decided, pending (a coordenação vai decidir) ou undecided (pedido encerrado sem decisão). */
     situacaoDoTotem: "decided" | "pending" | "undecided";
+    /** As últimas respostas do questionário (item → intensidade), decifradas; nulas se não há guardadas ou não decifram. */
+    respostasGuardadas: Record<string, number> | null;
     /** Nota de cada eixo, de -100 (muito polo "a") a 100 (muito polo "b"); nula sem notas. */
     notasPorEixo: { eixo1: number; eixo2: number; eixo3: number; eixo4: number } | null;
     versaoDoTermo: string;
@@ -274,9 +278,9 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     }
   };
 
-  // Respostas do pedido de análise: JSON cifrado; só existem com o pedido aberto.
-  const openAnswers = async (value: string | null) => {
-    const raw = await open(value, "house_analysis_requests", "answers_enc");
+  // Respostas (JSON cifrado): as do pedido de análise (só com o pedido aberto) e as últimas do resultado (#256).
+  const openAnswersOf = async (value: string | null, table: string) => {
+    const raw = await open(value, table, "answers_enc");
     if (raw === null) return null;
     try {
       return answersJson.parse(JSON.parse(raw));
@@ -285,6 +289,9 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       return null;
     }
   };
+
+  const openAnswers = (value: string | null) => openAnswersOf(value, "house_analysis_requests");
+  const openSavedAnswers = (value: string | null) => openAnswersOf(value, "questionnaire_results");
 
   // Notas dos eixos: JSON cifrado, nulo em resultado antigo (de antes da escala de intensidade).
   const openScores = async (value: string | null) => {
@@ -360,6 +367,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       casaSugerida: houseName(rows.questionnaire_result.house_key) ?? rows.questionnaire_result.house_key,
       totem: await open(rows.questionnaire_result.totem_enc, "questionnaire_results", "totem_enc"),
       situacaoDoTotem: rows.questionnaire_result.totem_state,
+      respostasGuardadas: await openSavedAnswers(rows.questionnaire_result.answers_enc ?? null),
       notasPorEixo: await openScores(rows.questionnaire_result.scores_enc),
       versaoDoTermo: rows.questionnaire_result.term_version,
       origem: rows.questionnaire_result.source,
