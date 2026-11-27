@@ -7,7 +7,7 @@ import { z } from "zod";
 import { accessStatuses } from "@/modules/profiles";
 import { decryptField, emailBlindIndex } from "@/server/crypto";
 import { log } from "@/server/log";
-import { normalizeAllowlistEmail, parseAllowlistCsv } from "../domain/allowlist-csv";
+import { AllowlistImportError, normalizeAllowlistEmail, parseAllowlistCsv } from "../domain/allowlist-csv";
 import type { MemberBlockRequest } from "../domain/member-block";
 import {
   AccessError,
@@ -103,6 +103,31 @@ export async function importAllowlist(
     .object({ received: z.number().int().nonnegative(), promoted: z.number().int().nonnegative() })
     .parse(await callRpc(client, "import_allowlist", { p_email_hmacs: hmacs, p_source: validSource }));
   return { received, promoted, invalidLines };
+}
+
+/**
+ * Autoriza UM e-mail à mão, pelo mesmo RPC do import (mesma regra no banco: só o gestor da raiz,
+ * só HMAC, idempotente). O e-mail é normalizado como no CSV; inválido nem chega ao banco.
+ * `added: false` = já estava na lista. Não devolve nada sobre a pessoa ter conta ou ter sido
+ * liberada (o `promoted` do banco é descartado de propósito).
+ */
+export async function addAllowlistEmail(
+  client: AccessClient,
+  email: string,
+  blindIndex: BlindIndex = emailBlindIndex,
+): Promise<{ added: boolean }> {
+  const normalized = normalizeAllowlistEmail(email);
+  if (!normalized) throw new AllowlistImportError("invalid_email");
+  const { added } = z
+    .object({ received: z.number().int().nonnegative(), promoted: z.number().int().nonnegative(), added: z.number().int().nonnegative() })
+    .parse(
+      await callRpc(client, "import_allowlist", {
+        p_email_hmacs: [await blindIndex(normalized)],
+        p_source: "manual",
+        p_reason: "manual",
+      }),
+    );
+  return { added: added > 0 };
 }
 
 /**

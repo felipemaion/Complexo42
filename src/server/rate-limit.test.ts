@@ -3,7 +3,7 @@ import { createRateLimiter } from "./rate-limit";
 
 describe("createRateLimiter (janela fixa por chave)", () => {
   it("deixa passar até o máximo na janela e barra o excedente, por chave", () => {
-    let now = 0;
+    const now = 0;
     const limiter = createRateLimiter({ max: 3, windowMs: 1000, now: () => now });
     expect([1, 2, 3, 4].map(() => limiter.take("a"))).toEqual([true, true, true, false]);
     expect(limiter.take("b")).toBe(true);

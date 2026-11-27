@@ -16,7 +16,7 @@
  */
 export const allowlistLimits = { maxEmails: 35_000, maxBytes: 1.5 * 1024 * 1024 } as const;
 
-export type AllowlistImportErrorCode = "empty" | "too_large" | "too_many";
+export type AllowlistImportErrorCode = "empty" | "too_large" | "too_many" | "invalid_email";
 
 /** Erro da importação. A mensagem é fixa: nunca traz e-mail nem trecho do arquivo. */
 export class AllowlistImportError extends Error {
@@ -26,6 +26,7 @@ export class AllowlistImportError extends Error {
         empty: "O arquivo não tem nenhum e-mail válido.",
         too_large: "O arquivo passa do tamanho máximo.",
         too_many: `O arquivo passa de ${allowlistLimits.maxEmails} e-mails.`,
+        invalid_email: "O e-mail não tem um formato válido.",
       }[code],
     );
     this.name = "AllowlistImportError";

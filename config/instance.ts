@@ -459,6 +459,21 @@ export const instance = parseInstanceConfig({
         forbidden: "Só a coordenação geral pode enviar a lista de pessoas autorizadas.",
         failed: "Não foi possível enviar agora. Nada foi alterado: tente de novo em alguns minutos.",
       },
+      addEmail: {
+        title: "Autorizar um e-mail",
+        label: "E-mail",
+        hint: "Para incluir uma pessoa de cada vez, sem arquivo. O e-mail não fica guardado, só o código que o representa.",
+        button: "Adicionar",
+        adding: "Adicionando...",
+        added: "Adicionado",
+        already: "Este e-mail já estava na lista.",
+        errors: {
+          invalid_email: "Esse e-mail não parece válido. Confira e tente de novo.",
+          forbidden: "Só a coordenação geral pode autorizar e-mails.",
+          rate_limited: "Muitas inclusões em pouco tempo. Espere alguns minutos e tente de novo.",
+          failed: "Não foi possível adicionar agora. Nada foi alterado: tente de novo em alguns minutos.",
+        },
+      },
     },
     waitlist: {
       menuLink: "Pessoas esperando liberação",

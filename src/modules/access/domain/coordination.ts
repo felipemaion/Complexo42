@@ -47,6 +47,13 @@ export const allowlistUploadErrors = [
 ] as const;
 export type AllowlistUploadError = (typeof allowlistUploadErrors)[number];
 
+/** Campo do e-mail avulso (autorizar à mão). */
+export const ALLOWLIST_EMAIL_FIELD = "email";
+export const addEmailErrors = ["invalid_email", "forbidden", "rate_limited", "failed"] as const;
+export type AddEmailError = (typeof addEmailErrors)[number];
+/** Estado do formulário de e-mail avulso: nunca devolve o e-mail nem diz se a pessoa tem conta. */
+export type AddEmailState = { status: "idle" } | { status: "added" } | { status: "already" } | { status: "error"; error: AddEmailError };
+
 /** Quantos números de linha ruim a action devolve ao navegador; o resto vira só o total. */
 export const invalidLinesReturnedMax = 200;
 

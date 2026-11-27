@@ -7,6 +7,7 @@ export {
   type ParsedAllowlist,
 } from "./domain/allowlist-csv";
 export {
+  addAllowlistEmail,
   decideAccess,
   importAllowlist,
   setMemberBlock,
@@ -15,6 +16,7 @@ export {
   waitlistPageLimit,
 } from "./server/access";
 export {
+  ALLOWLIST_EMAIL_FIELD,
   ALLOWLIST_FILE_FIELD,
   ALLOWLIST_SOURCE_FIELD,
   ALLOWLIST_UPLOAD_PATH,
@@ -37,6 +39,8 @@ export {
   previewLines,
   waitlistDoneStatuses,
   waitlistHref,
+  type AddEmailError,
+  type AddEmailState,
   type AllowlistUploadError,
   type AllowlistUploadState,
   type DecisionWord,
@@ -56,6 +60,7 @@ export {
 } from "./domain/member-block";
 export { municipalityNames, readCoordinationMenu } from "./server/coordination";
 export { AllowlistUploadForm, type AllowlistUploadText } from "./components/allowlist-upload";
+export { AllowlistAddEmailForm, type AllowlistAddEmailText } from "./components/allowlist-add-email";
 export { MemberBlockForm, type MemberBlockText } from "./components/member-block-form";
 export { WaitlistQueue, type WaitlistQueueEntry, type WaitlistQueueText } from "./components/waitlist-queue";
 export { AccessError } from "./types";
