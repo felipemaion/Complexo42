@@ -107,11 +107,16 @@ export const requireUserBeforeHouse = cache(async (): Promise<CurrentUser> => {
  */
 export const requireUser = cache(async (): Promise<CurrentUser> => {
   const user = await requireUserBeforeHouse();
-  const session = await getSession();
-  if (!session) redirect(LOGIN_PATH);
-  const pending = await houseRedirect(session.client, user.id);
+  const pending = await pendingHouseRedirect();
   if (pending) redirect(pending);
   return user;
+});
+
+/** Para onde a casa manda a pessoa (null: tem casa), uma vez por requisição; só depois de `requireUserBeforeHouse`. */
+export const pendingHouseRedirect = cache(async (): Promise<string | null> => {
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  return houseRedirect(session.client, session.user.id);
 });
 
 /**

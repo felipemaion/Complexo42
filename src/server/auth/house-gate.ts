@@ -12,7 +12,12 @@ import { SIGNOUT_PATH } from "./routes";
 /** A tela da casa: o próximo passo de quem ainda não tem casa. */
 export const HOUSE_PATH = "/casa";
 
-/** Para onde mandar quem ainda não tem a casa aceita, ou null se pode seguir. Falha fechada. */
+/**
+ * Para onde mandar quem ainda não tem a casa aceita, ou null se pode seguir. Falha fechada.
+ *
+ * ATENÇÃO: só vale DEPOIS de `requireAccessUser` (sessão conferida, acesso liberado) e do termo: esta função não
+ * confere sessão nem acesso, só a casa. Quem chama é `requireUser` (session.ts), nesta ordem: acesso, termo, casa.
+ */
 export async function houseRedirect(client: AuthClient, userId: string): Promise<string | null> {
   try {
     const house = await client
