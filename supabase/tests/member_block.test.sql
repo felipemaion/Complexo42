@@ -106,6 +106,11 @@ $$;
 -- ---------------------------------------------------------------------------------------
 -- Quem não pode usar o bloqueio recebe 42501 (não depende do alvo)
 -- ---------------------------------------------------------------------------------------
+-- Membro de verdade exige a casa aceita (ADR 0017): cada pessoa do teste ganha uma casa só dela (sem criar colegas de casa).
+insert into public.houses (key, active) select 'g-' || id::text, true from public.profiles on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select p.id, 'g-' || p.id::text, 'self', now() from public.profiles as p
+where not exists (select 1 from public.house_members as h where h.profile_id = p.id and h.left_at is null) on conflict do nothing;
 set local role anon;
 select throws_ok($$ select public.block_member('member@exemplo.org') $$, '42501', null,
   'anônimo NÃO bloqueia');

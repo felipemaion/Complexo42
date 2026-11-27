@@ -143,6 +143,11 @@ grant execute on function pg_temp.results_seen(), pg_temp.requests_seen() to aut
 -- ---------------------------------------------------------------------------------------
 -- record_questionnaire_result
 -- ---------------------------------------------------------------------------------------
+-- Membro de verdade exige a casa aceita (ADR 0017): quem tem papel (coordenação) ganha uma casa só dele. Quem aceita casa no teste fica sem.
+insert into public.houses (key, active) select 'g-' || profile_id::text, true from (select distinct profile_id from public.role_assignments) as r on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select r.profile_id, 'g-' || r.profile_id::text, 'self', now() from (select distinct profile_id from public.role_assignments) as r
+where not exists (select 1 from public.house_members as h where h.profile_id = r.profile_id and h.left_at is null) on conflict do nothing;
 set local role anon;
 select throws_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AB') $$, '42501', null,
   'anônimo NÃO grava resultado');
@@ -607,6 +612,9 @@ select pg_temp.place('p2', 'br.mg');
 select pg_temp.place('p3', 'br.sp.abc.equipe_1');
 insert into public.role_assignments (profile_id, role, unit_id)
 select pg_temp.person('abc_mgr'), 'manager', id from public.units where path::text = 'br.sp.abc';
+-- (ADR 0017) quem ganha papel aqui precisa da casa aceita para valer como membro.
+insert into public.houses (key, active) values ('g-abc-mgr', true) on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values (pg_temp.person('abc_mgr'), 'g-abc-mgr', 'self', now()) on conflict do nothing;
 create temp table unit_ids2 (slug text primary key, id uuid not null);
 insert into unit_ids2 select path::text, id from public.units where path::text in ('br', 'br.sp', 'br.sp.abc', 'br.mg');
 grant select on unit_ids2 to authenticated;
@@ -819,6 +827,8 @@ select lives_ok($$ select pg_temp.resolve((select id from deleg_req where who = 
 -- Regras conservadoras e de escopo do delegado (revisão do #181).
 reset role;
 insert into public.role_assignments (profile_id, role, unit_id) values (pg_temp.person('sp_mgr2'), 'manager', pg_temp.unit2('br.sp'));
+insert into public.houses (key, active) values ('g-sp-mgr2', true) on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values (pg_temp.person('sp_mgr2'), 'g-sp-mgr2', 'self', now()) on conflict do nothing;
 update public.profiles set status = 'suspended' where id = pg_temp.person('p2');
 delete from public.house_analysis_requests where status = 'open';
 insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc) values

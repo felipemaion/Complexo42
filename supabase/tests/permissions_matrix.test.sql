@@ -509,7 +509,8 @@ insert into matrix (actor, action, target, expected) values
   ('nat_mgr', 'profile', 'stu_h', false),
   -- A casa não é mais unidade: não mostra unidade nenhuma à pessoa
   ('stu_h', 'unit', 'br', false),
-  ('stu_hpend', 'unit', 'team_a', true),
+  -- Casa antes de tudo (ADR 0017): vínculo de casa SEM aceite não é membro de verdade, então não vê a estrutura.
+  ('stu_hpend', 'unit', 'team_a', false),
   ('stu_ah', 'profile', 'stu_bh', false),
   -- Auditoria dos eventos de casa (#132): house_accepted dos membros, para o coordenador da
   -- casa do registro no território e para o gestor (manager) acima; a pessoa lê os próprios
@@ -706,7 +707,7 @@ insert into matrix (actor, action, target, expected) values
   ('stu_a', 'contact', 'stu_ah', true),
   ('stu_a', 'contact_social', 'stu_ah', true),
   ('stu_a', 'contact_email', 'stu_ah', false),
-  ('stu_hpend', 'contact', 'stu_ah', true),
+  ('stu_hpend', 'contact', 'stu_ah', false), -- sem casa aceita, não é membro de verdade (ADR 0017)
   ('stu_a', 'contact', 'stu_hpend', true),
   -- Colega de casa: `team` não alcança a casa; `team_house` alcança, de qualquer equipe da
   -- mesma região, com os dois na casa há 7 dias ou mais (stu_h aceitou hoje e não tem equipe)
@@ -896,6 +897,11 @@ grant select on people to authenticated;
 
 -- Todas as pessoas aceitaram o termo vigente (#11): `save_own_profile` exige o aceite.
 insert into public.consent_acceptances (user_id, version) select id, 'v1' from auth.users;
+-- Membro de verdade exige a casa aceita (ADR 0017): quem tem papel (coordenação) ganha uma casa só dele; os demais ficam como estão.
+insert into public.houses (key, active) select 'g-' || profile_id::text, true from (select profile_id from public.role_assignments union select id from people where name in ('stu_a', 'stu_sp', 'stu_moved')) as r on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select r.profile_id, 'g-' || r.profile_id::text, 'self', now() from (select profile_id from public.role_assignments union select id from people where name in ('stu_a', 'stu_sp', 'stu_moved')) as r
+where not exists (select 1 from public.house_members as h where h.profile_id = r.profile_id and h.left_at is null) on conflict do nothing;
 -- Quem salva o próprio perfil pela função precisa da casa aceita (ADR 0017): o coordenador do teste a tem.
 insert into public.house_members (profile_id, house_key, join_method, accepted_at)
 select id, 'casa-t1', 'self', now() from people where name = 'team_a_mon' and not exists (select 1 from public.house_members h where h.profile_id = people.id and h.left_at is null);
@@ -1447,14 +1453,14 @@ select is_empty(
 set local role authenticated;
 select pg_temp.login('house_mon');
 select set_eq(
-  $$ select profile_id, house_key from public.house_members $$,
+  $$ select profile_id, house_key from public.house_members where house_key not like 'g-%' $$,
   $$ select id, 'casa-t1'::text from people where name in ('stu_ah', 'stu_bh') $$,
   'coordenador da casa 1 no ABC lê os vínculos aceitos da casa 1 de quem é do ABC e está ativo (não o histórico de outra casa)'
 );
 select is_empty($$ select 1 from app.my_scopes() $$,
   'coordenador de casa não tem escopo territorial (my_scopes vazio)');
 select is_empty(
-  $$ select 1 from public.house_members where house_key <> 'casa-t1' $$,
+  $$ select 1 from public.house_members where house_key <> 'casa-t1' and house_key not like 'g-%' $$,
   'coordenador da casa 1 NÃO lê os vínculos da casa 2'
 );
 select set_eq(
@@ -1530,11 +1536,11 @@ select set_eq(
 );
 select set_eq(
   $$ select slug from public.units $$,
-  array['br', 'sp', 'abc', 'team_a'],
-  'a casa não é unidade: a pessoa vê só o caminho do território'
+  array[]::text[],
+  'vínculo de casa sem aceite: não é membro de verdade e não vê unidade nenhuma (ADR 0017; a casa também não é unidade)'
 );
 select set_eq(
-  $$ select key from public.houses $$,
+  $$ select key from public.houses where key not like 'g-%' $$,
   array['esparta', 'atenas', 'alexandria', 'siracusa',
         'casa-t1', 'casa-t2', 'casa-off'],
   'quem está ativo lê as chaves das casas (sem dado pessoal)'
@@ -1556,14 +1562,14 @@ select is_empty($$ select 1 from public.house_members $$, 'quem está na espera 
 select is_empty($$ select 1 from public.houses $$, 'quem está na espera NÃO lê as casas');
 
 select pg_temp.login('spokes_a');
-select is_empty($$ select 1 from public.house_members $$,
+select is_empty($$ select 1 from public.house_members where house_key not like 'g-%' $$,
   'porta-voz NÃO lê vínculos de casa (não é coordenação)');
 
 -- Gestor de SP: a coordenação territorial lê vínculos de casa (de qualquer casa) e
 -- house_accepted de quem está no seu território; não o termo
 select pg_temp.login('sp_mgr');
 select set_eq(
-  $$ select profile_id from public.house_members $$,
+  $$ select profile_id from public.house_members where house_key not like 'g-%' $$,
   $$ select id from people where name in ('stu_ah', 'stu_ah2', 'stu_bh', 'stu_hleft', 'stu_ch') $$,
   'gestor de SP lê os vínculos de casa aceitos (inclusive o histórico) de quem está em SP e ativo'
 );
@@ -1711,6 +1717,9 @@ select is(
 -- Neste ponto a raiz não tem manager ativo (revogados acima); root_mgr2 passa a ser.
 insert into public.role_assignments (profile_id, role, unit_id)
 values (pg_temp.person('root_mgr2'), 'manager', pg_temp.unit('br'));
+-- (ADR 0017) o novo manager da raiz também precisa da casa aceita para valer como membro.
+insert into public.houses (key, active) values ('g-root2', true) on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values (pg_temp.person('root_mgr2'), 'g-root2', 'self', now()) on conflict do nothing;
 set local role authenticated;
 select pg_temp.login('sp_mgr');
 select lives_ok(

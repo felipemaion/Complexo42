@@ -190,6 +190,11 @@ select hasnt_function('app', 'membership_counts', array['text', 'timestamp with 
 -- ---------------------------------------------------------------------------------------
 -- accept_house
 -- ---------------------------------------------------------------------------------------
+-- Membro de verdade exige a casa aceita (ADR 0017): quem tem papel (coordenação) ganha uma casa só dele. Quem aceita casa no teste fica sem.
+insert into public.houses (key, active) select 'g-' || profile_id::text, true from (select distinct profile_id from public.role_assignments) as r on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select r.profile_id, 'g-' || r.profile_id::text, 'self', now() from (select distinct profile_id from public.role_assignments) as r
+where not exists (select 1 from public.house_members as h where h.profile_id = r.profile_id and h.left_at is null) on conflict do nothing;
 set local role authenticated;
 
 select pg_temp.login('p_state');
@@ -282,6 +287,9 @@ select lives_ok(
      where profile_id = pg_temp.person('p_zl') $$,
   'o coordenador da casa X no ABC tenta encerrar o vínculo de quem é da Zona Leste: nada é alcançado'
 );
+reset role;
+delete from public.house_members where profile_id = pg_temp.person('coord') and house_key like 'g-%'; -- a casa de fixture dá lugar à escolhida neste teste
+set local role authenticated;
 select pg_temp.login('coord');
 select isnt(public.accept_house('casa-x', 'self', null), null,
   'o coordenador da casa X também é membro da casa X');
