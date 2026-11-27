@@ -36,7 +36,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const [pending, startTransition] = useTransition();
 
   const ctx = useMemo<FlowContext>(
-    () => ({ itemIds: questionnaire.items.map((item) => item.id) }),
+    () => ({ questionIds: questionnaire.items.map((item) => item.id) }),
     [questionnaire],
   );
   const dispatch = (event: FlowEvent) => {
@@ -63,7 +63,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
       if (cancelled) return;
       // A recusa vai no estado do fluxo (#199): setError e dispatch na mesma hora apagariam o motivo.
       if (!response.ok) dispatch({ type: "submit_failed", error: response.error, retryAfterSeconds: response.retryAfterSeconds });
-      else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart });
+      else if (response.outcome === "recorded") dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles });
       else dispatch({ type: "analysis_requested" });
     })();
     return () => {
@@ -185,7 +185,18 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
               <h2 id="profile-chart-title" className="text-2xl font-bold">
                 {text.chartTitle}
               </h2>
-              <SpiderChart axes={step.chart} title={text.chartTitle} />
+              <SpiderChart
+                chart={step.chart}
+                title={text.chartTitle}
+                houses={
+                  step.byPoles && {
+                    byPoles: step.byPoles,
+                    houses,
+                    currentHouseId: step.houseId,
+                    currentLabel: text.chartCurrentHouse,
+                  }
+                }
+              />
             </section>
           )}
           {house && (

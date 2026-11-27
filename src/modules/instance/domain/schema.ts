@@ -24,6 +24,11 @@ const houseSchema = z.strictObject({
    */
   id: slug.max(63),
   name: text,
+  /**
+   * Cor da casa no gráfico de aranha (#201): uma para o tema claro e outra, mais clara, para o
+   * escuro (CSS `light-dark()`); cada uma com contraste de pelo menos 3:1 sobre o fundo do tema.
+   */
+  color: z.strictObject({ light: hexColor, dark: hexColor }),
   /** Descrição curta exibida na escolha da casa. */
   description: text,
   /**
@@ -233,6 +238,8 @@ export const instanceConfigSchema = z.strictObject({
     finishButton: text,
     /** Título do gráfico de aranha do perfil (eixos da casa). */
     chartTitle: text,
+    /** Destaque da casa na legenda do gráfico (#201). */
+    chartCurrentHouse: text,
     backButton: text,
     /** Título do resultado do questionário (a casa sugerida). */
     suggestedTitle: text,
@@ -300,6 +307,8 @@ export const instanceConfigSchema = z.strictObject({
       totemUndecided: text,
       dateLabel: text,
       chartTitle: text,
+      /** Destaque da casa na legenda do gráfico (#201). */
+      chartCurrentHouse: text,
       noScores: text,
       unreadableOne: text,
       backLink: text,
@@ -319,6 +328,8 @@ export const instanceConfigSchema = z.strictObject({
       tiedAxesLabel: text,
       answersTitle: text,
       chartTitle: text,
+      /** Destaque da casa na legenda do gráfico (#201). */
+      chartCurrentHouse: text,
       resolveTitle: text,
       totemOnlyNotice: text.refine((v) => v.includes("{house}"), "use {house}"),
       houseLabel: text,

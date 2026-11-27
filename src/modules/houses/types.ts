@@ -1,4 +1,4 @@
-import type { ChartAxis } from "@/modules/questionnaire";
+import type { ChartAxis, HouseByPoles } from "@/modules/questionnaire";
 export type { FlowContext, FlowEvent, FlowState, JoinMethod, Step } from "./domain/flow";
 
 /** Onde o valor cifrado mora (AAD da decifragem, ADR 0003 §3). */
@@ -22,7 +22,7 @@ export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCod
  * quando o resultado foi inconclusivo.
  */
 export type SubmitAnswersResult =
-  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[] }
+  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; byPoles: HouseByPoles }
   | { ok: true; outcome: "analysis" }
   /** `retryAfterSeconds`: só no limite de renovação do pedido de análise, quando o tempo restante é conhecido. */
   | { ok: false; error: HouseErrorCode; retryAfterSeconds?: number };

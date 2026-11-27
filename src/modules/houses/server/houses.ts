@@ -111,7 +111,14 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     });
     if (error) return refusedSubmit(client, error, ctx);
     // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.
-    return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
+    return {
+      ok: true,
+      outcome: "recorded",
+      houseId: result.houseId,
+      chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
+      // O mapa das casas só vai depois das respostas, para as zonas do gráfico (#201); a chave dos itens segue no servidor.
+      byPoles: ctx.questionnaire.houseByPoles,
+    };
   }
   const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), answersContext(userId));
   if (result.status === "totem_pending") {
@@ -131,7 +138,13 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     });
     if (error) return { ok: false, error: errorCode(error) };
     // O totem é interno e está pendente: a pessoa vê a casa e o perfil dos eixos da casa, como no caso conclusivo.
-    return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
+    return {
+      ok: true,
+      outcome: "recorded",
+      houseId: result.houseId,
+      chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
+      byPoles: ctx.questionnaire.houseByPoles,
+    };
   }
   const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${answersEnc}|${nowSeconds}`);
   const { error } = await client.rpc("request_house_analysis", {

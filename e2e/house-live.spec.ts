@@ -110,6 +110,9 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await signIn(page, member.email);
   await page.getByRole("link", { name: "Escolher sua casa" }).click();
   await expect(page).toHaveURL(/\/casa$/);
+  // O HTML e o payload RSC de /casa, antes de responder, não trazem a chave nem o mapa das casas (ADR 0014 §1).
+  const pageSource = await (await page.request.get("/casa")).text();
+  for (const secret of ["houseByPoles", "tieBreak", "itemIds", "letters", "totemLabels"]) expect(pageSource).not.toContain(secret);
   const requests = recordRequests(page);
 
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
@@ -180,7 +183,10 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await expect(page.getByRole("button", { name: "Escolher outra casa" })).toBeVisible();
   const chart = page.getByTestId("spider-chart");
-  await expect(chart.locator("svg text")).toHaveCount(4);
+  // 4 nomes de polo + 4 nomes de casa nas zonas coloridas (#201); a casa sugerida vem destacada na legenda.
+  await expect(chart.locator("svg text")).toHaveCount(8);
+  await expect(chart.getByTestId("house-zone")).toHaveCount(4);
+  await expect(chart.locator('[data-testid="house-legend"] [data-current="true"]')).toContainText("sua casa");
   for (const label of [questionnaire.axes.house1.poleLabels.a, questionnaire.axes.house1.poleLabels.b, questionnaire.axes.house2.poleLabels.a, questionnaire.axes.house2.poleLabels.b]) {
     await expect(chart.locator("svg text", { hasText: label })).toHaveCount(1);
   }

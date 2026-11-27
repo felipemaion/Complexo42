@@ -1,4 +1,4 @@
-import type { Answer, Answers, ChartAxis } from "@/modules/questionnaire";
+import type { Answer, Answers, ChartAxis, HouseByPoles } from "@/modules/questionnaire";
 import type { Refusal } from "./refusal";
 
 /*
@@ -26,8 +26,11 @@ export type Step =
   | { kind: "submit" }
   /** Resultado inconclusivo: a coordenação nacional decide a casa. */
   | { kind: "analysis" }
-  /** `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário. */
-  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[] };
+  /**
+   * `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário;
+   * `byPoles`: o mapa das casas para as zonas coloridas do gráfico (#201).
+   */
+  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles };
 
 /** `refusal`: por que o último envio das respostas foi recusado; some na próxima ação da pessoa (#199). */
 export type FlowState = { step: Step; answers: Answers; refusal?: Refusal };
@@ -38,7 +41,7 @@ export type FlowEvent =
   /** Marca a intensidade da pergunta atual; só `next` avança. */
   | { type: "answer"; value: Answer }
   | { type: "next" }
-  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[] }
+  | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[]; byPoles?: HouseByPoles }
   | { type: "analysis_requested" }
   /** O servidor recusou o envio; `error` (e o tempo restante, no limite) aparece na tela. */
   | ({ type: "submit_failed" } & Refusal)
@@ -48,7 +51,7 @@ export type FlowEvent =
 
 /** O que o fluxo precisa do questionário: a ordem dos itens (a pontuação é do servidor). */
 export type FlowContext = {
-  itemIds: readonly string[];
+  questionIds: readonly string[];
 };
 
 export const initialFlow: FlowState = { step: { kind: "consent" }, answers: {} };
@@ -60,7 +63,7 @@ function at(step: Step, answers: Answers): FlowState {
 /** Próximo estado. Evento que não cabe no passo atual não muda nada. */
 export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): FlowState {
   const { step, answers } = state;
-  const last = ctx.itemIds.length - 1;
+  const last = ctx.questionIds.length - 1;
 
   if (event.type === "back") {
     switch (step.kind) {
@@ -83,7 +86,7 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
       if (event.type === "consent_accepted") return at({ kind: "question", index: 0 }, answers);
       return state;
     case "question": {
-      const id = ctx.itemIds[step.index];
+      const id = ctx.questionIds[step.index];
       if (id === undefined) return state;
       if (event.type === "answer") return at(step, { ...answers, [id]: event.value });
       // Resposta obrigatória: sem círculo marcado, "próxima" não faz nada.
@@ -107,7 +110,8 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
 function afterSubmit(state: FlowState, event: FlowEvent, lastIndex: number): FlowState {
   const { answers } = state;
   if (event.type === "result_recorded") {
-    return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire", chart: event.chart }, answers);
+    const { houseId, chart, byPoles } = event;
+    return at({ kind: "presentation", houseId, method: "questionnaire", chart, ...(byPoles && { byPoles }) }, answers);
   }
   if (event.type === "analysis_requested") return at({ kind: "analysis" }, answers);
   if (event.type === "submit_failed") {

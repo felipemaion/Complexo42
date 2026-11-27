@@ -3,6 +3,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { instance } from "@config/instance";
+import example from "@config/questionnaire.example.json";
+import { parseQuestionnaire, toPublicQuestionnaire } from "@/modules/questionnaire";
 
 const CLIENT_DIR = "src/modules/houses/components";
 // Escala e gráfico (#183) também rodam no navegador e recebem a resposta e as notas dos eixos da casa.
@@ -56,8 +59,18 @@ describe("a chave do questionário não chega ao navegador (ADR 0014 §1)", () =
     for (const dir of CLIENT_DIRS) {
       for (const file of readdirSync(dir).filter((f) => f.endsWith(".tsx"))) {
         const source = readFileSync(join(dir, file), "utf8");
-        expect(source, file).not.toMatch(/scoreQuestionnaire|QuestionnaireConfig|houseByPoles|tieBreakItems/);
+        // Só o tipo `HouseByPoles` (import type) e o payload `byPoles` podem aparecer: o mapa polos → casa chega à tela só com o
+        // resultado (#201, decisão do gestor), com o nome `byPoles`. A chave (itens, eixos, letras, desempates,
+        // nomes dos totens) e a config completa nunca chegam aos componentes.
+        expect(source, file).not.toMatch(
+          /scoreQuestionnaire|QuestionnaireConfig|getQuestionnaire|houseByPoles|\baxes\b|itemIds|\bletters\b|totemLabels|tieBreak/,
+        );
       }
     }
+  });
+
+  it("a página recebe só as perguntas e o termo: nem os eixos, nem os desempates, nem o mapa das casas (#201)", () => {
+    const publicJson = JSON.stringify(toPublicQuestionnaire(parseQuestionnaire(example, instance.houses.map((house) => house.id))));
+    expect(publicJson).not.toMatch(/axes|houseByPoles|tieBreakItems|totemLabels/);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "./flow";
 
-const ctx: FlowContext = { itemIds: ["q1", "q2", "q3"] };
+const ctx: FlowContext = { questionIds: ["q1", "q2", "q3"] };
 const chart = [{ key: "house1", label: "D1", poleA: "a1", poleB: "b1", score: -40 }] as const;
 const answerAll: FlowEvent[] = [
   { type: "consent_accepted" },
@@ -93,6 +93,12 @@ describe("fluxo da escolha da casa", () => {
         method: "questionnaire",
         chart,
       });
+    });
+
+    it("o mapa das casas do resultado (#201) vai junto para a apresentação, para as zonas coloridas do gráfico", () => {
+      const byPoles = { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" };
+      const step = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-x", chart, byPoles }, ctx).step;
+      expect(step).toEqual({ kind: "presentation", houseId: "casa-x", method: "questionnaire", chart, byPoles });
     });
 
     it("o servidor abriu o pedido de análise: segue para a análise, sem casa atribuída", () => {

@@ -186,6 +186,7 @@ export const instance = parseInstanceConfig({
     nextButton: "Próxima",
     finishButton: "Ver o resultado",
     chartTitle: "Seu perfil",
+    chartCurrentHouse: "sua casa",
     backButton: "Voltar",
     suggestedTitle: "Sugerimos esta casa para você",
     chosenTitle: "Conheça a casa",
@@ -238,6 +239,7 @@ export const instance = parseInstanceConfig({
       totemUndecided: "Não decidido: o pedido venceu ou foi encerrado sem decisão.",
       dateLabel: "Data",
       chartTitle: "Perfil completo",
+      chartCurrentHouse: "casa da pessoa",
       noScores: "Este resultado é de antes da escala de intensidade e não tem notas.",
       unreadableOne: "Este resultado não pôde ser lido.",
       backLink: "Voltar para a lista",
@@ -257,6 +259,7 @@ export const instance = parseInstanceConfig({
       tiedAxesLabel: "Eixos empatados",
       answersTitle: "Respostas",
       chartTitle: "Perfil completo",
+      chartCurrentHouse: "casa da pessoa",
       resolveTitle: "Resolver o caso",
       totemOnlyNotice: "A casa já saiu pelos eixos da casa: {house}. Falta decidir só o totem.",
       houseLabel: "Casa",
@@ -406,7 +409,9 @@ export const instance = parseInstanceConfig({
     {
       id: "esparta",
       name: "Esparta",
-      description: "[PREENCHER] Descrição curta da casa.",
+      // Cor do gráfico (#201): clara e escura. Siracusa é provisória (aguarda o stakeholder).
+      color: { light: "#c0392b", dark: "#f0786b" },
+      description: "A Casa dos líderes e organizadores, lugar de personalidades audaciosas e arrojadas, que abrem caminhos para os grupos e organizam suas equipes.",
       activities: ["[PREENCHER] Atividade exemplo 1A", "[PREENCHER] Atividade exemplo 1B"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
@@ -416,7 +421,9 @@ export const instance = parseInstanceConfig({
     {
       id: "atenas",
       name: "Atenas",
-      description: "[PREENCHER] Descrição curta da casa.",
+      // Cor do gráfico (#201): clara e escura. Siracusa é provisória (aguarda o stakeholder).
+      color: { light: "#2f5fb8", dark: "#7aa8f5" },
+      description: "A Casa dos comunicadores e porta-vozes, lugar de personalidades comunicadoras e cativantes, que traduzem os conceitos com o público.",
       activities: ["[PREENCHER] Atividade exemplo 2A", "[PREENCHER] Atividade exemplo 2B"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
@@ -426,7 +433,9 @@ export const instance = parseInstanceConfig({
     {
       id: "alexandria",
       name: "Alexandria",
-      description: "[PREENCHER] Descrição curta da casa.",
+      // Cor do gráfico (#201): clara e escura. Siracusa é provisória (aguarda o stakeholder).
+      color: { light: "#c99a06", dark: "#f2c94c" },
+      description: "A Casa dos intelectuais e criadores, lugar de personalidades brilhantes e reflexivas, que vão na fonte de conhecimento e transmitem aos demais.",
       activities: ["[PREENCHER] Atividade exemplo 3A"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
@@ -436,7 +445,9 @@ export const instance = parseInstanceConfig({
     {
       id: "siracusa",
       name: "Siracusa",
-      description: "[PREENCHER] Descrição curta da casa.",
+      // Cor do gráfico (#201): clara e escura. Siracusa é provisória (aguarda o stakeholder).
+      color: { light: "#1f8a52", dark: "#5ccf8f" },
+      description: "A Casa dos guardiões e articuladores, lugar de personalidades leais e acolhedoras, que cuidam das pessoas e mantêm o grupo unido por dentro.",
       activities: ["[PREENCHER] Atividade exemplo 4A"],
       firstSteps: {
         text: "[PREENCHER] História e objetivos da casa e os primeiros passos de quem chega.",
