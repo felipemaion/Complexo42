@@ -57,6 +57,8 @@ export const instanceConfigSchema = z.strictObject({
   waitlist: z.strictObject({
     title: text,
     message: text,
+    /** Botão "Sair" da espera (#195): encerra a sessão para trocar de conta. */
+    signOutButton: text,
   }),
   /** Textos do login (#9). Botões grandes e nada escondido (pedido do stakeholder). */
   auth: z.strictObject({
