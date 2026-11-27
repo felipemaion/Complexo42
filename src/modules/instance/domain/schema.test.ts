@@ -140,6 +140,27 @@ const valid = {
       failed: "t",
     },
   },
+  questionnaireCoordination: {
+    linkResults: "t", linkQueue: "t", linkDelegations: "t", backLink: "t", noName: "t",
+    results: {
+      title: "t", intro: "t", houseFilterLabel: "t", houseFilterAll: "t", filterButton: "t", empty: "t",
+      columnPerson: "t", columnHouse: "t", columnTotem: "t", columnDate: "t", openLink: "t",
+      unreadableList: "{count}", detailTitle: "{name}", houseLabel: "t", totemLabel: "t", dateLabel: "t",
+      chartTitle: "t", noScores: "t", unreadableOne: "t", backLink: "t",
+    },
+    queue: {
+      title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", openLink: "t",
+      unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t",
+      resolveTitle: "t", houseLabel: "t", totemLabel: "t", totemOption: "{first}{second}{code}",
+      resolveButton: "t", resolvedNotice: "t", unreadableOne: "t", backLink: "t",
+    },
+    delegations: {
+      title: "t", intro: "t", activeTitle: "t", empty: "t", columnManager: "t", columnUnit: "t", columnDate: "t",
+      revokeButton: "t", grantTitle: "t", managerLabel: "t", grantButton: "t", noCandidates: "t",
+      grantedNotice: "t", revokedNotice: "t",
+    },
+    errors: { forbidden: "t", invalid: "t", not_found: "t", exists: "t", changed: "t", failed: "t" },
+  },
   coordination: {
     homeLink: "t",
     title: "t",

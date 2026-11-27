@@ -6,3 +6,7 @@ export type { FlowContext, FlowEvent, FlowState, HouseActionResult, HouseClient,
 export { readAcceptedHouse } from "./server/houses";
 export { getQuestionnaire } from "./server/questionnaire";
 export { sessionHouseClient } from "./server/session";
+export { requireCoordinationScreen, coordinationViewDeps, readCoordinationLinks } from "./server/coordination-session";
+export { canSeeResults, listCases, listDelegationCandidates, listDelegations, listResults, openCase, openResult } from "./server/coordination-views";
+export { grantQuestionnaireAccess, resolveAnalysis, revokeQuestionnaireAccess } from "./server/coordination";
+export type { CaseRow, CandidateRow, DelegationRow, ResultRow } from "./server/coordination-views";

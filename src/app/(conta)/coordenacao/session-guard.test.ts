@@ -38,6 +38,8 @@ vi.mock("@supabase/supabase-js", async (importOriginal) => ({
 const { importAllowlistAction } = await import("./autorizados/actions");
 const { decideAccessAction } = await import("./espera/actions");
 const { memberBlockAction } = await import("./bloqueio/actions");
+const { resolveCaseAction } = await import("./casas/analise/actions");
+const { grantDelegationAction, revokeDelegationAction } = await import("./casas/delegacoes/actions");
 
 function uploadForm(): FormData {
   const data = new FormData();
@@ -71,6 +73,15 @@ describe("actions da coordenação sem sessão", () => {
     await expect(memberBlockAction({ status: "idle" }, data)).rejects.toThrow("redirect:/entrar");
     expect(created).toEqual([]);
   });
+
+  it("resolver caso, conceder e revogar delegação (#174): redirecionam para o login sem criar cliente", async () => {
+    const data = new FormData();
+    data.set("pedido", "6a1d7c2e-5b4f-4e3a-9c8d-1f2e3a4b5c6d");
+    await expect(resolveCaseAction(data)).rejects.toThrow("redirect:/entrar");
+    await expect(grantDelegationAction(data)).rejects.toThrow("redirect:/entrar");
+    await expect(revokeDelegationAction(data)).rejects.toThrow("redirect:/entrar");
+    expect(created).toEqual([]);
+  });
 });
 
 describe("nenhum cliente admin ou service_role", () => {
@@ -84,6 +95,15 @@ describe("nenhum cliente admin ou service_role", () => {
     "src/app/(conta)/coordenacao/espera/page.tsx",
     "src/modules/access/server/access.ts",
     "src/modules/access/server/coordination.ts",
+    "src/app/(conta)/coordenacao/casas/analise/actions.ts",
+    "src/app/(conta)/coordenacao/casas/analise/page.tsx",
+    "src/app/(conta)/coordenacao/casas/analise/[id]/page.tsx",
+    "src/app/(conta)/coordenacao/casas/delegacoes/actions.ts",
+    "src/app/(conta)/coordenacao/casas/delegacoes/page.tsx",
+    "src/app/(conta)/coordenacao/casas/resultados/page.tsx",
+    "src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx",
+    "src/modules/houses/server/coordination-views.ts",
+    "src/modules/houses/server/coordination-session.ts",
   ];
 
   it.each(sources)("%s usa só o cliente da sessão", (path) => {
