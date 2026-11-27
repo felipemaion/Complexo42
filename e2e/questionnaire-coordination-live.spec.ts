@@ -250,9 +250,6 @@ test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troc
   await expect(page.getByText("Casa trocada.")).toBeVisible();
   // Casa sugerida × escolhida: o detalhe e a lista destacam a diferença, com a troca da coordenação e a data.
   await expect(page.getByTestId("result-chosen")).toHaveAttribute("data-differs", "true");
-  // A casa sugerida e a escolhida têm o escudo ao lado do nome.
-  await expect(page.getByTestId("result-house").getByTestId("house-shield")).toBeVisible();
-  await expect(page.getByTestId("result-chosen").getByTestId("house-shield")).toBeVisible();
   await expect(page.getByTestId("result-chosen")).toContainText("trocada pela coordenação");
   await page.goto("/coordenacao/casas/resultados?outra=1");
   const differing = page.getByTestId("result-chosen").filter({ hasText: "trocada pela coordenação" });

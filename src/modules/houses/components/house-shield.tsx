@@ -50,13 +50,3 @@ export function AppLogoHero({ name }: Readonly<{ name: string }>) {
     />
   );
 }
-
-/** A casa com o escudo ao lado do nome (listas e resultado da coordenação: casa sugerida e casa escolhida). */
-export function HouseWithShield({ houseId, name, size = 32 }: Readonly<{ houseId: string; name: string; size?: number }>) {
-  return (
-    <span className="inline-flex items-center gap-2">
-      <HouseShield houseId={houseId} name={name} size={size} />
-      {name}
-    </span>
-  );
-}

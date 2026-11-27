@@ -213,6 +213,18 @@ services:
       GOTRUE_RATE_LIMIT_VERIFY: "30"       # conferências de link por IP / 5 min
       GOTRUE_RATE_LIMIT_TOKEN_REFRESH: "150"
       GOTRUE_SMTP_MAX_FREQUENCY: 60s       # intervalo mínimo por endereço
+      # Senha opcional (ADR 0018). Politica: 12+ caracteres, sem exigir simbolos
+      # (GOTRUE_PASSWORD_REQUIRED_CHARACTERS fica de fora de proposito). O limite de 72 bytes
+      # (bcrypt) e a lista local de senhas comuns sao do app. HIBP consulta a API publica
+      # Pwned Passwords por k-anonimato (so um prefixo do hash sai daqui) e falha ABERTO:
+      # com a API fora, o app ainda barra as mais comuns. Trava no ci.yml.
+      GOTRUE_PASSWORD_MIN_LENGTH: "12"
+      GOTRUE_PASSWORD_HIBP_ENABLED: "true"
+      # Trocar a senha com sessao de mais de 24 h exige codigo por e-mail; quem ja tem senha
+      # informa a atual (a sessao de recuperacao dispensa). Nenhum dos dois gasta e-mail no
+      # caso comum (sessao recem-criada).
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION: "true"
+      GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD: "true"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:9999/health || exit 1"]
       interval: 15s
