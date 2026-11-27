@@ -163,6 +163,281 @@ sequenceDiagram
 - As avaliações ficam desligadas até o parecer jurídico. Cada uma só é lida por quem avaliou; a
   hierarquia lê por pedido auditado (ADR 0007 §4).
 
+## 5. Modelo de dados
+
+Gerado das migrations de `supabase/migrations` (schema `public` e as tabelas relevantes de `app`),
+um diagrama por área. Legenda: `PK` chave primária, `FK` chave estrangeira, **cifrado** = AES-GCM no
+servidor (ADR 0003; o banco só guarda o texto cifrado), **HMAC** = valor derivado para busca ou
+unicidade, sem o dado em claro. Os campos listados são os principais; o detalhe de cada coluna, as
+regras e as RLS estão em [MODELO_DADOS.md](MODELO_DADOS.md). O teste `tests/diagrama-modelo-de-dados.test.ts`
+confere que toda tabela criada nas migrations aparece aqui: **PR que muda o schema atualiza este diagrama.**
+
+### 5.1 Pessoas e acesso
+
+```mermaid
+erDiagram
+    profiles {
+        uuid id PK "= auth.users.id"
+        text display_name_enc "cifrado"
+        integer municipality_code FK
+        integer district_code FK
+        char state_code
+        text neighborhood_enc "cifrado"
+        text status
+        text access_status
+        text consent_version
+        timestamptz consent_at
+    }
+    access_allowlist {
+        uuid id PK
+        text email_hmac "HMAC"
+        text source
+        uuid added_by FK
+        timestamptz added_at
+    }
+    access_waitlist_hmac {
+        uuid profile_id PK, FK
+        text email_hmac "HMAC"
+        timestamptz created_at
+    }
+    consent_acceptances {
+        uuid user_id PK "auth.users.id"
+        text version PK
+        timestamptz accepted_at
+    }
+    profile_contacts {
+        uuid profile_id PK, FK
+        text whatsapp_enc "cifrado"
+        text whatsapp_hmac "HMAC"
+        text social_links_enc "cifrado"
+        timestamptz updated_at
+    }
+    contact_visibility {
+        uuid profile_id PK, FK
+        text kind PK
+        text scope
+        timestamptz updated_at
+    }
+    skills {
+        uuid id PK
+        text name
+        text category
+        text_array aliases
+        boolean active
+    }
+    profile_skills {
+        uuid profile_id PK, FK
+        uuid skill_id PK, FK
+    }
+    profiles ||--o| access_waitlist_hmac : "espera"
+    profiles |o--o{ access_allowlist : "adicionou"
+    profiles ||--o| profile_contacts : "contato"
+    profiles ||--o{ contact_visibility : "quem vê"
+    profiles ||--o{ consent_acceptances : "aceitou o termo"
+    profiles ||--o{ profile_skills : "tem"
+    skills ||--o{ profile_skills : "usada em"
+```
+
+### 5.2 Unidades e hierarquia (ADR 0005, 0008, 0011)
+
+```mermaid
+erDiagram
+    unit_types {
+        uuid id PK
+        text key
+        text label
+        smallint level
+        boolean is_team
+        timestamptz created_at
+    }
+    units {
+        uuid id PK
+        uuid type_id FK
+        uuid parent_id FK "auto-relação"
+        text slug
+        text name
+        ltree path "caminho na árvore"
+        char state_code
+        text status
+        timestamptz created_at
+    }
+    unit_members {
+        uuid id PK
+        uuid unit_id FK
+        uuid profile_id FK
+        text member_role
+        timestamptz joined_at
+        timestamptz left_at
+        uuid ended_by FK
+    }
+    role_assignments {
+        uuid id PK
+        uuid profile_id FK
+        text role
+        uuid unit_id FK
+        text house_key FK "coordenador de casa"
+        uuid granted_by FK
+        timestamptz granted_at
+        timestamptz revoked_at
+    }
+    profiles {
+        uuid id PK
+    }
+    houses {
+        text key PK
+    }
+    unit_types ||--o{ units : "tipo"
+    units |o--o{ units : "pai"
+    units ||--o{ unit_members : "membros"
+    profiles ||--o{ unit_members : "vínculo de unidade"
+    profiles ||--o{ role_assignments : "papéis"
+    units ||--o{ role_assignments : "alcance"
+    houses |o--o{ role_assignments : "casa coordenada"
+```
+
+### 5.3 Casas e questionário (ADR 0008, 0011, 0014, 0016)
+
+```mermaid
+erDiagram
+    houses {
+        text key PK "id da casa na config"
+        boolean active
+        timestamptz created_at
+    }
+    house_members {
+        uuid id PK
+        uuid profile_id FK
+        text house_key FK
+        text join_method "self ou questionnaire"
+        text consent_version FK
+        timestamptz joined_at
+        timestamptz accepted_at
+        timestamptz left_at
+        uuid ended_by FK
+        timestamptz locked_until "trava de 4 meses (ADR 0016)"
+        boolean moved "encerrado por troca"
+    }
+    questionnaire_term_versions {
+        text version PK "schema app"
+        timestamptz created_at
+    }
+    questionnaire_consents {
+        uuid profile_id PK, FK
+        text term_version PK, FK
+        timestamptz consented_at
+    }
+    questionnaire_results {
+        uuid profile_id PK, FK
+        text term_version FK
+        text house_key FK "casa sugerida"
+        text totem_enc "cifrado, interno"
+        text scores_enc "cifrado, notas"
+        text totem_state
+        text source
+        timestamptz created_at
+    }
+    house_analysis_requests {
+        uuid id PK
+        uuid profile_id FK
+        text term_version FK
+        text_array tied_axes
+        text answers_enc "cifrado, só nos pedidos abertos"
+        text kind "full ou totem"
+        text status
+        text resolution
+        timestamptz opened_at
+        timestamptz created_at
+        timestamptz resolved_at
+        uuid resolved_by FK
+    }
+    questionnaire_data_grants {
+        uuid id PK
+        uuid grantee_id FK
+        uuid unit_id FK
+        uuid role_assignment_id FK
+        uuid granted_by FK
+        timestamptz granted_at
+        timestamptz revoked_at
+        uuid revoked_by FK
+    }
+    profiles {
+        uuid id PK
+    }
+    units {
+        uuid id PK
+    }
+    role_assignments {
+        uuid id PK
+    }
+    houses ||--o{ house_members : "um vínculo aberto por pessoa"
+    profiles ||--o{ house_members : "casa escolhida"
+    profiles ||--o{ questionnaire_consents : "aceitou o termo"
+    questionnaire_term_versions ||--o{ questionnaire_consents : "versão"
+    questionnaire_term_versions |o--o{ house_members : "termo do vínculo"
+    profiles ||--o| questionnaire_results : "resultado"
+    houses ||--o{ questionnaire_results : "casa sugerida"
+    questionnaire_term_versions ||--o{ questionnaire_results : "versão"
+    profiles ||--o{ house_analysis_requests : "pedido de análise"
+    questionnaire_term_versions ||--o{ house_analysis_requests : "versão"
+    profiles ||--o{ questionnaire_data_grants : "delegado"
+    units ||--o{ questionnaire_data_grants : "escopo"
+    role_assignments ||--o{ questionnaire_data_grants : "papel que sustenta"
+```
+
+### 5.4 Localidades
+
+```mermaid
+erDiagram
+    municipalities {
+        integer code PK "código IBGE"
+        text name
+        char state_code
+        text metro_region
+    }
+    districts {
+        integer code PK
+        integer municipality_code FK
+        text name
+    }
+    profiles {
+        uuid id PK
+    }
+    municipalities ||--o{ districts : "distritos"
+    municipalities ||--o{ profiles : "mora em"
+    districts |o--o{ profiles : "bairro/distrito"
+```
+
+### 5.5 Auditoria e infraestrutura
+
+```mermaid
+erDiagram
+    audit_log {
+        bigint id PK "append-only: sem UPDATE nem DELETE"
+        uuid actor_id "sem FK: sobrevive à conta"
+        text event
+        uuid target_id "sem FK"
+        integer item_count
+        text reason
+        text term_version
+        text house_key
+        uuid unit_id
+        uuid grant_id
+        timestamptz created_at
+    }
+    member_block_attempts {
+        uuid actor_id "schema app: limite de tentativas"
+        timestamptz attempted_at
+    }
+    profile_save_attempts {
+        uuid profile_id "schema app: limite de tentativas"
+        timestamptz attempted_at
+    }
+    server_secrets {
+        text name PK "schema app: segredo do servidor"
+        text value "nunca lido pelo navegador"
+    }
+```
+
 ## O que ainda não existe
 
 - Colegas verem o perfil uns dos outros: hoje não veem; decisão de produto na pergunta 80 de
