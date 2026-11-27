@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(127);
+select plan(135);
 
 -- HMAC fictício (64 hex): o banco não calcula o HMAC de verdade, só guarda e compara.
 create function pg_temp.h(p_tag text) returns text language sql as $$
@@ -758,6 +758,55 @@ select lives_ok(
   $$ insert into public.audit_log (actor_id, event, target_id, reason)
      values (pg_temp.person('root_mgr'), 'access_blocked', pg_temp.person('blk'), 'manual') $$,
   'inserir continua permitido'
+);
+
+-- ---------------------------------------------------------------------------------------
+-- Autorizar um e-mail à mão: o mesmo RPC do import, com motivo manual e a contagem de novos
+-- ---------------------------------------------------------------------------------------
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select throws_ok(
+  $$ select public.import_allowlist(array[pg_temp.h('manual1@x.org')], 'manual', 'manual') $$,
+  '42501', null,
+  'gestor de estado NÃO autoriza e-mail à mão (só o da raiz)'
+);
+select pg_temp.login('root_mgr');
+select throws_ok(
+  $$ select public.import_allowlist(array[pg_temp.h('manual1@x.org')], 'manual', 'outro') $$,
+  '22023', null,
+  'o motivo só pode ser manual ou import'
+);
+select is(
+  public.import_allowlist(array[pg_temp.h('manual1@x.org')], 'manual', 'manual'),
+  '{"received": 1, "promoted": 0, "added": 1}'::jsonb,
+  'e-mail novo: added = 1'
+);
+select is(
+  (public.import_allowlist(array[pg_temp.h('manual1@x.org')], 'manual', 'manual') ->> 'added')::int,
+  0,
+  'o mesmo e-mail de novo: added = 0 (idempotente)'
+);
+select is(
+  public.import_allowlist(array[pg_temp.h('manual2@x.org')], 'academy'),
+  '{"received": 1, "promoted": 0}'::jsonb,
+  'o import de sempre (2 argumentos) continua devolvendo só received e promoted'
+);
+reset role;
+select results_eq(
+  $$ select actor_id, item_count, reason from public.audit_log
+     where event = 'allowlist_imported' and reason is not null order by id $$,
+  $$ values (pg_temp.person('root_mgr'), 1, 'manual'::text), (pg_temp.person('root_mgr'), 1, 'manual'::text) $$,
+  'a inclusão à mão grava allowlist_imported com motivo manual; o import comum fica sem motivo'
+);
+select is(
+  (select source || '/' || added_by::text from public.access_allowlist where email_hmac = pg_temp.h('manual1@x.org')),
+  'manual/' || pg_temp.person('root_mgr')::text,
+  'a linha guarda a origem manual e quem adicionou'
+);
+select ok(
+  not has_function_privilege('anon', 'public.import_allowlist(text[], text, text)', 'execute')
+  and has_function_privilege('authenticated', 'public.import_allowlist(text[], text, text)', 'execute'),
+  'só logado executa a versão com motivo'
 );
 
 reset role;

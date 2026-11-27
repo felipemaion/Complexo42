@@ -151,6 +151,31 @@ test.describe("coordenação com o Supabase local", () => {
     await expect(person.page).toHaveURL(`${baseURL}/casa`);
   });
 
+  test("o gestor da raiz autoriza um e-mail à mão: Adicionado, repetido é neutro, inválido é recusado", async ({ browser, baseURL }) => {
+    const person = await waitlisted(browser, baseURL!, "m");
+    const manager = await activeMember("raiz-manual", true);
+    const { page } = await openSession(browser, manager.email);
+    await page.goto("/coordenacao/autorizados");
+
+    const field = page.getByLabel("E-mail", { exact: true });
+    await field.fill("sem-arroba");
+    await page.getByRole("button", { name: "Adicionar" }).click();
+    // type=email barra no navegador; o servidor valida de novo (a regra é a do servidor).
+    await expect(page.getByTestId("allowlist-add-done")).toHaveCount(0);
+
+    await field.fill(person.email.toUpperCase());
+    await page.getByRole("button", { name: "Adicionar" }).click();
+    await expect(page.getByTestId("allowlist-add-done")).toHaveText("Adicionado");
+    await expect(field).toHaveValue("");
+    // A tela não diz se a pessoa tinha conta nem se foi liberada: só confirma a inclusão.
+    await expect(page.locator("body")).not.toContainText(person.email);
+    expect(await accessStatus(person.id)).toBe("active");
+
+    await field.fill(person.email);
+    await page.getByRole("button", { name: "Adicionar" }).click();
+    await expect(page.getByTestId("allowlist-add-done")).toHaveText("Este e-mail já estava na lista.");
+  });
+
   test("liberar e bloquear à mão, sempre com confirmação", async ({ browser, baseURL }) => {
     const toApprove = await waitlisted(browser, baseURL!, "b");
     const toBlock = await waitlisted(browser, baseURL!, "c");

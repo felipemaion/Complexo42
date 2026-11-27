@@ -34,7 +34,8 @@ vi.mock("@/server/log", () => ({
   },
 }));
 
-const { importAllowlistAction } = await import("./actions");
+const { resetAddEmailLimit } = await import("./add-email-limit");
+const { addAllowlistEmailAction, importAllowlistAction } = await import("./actions");
 
 const CSV = "Nome;E-mail\nMaria Silva;Maria@Exemplo.org\nJoão;joao@exemplo.org\nZé;ze@\n";
 
@@ -48,6 +49,7 @@ const csvFile = (content = CSV, name = "lista.csv") => new File([content], name,
 const idle = { status: "idle" } as const;
 
 beforeEach(() => {
+  resetAddEmailLimit();
   calls.length = 0;
   logged.length = 0;
   answer = { data: { received: 2, promoted: 1 }, error: null };
@@ -106,5 +108,56 @@ describe("importAllowlistAction", () => {
     answer = { data: null, error: { code: "57014", message: "timeout com maria@exemplo.org" } };
     expect(await importAllowlistAction(idle, form(csvFile()))).toEqual({ status: "error", error: "failed" });
     expect(logged).toEqual([["allowlist_import_failed", { reason: "db_error" }]]);
+  });
+});
+
+describe("addAllowlistEmailAction (autorizar um e-mail à mão)", () => {
+  const emailForm = (email: string | null) => {
+    const data = new FormData();
+    if (email !== null) data.set("email", email);
+    return data;
+  };
+
+  it("sucesso: chama o mesmo RPC com 1 HMAC, devolve só 'added' e não deixa e-mail em lugar nenhum", async () => {
+    answer = { data: { received: 1, promoted: 0, added: 1 }, error: null };
+    const state = await addAllowlistEmailAction(idle, emailForm("Maria@Exemplo.org"));
+    expect(state).toEqual({ status: "added" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.fn).toBe("import_allowlist");
+    expect(calls[0]?.args).toMatchObject({ p_source: "manual", p_reason: "manual" });
+    expect(JSON.stringify([calls, logged, state])).not.toMatch(/maria|exemplo|@/i);
+  });
+
+  it("repetido: mensagem neutra 'already', sem revelar se a pessoa tem conta (promoted ignorado)", async () => {
+    answer = { data: { received: 1, promoted: 1, added: 0 }, error: null };
+    expect(await addAllowlistEmailAction(idle, emailForm("a@x.org"))).toEqual({ status: "already" });
+  });
+
+  it("inválido ou vazio: erro de formato sem chamar o banco", async () => {
+    expect(await addAllowlistEmailAction(idle, emailForm("sem-arroba"))).toEqual({ status: "error", error: "invalid_email" });
+    expect(await addAllowlistEmailAction(idle, emailForm(""))).toEqual({ status: "error", error: "invalid_email" });
+    expect(await addAllowlistEmailAction(idle, emailForm(null))).toEqual({ status: "error", error: "invalid_email" });
+    expect(calls).toEqual([]);
+  });
+
+  it("sem permissão: o banco recusa (42501) e a tela mostra 'forbidden'", async () => {
+    answer = { data: null, error: { code: "42501", message: "x@y.org" } };
+    const state = await addAllowlistEmailAction(idle, emailForm("a@x.org"));
+    expect(state).toEqual({ status: "error", error: "forbidden" });
+    expect(JSON.stringify([logged, state])).not.toMatch(/@/);
+  });
+
+  it("falha do banco: 'failed', só o código no log", async () => {
+    answer = { data: null, error: { code: "XX000", message: "a@x.org" } };
+    expect(await addAllowlistEmailAction(idle, emailForm("a@x.org"))).toEqual({ status: "error", error: "failed" });
+    expect(JSON.stringify(logged)).not.toMatch(/a@x\.org/);
+  });
+
+  it("limite por coordenador: depois de 30 em 10 minutos, 'rate_limited' sem chamar o banco", async () => {
+    answer = { data: { received: 1, promoted: 0, added: 1 }, error: null };
+    for (let i = 0; i < 30; i++) await addAllowlistEmailAction(idle, emailForm(`p${i}@x.org`));
+    calls.length = 0;
+    expect(await addAllowlistEmailAction(idle, emailForm("outro@x.org"))).toEqual({ status: "error", error: "rate_limited" });
+    expect(calls).toEqual([]);
   });
 });

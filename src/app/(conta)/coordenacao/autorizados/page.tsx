@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
-import { AllowlistUploadForm, COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
+import { AllowlistAddEmailForm, AllowlistUploadForm, COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { requireUserClient } from "@/server/auth/session";
-import { importAllowlistAction } from "./actions";
+import { addAllowlistEmailAction, importAllowlistAction } from "./actions";
 
 export const metadata: Metadata = { title: instance.coordination.allowlist.title };
 
@@ -20,6 +20,7 @@ export default async function AllowlistUploadPage() {
       <h1 className="text-3xl font-bold">{text.allowlist.title}</h1>
       <p className="text-lg">{text.allowlist.intro}</p>
       <p className="text-lg">{text.allowlist.privacyNote}</p>
+      <AllowlistAddEmailForm action={addAllowlistEmailAction} text={text.allowlist.addEmail} />
       <AllowlistUploadForm action={importAllowlistAction} text={text.allowlist} />
       <Link href={COORDINATION_PATH} className="text-center text-lg underline">
         {text.backLink}

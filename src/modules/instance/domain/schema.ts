@@ -501,6 +501,17 @@ export const instanceConfigSchema = z.strictObject({
         forbidden: text,
         failed: text,
       }),
+      /** Autorizar um e-mail à mão (campo + botão). */
+      addEmail: z.strictObject({
+        title: text,
+        label: text,
+        hint: text,
+        button: text,
+        adding: text,
+        added: text,
+        already: text,
+        errors: z.strictObject({ invalid_email: text, forbidden: text, rate_limited: text, failed: text }),
+      }),
     }),
     waitlist: z.strictObject({
       menuLink: text,

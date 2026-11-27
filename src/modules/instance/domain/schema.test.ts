@@ -240,6 +240,16 @@ const valid = {
         forbidden: "t",
         failed: "t",
       },
+      addEmail: {
+        title: "t",
+        label: "t",
+        hint: "t",
+        button: "t",
+        adding: "t",
+        added: "t",
+        already: "t",
+        errors: { invalid_email: "t", forbidden: "t", rate_limited: "t", failed: "t" },
+      },
     },
     waitlist: {
       menuLink: "t",
