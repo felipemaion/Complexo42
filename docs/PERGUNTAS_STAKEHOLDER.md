@@ -114,12 +114,11 @@ substituídas pelas abaixo.
 81. ✅ *(decisão do gestor, 2026-11-27)* **Quem vê o totem:** a própria pessoa (em "Baixar meus
     dados"), a coordenação nacional e o gestor de unidade (estadual, municipal) a quem a nacional
     **conceder**, para as pessoas ativas do escopo dele; a concessão é revogável e auditada.
-    [?] Coordenadores de casa continuam sem ver. A delegação deve incluir **resolver** a fila?
-    Hoje não (só a nacional).
+    Coordenadores de casa continuam sem ver. A delegação inclui **resolver** a fila (decisão do gestor, 2026-11-27).
 82. [?] **Prazo para trocar de casa:** a pessoa pode escolher outra casa depois de aceitar? Depois
     de quanto tempo? Hoje, depois de aceitar, só a coordenação troca.
-83. [?] **Quem resolve a fila de análise** (resultado inconclusivo): só a coordenação nacional?
-    Em quanto tempo? E o que fazer com quem não quer esperar (hoje pode escolher a casa direto)?
+83. ✅ *(decisão do gestor, 2026-11-27)* **Quem resolve a fila de análise** (resultado inconclusivo): a
+    coordenação nacional e quem ela delegar, no escopo dele. [?] Em quanto tempo? E o que fazer com quem não quer esperar (hoje pode escolher a casa direto)?
 84. [?] **Ids reais das casas:** a ligação das casas 1 a 4 aos polos usa os ids de `config/instance.ts`;
     falta a config real da instância para fechar o mapa do arquivo privado.
 

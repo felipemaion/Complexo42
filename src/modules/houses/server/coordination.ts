@@ -3,7 +3,7 @@
 // resolver a fila e delegar o acesso. Ainda SEM chamador: a tela da fila é a issue #174 (estas funções
 // existem, testadas, para ela usar). Usa o cliente com o JWT de quem está logado (R14): o banco
 // decide quem lê (a própria pessoa, a coordenação nacional ou quem ela delegou) e quem resolve
-// ou concede (só a coordenação nacional). Nada aqui vai para log (R11).
+// (a nacional ou o delegado) ou concede (só a coordenação nacional). Nada aqui vai para log (R11).
 import "server-only";
 import { z } from "zod";
 import type { CipherContext, HouseClient } from "../types";
@@ -139,7 +139,7 @@ export type CoordinationResult = { ok: true } | { ok: false; error: Coordination
 
 /**
  * Resolve o pedido: a coordenação nacional escolhe a casa (da config) e o totem; o servidor cifra
- * o totem para a pessoa do pedido. Só a nacional resolve: a delegação não inclui resolver (o banco recusa).
+ * o totem para a pessoa do pedido. Resolve a nacional ou o delegado, no escopo dele (o banco decide).
  */
 export async function resolveAnalysis(
   client: HouseClient,

@@ -413,7 +413,7 @@ política e sem grant: só funções `security definer` leem.
   só com a assinatura (que cobre os eixos e o valor cifrado das respostas: é ela que garante que
   são as respostas completas e válidas, já que o banco não decifra). Valida os eixos e o formato do
   valor cifrado (erro 22023). Renovar um pedido aberto antes de 1 hora é recusado (54000). Gera `house_analysis_requested`.
-- **`resolve_house_analysis(pedido, casa, totem_enc, emitido_em, assinatura)`:** só a coordenação nacional (a delegação não inclui resolver [?]), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa e totem cifrado; 5 minutos), nunca sobre o
+- **`resolve_house_analysis(pedido, casa, totem_enc, emitido_em, assinatura)`:** a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, ou de pessoa inativa, o pedido aparece como inexistente; o delegado também não resolve o de quem é gestor ativo na raiz ou na unidade da concessão ou acima dela), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa e totem cifrado; 5 minutos), nunca sobre o
   próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Grava o resultado
   (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
   aceita a casa pelo fluxo normal (`accept_house`). A tela da coordenação para a fila ainda não
@@ -425,7 +425,7 @@ política e sem grant: só funções `security definer` leem.
 o papel, a concessão não volta com um papel novo, precisa de nova decisão da nacional), `granted_by`, `granted_at`, `revoked_at`, `revoked_by`. Uma concessão ativa por gestor e unidade.
 Dá ao gestor o direito de ver o totem, os pedidos de análise e os eventos `house_analysis_*` das
 pessoas **ativas** com vínculo aberto na unidade ou abaixo (`units.path <@`); só vale enquanto ele
-mantém **esse mesmo papel** de gestor ali; nunca sobre si mesmo; não inclui resolver.
+mantém **esse mesmo papel** de gestor ali; nunca sobre si mesmo; inclui resolver a fila (no escopo).
 - **Quem lê** (RLS): a coordenação nacional e o próprio gestor (a que recebeu).
 - **`grant_questionnaire_access(gestor, unidade)` / `revoke_questionnaire_access(concessão)`:** só
   o gestor ativo da raiz; ninguém concede a si mesmo; a pessoa precisa estar ativa e ser gestora

@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(165);
+select plan(190);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -24,7 +24,8 @@ insert into people values
   ('p2',       '00000000-0000-0000-0000-0000000000f5', 'p2@exemplo.org'),       -- ativa
   ('p3',       '00000000-0000-0000-0000-0000000000f6', 'p3@exemplo.org'),       -- ativa
   ('wait',     '00000000-0000-0000-0000-0000000000f7', 'wait@exemplo.org'),     -- na espera
-  ('abc_mgr',  '00000000-0000-0000-0000-0000000000f8', 'abc.mgr@exemplo.org');  -- gestor da incubadora ABC (delegação)
+  ('abc_mgr',  '00000000-0000-0000-0000-0000000000f8', 'abc.mgr@exemplo.org'),  -- gestor da incubadora ABC (delegação)
+  ('sp_mgr2',  '00000000-0000-0000-0000-0000000000f9', 'sp.mgr2@exemplo.org');  -- outro gestor de SP (delegado e gestor na unidade da concessão)
 insert into auth.users (id, email) select id, email from people;
 
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
@@ -576,8 +577,6 @@ select ok((select count(*)::int from public.audit_log where event = 'house_analy
   'lê o evento da fila de quem é do escopo');
 select is((select count(*)::int from public.audit_log where event in ('questionnaire_access_granted', 'questionnaire_access_revoked')), 0,
   'NÃO lê os eventos da própria delegação (só a nacional)');
-select throws_ok($$ select pg_temp.resolve((select id from public.house_analysis_requests limit 1), 'casa-t1', 'AB') $$, '42501', null,
-  'a delegação NÃO inclui resolver a fila [?]');
 select throws_ok($$ select public.grant_questionnaire_access(pg_temp.person('abc_mgr'), pg_temp.unit2('br.sp.abc')) $$, '42501', null,
   'quem recebeu NÃO repassa a concessão');
 select is((select count(*)::int from public.questionnaire_data_grants), 1, 'o gestor lê a própria concessão');
@@ -653,6 +652,124 @@ set local role authenticated;
 select pg_temp.login('sp_mgr');
 
 
+-- Resolver a fila: a nacional OU o delegado, só dentro do escopo da concessão (issue #180).
+create temp table deleg_req (who text primary key, id uuid not null);
+grant select on deleg_req to authenticated;
+reset role;
+delete from public.house_analysis_requests where status = 'open';
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc) values
+  (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('RP1')),
+  (pg_temp.person('p2'), 'termo-1', array['house1'], pg_temp.enc('RP2')),
+  (pg_temp.person('sp_mgr'), 'termo-1', array['house1'], pg_temp.enc('RMG'));
+insert into deleg_req select p.name, q.id from public.house_analysis_requests q join people p on p.id = q.profile_id where q.status = 'open';
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p2'), 'casa-t1', 'AB') $$, 'P0002', null,
+  'delegado NÃO resolve pedido de fora do escopo (Minas Gerais): aparece como inexistente');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'sp_mgr'), 'casa-t1', 'AB') $$, '42501', null,
+  'delegado NÃO resolve o próprio pedido');
+select throws_ok($$ select pg_temp.resolve_raw((select id from deleg_req where who = 'p1'), 'casa-t1', pg_temp.enc('AB'), 600) $$, '42501', null,
+  'delegado também precisa da assinatura do servidor (vencida é recusada)');
+select throws_ok($$ select public.resolve_house_analysis((select id from deleg_req where who = 'p1'), 'casa-t1', pg_temp.enc('AB'), pg_temp.now_s(), 'x') $$, '42501', null,
+  'delegado, pela API direta e sem assinatura, NÃO resolve');
+reset role;
+update public.profiles set status = 'suspended' where id = pg_temp.person('p3');
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc) values (pg_temp.person('p3'), 'termo-1', array['house1'], pg_temp.enc('RP3'));
+insert into deleg_req select 'p3', id from public.house_analysis_requests where profile_id = pg_temp.person('p3') and status = 'open';
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p3'), 'casa-t1', 'AB') $$, 'P0002', null,
+  'delegado NÃO resolve pedido de pessoa inativa do escopo: aparece como inexistente (ele nem a lê)');
+reset role;
+update public.profiles set status = 'active' where id = pg_temp.person('p3');
+delete from public.house_analysis_requests where profile_id = pg_temp.person('sp_mgr');
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select lives_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p1'), 'casa-t2', 'BB') $$,
+  'delegado resolve pedido de pessoa ativa do escopo dele (SP)');
+select results_eq($$ select status, resolution, answers_enc is null, resolved_by = pg_temp.person('sp_mgr')
+                     from public.house_analysis_requests where id = (select id from deleg_req where who = 'p1') $$,
+  $$ values ('resolved'::text, 'coordination'::text, true, true) $$,
+  'resolvido pelo delegado: respostas apagadas e quem resolveu registrado');
+select results_eq($$ select house_key, totem_enc, source from public.questionnaire_results where profile_id = pg_temp.person('p1') $$,
+  $$ values ('casa-t2'::text, pg_temp.enc('BB'), 'analysis'::text) $$,
+  'a decisão do delegado vira o resultado da pessoa');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p1'), 'casa-t2', 'BB') $$, 'P0002', null,
+  'pedido já resolvido NÃO resolve de novo');
+select pg_temp.login('root_mgr');
+select is((select count(*)::int from public.audit_log where event = 'house_analysis_resolved' and actor_id = pg_temp.person('sp_mgr') and target_id = pg_temp.person('p1')), 1,
+  'a resolução do delegado é auditada (ator = o delegado)');
+select pg_temp.login('abc_mgr');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p2'), 'casa-t1', 'AB') $$, 'P0002', null,
+  'a concessão da incubadora NÃO alcança pedido de fora dela (p2)');
+select lives_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p3'), 'casa-t1', 'AA') $$,
+  'o delegado da incubadora resolve pedido de quem está abaixo dela (p3)');
+select pg_temp.login('p1');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p2'), 'casa-t1', 'AB') $$, '42501', null,
+  'pessoa comum, sem concessão, NÃO resolve');
+select pg_temp.login('root_mgr');
+select lives_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p2'), 'casa-t1', 'AB') $$,
+  'a coordenação nacional segue resolvendo qualquer pedido (p2, de fora dos escopos delegados)');
+
+-- Regras conservadoras e de escopo do delegado (revisão do #181).
+reset role;
+insert into public.role_assignments (profile_id, role, unit_id) values (pg_temp.person('sp_mgr2'), 'manager', pg_temp.unit2('br.sp'));
+update public.profiles set status = 'suspended' where id = pg_temp.person('p2');
+delete from public.house_analysis_requests where status = 'open';
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc) values
+  (pg_temp.person('sp_mgr'), 'termo-1', array['house1'], pg_temp.enc('X1')),
+  (pg_temp.person('sp_mgr2'), 'termo-1', array['house1'], pg_temp.enc('X2')),
+  (pg_temp.person('abc_mgr'), 'termo-1', array['house1'], pg_temp.enc('X3')),
+  (pg_temp.person('root_mgr'), 'termo-1', array['house1'], pg_temp.enc('X4')),
+  (pg_temp.person('p2'), 'termo-1', array['house1'], pg_temp.enc('X5'));
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc, created_at)
+values (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('X6'), now() - interval '31 days');
+delete from deleg_req;
+insert into deleg_req select p.name, q.id from public.house_analysis_requests q join people p on p.id = q.profile_id where q.status = 'open';
+update public.profiles set status = 'active' where id = pg_temp.person('p2');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select lives_ok($$ select public.grant_questionnaire_access(pg_temp.person('sp_mgr2'), pg_temp.unit2('br.sp')) $$,
+  'a nacional concede também ao segundo gestor de SP');
+select pg_temp.login('sp_mgr');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'sp_mgr2'), 'casa-t1', 'AB') $$, '42501', null,
+  'delegado NÃO resolve pedido de quem é gestor na unidade da concessão (e é outro delegado)');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'root_mgr'), 'casa-t1', 'AB') $$, '42501', null,
+  'delegado NÃO resolve pedido da coordenação nacional (gestora da raiz, acima da unidade da concessão)');
+select lives_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'abc_mgr'), 'casa-t1', 'AB') $$,
+  'gestor de unidade ABAIXO da concessão pode ser resolvido pelo delegado');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p2'), 'casa-t1', 'AB') $$, 'P0002', null,
+  'pessoa inativa fora do escopo: P0002, sem vazar que está inativa nem travar o perfil');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p1'), 'casa-t1', 'AB') $$, 'P0002', null,
+  'pedido vencido (mais de 30 dias) NÃO é resolvido: foi fechado como expirado');
+select pg_temp.login('sp_mgr2');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'sp_mgr'), 'casa-t1', 'AB') $$, '42501', null,
+  'o segundo delegado também NÃO resolve pedido de gestor na unidade da concessão');
+select pg_temp.login('root_mgr');
+select lives_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'sp_mgr'), 'casa-t1', 'AB') $$,
+  'a coordenação nacional resolve o pedido de quem é gestor (o que o delegado não pode)');
+reset role;
+select is((select resolution from public.house_analysis_requests where id = (select id from deleg_req where who = 'p1')), 'expired', 'o pedido vencido ficou expirado');
+-- Revogar SÓ o papel de gestor (a concessão segue viva) tira o poder de resolver.
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc) values (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('X7'));
+insert into deleg_req select 'p1b', id from public.house_analysis_requests where profile_id = pg_temp.person('p1') and status = 'open';
+create temp table sp_role (id uuid not null);
+insert into sp_role select id from public.role_assignments where profile_id = pg_temp.person('sp_mgr') and role = 'manager' and revoked_at is null;
+update public.role_assignments set revoked_at = now() where id = (select id from sp_role);
+select is((select count(*)::int from public.questionnaire_data_grants where grantee_id = pg_temp.person('sp_mgr') and revoked_at is null), 1,
+  'a concessão de SP segue viva (só o papel foi revogado)');
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select throws_ok($$ select pg_temp.resolve((select id from deleg_req where who = 'p1b'), 'casa-t1', 'AB') $$, '42501', null,
+  'com o papel de gestor revogado, a concessão viva NÃO deixa resolver');
+reset role;
+update public.role_assignments set revoked_at = null where id = (select id from sp_role);
+-- Limpa o que este bloco criou para os próprios gestores (eles leem o próprio resultado e pedido,
+-- o que bagunçaria as contagens do bloco da revogação, que olham só o escopo de cada um).
+delete from public.house_analysis_requests where status = 'open' or profile_id in (select id from people where name in ('sp_mgr', 'sp_mgr2', 'abc_mgr', 'root_mgr'));
+delete from public.questionnaire_results where profile_id in (select id from people where name in ('sp_mgr', 'sp_mgr2', 'abc_mgr', 'root_mgr'));
+set local role authenticated;
+
 -- Revogar: só a nacional; depois, 0 linhas.
 create temp table grant_ids (who text primary key, id uuid not null);
 reset role;
@@ -672,6 +789,14 @@ select is((select count(*)::int from public.audit_log where event = 'questionnai
 select pg_temp.login('sp_mgr');
 select is(pg_temp.results_seen(), 0, 'revogada: 0 totens');
 select is(pg_temp.requests_seen(), 0, '... 0 pedidos');
+-- Revogada a concessão, o delegado deixa de resolver.
+reset role;
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc) values (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('RP1'));
+set local role authenticated;
+select pg_temp.login('sp_mgr');
+select throws_ok($$ select pg_temp.resolve((select id from public.house_analysis_requests where profile_id = pg_temp.person('p1') and status = 'open'), 'casa-t1', 'AB') $$, '42501', null,
+  'revogada a concessão, o delegado NÃO resolve mais');
+
 select is((select count(*)::int from public.audit_log where event in ('house_analysis_requested', 'house_analysis_resolved')), 0, '... 0 eventos da fila');
 select is((select count(*)::int from public.questionnaire_data_grants where revoked_at is not null), 2,
   'o gestor ainda vê as próprias concessões, agora revogadas');
