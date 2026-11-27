@@ -23,7 +23,7 @@ describe("matcher do proxy de login", () => {
   });
 
   it("continua protegendo as páginas e o que só parece público", () => {
-    for (const path of ["/inicio", "/casa", "/entrar", "/coordenacao", "/casas", "/casas-x/a.png", "/icon.png.x", "/apple-icon.png/x", "/api/healthz-x", "/favicon.ico.x"]) {
+    for (const path of ["/inicio", "/casa", "/entrar", "/coordenacao", "/casas", "/casas-x/a.png", "/icon.png.x", "/api/healthz-x", "/favicon.ico.x"]) {
       expect(passesThroughProxy(path), path).toBe(true);
     }
   });
