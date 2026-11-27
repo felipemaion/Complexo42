@@ -1,7 +1,6 @@
 // A casa da própria pessoa na página dela (#203): nome, cor, descrição curta e o gráfico dos eixos da
-// casa com as zonas. Sem casa nem resultado, um convite para o questionário. Só apresentação: quem
+// casa com as zonas. Sem casa nem resultado, o convite (o link para o questionário é o "Escolher sua casa" da página). Só apresentação: quem
 // decide o que mostrar é domain/home-card.ts, e o totem nunca chega aqui (ADR 0014 §2).
-import Link from "next/link";
 import { SpiderChart, type ChartHouse } from "@/modules/questionnaire/components/spider-chart";
 import type { InstanceConfig } from "@/modules/instance";
 import type { OwnHouseCard } from "../server/own-house";
@@ -10,11 +9,9 @@ type Props = {
   card: OwnHouseCard;
   houses: readonly (ChartHouse & { description: string })[];
   text: InstanceConfig["houseSelection"];
-  /** Para onde o convite leva (a escolha da casa). */
-  chooseHref: string;
 };
 
-export function OwnHouse({ card, houses, text, chooseHref }: Readonly<Props>) {
+export function OwnHouse({ card, houses, text }: Readonly<Props>) {
   if (card.kind === "invite") {
     return (
       <section aria-labelledby="own-house-title" className="flex flex-col gap-3" data-testid="own-house-invite">
@@ -22,9 +19,6 @@ export function OwnHouse({ card, houses, text, chooseHref }: Readonly<Props>) {
           {text.acceptedTitle}
         </h2>
         <p className="text-lg">{text.inviteMessage}</p>
-        <Link href={chooseHref} className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold">
-          {text.homeLink}
-        </Link>
       </section>
     );
   }

@@ -40,7 +40,7 @@ export default async function SignedInHome({ searchParams }: Props) {
         {text.connectedAs} <strong>{user.maskedEmail}</strong>
       </p>
       {/* A casa e o gráfico da pessoa, só os eixos da casa (#203). */}
-      {houseCard && <OwnHouse card={houseCard} houses={instance.houses} text={instance.houseSelection} chooseHref="/casa" />}
+      {houseCard && <OwnHouse card={houseCard} houses={instance.houses} text={instance.houseSelection} />}
       {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}
       {own.socialLinks.length > 0 && (
         <section aria-labelledby="minhas-redes" className="flex flex-col gap-3">
