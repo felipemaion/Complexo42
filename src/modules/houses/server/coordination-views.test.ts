@@ -192,6 +192,7 @@ describe("openResult (abrir o resultado de uma pessoa registra o acesso)", () =>
   const resultRow = {
     house_key: HOUSE_A,
     totem_enc: encTotem(U1, "XV"),
+    totem_state: "decided",
     scores_enc: encScores(U1),
     source: "questionnaire",
     created_at: "t",
@@ -228,10 +229,10 @@ describe("openResult (abrir o resultado de uma pessoa registra o acesso)", () =>
   });
 
   it("totem pendente (#197): abre com a casa e o totem nulo", async () => {
-    const { client } = fake({ questionnaire_results: { data: { ...resultRow, totem_enc: null } }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } });
+    const { client } = fake({ questionnaire_results: { data: { ...resultRow, totem_enc: null, totem_state: "pending" } }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } });
     const out = await openResult(client, U1, deps);
     expect(out.status).toBe("ok");
-    if (out.status === "ok") expect(out.result).toMatchObject({ houseId: HOUSE_A, totem: null });
+    if (out.status === "ok") expect(out.result).toMatchObject({ houseId: HOUSE_A, totem: null, totemState: "pending" });
   });
 
   it("totem ou notas ilegíveis: unreadable, sem registrar acesso nem vazar o motivo", async () => {

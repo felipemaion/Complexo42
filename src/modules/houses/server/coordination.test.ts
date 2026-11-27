@@ -55,6 +55,7 @@ describe("readQuestionnaireResultOf", () => {
   const row = (over: object = {}) => ({
     house_key: "casa-a",
     totem_enc: `enc[questionnaire_results.totem_enc.${U1}](XV)`,
+    totem_state: "decided",
     scores_enc: `enc[questionnaire_results.scores_enc.${U1}](${JSON.stringify(scores)})`,
     source: "questionnaire",
     created_at: "t",
@@ -69,9 +70,13 @@ describe("readQuestionnaireResultOf", () => {
     expect(filters).toContainEqual(["eq", "profile_id", U1]);
   });
 
-  it("totem pendente (nulo no banco, #197): a casa e as notas saem, o totem é nulo", async () => {
-    const view = await readQuestionnaireResultOf(fake({ from: { data: row({ totem_enc: null }) } }).client, U1, crypto, questionnaire);
-    expect(view).toMatchObject({ houseId: "casa-a", totem: null, scores });
+  it.each(["pending", "undecided"] as const)("totem %s (nulo no banco, #197): a casa e as notas saem, o totem é nulo e a situação é explícita", async (totemState) => {
+    const view = await readQuestionnaireResultOf(fake({ from: { data: row({ totem_enc: null, totem_state: totemState }) } }).client, U1, crypto, questionnaire);
+    expect(view).toMatchObject({ houseId: "casa-a", totem: null, totemState, scores });
+  });
+
+  it("totem decidido: situação decidida", async () => {
+    expect(await readQuestionnaireResultOf(fake({ from: { data: row() } }).client, U1, crypto, questionnaire)).toMatchObject({ totemState: "decided" });
   });
 
   it("resultado antigo, de antes da escala de intensidade (sem notas): notas e gráfico nulos", async () => {
