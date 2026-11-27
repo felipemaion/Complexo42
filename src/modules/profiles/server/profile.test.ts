@@ -76,7 +76,8 @@ function fakeClient(
   return { client: client as unknown as ProfileDbClient, calls, reads, orders };
 }
 
-const leaks = (text: string) => [NAME, "98765", "4321", PHONE].filter((secret) => text.includes(secret));
+// Fragmentos longos: "4321" curto aparece por acaso no ciphertext/HMAC aleatório (teste instável).
+const leaks = (text: string) => [NAME, "98765-4321", "987654321", PHONE].filter((secret) => text.includes(secret));
 
 afterEach(() => vi.restoreAllMocks());
 
