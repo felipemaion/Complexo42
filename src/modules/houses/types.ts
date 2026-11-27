@@ -1,5 +1,8 @@
 export type { FlowContext, FlowEvent, FlowState, JoinMethod, Step } from "./domain/flow";
 
+/** Onde o valor cifrado mora (AAD da decifragem, ADR 0003 §3). */
+export type CipherContext = { table: string; column: string; rowId: string };
+
 /** Motivo de recusa mostrado na tela (texto em `houseSelection.errors` da config). */
 export type HouseErrorCode =
   | "unavailable"

@@ -155,11 +155,12 @@ describe("submitQuestionnaire", () => {
     userId: "u-1",
     nowSeconds: 1000,
     sign: (message: string) => (signed.push(message), `sig(${message})`),
-    answersDigest: (answers: Readonly<Record<string, string>>) => `digest(${Object.keys(answers).length})`,
+    encrypt: async (plaintext: string, context: { table: string; column: string; rowId: string }) =>
+      `enc[${context.table}.${context.column}.${context.rowId}](${plaintext})`,
   };
   const all = (value: "a" | "b" | "both") => Object.fromEntries(items.map((i) => [i.id, value]));
 
-  it("resultado conclusivo: o servidor pontua e manda ao banco casa e totem assinados (para a pessoa da sessão)", async () => {
+  it("resultado conclusivo: o servidor pontua e manda ao banco casa e totem cifrados e assinados (para a pessoa da sessão)", async () => {
     const { client, calls } = fakeClient();
     const answers = { ...all("a"), h2a: "b", h2b: "b", t1a: "b", t1b: "b" };
     expect(await submitQuestionnaire(client, { answers }, ctx)).toEqual({ ok: true, outcome: "recorded", houseId: "casa-b" });
@@ -169,12 +170,19 @@ describe("submitQuestionnaire", () => {
         args: {
           p_term_version: "termo-1",
           p_house_key: "casa-b",
-          p_totem: "YV",
+          p_totem_enc: "enc[questionnaire_results.totem_enc.u-1](YV)",
           p_issued_at: 1000,
-          p_signature: "sig(result|u-1|termo-1|casa-b|YV|1000)",
+          p_signature: "sig(result|u-1|termo-1|casa-b|enc[questionnaire_results.totem_enc.u-1](YV)|1000)",
         },
       },
     ]);
+  });
+
+  it("nem totem nem respostas em texto puro vão ao banco: só os valores cifrados", async () => {
+    const { client, calls } = fakeClient();
+    await submitQuestionnaire(client, { answers: { ...all("a"), h2a: "b", h2b: "b", t1a: "b", t1b: "b" } }, ctx);
+    await submitQuestionnaire(client, { answers: all("both") }, ctx);
+    for (const call of calls) expect(Object.keys(call.args).filter((k) => k === "p_totem" || k === "p_answers")).toEqual([]);
   });
 
   it("a resposta ao navegador traz a casa, nunca o totem", async () => {
@@ -182,7 +190,7 @@ describe("submitQuestionnaire", () => {
     expect(JSON.stringify(await submitQuestionnaire(client, { answers: all("a") }, ctx))).not.toMatch(/AA|XV|totem/);
   });
 
-  it("resultado inconclusivo: abre o pedido de análise com as respostas completas, assinado", async () => {
+  it("resultado inconclusivo: abre o pedido de análise com as respostas completas, cifradas e assinadas", async () => {
     const { client, calls } = fakeClient();
     const answers = all("both");
     expect(await submitQuestionnaire(client, { answers }, ctx)).toEqual({ ok: true, outcome: "analysis" });
@@ -192,9 +200,9 @@ describe("submitQuestionnaire", () => {
         args: {
           p_term_version: "termo-1",
           p_tied_axes: ["house1", "house2", "totem1", "totem2"],
-          p_answers: answers,
+          p_answers_enc: `enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(answers)})`,
           p_issued_at: 1000,
-          p_signature: "sig(analysis|u-1|termo-1|house1,house2,totem1,totem2|1000|digest(8))",
+          p_signature: `sig(analysis|u-1|termo-1|house1,house2,totem1,totem2|enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(answers)})|1000)`,
         },
       },
     ]);

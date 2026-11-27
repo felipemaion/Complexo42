@@ -51,7 +51,7 @@ const rows: OwnDataRows = {
   questionnaire_consents: [{ term_version: "termo-1", consented_at: "2026-11-19T11:20:00+00:00" }],
   questionnaire_result: {
     house_key: "casa-um",
-    totem: "AB",
+    totem_enc: "enc:totem",
     term_version: "termo-1",
     source: "questionnaire",
     created_at: "2026-11-19T11:25:00+00:00",
@@ -62,11 +62,12 @@ const rows: OwnDataRows = {
       resolution: null,
       term_version: "termo-1",
       tied_axes: ["house1"],
-      answers: { q01: "a", q02: "both" },
+      answers_enc: "enc:respostas",
       created_at: "2026-11-19T11:26:00+00:00",
       resolved_at: null,
     },
   ],
+  questionnaire_access_grants: [{ unit_name: "São Paulo", unit_type: "Estado", granted_at: "2026-11-19T17:00:00+00:00", revoked_at: null }],
   consent_acceptances: [{ version: "v1", accepted_at: "2026-11-19T11:00:00+00:00" }],
   roles: [
     { role: "spokesperson", unit_name: "Equipe 1", unit_type: "Equipe", house_key: null, granted_at: "2026-11-19T13:00:00+00:00", revoked_at: null },
@@ -88,6 +89,8 @@ const plain: Record<string, string> = {
   "enc:zap": "+5511987654321",
   "enc:redes": JSON.stringify(["https://exemplo.org/maria"]),
   "enc:quemviu": "Joana Coordena",
+  "enc:totem": "AB",
+  "enc:respostas": JSON.stringify({ q01: "a", q02: "both" }),
 };
 
 function fakeDecrypt() {
@@ -116,7 +119,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 4, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 5, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -147,6 +150,7 @@ describe("buildOwnDataExport", () => {
         origem: "questionnaire",
         em: "2026-11-19T11:25:00+00:00",
       },
+      acessosDelegados: [{ unidade: "São Paulo", tipo: "Estado", concedidoEm: "2026-11-19T17:00:00+00:00", revogadoEm: null }],
       pedidosDeAnalise: [
         {
           situacao: "open",
@@ -187,9 +191,12 @@ describe("buildOwnDataExport", () => {
         { table: "profile_contacts", column: "social_links_enc", rowId: USER },
         // O nome de quem viu o contato é da linha dela (#119).
         { table: "profiles", column: "display_name_enc", rowId: VIEWER },
+        // Totem e respostas do questionário (ADR 0014): cifrados na linha da própria pessoa.
+        { table: "questionnaire_results", column: "totem_enc", rowId: USER },
+        { table: "house_analysis_requests", column: "answers_enc", rowId: USER },
       ]),
     );
-    expect(seen).toHaveLength(4);
+    expect(seen).toHaveLength(6);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {
@@ -253,6 +260,7 @@ describe("buildOwnDataExport", () => {
         questionnaire_consents: [],
         questionnaire_result: null,
         house_analysis_requests: [],
+        questionnaire_access_grants: [],
         consent_acceptances: [],
         roles: [],
         audit_events: [],
@@ -269,11 +277,40 @@ describe("buildOwnDataExport", () => {
       termosDeConsentimento: [],
       termosDoQuestionario: [],
       resultadoDoQuestionario: null,
+      acessosDelegados: [],
       pedidosDeAnalise: [],
       papeis: [],
       registrosSobreVoce: [],
       quemViuSeuContato: [],
     });
+  });
+});
+
+describe("totem e respostas cifrados", () => {
+  it("decifra o totem e as respostas com o AAD tabela.coluna.id-da-pessoa", async () => {
+    const { decrypt, seen } = fakeDecrypt();
+    await build({ decrypt });
+    expect(seen).toContainEqual({ table: "questionnaire_results", column: "totem_enc", rowId: USER });
+    expect(seen).toContainEqual({ table: "house_analysis_requests", column: "answers_enc", rowId: USER });
+  });
+
+  it("totem ou respostas que não decifram viram null, registrando só o nome da coluna", async () => {
+    const onDecryptError = vi.fn();
+    const broken = {
+      ...rows,
+      questionnaire_result: { ...rows.questionnaire_result!, totem_enc: "enc:estragado" },
+      house_analysis_requests: [{ ...rows.house_analysis_requests[0]!, answers_enc: "enc:estragado" }],
+    };
+    const out = await build({ rows: broken, onDecryptError });
+    expect(out.resultadoDoQuestionario?.totem).toBeNull();
+    expect(out.pedidosDeAnalise[0]?.respostas).toBeNull();
+    expect(onDecryptError.mock.calls.map((c) => c[0])).toEqual(["totem_enc", "answers_enc"]);
+  });
+
+  it("pedido resolvido (sem respostas) fica com respostas nulas, sem tentar decifrar", async () => {
+    const { decrypt } = fakeDecrypt();
+    const out = await build({ decrypt, rows: { ...rows, house_analysis_requests: [{ ...rows.house_analysis_requests[0]!, status: "resolved", answers_enc: null }] } });
+    expect(out.pedidosDeAnalise[0]?.respostas).toBeNull();
   });
 });
 

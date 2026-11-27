@@ -6,31 +6,44 @@
 -- coordenação nacional, num pedido de análise.
 --
 -- 1. `questionnaire_results`: a casa sugerida e o totem da pessoa (uma linha por pessoa, a mais
---    recente). Lê a própria pessoa e a coordenação nacional (`app.manages_root()`); o totem
---    NÃO está em `house_members`, que a coordenação territorial e a da casa leem.
--- 2. `house_analysis_requests`: a fila do caso inconclusivo. As respostas (`answers`) existem só
---    enquanto o pedido está aberto: ao resolver, ou quando a pessoa aceita uma casa ou refaz
---    o questionário com resultado conclusivo, viram nulas. A linha resolvida fica, sem respostas.
+--    recente). O totem é dado pessoal e fica CIFRADO (`totem_enc`, AES-256-GCM, ADR 0003; AAD
+--    `questionnaire_results.totem_enc.<profile_id>`): quem cifra e decifra é o servidor do app,
+--    o banco só guarda o valor. Lê a própria pessoa, a coordenação nacional (`app.manages_root()`)
+--    e quem a nacional delegou (seção 1b); o totem NÃO está em `house_members`, que a
+--    coordenação territorial e a da casa leem.
+-- 2. `house_analysis_requests`: a fila do caso inconclusivo. As respostas (`answers_enc`, cifradas
+--    como o totem; AAD `house_analysis_requests.answers_enc.<profile_id>`) existem só enquanto
+--    o pedido está aberto: ao resolver, ou quando a pessoa aceita uma casa ou refaz o
+--    questionário com resultado conclusivo, viram nulas. A linha resolvida fica, sem respostas.
 -- 3. Funções. A pontuação roda no SERVIDOR do app (ADR 0014 §1), que assina o resultado com uma
 --    chave que só ele e o banco têm (`app.server_secrets`); o banco confere a assinatura, o
 --    prazo de 5 minutos e que o resultado é da pessoa da sessão. O navegador, mesmo chamando a
 --    API direto, não consegue impor casa nem totem nem abrir pedido:
---    - `record_questionnaire_result(termo, casa, totem, emitido_em, assinatura)`: grava o
+--    - `record_questionnaire_result(termo, casa, totem_enc, emitido_em, assinatura)`: grava o
 --      resultado conclusivo e fecha um pedido aberto;
---    - `request_house_analysis(termo, eixos, respostas, emitido_em, assinatura)`: abre (ou
+--    - `request_house_analysis(termo, eixos, respostas_enc, emitido_em, assinatura)`: abre (ou
 --      renova, no máximo uma vez por hora) o pedido e apaga o resultado anterior;
---    - `resolve_house_analysis(pedido, casa, totem)`: só a coordenação nacional, nunca sobre si
---      mesma e só sobre pessoa ativa; grava o resultado, apaga as respostas e audita.
+--    - `resolve_house_analysis(pedido, casa, totem_enc)`: só a coordenação nacional, nunca sobre
+--      si mesma e só sobre pessoa ativa; grava o resultado, apaga as respostas e audita.
+--    A assinatura cobre o valor cifrado: o navegador não troca nem o totem nem as respostas.
+--    Como o banco não decifra, ele não valida o conteúdo das respostas: a garantia é a assinatura.
 --    Os pedidos abertos expiram em 30 dias (`app.analysis_max_age()`): as respostas deixam de
 --    ser lidas na hora e são apagadas na próxima chamada de qualquer função acima.
 --    Bloquear ou suspender a pessoa também fecha o pedido e apaga as respostas.
+-- 3b. Delegação (decisão do gestor): `questionnaire_data_grants`. A coordenação nacional concede,
+--    de forma explícita, revogável e auditada, a um gestor de unidade abaixo da raiz o direito de
+--    ler totem, pedidos de análise e os eventos `house_analysis_*` das pessoas ATIVAS no escopo
+--    dele (`units.path <@`). Sem concessão, só a nacional lê. Resolver a fila segue só da
+--    nacional. A concessão só vale enquanto o gestor mantém o papel de gestor na unidade.
 -- 4. Um gatilho em `house_members` fecha o pedido aberto quando a pessoa aceita uma casa
 --    (escolha própria): as respostas não ficam sem motivo.
--- 5. `audit_log`: `house_analysis_requested` e `house_analysis_resolved` (sem respostas).
--- 6. `export_own_data()` inclui o resultado (com o totem) e os pedidos (LGPD art. 18).
+-- 5. `audit_log`: `house_analysis_requested` e `house_analysis_resolved` (sem respostas),
+--    `questionnaire_access_granted` e `questionnaire_access_revoked` (a delegação).
+-- 6. `export_own_data()` inclui o resultado (totem cifrado; o servidor decifra) e os pedidos
+--    (LGPD art. 18), e as concessões recebidas.
 --
 -- Códigos de erro: 42501 sem permissão; P0002 casa indisponível ou pedido inexistente/fechado;
--- 22023 entrada inválida; 54000 pedido com respostas grandes demais.
+-- 22023 entrada inválida; 54000 renovação cedo demais.
 
 -- ---------------------------------------------------------------------------------------
 -- 0. Chave de assinatura (só servidor + banco) e prazo dos pedidos
@@ -87,8 +100,76 @@ revoke execute on function app.analysis_max_age() from public, anon;
 grant execute on function app.analysis_max_age() to authenticated;
 
 -- ---------------------------------------------------------------------------------------
--- 1. Leitura: a pessoa e a coordenação nacional
+-- 1. Leitura: a pessoa, a coordenação nacional e quem ela delegou
 -- ---------------------------------------------------------------------------------------
+-- 1b. Delegação: concessão explícita, revogável e auditada. Só o gestor ativo da raiz concede
+-- e revoga; ninguém concede a si mesmo; vale só para gestor de unidade ABAIXO da raiz, só
+-- enquanto ele mantém o papel de gestor ali, e só sobre pessoas ativas com vínculo aberto na
+-- unidade ou abaixo dela. Sem linha ativa aqui, só a coordenação nacional lê.
+create table public.questionnaire_data_grants (
+  id uuid primary key default gen_random_uuid(),
+  grantee_id uuid not null references public.profiles (id) on delete cascade,
+  unit_id uuid not null references public.units (id) on delete restrict,
+  granted_by uuid references public.profiles (id) on delete set null,
+  granted_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  revoked_by uuid references public.profiles (id) on delete set null,
+  constraint questionnaire_data_grants_revoked_after_granted
+    check (revoked_at is null or revoked_at >= granted_at)
+);
+
+comment on table public.questionnaire_data_grants is
+  'Delegação do acesso ao totem e aos pedidos de análise (ADR 0014): a coordenação nacional concede a um gestor de unidade abaixo da raiz, para as pessoas ativas do escopo dele. Revogável; cada concessão e revogação é auditada.';
+
+create unique index questionnaire_data_grants_one_active
+  on public.questionnaire_data_grants (grantee_id, unit_id) where revoked_at is null;
+create index questionnaire_data_grants_unit_id_idx on public.questionnaire_data_grants (unit_id);
+create index questionnaire_data_grants_granted_by_idx on public.questionnaire_data_grants (granted_by);
+create index questionnaire_data_grants_revoked_by_idx on public.questionnaire_data_grants (revoked_by);
+
+alter table public.questionnaire_data_grants enable row level security;
+revoke all on public.questionnaire_data_grants from anon, authenticated;
+grant select on public.questionnaire_data_grants to authenticated;
+
+-- Escrita só pelas funções abaixo. Lê a coordenação nacional e o próprio gestor que recebeu.
+create policy questionnaire_data_grants_select on public.questionnaire_data_grants
+  for select to authenticated
+  using (app.is_active_member() and (grantee_id = (select auth.uid()) or app.manages_root()));
+
+-- Quem chama tem concessão ativa que cobre `target`? A pessoa precisa estar ativa e ter vínculo
+-- aberto numa unidade igual ou abaixo da unidade da concessão; o papel de gestor do dono da
+-- concessão ainda precisa estar ativo naquela unidade; nunca sobre si mesmo.
+create or replace function app.has_questionnaire_delegation_over(target uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select app.is_active_member()
+    and target is not null
+    and target <> (select auth.uid())
+    and app.is_active_profile(target)
+    and exists (
+      select 1
+      from public.questionnaire_data_grants as g
+      join public.units as gu on gu.id = g.unit_id
+      join public.role_assignments as r
+        on r.profile_id = g.grantee_id and r.unit_id = g.unit_id and r.role = 'manager' and r.revoked_at is null
+      join public.unit_members as m on m.profile_id = target and m.left_at is null
+      join public.units as mu on mu.id = m.unit_id
+      where g.grantee_id = (select auth.uid())
+        and g.revoked_at is null
+        and gu.parent_id is not null
+        and mu.path operator(extensions.<@) gu.path
+    );
+$$;
+
+comment on function app.has_questionnaire_delegation_over(uuid) is
+  'Quem chama recebeu da coordenação nacional (e mantém) o direito de ver o totem e os pedidos de análise desta pessoa ativa, pelo escopo da unidade (ADR 0014).';
+
+revoke execute on function app.has_questionnaire_delegation_over(uuid) from public, anon, authenticated;
+
 create or replace function app.can_read_questionnaire_data(target uuid)
 returns boolean
 language sql
@@ -101,11 +182,12 @@ as $$
     and (
       target = (select auth.uid())
       or (app.manages_root() and app.is_active_profile(target))
+      or app.has_questionnaire_delegation_over(target)
     );
 $$;
 
 comment on function app.can_read_questionnaire_data(uuid) is
-  'Totem, casa sugerida e pedidos de análise: a própria pessoa, ou a coordenação nacional (gestor da raiz) sobre pessoa ativa (ADR 0014).';
+  'Totem, casa sugerida e pedidos de análise: a própria pessoa, a coordenação nacional (gestor da raiz) sobre pessoa ativa, ou um gestor com delegação ativa sobre pessoa ativa do escopo dele (ADR 0014).';
 
 revoke execute on function app.can_read_questionnaire_data(uuid) from public, anon;
 grant execute on function app.can_read_questionnaire_data(uuid) to authenticated;
@@ -117,15 +199,15 @@ create table public.questionnaire_results (
   profile_id uuid primary key references public.profiles (id) on delete cascade,
   term_version text not null references app.questionnaire_term_versions (version),
   house_key text not null references public.houses (key) on delete restrict,
-  totem text not null
-    constraint questionnaire_results_totem_format check (totem ~ '^[A-Z]{2}$'),
+  totem_enc text not null
+    constraint questionnaire_results_totem_enc_format check (app.is_encrypted_value(totem_enc, 256)),
   source text not null
     constraint questionnaire_results_source_check check (source in ('questionnaire', 'analysis')),
   created_at timestamptz not null default now()
 );
 
 comment on table public.questionnaire_results is
-  'Casa sugerida e totem do questionário (ADR 0014). O totem é interno: só a pessoa e a coordenação nacional leem. Nunca as respostas.';
+  'Casa sugerida e totem do questionário (ADR 0014). O totem é interno e fica cifrado (totem_enc): leem a pessoa, a coordenação nacional e quem ela delegou. Nunca as respostas.';
 comment on column public.questionnaire_results.source is
   'questionnaire (pontuação no servidor do app) ou analysis (decidido pela coordenação nacional num pedido de análise).';
 
@@ -151,9 +233,8 @@ create table public.house_analysis_requests (
     constraint house_analysis_requests_axes_check
       check (cardinality(tied_axes) between 1 and 4
              and tied_axes <@ array['house1', 'house2', 'totem1', 'totem2']),
-  answers jsonb
-    constraint house_analysis_requests_answers_shape
-      check (answers is null or (jsonb_typeof(answers) = 'object' and octet_length(answers::text) <= 4096)),
+  answers_enc text
+    constraint house_analysis_requests_answers_enc_format check (answers_enc is null or app.is_encrypted_value(answers_enc, 8192)),
   status text not null default 'open'
     constraint house_analysis_requests_status_check check (status in ('open', 'resolved')),
   resolution text
@@ -162,7 +243,7 @@ create table public.house_analysis_requests (
   resolved_at timestamptz,
   resolved_by uuid references public.profiles (id) on delete set null,
   -- As respostas existem só enquanto o pedido está aberto.
-  constraint house_analysis_requests_answers_only_open check ((status = 'open') = (answers is not null)),
+  constraint house_analysis_requests_answers_only_open check ((status = 'open') = (answers_enc is not null)),
   constraint house_analysis_requests_resolved_fields
     check ((status = 'resolved') = (resolved_at is not null and resolution is not null)),
   constraint house_analysis_requests_resolved_by_coordination
@@ -171,8 +252,8 @@ create table public.house_analysis_requests (
 
 comment on table public.house_analysis_requests is
   'Fila do resultado inconclusivo (ADR 0014): a coordenação nacional decide a casa. As respostas só existem com o pedido aberto.';
-comment on column public.house_analysis_requests.answers is
-  'Respostas do questionário (item → a, b ou both), só com o pedido aberto; nulas depois de resolvido.';
+comment on column public.house_analysis_requests.answers_enc is
+  'Respostas do questionário (item → a, b ou both) como JSON cifrado pelo servidor (ADR 0003), só com o pedido aberto; nulas depois de resolvido.';
 comment on column public.house_analysis_requests.resolution is
   'coordination (a coordenação nacional decidiu), self (a pessoa aceitou uma casa ou refez o questionário), inactive (a pessoa foi bloqueada ou suspensa) ou expired (passou o prazo).';
 
@@ -204,11 +285,13 @@ alter table public.audit_log add constraint audit_log_event_check check (event i
   'allowlist_imported', 'access_granted', 'access_blocked', 'data_exported',
   'house_accepted', 'questionnaire_consented', 'consent_accepted',
   'member_blocked', 'member_unblocked',
-  'house_analysis_requested', 'house_analysis_resolved'
+  'house_analysis_requested', 'house_analysis_resolved',
+  'questionnaire_access_granted', 'questionnaire_access_revoked'
 ));
 
--- Os eventos da fila só a coordenação nacional lê (o gestor territorial não, nem pelo alvo); a
--- pessoa os lê pelo export.
+-- Os eventos da fila (`house_analysis_*`) leem a coordenação nacional e quem ela delegou sobre
+-- aquela pessoa (o gestor territorial comum não, nem pelo alvo); os da delegação
+-- (`questionnaire_access_*`) só a coordenação nacional. A pessoa lê os seus pelo export.
 create or replace function app.can_read_audit(event text, target uuid, actor uuid default null, house text default null)
 returns boolean
 language sql
@@ -221,8 +304,15 @@ as $$
       (event = 'allowlist_imported' and app.manages_root())
       or (event in ('house_analysis_requested', 'house_analysis_resolved') and app.manages_root())
       or (
+        event in ('house_analysis_requested', 'house_analysis_resolved')
+        and target is not null
+        and app.has_questionnaire_delegation_over(target)
+      )
+      or (event in ('questionnaire_access_granted', 'questionnaire_access_revoked') and app.manages_root())
+      or (
         target is not null
-        and event not in ('house_analysis_requested', 'house_analysis_resolved')
+        and event not in ('house_analysis_requested', 'house_analysis_resolved',
+                          'questionnaire_access_granted', 'questionnaire_access_revoked')
         and app.manages_member(target)
       )
       or (
@@ -275,7 +365,7 @@ security definer
 set search_path = ''
 as $$
   update public.house_analysis_requests
-  set status = 'resolved', answers = null, resolved_at = now(), resolution = how
+  set status = 'resolved', answers_enc = null, resolved_at = now(), resolution = how
   where profile_id = person and status = 'open';
 $$;
 
@@ -289,15 +379,16 @@ security definer
 set search_path = ''
 as $$
   update public.house_analysis_requests
-  set status = 'resolved', answers = null, resolved_at = now(), resolution = 'expired'
+  set status = 'resolved', answers_enc = null, resolved_at = now(), resolution = 'expired'
   where status = 'open' and created_at <= now() - app.analysis_max_age();
 $$;
 
 revoke execute on function app.purge_expired_analysis() from public, anon, authenticated;
 
--- Resultado conclusivo, calculado e assinado pelo servidor do app para a pessoa da sessão.
+-- Resultado conclusivo, calculado, cifrado e assinado pelo servidor do app para a pessoa da sessão.
+-- `p_totem_enc` é o totem cifrado (AAD `questionnaire_results.totem_enc.<profile_id>`).
 create or replace function public.record_questionnaire_result(
-  p_term_version text, p_house_key text, p_totem text, p_issued_at bigint, p_signature text
+  p_term_version text, p_house_key text, p_totem_enc text, p_issued_at bigint, p_signature text
 )
 returns void
 language plpgsql
@@ -308,10 +399,10 @@ declare
   caller uuid := app.lock_active_caller();
 begin
   perform app.verify_server_signature(
-    format('result|%s|%s|%s|%s|%s', caller, p_term_version, p_house_key, p_totem, p_issued_at),
+    format('result|%s|%s|%s|%s|%s', caller, p_term_version, p_house_key, p_totem_enc, p_issued_at),
     p_issued_at, p_signature);
   perform app.purge_expired_analysis();
-  if p_totem is null or p_totem !~ '^[A-Z]{2}$' then
+  if p_totem_enc is null or not app.is_encrypted_value(p_totem_enc, 256) then
     raise exception 'totem inválido' using errcode = 'invalid_parameter_value';
   end if;
   if not exists (
@@ -324,23 +415,25 @@ begin
     raise exception 'casa indisponível' using errcode = 'no_data_found';
   end if;
 
-  insert into public.questionnaire_results (profile_id, term_version, house_key, totem, source)
-  values (caller, p_term_version, p_house_key, p_totem, 'questionnaire')
+  insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, source)
+  values (caller, p_term_version, p_house_key, p_totem_enc, 'questionnaire')
   on conflict (profile_id) do update
     set term_version = excluded.term_version, house_key = excluded.house_key,
-        totem = excluded.totem, source = excluded.source, created_at = now();
+        totem_enc = excluded.totem_enc, source = excluded.source, created_at = now();
 
   perform app.close_open_analysis(caller, 'self');
 end;
 $$;
 
 comment on function public.record_questionnaire_result(text, text, text, bigint, text) is
-  'Grava a casa sugerida e o totem da pessoa da sessão, só com a assinatura do servidor do app (ADR 0014).';
+  'Grava a casa sugerida e o totem (cifrado) da pessoa da sessão, só com a assinatura do servidor do app (ADR 0014).';
 
--- Resultado inconclusivo: o servidor do app pontua, assina e abre o pedido com as respostas
--- completas. Renovar o pedido aberto só depois de 1 hora (54000 antes disso).
+-- Resultado inconclusivo: o servidor do app pontua, cifra as respostas, assina e abre o pedido.
+-- `p_answers_enc` é o JSON das respostas cifrado (AAD `house_analysis_requests.answers_enc.<profile_id>`).
+-- O banco não decifra: a garantia de que são respostas completas e válidas é a assinatura do
+-- servidor. Renovar o pedido aberto só depois de 1 hora (54000 antes disso).
 create or replace function public.request_house_analysis(
-  p_term_version text, p_tied_axes text[], p_answers jsonb, p_issued_at bigint, p_signature text
+  p_term_version text, p_tied_axes text[], p_answers_enc text, p_issued_at bigint, p_signature text
 )
 returns uuid
 language plpgsql
@@ -351,31 +444,16 @@ declare
   caller uuid := app.lock_active_caller();
   request_id uuid;
   open_since timestamptz;
-  answers_digest text;
 begin
-  if p_answers is null or jsonb_typeof(p_answers) <> 'object' then
-    raise exception 'respostas inválidas' using errcode = 'invalid_parameter_value';
-  end if;
-  -- A assinatura cobre o resumo (SHA-256) das respostas canonicalizadas: `id=valor`, ordenado pelo
-  -- id e separado por vírgula. O app calcula o mesmo resumo; trocar uma resposta invalida a assinatura.
-  select encode(extensions.digest(convert_to(coalesce(string_agg(e.key || '=' || (e.value #>> '{}'), ',' order by e.key collate "C"), ''), 'utf8'), 'sha256'), 'hex')
-  into answers_digest
-  from jsonb_each(p_answers) as e;
   perform app.verify_server_signature(
-    format('analysis|%s|%s|%s|%s|%s', caller, p_term_version, array_to_string(p_tied_axes, ','), p_issued_at, answers_digest),
+    format('analysis|%s|%s|%s|%s|%s', caller, p_term_version, array_to_string(p_tied_axes, ','), p_answers_enc, p_issued_at),
     p_issued_at, p_signature);
   perform app.purge_expired_analysis();
   if p_tied_axes is null or cardinality(p_tied_axes) not between 1 and 4
      or not (p_tied_axes <@ array['house1', 'house2', 'totem1', 'totem2']) then
     raise exception 'eixos inválidos' using errcode = 'invalid_parameter_value';
   end if;
-  if octet_length(p_answers::text) > 4096 then
-    raise exception 'respostas grandes demais' using errcode = 'program_limit_exceeded';
-  end if;
-  if exists (
-    select 1 from jsonb_each(p_answers) as e
-    where e.key !~ '^[a-z0-9]+(-[a-z0-9]+)*$' or e.value not in ('"a"'::jsonb, '"b"'::jsonb, '"both"'::jsonb)
-  ) then
+  if p_answers_enc is null or not app.is_encrypted_value(p_answers_enc, 8192) then
     raise exception 'respostas inválidas' using errcode = 'invalid_parameter_value';
   end if;
   if not exists (
@@ -392,13 +470,13 @@ begin
   end if;
 
   update public.house_analysis_requests
-  set term_version = p_term_version, tied_axes = p_tied_axes, answers = p_answers, created_at = now()
+  set term_version = p_term_version, tied_axes = p_tied_axes, answers_enc = p_answers_enc, created_at = now()
   where profile_id = caller and status = 'open'
   returning id into request_id;
 
   if request_id is null then
-    insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers)
-    values (caller, p_term_version, p_tied_axes, p_answers)
+    insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc)
+    values (caller, p_term_version, p_tied_axes, p_answers_enc)
     returning id into request_id;
     insert into public.audit_log (actor_id, event, target_id)
     values (caller, 'house_analysis_requested', caller);
@@ -410,11 +488,11 @@ begin
 end;
 $$;
 
-comment on function public.request_house_analysis(text, text[], jsonb, bigint, text) is
-  'Abre o pedido de análise da pessoa da sessão, só com a assinatura do servidor do app; as respostas são apagadas ao resolver (ADR 0014).';
+comment on function public.request_house_analysis(text, text[], text, bigint, text) is
+  'Abre o pedido de análise da pessoa da sessão (respostas cifradas), só com a assinatura do servidor do app; as respostas são apagadas ao resolver (ADR 0014).';
 
 -- A coordenação nacional decide a casa e o totem; as respostas são apagadas.
-create or replace function public.resolve_house_analysis(p_request_id uuid, p_house_key text, p_totem text)
+create or replace function public.resolve_house_analysis(p_request_id uuid, p_house_key text, p_totem_enc text)
 returns void
 language plpgsql
 security definer
@@ -429,7 +507,7 @@ begin
     raise exception 'só a coordenação nacional resolve pedidos de análise' using errcode = 'insufficient_privilege';
   end if;
   perform app.purge_expired_analysis();
-  if p_totem is null or p_totem !~ '^[A-Z]{2}$' then
+  if p_totem_enc is null or not app.is_encrypted_value(p_totem_enc, 256) then
     raise exception 'totem inválido' using errcode = 'invalid_parameter_value';
   end if;
   if p_house_key is null or not app.is_open_house(p_house_key) then
@@ -460,14 +538,14 @@ begin
   end if;
 
   update public.house_analysis_requests
-  set status = 'resolved', answers = null, resolved_at = now(), resolution = 'coordination', resolved_by = caller
+  set status = 'resolved', answers_enc = null, resolved_at = now(), resolution = 'coordination', resolved_by = caller
   where id = p_request_id;
 
-  insert into public.questionnaire_results (profile_id, term_version, house_key, totem, source)
-  values (person, version, p_house_key, p_totem, 'analysis')
+  insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, source)
+  values (person, version, p_house_key, p_totem_enc, 'analysis')
   on conflict (profile_id) do update
     set term_version = excluded.term_version, house_key = excluded.house_key,
-        totem = excluded.totem, source = excluded.source, created_at = now();
+        totem_enc = excluded.totem_enc, source = excluded.source, created_at = now();
 
   insert into public.audit_log (actor_id, event, target_id)
   values (caller, 'house_analysis_resolved', person);
@@ -475,14 +553,95 @@ end;
 $$;
 
 comment on function public.resolve_house_analysis(uuid, text, text) is
-  'A coordenação nacional resolve o pedido: grava a casa e o totem, apaga as respostas e audita (ADR 0014).';
+  'A coordenação nacional resolve o pedido: grava a casa e o totem (cifrado pelo servidor), apaga as respostas e audita (ADR 0014). A delegação NÃO inclui resolver.';
+
+-- Delegação (seção 1b): só o gestor ativo da raiz concede e revoga; cada ato é auditado.
+create or replace function public.grant_questionnaire_access(p_grantee uuid, p_unit_id uuid)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := (select auth.uid());
+  grant_id uuid;
+begin
+  if caller is null or not app.manages_root() then
+    raise exception 'só a coordenação nacional delega o acesso' using errcode = 'insufficient_privilege';
+  end if;
+  if p_grantee is null or p_grantee = caller then
+    raise exception 'ninguém concede o acesso a si mesmo' using errcode = 'insufficient_privilege';
+  end if;
+  if not app.is_active_profile(p_grantee) then
+    raise exception 'só a quem está ativo' using errcode = 'invalid_parameter_value';
+  end if;
+  -- Unidade abaixo da raiz, onde o gestor tem o papel de gestor ativo.
+  if not exists (
+    select 1
+    from public.units as u
+    join public.role_assignments as r on r.unit_id = u.id
+    where u.id = p_unit_id and u.parent_id is not null
+      and r.profile_id = p_grantee and r.role = 'manager' and r.revoked_at is null
+  ) then
+    raise exception 'a pessoa precisa ser gestora ativa de uma unidade abaixo da raiz' using errcode = 'invalid_parameter_value';
+  end if;
+  if exists (
+    select 1 from public.questionnaire_data_grants as g
+    where g.grantee_id = p_grantee and g.unit_id = p_unit_id and g.revoked_at is null
+  ) then
+    raise exception 'a concessão já existe' using errcode = 'unique_violation';
+  end if;
+
+  insert into public.questionnaire_data_grants (grantee_id, unit_id, granted_by)
+  values (p_grantee, p_unit_id, caller)
+  returning id into grant_id;
+  insert into public.audit_log (actor_id, event, target_id)
+  values (caller, 'questionnaire_access_granted', p_grantee);
+  return grant_id;
+end;
+$$;
+
+comment on function public.grant_questionnaire_access(uuid, uuid) is
+  'A coordenação nacional concede a um gestor de unidade abaixo da raiz o acesso ao totem e aos pedidos de análise das pessoas ativas do escopo dele. Auditada (ADR 0014).';
+
+create or replace function public.revoke_questionnaire_access(p_grant_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := (select auth.uid());
+  grantee uuid;
+begin
+  if caller is null or not app.manages_root() then
+    raise exception 'só a coordenação nacional revoga o acesso' using errcode = 'insufficient_privilege';
+  end if;
+  update public.questionnaire_data_grants
+  set revoked_at = now(), revoked_by = caller
+  where id = p_grant_id and revoked_at is null
+  returning grantee_id into grantee;
+  if grantee is null then
+    raise exception 'concessão inexistente ou já revogada' using errcode = 'no_data_found';
+  end if;
+  insert into public.audit_log (actor_id, event, target_id)
+  values (caller, 'questionnaire_access_revoked', grantee);
+end;
+$$;
+
+comment on function public.revoke_questionnaire_access(uuid) is
+  'A coordenação nacional revoga uma concessão de acesso ao totem e aos pedidos. Auditada (ADR 0014).';
 
 revoke execute on function public.record_questionnaire_result(text, text, text, bigint, text) from public, anon;
-revoke execute on function public.request_house_analysis(text, text[], jsonb, bigint, text) from public, anon;
+revoke execute on function public.request_house_analysis(text, text[], text, bigint, text) from public, anon;
 revoke execute on function public.resolve_house_analysis(uuid, text, text) from public, anon;
+revoke execute on function public.grant_questionnaire_access(uuid, uuid) from public, anon;
+revoke execute on function public.revoke_questionnaire_access(uuid) from public, anon;
 grant execute on function public.record_questionnaire_result(text, text, text, bigint, text) to authenticated;
-grant execute on function public.request_house_analysis(text, text[], jsonb, bigint, text) to authenticated;
+grant execute on function public.request_house_analysis(text, text[], text, bigint, text) to authenticated;
 grant execute on function public.resolve_house_analysis(uuid, text, text) to authenticated;
+grant execute on function public.grant_questionnaire_access(uuid, uuid) to authenticated;
+grant execute on function public.revoke_questionnaire_access(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------------------
 -- 6. Aceitar uma casa fecha o pedido aberto
@@ -646,7 +805,7 @@ begin
     'questionnaire_result', (
       select jsonb_build_object(
         'house_key', r.house_key,
-        'totem', r.totem,
+        'totem_enc', r.totem_enc,
         'term_version', r.term_version,
         'source', r.source,
         'created_at', r.created_at
@@ -660,12 +819,24 @@ begin
         'resolution', q.resolution,
         'term_version', q.term_version,
         'tied_axes', q.tied_axes,
-        'answers', q.answers,
+        'answers_enc', q.answers_enc,
         'created_at', q.created_at,
         'resolved_at', q.resolved_at
       ) order by q.created_at, q.id)
       from public.house_analysis_requests as q
       where q.profile_id = caller
+    ), '[]'::jsonb),
+    'questionnaire_access_grants', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'unit_name', u.name,
+        'unit_type', t.label,
+        'granted_at', g.granted_at,
+        'revoked_at', g.revoked_at
+      ) order by g.granted_at, g.id)
+      from public.questionnaire_data_grants as g
+      join public.units as u on u.id = g.unit_id
+      join public.unit_types as t on t.id = u.type_id
+      where g.grantee_id = caller
     ), '[]'::jsonb),
     'audit_events', coalesce((
       select jsonb_agg(jsonb_build_object(

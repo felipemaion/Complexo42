@@ -4,7 +4,7 @@
 // análise do resultado inconclusivo (ADR 0014). O cliente
 // do Supabase é o da sessão, com o JWT de quem está logado (R14).
 import { instance } from "@config/instance";
-import { answersDigest, signQuestionnaireMessage } from "@/server/crypto";
+import { encryptField, signQuestionnaireMessage } from "@/server/crypto";
 import { requireUser, requireUserClient } from "@/server/auth/session";
 import { log } from "@/server/log";
 import type { HouseActionResult, SubmitAnswersResult } from "../types";
@@ -37,7 +37,8 @@ export async function recordConsentAction(input: unknown): Promise<HouseActionRe
 
 /**
  * Pontua as respostas no servidor e grava o resultado (ADR 0014 §1). O navegador manda só
- * `{ answers }`; a chave real do questionário nunca sai do servidor. As respostas não vão para o log.
+ * `{ answers }`; a chave real do questionário nunca sai do servidor. Totem e respostas vão cifrados
+ * ao banco (ADR 0003). As respostas não vão para o log.
  */
 export async function submitAnswersAction(input: unknown): Promise<SubmitAnswersResult> {
   const { user } = await requireUserClient();
@@ -51,7 +52,7 @@ export async function submitAnswersAction(input: unknown): Promise<SubmitAnswers
       userId: user.id,
       nowSeconds: Math.floor(Date.now() / 1000),
       sign: signQuestionnaireMessage,
-      answersDigest,
+      encrypt: encryptField,
     });
   } catch {
     // Sem chave de assinatura (ou erro inesperado): falha fechado, sem detalhe nem respostas no log.

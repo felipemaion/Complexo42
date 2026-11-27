@@ -5,7 +5,7 @@ import { decryptWith, emailBlindIndexWith, encryptWith, reencryptWith, whatsappB
 import { getEnv } from "../env";
 import { FieldCryptoError } from "./errors";
 import { getKeyring } from "./keys";
-import { answersDigest, signMessage } from "./result-signature";
+import { signMessage } from "./result-signature";
 
 export { FieldCryptoError, type FieldCryptoErrorCode } from "./errors";
 export { keyVersionOf, normalizeE164, normalizeEmail, type FieldContext } from "./field";
@@ -42,4 +42,3 @@ export function signQuestionnaireMessage(message: string): string {
   return signMessage(key, message);
 }
 
-export { answersDigest };

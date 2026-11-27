@@ -13,6 +13,8 @@
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Redes sociais (máx. 5 URLs https) | `profile_contacts.social_links_enc` | AES-256-GCM | Coordenação do escopo (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Portfólio (máx. 3 links https) | `portfolio_items.url_enc` | AES-256-GCM | Escopo, porta-voz da equipe (ADR 0007 §5) |
+| Totem do questionário (ADR 0014) | `questionnaire_results.totem_enc` | AES-256-GCM | A pessoa, a coordenação nacional e quem ela delegou (`questionnaire_data_grants`); nunca na tela da casa |
+| Respostas do pedido de análise (ADR 0014) | `house_analysis_requests.answers_enc` | AES-256-GCM (JSON) | A pessoa, a coordenação nacional e quem ela delegou; só com o pedido aberto |
 | Avaliação reservada | `member_evaluations.grade_enc`, `note_enc` | AES-256-GCM | **Só quem avaliou**; gestor por pedido auditado (ADR 0007 §4) [jurídico] |
 | E-mail de login | `auth.users` (Supabase) | Texto puro, gerenciado pelo Supabase | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010). O dono o vê **mascarado** no cabeçalho (`fu***@g***.com`). Não é exportado em massa |
 | Lista de autorizados | `access_allowlist.email_hmac` | Só HMAC (sem nome, sem e-mail em claro) | Ninguém; usada só na conferência do primeiro login (ADR 0008 §1) |
@@ -21,12 +23,13 @@
 Ficam **em texto puro**, por não identificarem sozinhos: município, UF, turma, equipe, casa,
 habilidades, missões, pontos e badges.
 
-O **totem** (ADR 0014) é dado pessoal, também em texto puro e em tabela de leitura restrita:
-`questionnaire_results.totem`. Aparece em "Baixar meus dados" (LGPD art. 18) e nunca na tela da
-casa. Quem lê: a própria pessoa e a coordenação nacional (gestor da raiz). [?] Se mais alguém da
-coordenação (casa, território) deve ver o totem: o padrão é que ninguém além da coordenação
-nacional veja. As **respostas** do questionário só existem em `house_analysis_requests.answers`,
-com o pedido de análise aberto, e são apagadas ao resolver (abaixo).
+O **totem** e as **respostas** do pedido de análise (ADR 0014) são dado pessoal e ficam
+**cifrados** (AES-256-GCM, ADR 0003): `questionnaire_results.totem_enc` e
+`house_analysis_requests.answers_enc`, com o AAD `tabela.coluna.<profile_id>`. O banco só guarda o
+valor; o servidor decifra. O totem aparece em "Baixar meus dados" (LGPD art. 18) e nunca na tela da
+casa. Quem lê: a própria pessoa, a coordenação nacional (gestor da raiz) e quem ela delegou
+(`questionnaire_data_grants`, abaixo). As respostas só existem com o pedido de análise aberto e são
+apagadas ao resolver.
 
 > **"Feitos" = entregas de missão validadas** (ADR 0006). Não existe campo de texto livre
 > para isso.
@@ -54,8 +57,9 @@ profiles ───────┼─< unit_members >── units
 access_allowlist (só HMAC do e-mail; define profiles.access_status, ADR 0008)
 access_waitlist_hmac (1:1 com profiles em waitlisted; só HMAC, para a importação liberar)
 questionnaire_consents (aceite do termo do questionário das casas: versão e data, ADR 0008 §2.1)
-questionnaire_results (1:1 com profiles: casa sugerida e totem; só a pessoa e a coordenação nacional leem, ADR 0014)
-house_analysis_requests (fila do resultado inconclusivo; as respostas só existem com o pedido aberto, ADR 0014)
+questionnaire_results (1:1 com profiles: casa sugerida e totem cifrado; leem a pessoa, a coordenação nacional e quem ela delegou, ADR 0014)
+house_analysis_requests (fila do resultado inconclusivo; as respostas, cifradas, só existem com o pedido aberto, ADR 0014)
+questionnaire_data_grants (delegação: a coordenação nacional concede a um gestor o acesso ao totem e aos pedidos do escopo dele, ADR 0014)
 consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
 missions ─< mission_steps
@@ -320,23 +324,25 @@ precisa existir; repetir a versão mantém a primeira data e não gera outro
 existem. Entram só por migration ou seed (sem grant para a API); a versão do arquivo do
 questionário instalado no servidor precisa estar aqui. RLS: só o
 titular lê; sem grant de escrita. **A pontuação roda no servidor do app** (ADR 0014 §1): o
-navegador manda só as respostas. Com resultado conclusivo, o banco recebe só a casa e o totem; as
-respostas só chegam ao banco no resultado inconclusivo (`house_analysis_requests`, abaixo).
+navegador manda só as respostas. Com resultado conclusivo, o banco recebe só a casa e o totem
+**cifrado**; as respostas só chegam ao banco, cifradas, no resultado inconclusivo
+(`house_analysis_requests`, abaixo).
 
 ### `questionnaire_results` e `house_analysis_requests` (ADR 0014, #172)
 `questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
-`app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem` (duas letras maiúsculas),
+`app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem_enc` (o totem, duas letras
+maiúsculas, cifrado no servidor; o banco só confere o formato `v<n>.<iv>.<ct>`),
 `source` (`questionnaire`, pontuação no servidor do app; `analysis`, decidido pela coordenação
 nacional), `created_at`. Uma linha por pessoa, a mais recente.
 
 `house_analysis_requests`: `id`, `profile_id` (FK, cascata), `term_version`, `tied_axes` (eixos
-empatados: `house1`, `house2`, `totem1`, `totem2`), `answers` (jsonb: item → `a`, `b` ou `both`,
-até 4 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
+empatados: `house1`, `house2`, `totem1`, `totem2`), `answers_enc` (JSON item → `a`, `b` ou
+`both`, cifrado no servidor; até 8 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
 `created_at`, `resolved_at`, `resolved_by` (nulo fora de `coordination` e se a conta de quem resolveu
 sair). `resolution`: `coordination`, `self`, `inactive` (pessoa bloqueada ou suspensa) ou
 `expired` (passou de 30 dias).
 Um pedido aberto por pessoa. **As respostas existem só com o pedido aberto** (o banco recusa
-`answers` em pedido resolvido): são apagadas quando a coordenação nacional resolve, quando a
+`answers_enc` em pedido resolvido): são apagadas quando a coordenação nacional resolve, quando a
 pessoa aceita uma casa (gatilho em `house_members`), quando refaz o questionário com resultado
 conclusivo, quando é bloqueada ou suspensa (gatilho em `profiles`) e **depois de 30 dias**
 (`app.analysis_max_age()`: a política de leitura já esconde o pedido vencido, e as respostas são
@@ -346,23 +352,36 @@ apagadas na chamada seguinte das funções abaixo). A linha resolvida fica, sem 
 `questionnaire_signing_key` (ADR 0014 §1), instalada por quem opera (`docs/OPERACAO.md`). RLS sem
 política e sem grant: só funções `security definer` leem.
 
-- **Quem lê** (RLS, `app.can_read_questionnaire_data`): a própria pessoa e a coordenação nacional
-  (gestor da raiz ativo) sobre pessoa ativa. Ninguém escreve pela API: só as funções abaixo.
-- **`record_questionnaire_result(termo, casa, totem, emitido_em, assinatura)`:** a pessoa da
+- **Quem lê** (RLS, `app.can_read_questionnaire_data`): a própria pessoa; a coordenação nacional
+  (gestor da raiz ativo) sobre pessoa ativa; e um gestor com concessão ativa (abaixo) sobre pessoa
+  ativa do escopo dele. Ninguém escreve pela API: só as funções abaixo.
+- **`record_questionnaire_result(termo, casa, totem_enc, emitido_em, assinatura)`:** a pessoa da
   sessão (ativa, com o aceite daquela versão do termo; casa existente e ativa) grava o resultado
   conclusivo e fecha um pedido aberto. **Só com a assinatura do servidor do app** (HMAC-SHA256
-  sobre pessoa, termo, casa, totem e hora; vale 5 minutos; erro 42501 se faltar ou não bater):
+  sobre pessoa, termo, casa, totem cifrado e hora; vale 5 minutos; erro 42501 se faltar ou não bater):
   chamar a API direto, sem a chave, não impõe resultado.
-- **`request_house_analysis(termo, eixos, respostas, emitido_em, assinatura)`:** a pessoa da
+- **`request_house_analysis(termo, eixos, respostas_enc, emitido_em, assinatura)`:** a pessoa da
   sessão abre (ou renova) o pedido do resultado inconclusivo e apaga o resultado anterior; também
-  só com a assinatura (que cobre os eixos e o resumo SHA-256 das respostas). Valida os eixos, o formato
-  das respostas e o tamanho (erro 54000). Renovar um pedido aberto antes de 1 hora é recusado
-  (54000). Gera `house_analysis_requested`.
-- **`resolve_house_analysis(pedido, casa, totem)`:** só a coordenação nacional, nunca sobre o
+  só com a assinatura (que cobre os eixos e o valor cifrado das respostas: é ela que garante que
+  são as respostas completas e válidas, já que o banco não decifra). Valida os eixos e o formato do
+  valor cifrado (erro 22023). Renovar um pedido aberto antes de 1 hora é recusado (54000). Gera `house_analysis_requested`.
+- **`resolve_house_analysis(pedido, casa, totem_enc)`:** só a coordenação nacional (a delegação não inclui resolver [?]), nunca sobre o
   próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Grava o resultado
   (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
   aceita a casa pelo fluxo normal (`accept_house`). A tela da coordenação para a fila ainda não
-  existe (issue de seguimento).
+  existe (issue de seguimento); o servidor já lê e decifra (`src/modules/houses/server/coordination.ts`).
+
+`questionnaire_data_grants` (delegação, ADR 0014 §4): `id`, `grantee_id` (FK `profiles`, cascata),
+`unit_id` (FK `units`: unidade abaixo da raiz onde o gestor tem o papel de gestor ativo),
+`granted_by`, `granted_at`, `revoked_at`, `revoked_by`. Uma concessão ativa por gestor e unidade.
+Dá ao gestor o direito de ver o totem, os pedidos de análise e os eventos `house_analysis_*` das
+pessoas **ativas** com vínculo aberto na unidade ou abaixo (`units.path <@`); só vale enquanto ele
+mantém o papel de gestor ali; nunca sobre si mesmo; não inclui resolver.
+- **Quem lê** (RLS): a coordenação nacional e o próprio gestor (a que recebeu).
+- **`grant_questionnaire_access(gestor, unidade)` / `revoke_questionnaire_access(concessão)`:** só
+  o gestor ativo da raiz; ninguém concede a si mesmo; a pessoa precisa estar ativa e ser gestora
+  ativa da unidade, que não pode ser a raiz (22023); concessão repetida, 23505. Geram
+  `questionnaire_access_granted/revoked` (ator = a nacional, alvo = o gestor).
 
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`,
@@ -456,7 +475,9 @@ eventos é obrigatório. Em `member_blocked` é opcional (`impersonation`, `cond
 `actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória; só neste evento).
 Em `house_analysis_requested`, ator e alvo são a pessoa; em `house_analysis_resolved`, o ator é a
 coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, o totem nem a casa.
-**Só a coordenação nacional os lê**: o gestor territorial que gerencia a pessoa não.
+**Leem a coordenação nacional e quem ela delegou sobre aquela pessoa**: o gestor territorial comum
+que gerencia a pessoa não. `questionnaire_access_granted/revoked` (ator = a nacional, alvo = o
+gestor): só a coordenação nacional os lê; o gestor os vê no próprio arquivo.
 Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca
 respostas do questionário.
 **Nunca contém dados pessoais em claro.** Quem lê (`app.can_read_audit(evento, alvo, ator,
@@ -474,8 +495,8 @@ forma explícita; nenhum teste ou migration atual limpa o log.
 A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
-encerrados, aceites do termo do questionário, o resultado do questionário (casa e **totem**), os pedidos de
-análise (com as respostas, se abertos), papéis (com a casa do coordenador de casa),
+encerrados, aceites do termo do questionário, o resultado do questionário (casa e **totem**, cifrados e decifrados pelo servidor), os pedidos de
+análise (com as respostas, se abertos, idem), as concessões de acesso que recebeu, papéis (com a casa do coordenador de casa),
 eventos do `audit_log` cujo alvo é a pessoa, os `house_accepted` e `questionnaire_consented` que
 ela fez (#132) e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor
 decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.

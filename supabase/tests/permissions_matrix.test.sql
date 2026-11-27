@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-truncate public.role_assignments, public.unit_members, public.house_members, public.units;
+truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 
 -- ---------------------------------------------------------------------------------------
 -- Árvore

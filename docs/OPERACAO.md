@@ -126,13 +126,15 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
 A versão do termo do arquivo do questionário também precisa estar em
 `app.questionnaire_term_versions`.
 
-**Verificações (as respostas do questionário e o totem ficam em texto puro no banco, ADR 0014 §5):**
-- `show log_statement;` deve dar `none`: com `all` ou `mod`, as respostas e o totem iriam para o
-  log do Postgres, em texto puro, junto com a chamada das funções do §3.
-- `pg_stat_statements` não pode estar ligado com parâmetros visíveis (`pg_stat_statements.track_utility`
-  e o `compute_query_id` só guardam o texto normalizado, sem valores; confira que ninguém ligou
-  `auto_explain`, `log_parameter_max_length` ou captura de parâmetros).
-- O backup (#84) é cifrado, mas contém essas tabelas: vale a mesma retenção dos demais dados.
+**O totem e as respostas do questionário ficam cifrados no banco** (`totem_enc`, `answers_enc`,
+AES-256-GCM, ADR 0003 e ADR 0014 §5): o Postgres nunca recebe nem devolve esses valores em claro,
+então o log do Postgres e o `pg_stat_statements` não os expõem. Verificações:
+- `FIELD_ENCRYPTION_KEY` é a mesma do app que grava e lê (perdê-la perde totem e respostas, como
+  o nome e o contato). A **rotação** de chaves (ADR 0003 §5) recifra também `totem_enc` e
+  `answers_enc`.
+- O backup (#84) é cifrado e contém essas tabelas (já cifradas): vale a mesma retenção dos demais dados.
+- **Delegação:** quem concede, revoga e o que cada gestor vê: `questionnaire_data_grants` e os
+  eventos `questionnaire_access_granted/revoked` no `audit_log` (leitura só da coordenação nacional).
 
 ## Subir, parar, ver
 

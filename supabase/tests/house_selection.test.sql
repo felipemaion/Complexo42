@@ -8,7 +8,7 @@ create extension if not exists pgtap with schema extensions;
 
 select plan(89);
 
-truncate public.role_assignments, public.unit_members, public.house_members, public.units;
+truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 
 -- ---------------------------------------------------------------------------------------
 -- Árvore de território
@@ -543,13 +543,13 @@ select is(
   'p_house_key text, p_join_method text, p_term_version text',
   'accept_house recebe só a casa, a forma de entrada e a versão do termo'
 );
--- Única exceção (ADR 0014): as respostas do pedido de análise do resultado inconclusivo, que
--- só existem com o pedido aberto (testado em questionnaire_results.test.sql).
+-- Resposta só existe CIFRADA (ADR 0003) e só no pedido de análise do resultado inconclusivo
+-- (ADR 0014), com o pedido aberto (testado em questionnaire_results.test.sql).
 select is_empty(
   $$ select 1 from information_schema.columns
      where table_schema in ('public', 'app') and column_name ~ '(answer|resposta|temperament|score)'
-       and (table_name, column_name) <> ('house_analysis_requests', 'answers') $$,
-  'nenhuma coluna do banco guarda resposta, temperamento ou pontuação, além das respostas do pedido de análise'
+       and (table_name, column_name) <> ('house_analysis_requests', 'answers_enc') $$,
+  'nenhuma coluna do banco guarda resposta, temperamento ou pontuação, além das respostas cifradas do pedido de análise'
 );
 select ok(
   not has_function_privilege('authenticated', 'app.open_house_of(uuid)', 'execute')

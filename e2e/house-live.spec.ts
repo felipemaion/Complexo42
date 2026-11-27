@@ -82,12 +82,12 @@ async function consents(profileId: string): Promise<{ term_version: string }[]> 
   return (await admin(`/rest/v1/questionnaire_consents?profile_id=eq.${profileId}&select=term_version`)).json();
 }
 
-async function resultRows(profileId: string): Promise<{ house_key: string; totem: string; source: string }[]> {
-  return (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${profileId}&select=house_key,totem,source`)).json();
+async function resultRows(profileId: string): Promise<{ house_key: string; totem_enc: string; source: string }[]> {
+  return (await admin(`/rest/v1/questionnaire_results?profile_id=eq.${profileId}&select=house_key,totem_enc,source`)).json();
 }
-type AnalysisRow = { status: string; resolution: string | null; answers: Record<string, string> | null; tied_axes: string[] };
+type AnalysisRow = { status: string; resolution: string | null; answers_enc: string | null; tied_axes: string[] };
 async function analysisRows(profileId: string): Promise<AnalysisRow[]> {
-  return (await admin(`/rest/v1/house_analysis_requests?profile_id=eq.${profileId}&select=status,resolution,answers,tied_axes`)).json();
+  return (await admin(`/rest/v1/house_analysis_requests?profile_id=eq.${profileId}&select=status,resolution,answers_enc,tied_axes`)).json();
 }
 
 /** Grava toda requisição do navegador. As server actions vão com o cabeçalho `Next-Action`. */
@@ -190,7 +190,11 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
     },
   ]);
   expect(await consents(member.id)).toEqual([{ term_version: questionnaire.consentTermVersion }]);
-  expect(await resultRows(member.id)).toEqual([{ house_key: expected, totem: result.totem, source: "questionnaire" }]);
+  // O totem fica CIFRADO no banco (ADR 0003: v<n>.<iv>.<ct>), nunca em texto puro.
+  const [stored] = await resultRows(member.id);
+  expect(stored).toMatchObject({ house_key: expected, source: "questionnaire" });
+  expect(stored!.totem_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
+  expect(stored!.totem_enc).not.toContain(result.totem);
   expect(await analysisRows(member.id)).toEqual([]);
   // O totem é interno: não aparece na tela da casa.
   await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);
@@ -224,7 +228,10 @@ test("resultado inconclusivo: pedido de análise com as respostas, sem casa; esc
   expect(await houseRows(member.id)).toEqual([]);
   expect(await resultRows(member.id)).toEqual([]);
   const [open] = await analysisRows(member.id);
-  expect(open).toMatchObject({ status: "open", resolution: null, answers: expect.any(Object) });
+  expect(open).toMatchObject({ status: "open", resolution: null });
+  // As respostas ficam cifradas no banco, nunca em JSON legível.
+  expect(open!.answers_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
+  expect(open!.answers_enc).not.toContain("both");
 
   // A pessoa pode escolher a casa direto; o pedido fecha e as respostas somem.
   await page.getByRole("button", { name: "Escolher a casa direto" }).click();
@@ -232,7 +239,7 @@ test("resultado inconclusivo: pedido de análise com as respostas, sem casa; esc
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   expect(await analysisRows(member.id)).toEqual([
-    { status: "resolved", resolution: "self", answers: null, tied_axes: ["house1", "house2", "totem1", "totem2"] },
+    { status: "resolved", resolution: "self", answers_enc: null, tied_axes: ["house1", "house2", "totem1", "totem2"] },
   ]);
 });
 

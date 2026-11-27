@@ -76,7 +76,7 @@ território. Daqui continuam valendo:
 - **O questionário** (§2.1 e ADR 0014). A plataforma guarda **a casa sugerida e o totem**, e
   não as respostas, que formariam um perfil psicológico desnecessário (coleta mínima, LGPD).
   A exceção é o resultado inconclusivo, em que a coordenação nacional precisa das respostas e
-  elas ficam só até o pedido ser resolvido.
+  elas ficam só até o pedido ser resolvido. O totem e as respostas ficam cifrados (ADR 0003).
 - **Os nomes das casas e o texto de "primeiros passos"** (história e objetivos, com links de
   vídeo), que ficam em `config/`. Não há nomes fixos no código (R17).
 

@@ -5,7 +5,7 @@
 import "server-only";
 import { z } from "zod";
 import { QuestionnaireAnswerError, scoreQuestionnaire, type QuestionnaireConfig, type QuestionnaireResult } from "@/modules/questionnaire";
-import type { HouseActionResult, HouseClient, HouseErrorCode, SubmitAnswersResult } from "../types";
+import type { CipherContext, HouseActionResult, HouseClient, HouseErrorCode, SubmitAnswersResult } from "../types";
 
 /** Código do Postgres/PostgREST → motivo exibido. Qualquer outro vira `failed`. */
 const errorByCode: Record<string, HouseErrorCode> = {
@@ -60,6 +60,10 @@ export async function recordConsent(client: HouseClient, input: unknown, current
   return error ? { ok: false, error: errorCode(error) } : { ok: true };
 }
 
+/** Onde o totem e as respostas moram (viram o AAD da cifragem, ADR 0003 §3): a linha é a da pessoa. */
+export const totemContext = (profileId: string): CipherContext => ({ table: "questionnaire_results", column: "totem_enc", rowId: profileId });
+export const answersContext = (profileId: string): CipherContext => ({ table: "house_analysis_requests", column: "answers_enc", rowId: profileId });
+
 /** O que o envio das respostas precisa do servidor: o questionário real, a pessoa da sessão e a assinatura. */
 export type SubmitContext = {
   questionnaire: QuestionnaireConfig;
@@ -69,15 +73,16 @@ export type SubmitContext = {
   /** Segundos desde 1970 (injetado para o teste). */
   nowSeconds: number;
   sign(message: string): string;
-  /** Resumo SHA-256 das respostas, que a assinatura do pedido de análise cobre. */
-  answersDigest(answers: Readonly<Record<string, string>>): string;
+  /** Cifra o valor com o esquema do ADR 0003 (AES-256-GCM; o contexto vira o AAD). */
+  encrypt(plaintext: string, context: CipherContext): Promise<string>;
 };
 
 /**
  * Pontua as respostas NO SERVIDOR e grava o resultado (ADR 0014 §1). O navegador manda só as
  * respostas; nunca casa, totem, versão do termo nem id. O resultado vai ao banco assinado, e o
  * banco só o aceita para a pessoa da sessão: pela API direta, o navegador não impõe resultado.
- * As respostas só são guardadas no resultado inconclusivo (pedido de análise).
+ * As respostas só são guardadas no resultado inconclusivo (pedido de análise). Totem e respostas
+ * vão CIFRADOS (ADR 0003; AAD tabela.coluna.id-da-pessoa) e a assinatura cobre o valor cifrado.
  */
 export async function submitQuestionnaire(client: HouseClient, input: unknown, ctx: SubmitContext): Promise<SubmitAnswersResult> {
   const parsed = z.strictObject({ answers: z.record(z.string(), z.enum(["a", "b", "both"])) }).safeParse(input);
@@ -92,22 +97,23 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
   const { userId, nowSeconds, questionnaire: { consentTermVersion: term } } = ctx;
   if (result.status === "ok") {
     if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
-    const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${result.totem}|${nowSeconds}`);
+    const totemEnc = await ctx.encrypt(result.totem, totemContext(userId));
+    const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${nowSeconds}`);
     const { error } = await client.rpc("record_questionnaire_result", {
       p_term_version: term,
       p_house_key: result.houseId,
-      p_totem: result.totem,
+      p_totem_enc: totemEnc,
       p_issued_at: nowSeconds,
       p_signature: signature,
     });
     return error ? { ok: false, error: errorCode(error) } : { ok: true, outcome: "recorded", houseId: result.houseId };
   }
-  const digest = ctx.answersDigest(parsed.data.answers);
-  const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${nowSeconds}|${digest}`);
+  const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), answersContext(userId));
+  const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${answersEnc}|${nowSeconds}`);
   const { error } = await client.rpc("request_house_analysis", {
     p_term_version: term,
     p_tied_axes: result.axes,
-    p_answers: parsed.data.answers,
+    p_answers_enc: answersEnc,
     p_issued_at: nowSeconds,
     p_signature: signature,
   });

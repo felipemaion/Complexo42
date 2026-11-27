@@ -112,8 +112,11 @@ substituídas pelas abaixo.
     e a coordenação do escopo veem o perfil (ADR 0002). *Recomendação:* manter assim no piloto,
     porque o contato já tem a regra própria (ADR 0010); abrir a visão entre colegas de equipe só
     se a coordenação sentir falta.
-81. [?] **Quem vê o totem:** hoje só a própria pessoa (no arquivo "Baixar meus dados") e a
-    coordenação nacional. Coordenadores de casa e de território devem ver?
+81. ✅ *(decisão do gestor, 2026-11-27)* **Quem vê o totem:** a própria pessoa (em "Baixar meus
+    dados"), a coordenação nacional e o gestor de unidade (estadual, municipal) a quem a nacional
+    **conceder**, para as pessoas ativas do escopo dele; a concessão é revogável e auditada.
+    [?] Coordenadores de casa continuam sem ver. A delegação deve incluir **resolver** a fila?
+    Hoje não (só a nacional).
 82. [?] **Prazo para trocar de casa:** a pessoa pode escolher outra casa depois de aceitar? Depois
     de quanto tempo? Hoje, depois de aceitar, só a coordenação troca.
 83. [?] **Quem resolve a fila de análise** (resultado inconclusivo): só a coordenação nacional?
