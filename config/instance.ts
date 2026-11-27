@@ -66,6 +66,46 @@ export const instance = parseInstanceConfig({
       legacy_link: "Esse link de entrada é antigo ou já foi usado. Peça um novo link e entre de novo.",
     },
   },
+  // E-mails de login em português (#238): o app serve os templates ao GoTrue pela rede interna
+  // (rotas /emails/<nome>); os assuntos do compose do Supabase repetem estes textos (um teste confere).
+  // `{{ .NewEmail }}` é variável do GoTrue e fica intacta.
+  emails: {
+    expires: "Este link vale uma vez só e por pouco tempo.",
+    fallback: "Se o botão não funcionar, copie este endereço e cole no navegador:",
+    footer: "Se você não pediu isto, pode ignorar este e-mail: nada será alterado.",
+    templates: {
+      "magic-link": {
+        subject: "Seu link de entrada",
+        heading: "Entrar",
+        intro: "Toque no botão para entrar. Você não precisa de senha.",
+        button: "Entrar",
+      },
+      confirmation: {
+        subject: "Confirme o seu e-mail",
+        heading: "Confirme o seu e-mail",
+        intro: "Toque no botão para confirmar o seu e-mail e começar.",
+        button: "Confirmar e-mail",
+      },
+      recovery: {
+        subject: "Recupere o seu acesso",
+        heading: "Recupere o seu acesso",
+        intro: "Toque no botão para recuperar o acesso à sua conta.",
+        button: "Recuperar acesso",
+      },
+      invite: {
+        subject: "Você foi convidado(a)",
+        heading: "Você foi convidado(a)",
+        intro: "Toque no botão para aceitar o convite e criar o seu acesso.",
+        button: "Aceitar convite",
+      },
+      "email-change": {
+        subject: "Confirme o novo e-mail",
+        heading: "Confirme o novo e-mail",
+        intro: "Você pediu para trocar o e-mail da sua conta para {{ .NewEmail }}. Toque no botão para confirmar.",
+        button: "Confirmar novo e-mail",
+      },
+    },
+  },
   profile: {
     title: "Seus dados",
     intro: "Preencha os campos abaixo e toque em salvar. Seu nome, seu WhatsApp e suas redes ficam guardados de forma protegida.",
