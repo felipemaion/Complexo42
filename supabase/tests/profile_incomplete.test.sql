@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(19);
+select plan(34);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -90,6 +90,61 @@ set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000c4');
 select lives_ok($$ select public.export_own_data() $$, 'exportar com perfil incompleto não quebra');
 select is((public.export_own_data() -> 'profile' ->> 'profile_completed_at'), null, '... e o perfil sai marcado como incompleto');
+
+-- ---------------------------------------------------------------------------------------
+-- Dois predicados (revisão do #227): a linha incompleta já `active` NÃO vale como membro
+-- ---------------------------------------------------------------------------------------
+reset role;
+insert into auth.users (id) values
+  ('00000000-0000-0000-0000-0000000000d1'), ('00000000-0000-0000-0000-0000000000d2'),
+  ('00000000-0000-0000-0000-0000000000d3'), ('00000000-0000-0000-0000-0000000000d4');
+-- d1: linha incompleta ativa, SEM termo; d2: incompleta ativa, COM termo; d3: perfil completo ativo, SEM termo;
+-- d4: perfil completo ativo, COM termo (o membro de verdade).
+insert into public.profiles (id, status, access_status) values
+  ('00000000-0000-0000-0000-0000000000d1', 'active', 'active'), ('00000000-0000-0000-0000-0000000000d2', 'active', 'active');
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version, status, access_status) values
+  ('00000000-0000-0000-0000-0000000000d3', pg_temp.enc('d3'), 3550308, 'v1', 'active', 'active'),
+  ('00000000-0000-0000-0000-0000000000d4', pg_temp.enc('d4'), 3550308, 'v1', 'active', 'active');
+insert into public.consent_acceptances (user_id, version) values
+  ('00000000-0000-0000-0000-0000000000d2', 'v1'), ('00000000-0000-0000-0000-0000000000d4', 'v1');
+insert into app.questionnaire_term_versions (version) values ('termo-1') on conflict do nothing;
+insert into public.houses (key, active) values ('casa-t1', true) on conflict do nothing;
+set local role authenticated;
+
+select pg_temp.login('00000000-0000-0000-0000-0000000000d1');
+select is(app.is_onboarding_member(), true, 'linha incompleta ativa vale como membro de entrada (is_onboarding_member)');
+select is(app.is_active_member(), false, '... mas NÃO como membro de verdade (is_active_member)');
+select pg_temp.login('00000000-0000-0000-0000-0000000000d2');
+select is(app.is_active_member(), false, 'termo aceito mas perfil incompleto: ainda NÃO é membro de verdade');
+select pg_temp.login('00000000-0000-0000-0000-0000000000d3');
+select is(app.is_active_member(), false, 'perfil completo mas sem o termo vigente: NÃO é membro de verdade');
+select pg_temp.login('00000000-0000-0000-0000-0000000000d4');
+select is(app.is_active_member(), true, 'perfil completo e termo vigente: é membro de verdade');
+select ok((select count(*) from public.units) > 0, 'o membro de verdade lê a estrutura (unidades)');
+select pg_temp.login('00000000-0000-0000-0000-0000000000d2');
+select is((select count(*)::int from public.units), 0, 'a linha incompleta NÃO lê a estrutura (unidades)');
+select is((select count(*)::int from public.profiles), 1, '... nem os perfis dos outros (só a própria linha)');
+
+-- O que a pessoa faz ANTES de ter casa continua funcionando só com o predicado de entrada.
+select ok((select count(*) from public.houses) > 0, 'a linha incompleta lê as casas (escolha da casa)');
+select lives_ok($$ select public.record_questionnaire_consent('termo-1') $$, 'a linha incompleta aceita o termo do questionário');
+select lives_ok($$ select public.export_own_data() $$, '... e baixa os próprios dados');
+
+-- ---------------------------------------------------------------------------------------
+-- consent_at não é gravado em linha incompleta; completar usa o termo exigido agora
+-- ---------------------------------------------------------------------------------------
+reset role;
+select is((select consent_at is null from public.profiles where id = '00000000-0000-0000-0000-0000000000d1'), true,
+  'a linha incompleta não grava consent_at falso');
+insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000d5');
+insert into public.profiles (id, consent_version, status, access_status) values ('00000000-0000-0000-0000-0000000000d5', 'v0-velho', 'active', 'active');
+insert into public.consent_acceptances (user_id, version) values ('00000000-0000-0000-0000-0000000000d5', 'v1');
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000d5');
+select is(public.save_own_profile(pg_temp.enc('d5'), 3550308, null, pg_temp.enc('wa'), repeat('d', 64), null, null), 'saved', 'completa a linha incompleta');
+select results_eq($$ select consent_version, consent_at is not null from public.profiles where id = '00000000-0000-0000-0000-0000000000d5' $$,
+  $$ values ('v1'::text, true) $$,
+  'ao completar, a versão do termo é a exigida agora (não uma velha que a linha trazia) e consent_at é gravado');
 
 select * from finish();
 rollback;
