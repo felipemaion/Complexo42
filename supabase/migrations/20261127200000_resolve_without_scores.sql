@@ -1,7 +1,11 @@
 -- Resolução de pedido de chave antiga (#220): sem notas. Os pedidos abertos com a chave anterior (itens e
 -- escala diferentes) não pontuam na chave atual; a coordenação escolhe casa e totem e o servidor assina sem
 -- notas (`p_scores_enc` nulo, vazio na assinatura). Igual à anterior em tudo o mais; com notas, o formato
--- continua conferido. `questionnaire_results.scores_enc` já aceita nulo (resultado antigo, sem gráfico).
+-- continua conferido. `questionnaire_results.scores_enc` já aceita nulo (resultado antigo, sem gráfico); em
+-- pedido de totem sem notas, as notas que o resultado já tem ficam.
+--
+-- `request_house_analysis` (abre pedido completo) não tem mais uso no app, desde a chave sem empate (#213): perde o
+-- grant de `authenticated` (a função e a fila de pedidos antigos ficam).
 
 create or replace function public.resolve_house_analysis(
   p_request_id uuid, p_house_key text, p_totem_enc text, p_scores_enc text, p_answers_hash text,
@@ -83,7 +87,9 @@ begin
   values (person, version, p_house_key, p_totem_enc, p_scores_enc, 'analysis')
   on conflict (profile_id) do update
     set term_version = excluded.term_version, house_key = excluded.house_key,
-        totem_enc = excluded.totem_enc, scores_enc = excluded.scores_enc, source = excluded.source, created_at = now();
+        totem_enc = excluded.totem_enc, source = excluded.source, created_at = now(),
+        -- Sem notas novas (chave antiga), pedido de totem não apaga as que o resultado já tem; pedido completo troca tudo.
+        scores_enc = case when request_kind = 'totem' then coalesce(excluded.scores_enc, public.questionnaire_results.scores_enc) else excluded.scores_enc end;
 
   insert into public.audit_log (actor_id, event, target_id)
   values (caller, 'house_analysis_resolved', person);
@@ -92,3 +98,5 @@ $$;
 
 comment on function public.resolve_house_analysis(uuid, text, text, text, text, bigint, text) is
   'Resolve o pedido, assinado pelo servidor do app: grava a casa, o totem e as notas (cifrados pelo servidor; nulas em pedido de chave antiga), apaga as respostas e audita. Em pedido de totem, a casa é a do resultado. Só a coordenação nacional ou um delegado com concessão sobre a pessoa; nunca o próprio pedido (ADR 0014).';
+
+revoke execute on function public.request_house_analysis(text, text[], text, bigint, text) from authenticated;

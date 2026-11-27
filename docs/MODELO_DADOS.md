@@ -431,7 +431,7 @@ política e sem grant: só funções `security definer` leem.
   conclusivo e fecha um pedido aberto. **Só com a assinatura do servidor do app** (HMAC-SHA256
   sobre pessoa, termo, casa, totem e notas cifrados e hora; vale 5 minutos; erro 42501 se faltar ou não bater):
   chamar a API direto, sem a chave, não impõe resultado.
-- **`request_house_analysis(termo, eixos, respostas_enc, emitido_em, assinatura)`:** a pessoa da
+- **`request_house_analysis(termo, eixos, respostas_enc, emitido_em, assinatura)`** (sem uso no app desde #213 e sem grant para `authenticated` desde #220; fica a função): a pessoa da
   sessão abre (ou renova) o pedido do resultado inconclusivo e apaga o resultado anterior; também
   só com a assinatura (que cobre os eixos e o valor cifrado das respostas: é ela que garante que
   são as respostas completas e válidas, já que o banco não decifra). Valida os eixos e o formato do
