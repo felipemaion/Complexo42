@@ -169,3 +169,18 @@ test.describe("login", () => {
     }
   });
 });
+
+// Token de uso único nunca na query do /entrar (achado do Oracle): o link antigo ({site}/verify?token=...) e
+// qualquer rota protegida com credencial na query não podem copiar o token para a URL de login.
+test("link antigo /verify com token vira /entrar sem query e avisa que o link é antigo", async ({ page }) => {
+  await page.goto("/verify?token=segredo-de-uso-unico&type=magiclink");
+  await expect(page).toHaveURL(/\/entrar\?erro=legacy_link$/);
+  expect(page.url()).not.toContain("segredo");
+  await expect(page.getByRole("alert")).toContainText("link");
+});
+
+test("rota protegida com credencial na query: o /entrar guarda só o caminho", async ({ page }) => {
+  await page.goto("/inicio?token=segredo-de-uso-unico&code=abc&access_token=xyz");
+  await expect(page).toHaveURL(/\/entrar\?next=%2Finicio$/);
+  expect(page.url()).not.toMatch(/segredo|code=|access_token/);
+});

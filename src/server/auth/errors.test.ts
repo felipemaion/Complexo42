@@ -4,6 +4,7 @@ import { classifyAuthError, parseAuthErrorCode } from "./errors";
 describe("erros do login (#9)", () => {
   it("só aceita códigos conhecidos vindos da URL", () => {
     expect(parseAuthErrorCode("rate_limited")).toBe("rate_limited");
+    expect(parseAuthErrorCode("legacy_link")).toBe("legacy_link");
     expect(parseAuthErrorCode("<script>")).toBeNull();
     expect(parseAuthErrorCode(["failed"])).toBeNull();
     expect(parseAuthErrorCode(undefined)).toBeNull();
