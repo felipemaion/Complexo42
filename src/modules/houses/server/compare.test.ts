@@ -3,7 +3,7 @@ import { parseQuestionnaire } from "@/modules/questionnaire";
 import type { CipherContext, HouseClient } from "../types";
 import { compareHouse, type AverageCache, type CompareContext } from "./compare";
 
-const ids = ["h1a", "h1b", "h2a", "h2b", "t1a", "t2a"];
+const ids = ["h1a", "h1b", "h1c", "h2a", "h2b", "h2c", "t1a", "t2a"];
 const phrase = (id: string) => ({ a: `Espera ${id} a`, b: `Espera ${id} b` });
 const questionnaire = parseQuestionnaire(
   {
@@ -12,8 +12,8 @@ const questionnaire = parseQuestionnaire(
     consentTerm: "t",
     items: ids.map((id) => ({ id, text: "x", a: { text: "x" }, b: { text: "x" }, ...(id.startsWith("h") ? { expectation: phrase(id) } : {}) })),
     axes: {
-      house1: { label: "D1", poleLabels: { a: "a1", b: "b1" }, itemIds: ["h1a", "h1b"] },
-      house2: { label: "D2", poleLabels: { a: "a2", b: "b2" }, itemIds: ["h2a", "h2b"] },
+      house1: { label: "D1", poleLabels: { a: "a1", b: "b1" }, itemIds: ["h1a", "h1b", "h1c"] },
+      house2: { label: "D2", poleLabels: { a: "a2", b: "b2" }, itemIds: ["h2a", "h2b", "h2c"] },
       totem1: { label: "D3", poleLabels: { a: "a3", b: "b3" }, itemIds: ["t1a"], letters: { a: "X", b: "Y" } },
       totem2: { label: "D4", poleLabels: { a: "a4", b: "b4" }, itemIds: ["t2a"], letters: { a: "V", b: "W" } },
     },
@@ -23,7 +23,7 @@ const questionnaire = parseQuestionnaire(
   ["casa-a", "casa-b", "casa-c", "casa-d"],
 );
 // Pessoa: tudo "muito a" (-5) nos eixos da casa e do totem.
-const answers = { h1a: -5, h1b: -5, h2a: -5, h2b: -5, t1a: -5, t2a: -5 };
+const answers = { h1a: -5, h1b: -5, h1c: -5, h2a: -5, h2b: -5, h2c: -5, t1a: -5, t2a: -5 };
 
 const decrypt = async (value: string, context: CipherContext): Promise<string> => {
   const prefix = `enc[${context.table}.${context.column}.${context.rowId}](`;
@@ -69,8 +69,10 @@ describe("compareHouse", () => {
       expectations: [
         { text: "Espera h1a b", answer: -5 },
         { text: "Espera h1b b", answer: -5 },
+        { text: "Espera h1c b", answer: -5 },
         { text: "Espera h2a b", answer: -5 },
         { text: "Espera h2b b", answer: -5 },
+        { text: "Espera h2c b", answer: -5 },
       ],
       average: { status: "ok", n: 3, scores: { house1: -50, house2: 30 } },
     });
@@ -132,7 +134,7 @@ describe("compareHouse", () => {
     const { client, ctx } = setup({ error: { code: "42501" } });
     const out = await compareHouse(client, { houseId: "casa-d", answers }, ctx);
     expect(out).toMatchObject({ ok: true, average: { status: "unavailable" } });
-    expect(out.ok && out.expectations.length).toBe(4);
+    expect(out.ok && out.expectations.length).toBe(6);
   });
 
   it("recusa, sem chamar o banco, casa fora da config, respostas inválidas e campos a mais", async () => {
