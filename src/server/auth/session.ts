@@ -34,8 +34,10 @@ export async function requestAuthClient(config: AuthConfig, via: "internal" | "p
       setAll: (list) => {
         try {
           for (const { name, value, options } of list) store.set(name, value, options);
-        } catch {
-          // Server Component não grava cookie; o proxy já renovou a sessão nesta requisição.
+        } catch (error) {
+          // Server Component não grava cookie; o proxy já renovou a sessão nesta requisição. Fica
+          // o rastro (só o nome do erro, nunca nome ou valor de cookie) para notar se virar rotina.
+          log.warn("auth_cookie_set_failed", { code: error instanceof Error ? error.name : "unknown" });
         }
       },
     },

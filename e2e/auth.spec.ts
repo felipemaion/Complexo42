@@ -80,7 +80,7 @@ test.describe("login", () => {
     await expect(page).toHaveURL(/\/entrar/);
   });
 
-  test("Google: o botão leva ao /auth/v1/authorize com PKCE e retorno para o callback", async ({ page, baseURL }) => {
+  test("Google: o botão leva ao /auth/v1/authorize com PKCE e retorno para o callback", async ({ page, baseURL, context }) => {
     test.skip(LIVE, "usa o endereço fictício do Auth");
     // Observa o pedido (não o intercepta): o redirect do servidor é uma navegação real do navegador, e é isso
     // que se mede. O endereço fictício do Auth não responde; o pedido sai do mesmo jeito.
@@ -96,6 +96,10 @@ test.describe("login", () => {
     await expect.poll(() => authorize?.searchParams.get("provider")).toBe("google");
     // Navegação real (GET): o POST do roteador do Next ao /auth/v1/authorize dá 405 no GoTrue.
     expect(method).toBe("GET");
+    // O verificador do PKCE nasce no 302 de /auth/google: só o servidor o lê (httpOnly) e ele não vai a outro site (Lax).
+    const verifier = (await context.cookies()).find((cookie) => cookie.name.endsWith("-code-verifier"));
+    expect(verifier, "cookie *-code-verifier").toBeDefined();
+    expect(verifier).toMatchObject({ httpOnly: true, sameSite: "Lax" });
     expect(authorize?.searchParams.get("code_challenge_method")).toBe("s256");
     expect(authorize?.searchParams.get("redirect_to")).toBe(`${baseURL}/auth/callback?next=%2Finicio`);
   });
