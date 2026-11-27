@@ -229,3 +229,37 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   await stateContext.close();
   await rootContext.close();
 });
+
+test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troca fica no audit_log (ADR 0016)", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const root = await createPerson("raiz-troca");
+  await makeManager(root.id, "br");
+  const person = await createPerson("troca");
+  await answerQuestionnaire(browser, person, allA);
+  // A pessoa aceita a casa sugerida (aqui direto no banco, como dono): a trava nasce no banco.
+  const accepted = await admin("/rest/v1/house_members", {
+    method: "POST",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ profile_id: person.id, house_key: "esparta", join_method: "self", accepted_at: new Date().toISOString() }),
+  });
+  expect(accepted.status).toBe(201);
+  const [before] = (await accepted.json()) as { locked_until: string }[];
+  expect(new Date(before!.locked_until).getTime()).toBeGreaterThan(Date.now() + 100 * 24 * 3600 * 1000);
+
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await signIn(page, root.email);
+  await page.goto(`/coordenacao/casas/resultados/${person.id}`);
+  await page.getByLabel("Nova casa").selectOption({ label: "Atenas" });
+  await page.getByRole("button", { name: "Trocar a casa" }).click();
+  await expect(page.getByText("Casa trocada.")).toBeVisible();
+  await context.close();
+
+  const open = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key,locked_until`)).json()) as {
+    house_key: string;
+    locked_until: string;
+  }[];
+  expect(open).toEqual([{ house_key: "atenas", locked_until: before!.locked_until }]);
+  const audit = await (await admin(`/rest/v1/audit_log?event=eq.house_changed&target_id=eq.${person.id}&select=actor_id,reason,house_key`)).json();
+  expect(audit).toEqual([{ actor_id: root.id, reason: "coordination", house_key: "atenas" }]);
+});

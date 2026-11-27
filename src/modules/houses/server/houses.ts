@@ -13,7 +13,7 @@ const errorByCode: Record<string, HouseErrorCode> = {
   P0002: "unavailable", // casa inexistente ou inativa
   "23505": "already_accepted", // outra casa já aceita
   C7602: "removed_by_coordination", // a coordenação encerrou a casa da pessoa
-  C7603: "house_locked", // trava de 4 meses para trocar de casa (ADR 0015)
+  C7603: "house_locked", // trava de 4 meses para trocar de casa (ADR 0016)
   "54000": "rate_limited", // pedido de análise renovado há pouco
 };
 

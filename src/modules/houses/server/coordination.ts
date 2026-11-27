@@ -326,7 +326,7 @@ export async function revokeQuestionnaireAccess(client: HouseClient, input: unkn
 }
 
 /**
- * A coordenação troca a casa de uma pessoa a qualquer momento (ADR 0015). Só `{ profileId, houseId }`,
+ * A coordenação troca a casa de uma pessoa a qualquer momento (ADR 0016). Só `{ profileId, houseId }`,
  * com a casa da config; o banco confere o alcance sobre a pessoa, que a casa esteja ativa e mantém a
  * trava de 4 meses da pessoa (`coordination_set_house`). A troca vai para o audit_log com quem trocou.
  */

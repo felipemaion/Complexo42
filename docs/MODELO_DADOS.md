@@ -302,7 +302,8 @@ coordenadores; quem já está na casa continua.
 
 `house_members`: `id`, `profile_id`, `house_key`, `join_method` (`self`, `questionnaire`),
 `consent_version` null (só pelo questionário), `joined_at`, `accepted_at` null, `left_at` null,
-`ended_by` null. Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
+`ended_by` null, `locked_until` (até quando a pessoa não troca a casa por conta própria; só o
+banco grava) e `moved` (encerrado por troca, não por remoção). Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
 guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionnaire_results`
 (que a coordenação de território e de casa **não** leem).
 
@@ -312,8 +313,13 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   (`security definer`): a própria pessoa, liberada e ativa (conferido depois de travar o
   perfil); a casa precisa existir e estar ativa; `questionnaire` exige o aceite de
   **exatamente** essa versão do termo, gravada em `consent_version` (nula em `self`); uma casa
-  já aceita não é trocada pela pessoa (é com a coordenação); repetir a mesma casa devolve o
-  mesmo vínculo. Gera `house_accepted` no `audit_log`.
+  já aceita só é trocada pela pessoa depois de `locked_until` (4 meses do aceite do termo do
+  questionário; sem termo, do aceite da casa; relógio do servidor), senão `C7603`; a troca
+  reinicia a trava e gera `house_changed` (`self`). Repetir a mesma casa devolve o mesmo
+  vínculo. A primeira definição gera `house_accepted` no `audit_log`.
+- **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a qualquer
+  momento, com alcance sobre a pessoa (`can_manage_house_member` ou `can_read_questionnaire_data`),
+  mantendo a trava; gera `house_changed` (`coordination`). Ver ADR 0016.
 - **Quem lê e encerra** (RLS): a pessoa lê os próprios vínculos; a coordenação territorial
   (monitor ou manager acima do vínculo de território da pessoa) e o coordenador da casa aberta
   da pessoa, dentro do seu território, leem os vínculos aceitos de perfis ativos e podem
@@ -530,7 +536,8 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `role_revoked`, `member_moved`, `logo_approved`, `export`, `badge_granted`, `badge_revoked`, `submission_approved`,
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
 `access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`,
-`member_blocked`, `member_unblocked`, `house_analysis_requested`, `house_analysis_resolved`),
+`member_blocked`, `member_unblocked`, `house_analysis_requested`, `house_analysis_resolved`,
+`house_changed`),
 `target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
@@ -538,7 +545,9 @@ automática na importação), em `house_accepted` (a forma de entrada: `self` ou
 `questionnaire`) e em `contact_viewed` (o tipo do contato: `whatsapp`, `social` ou `email`); nesses
 eventos é obrigatório. Em `member_blocked` é opcional (`impersonation`, `conduct` ou `other`). Em `contact_viewed`, `actor_id` é quem viu e `target_id` a pessoa vista. `term_version` é a versão do termo do questionário: obrigatória em
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
-`actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória; só neste evento).
+`actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória). `house_changed`: o
+ator é quem trocou (a pessoa, motivo `self`, ou a coordenação, motivo `coordination`), o alvo é a
+pessoa e `house_key` é a casa nova.
 Em `house_analysis_requested`, ator e alvo são a pessoa; em `house_analysis_resolved`, o ator é a
 coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, o totem nem a casa.
 **Leem a coordenação nacional e quem ela delegou sobre aquela pessoa**: o gestor territorial comum

@@ -250,7 +250,7 @@ end;
 $$;
 
 comment on function public.accept_house(text, text, text) is
-  'Quem chama define a casa nacional `house_key`; trocar de casa só depois da trava de 4 meses (C7603). Guarda a forma e a versão do termo (ADR 0011, ADR 0015).';
+  'Quem chama define a casa nacional `house_key`; trocar de casa só depois da trava de 4 meses (C7603). Guarda a forma e a versão do termo (ADR 0011, ADR 0016).';
 
 -- ---------------------------------------------------------------------------------------
 -- 4. coordination_set_house: a coordenação troca a casa a qualquer momento
@@ -305,7 +305,7 @@ end;
 $$;
 
 comment on function public.coordination_set_house(uuid, text) is
-  'A coordenação com alcance sobre a pessoa troca a casa dela a qualquer momento; mantém a trava; audita quem trocou (ADR 0015).';
+  'A coordenação com alcance sobre a pessoa troca a casa dela a qualquer momento; mantém a trava; audita quem trocou (ADR 0016).';
 
 revoke execute on function public.coordination_set_house(uuid, text) from public, anon;
 grant execute on function public.coordination_set_house(uuid, text) to authenticated;

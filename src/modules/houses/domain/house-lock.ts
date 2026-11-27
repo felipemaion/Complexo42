@@ -1,5 +1,5 @@
 /*
- * Trava de 4 meses para trocar de casa (ADR 0015). Quem decide é o banco (`accept_house` compara
+ * Trava de 4 meses para trocar de casa (ADR 0016). Quem decide é o banco (`accept_house` compara
  * `locked_until` com o relógio do servidor); aqui só se escreve o aviso da tela, para a pessoa
  * saber a partir de quando poderá trocar. Sem trava lida, ou já vencida, não há aviso.
  */
