@@ -68,7 +68,7 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   servidor cobre o valor cifrado; a coluna **não tem grant de leitura** para `authenticated` (nem a própria pessoa, nem a
   coordenação, nem a API leem): só o servidor, por função security definer da própria pessoa, e decifra só lá; um novo resultado
   substitui as respostas (e um resultado decidido pela coordenação as apaga); somem com a conta; entram em "Baixar meus dados".
-  A coordenação continua sem ver respostas individuais. Não vão para o log (R11). Quem respondeu antes desta mudança fica sem
+  **Totem pendente (legado):** o caminho `record_totem_pending` reescreve o resultado sem respostas e por isso as **apaga**; com os pesos 1-3-5 o empate de totem não acontece mais em respostas novas (a soma nunca é zero), então isso só valeria para um caminho que não roda; fica fixado em pgTAP. A coordenação continua sem ver respostas individuais. Não vão para o log (R11). Quem respondeu antes desta mudança fica sem
   respostas guardadas (a troca de casa usa então frases gerais por eixo).
 - O esquema Zod rejeita item em dois eixos, item sem eixo, eixo com número par de itens, casas
   repetidas e letras iguais nos dois polos de um eixo do totem.

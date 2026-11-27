@@ -32,7 +32,11 @@ language plpgsql
 set search_path = ''
 as $$
 begin
-  if new.created_at is distinct from old.created_at and new.answers_enc is not distinct from old.answers_enc then
+  -- Resultado reescrito (casa, totem, notas ou origem mudaram) sem respostas novas: as antigas não valem mais.
+  if new.answers_enc is not distinct from old.answers_enc
+     and (new.house_key is distinct from old.house_key or new.totem_enc is distinct from old.totem_enc
+          or new.scores_enc is distinct from old.scores_enc or new.source is distinct from old.source
+          or new.totem_state is distinct from old.totem_state) then
     new.answers_enc := null;
   end if;
   return new;

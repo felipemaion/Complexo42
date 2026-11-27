@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(21);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -77,10 +77,23 @@ select is(public.own_questionnaire_answers_enc(), null, 'a coordenação também
 reset role;
 select is(has_function_privilege('anon', 'public.own_questionnaire_answers_enc()', 'execute'), false, 'anon não executa a função das respostas');
 
+-- Caminho legado do empate de totem (record_totem_pending): com os pesos 1-3-5 o empate não acontece mais em respostas novas
+-- (a soma nunca é zero, ADR 0014), mas se o caminho rodar ele reescreve o resultado SEM as respostas e as apaga (nunca ficam
+-- respostas de um resultado reescrito). Fixa o comportamento.
+select pg_temp.login('00000000-0000-0000-0000-0000000000c2');
+select lives_ok($$ select pg_temp.record(pg_temp.enc('RESPOSTAS3')) $$, 'c2 grava um resultado com respostas');
+select lives_ok($$ select public.record_totem_pending('termo-1', 'casa-t1', pg_temp.enc('SC'), array['totem1'], pg_temp.enc('respT'), pg_temp.now_s(),
+    pg_temp.sig(format('totem_pending|%s|termo-1|casa-t1|%s|totem1|%s|%s', (select auth.uid()), pg_temp.enc('SC'), pg_temp.enc('respT'), pg_temp.now_s()))) $$,
+  'o empate de totem (legado) reescreve o resultado da pessoa');
+reset role;
+select is((select answers_enc from public.questionnaire_results where profile_id = '00000000-0000-0000-0000-0000000000c2'), null,
+  '... e apaga as respostas guardadas (só o resultado novo vale; o caminho não acontece em respostas novas desde os pesos 1-3-5)');
+set local role authenticated;
+
 -- Um resultado decidido pela coordenação (sem respostas) apaga as antigas: nunca ficam respostas de resultado que já não vale.
 select pg_temp.login('00000000-0000-0000-0000-0000000000c2');
 reset role;
-update public.questionnaire_results set source = 'analysis', created_at = now() + interval '1 second' where profile_id = '00000000-0000-0000-0000-0000000000c1';
+update public.questionnaire_results set source = 'analysis', house_key = 'casa-t1', totem_enc = pg_temp.enc('NOVO') where profile_id = '00000000-0000-0000-0000-0000000000c1';
 select is((select answers_enc from public.questionnaire_results where profile_id = '00000000-0000-0000-0000-0000000000c1'), null,
   'resultado reescrito (ex.: decidido pela coordenação) sem respostas novas apaga as antigas');
 
