@@ -146,9 +146,9 @@ test.describe("coordenação com o Supabase local", () => {
     await expect(page.locator("body")).not.toContainText("fulano");
 
     expect(await accessStatus(person.id)).toBe("active");
-    // A pessoa liberada entra sem passar pela espera.
+    // A pessoa liberada entra sem passar pela espera, e cai na casa: o primeiro passo de tudo (ADR 0017).
     await person.page.goto("/inicio");
-    await expect(person.page).toHaveURL(`${baseURL}/inicio`);
+    await expect(person.page).toHaveURL(`${baseURL}/casa`);
   });
 
   test("liberar e bloquear à mão, sempre com confirmação", async ({ browser, baseURL }) => {

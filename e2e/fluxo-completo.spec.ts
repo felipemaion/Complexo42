@@ -246,8 +246,8 @@ test("pessoa fora da lista: espera até o gestor importar o e-mail dela", async 
   expect(await importAllowlist(managerToken, [person.email])).toEqual({ received: 1, promoted: 1 });
   expect(await rows(`access_waitlist_hmac?profile_id=eq.${id}&select=profile_id`)).toEqual([]);
   expect(await rows(`audit_log?target_id=eq.${id}&event=eq.access_granted&select=reason`)).toEqual([{ reason: "import" }]);
+  // Liberada, ainda sem casa: o primeiro passo é a casa, não a página inicial (ADR 0017).
   await page.goto("/inicio");
-  await expect(page).toHaveURL(`${baseURL}/inicio`);
-  await expect(page.getByRole("link", { name: "Escolher sua casa" })).toBeVisible();
+  await expect(page).toHaveURL(`${baseURL}/casa`);
   await page.context().close();
 });
