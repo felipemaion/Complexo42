@@ -1,9 +1,9 @@
 # ADR 0014: Questionário das casas por eixos, totem e fila de análise
 
-- **Status:** Proposto. Cria dois dados novos (o totem e, só no caso inconclusivo, as respostas),
-  ambos **cifrados** (ADR 0003), e uma delegação de acesso, o que pede aprovação do gestor (R4).
-  Os itens marcados com [?] dependem do stakeholder.
-- **Data:** 2026-11-26
+- **Status:** Aceito em 2026-11-27, aprovado pelo gestor (R4). Cria dois dados novos (o totem
+  e, só no caso inconclusivo, as respostas), ambos **cifrados** (ADR 0003), e uma delegação de
+  acesso. Os itens marcados com [?] dependem do stakeholder.
+- **Data:** 2026-11-26 (proposto); 2026-11-27 (aceito)
 - **Substitui:** o formato e a pontuação do ADR 0008 §2.1 (quatro eixos de temperamento).
   Continuam valendo dele: a escolha da casa, o aceite do termo, a interface e o fato de a
   pessoa poder escolher outra casa.
