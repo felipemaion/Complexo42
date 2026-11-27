@@ -66,7 +66,7 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
       if (cancelled) return;
       // A recusa vai no estado do fluxo (#199): setError e dispatch na mesma hora apagariam o motivo.
       if (!response.ok) dispatch({ type: "submit_failed", error: response.error, retryAfterSeconds: response.retryAfterSeconds });
-      else dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles });
+      else dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles, compareToken: response.compareToken });
     })();
     return () => {
       cancelled = true;
@@ -179,7 +179,7 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
           selectedId={step.selectedId}
           chart={step.chart}
           byPoles={step.byPoles}
-          answers={state.answers}
+          compareToken={step.compareToken}
           text={text}
           disabled={pending}
           onSelect={(houseId) => dispatch({ type: "house_selected", houseId })}

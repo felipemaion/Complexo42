@@ -23,7 +23,8 @@ export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCod
  * da casa (nunca o totem nem as notas dos outros eixos).
  */
 export type SubmitAnswersResult =
-  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; byPoles: HouseByPoles }
+  /** `compareToken`: as respostas seladas pelo servidor para a pessoa (a comparação de casas o usa; o navegador não o lê). */
+  | { ok: true; outcome: "recorded"; houseId: string; chart: ChartAxis[]; byPoles: HouseByPoles; compareToken: string }
   /** `retryAfterSeconds`: só no limite de renovação do pedido de análise, quando o tempo restante é conhecido. */
   | { ok: false; error: HouseErrorCode; retryAfterSeconds?: number };
 

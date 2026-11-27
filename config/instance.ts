@@ -207,7 +207,7 @@ export const instance = parseInstanceConfig({
       yourProfileLabel: "Seu perfil",
       chartTitle: "Seu perfil e o da casa",
       averageLabel: "Perfil médio dos membros desta casa",
-      averageNote: "Média de {n} membros, arredondada.",
+      averageNote: "Média dos membros desta casa, arredondada.",
       fewMembers: "A casa ainda tem poucos membros para mostrar o perfil médio.",
       averageUnavailable: "Não foi possível mostrar o perfil médio agora.",
       expectTitle: "O que se espera nesta casa",

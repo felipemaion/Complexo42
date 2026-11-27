@@ -242,9 +242,16 @@ perfil dela com o **perfil médio dos membros da casa** e **o que se espera nest
   (ADR 0003) e o banco não decifra. `house_member_scores_enc(casa, emitido_em, assinatura)` devolve `(profile_id, scores_enc)` dos
   membros com vínculo aberto e aceito e notas, **só com a assinatura HMAC do servidor** (5 min, ligada a quem chama e à casa; sem
   `service_role`, que o app não tem, R6). O servidor decifra, tira a média dos eixos da casa (nunca o totem), descarta ids e notas,
-  guarda só o agregado em memória por casa (10 min) e entrega ao navegador `n` e as médias arredondadas de 5 em 5, e **só com n
-  >= mínimo** (`minAverageMembers`, 10); abaixo disso, "a casa ainda tem poucos membros" e a zona da casa. Os ids dos membros só
-  existem na resposta ao servidor do app.
+  guarda só o agregado em memória por casa (no mínimo 10 min) e entrega ao navegador **só as médias arredondadas de 5 em 5**, sem o
+  número de membros, e **só com n >= mínimo** (`minAverageMembers`, piso de 10 no schema); abaixo disso, "a casa ainda tem poucos
+  membros" e a zona da casa. Os ids dos membros só existem na resposta ao servidor do app. A função devolve no máximo 5000
+  linhas por chamada (a média de uma casa maior é de uma amostra estável). Chamadas simultâneas da mesma casa dividem uma
+  consulta só, e uma falha do banco fica guardada por 10 s.
+- **Sem oráculo da chave:** as respostas NÃO são guardadas, então a comparação não as recebe do navegador. Ao pontuar, o servidor
+  sela as respostas num **token cifrado para a pessoa** (AAD `compare_tokens.answers.<id>`, vale 30 min) e o navegador só o
+  carrega; `compareHouseAction` aceita só `{ casa, token }` (campo a mais é recusado) e abre o token no servidor. Ninguém varre a
+  chave com respostas fabricadas, e o limite é de 30 comparações por pessoa a cada 10 minutos. O log só traz a contagem de linhas
+  que não decifraram.
 - Confirmar a casa continua como hoje (escolha direta, `self`; a trava de 4 meses é avisada no termo).
 
 ## Consequências

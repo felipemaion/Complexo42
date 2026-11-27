@@ -251,8 +251,9 @@ export const instanceConfigSchema = z.strictObject({
     acceptButton: text,
     chooseOtherButton: text,
     /** Comparação ao escolher outra casa (#240): mínimo de membros para o perfil médio e prazo do cache em memória. */
-    minAverageMembers: z.number().int().min(1),
-    averageCacheSeconds: z.number().int().min(1),
+    // Piso de privacidade: o perfil médio só aparece com 10 membros ou mais, e o servidor guarda o agregado por 10 minutos ou mais.
+    minAverageMembers: z.number().int().min(10),
+    averageCacheSeconds: z.number().int().min(600),
     compare: z.strictObject({
       title: text,
       intro: text,
@@ -261,7 +262,6 @@ export const instanceConfigSchema = z.strictObject({
       yourProfileLabel: text,
       chartTitle: text,
       averageLabel: text,
-      /** `{n}`: quantos membros entraram na média. */
       averageNote: text,
       fewMembers: text,
       averageUnavailable: text,

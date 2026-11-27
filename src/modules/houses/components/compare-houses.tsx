@@ -5,7 +5,7 @@
 // Nada do totem aparece.
 import { useEffect, useState } from "react";
 import type { InstanceConfig } from "@/modules/instance";
-import { answerValues, type Answers, type ChartAxis, type HouseByPoles } from "@/modules/questionnaire";
+import { answerValues, type ChartAxis, type HouseByPoles } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { compareHouseAction } from "../server/actions";
 import { HouseShield } from "./house-shield";
@@ -19,7 +19,7 @@ type Comparison =
   | {
       status: "ready";
       expectations: { text: string; answer: number }[];
-      average: { status: "ok"; n: number; scores: { house1: number; house2: number } } | { status: "few" } | { status: "unavailable" };
+      average: { status: "ok"; scores: { house1: number; house2: number } } | { status: "few" } | { status: "unavailable" };
     };
 
 type Props = {
@@ -28,7 +28,8 @@ type Props = {
   selectedId: string | undefined;
   chart: readonly ChartAxis[] | undefined;
   byPoles: HouseByPoles | undefined;
-  answers: Answers;
+  /** Token das respostas (selado pelo servidor ao pontuar): a comparação o usa, o navegador não o lê nem manda respostas. */
+  compareToken: string | undefined;
   text: Text;
   disabled: boolean;
   onSelect(houseId: string): void;
@@ -41,7 +42,7 @@ const primary =
   "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
 const colorOf = (color: HouseView["color"]) => `light-dark(${color.light}, ${color.dark})`;
 
-export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles, answers, text, disabled, onSelect, onConfirm, onBack }: Readonly<Props>) {
+export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles, compareToken, text, disabled, onSelect, onConfirm, onBack }: Readonly<Props>) {
   const t = text.compare;
   // A comparação da casa selecionada (servidor). Resultado de outra casa não aparece: a chave da casa vai junto.
   const [loaded, setLoaded] = useState<{ houseId: string; comparison: Comparison } | null>(null);
@@ -49,14 +50,14 @@ export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles,
     if (selectedId === undefined) return;
     let cancelled = false;
     void (async () => {
-      const response = await compareHouseAction({ houseId: selectedId, answers });
+      const response = compareToken ? await compareHouseAction({ houseId: selectedId, token: compareToken }) : ({ ok: false } as const);
       if (cancelled) return;
       setLoaded({ houseId: selectedId, comparison: response.ok ? { status: "ready", expectations: [...response.expectations], average: response.average } : { status: "failed" } });
     })();
     return () => {
       cancelled = true;
     };
-    // As respostas não mudam nesta tela: a comparação refaz só ao trocar de casa.
+    // O token não muda nesta tela: a comparação refaz só ao trocar de casa.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
   const comparison: Comparison = selectedId !== undefined && loaded?.houseId === selectedId ? loaded.comparison : { status: "loading" };
@@ -119,7 +120,7 @@ export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles,
                 {...(averageChart && { compare: { chart: averageChart, label: t.averageLabel } })}
               />
               {comparison.status === "ready" && comparison.average.status === "ok" && (
-                <p className="text-base" data-testid="average-note">{t.averageNote.replace("{n}", String(comparison.average.n))}</p>
+                <p className="text-base" data-testid="average-note">{t.averageNote}</p>
               )}
               {comparison.status === "ready" && comparison.average.status === "few" && (
                 <p className="rounded-xl border-2 border-current p-3 text-lg" data-testid="few-members">{t.fewMembers}</p>

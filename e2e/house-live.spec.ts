@@ -287,7 +287,9 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
   }
   // O que o navegador recebeu da comparação não tem id de pessoa, nota cifrada nem totem.
   const bodies = actionBodies(requests);
-  expect(bodies).toContainEqual([{ houseId: opposite, answers }]);
+  // A comparação não manda respostas: manda só a casa e o token selado pelo servidor (cifrado, que o navegador não lê).
+  expect(bodies).toContainEqual([{ houseId: opposite, token: expect.stringMatching(/^v\d+\./) }]);
+  expect(JSON.stringify(bodies.at(-1))).not.toContain("answers");
 
   // Confirmar leva à apresentação da casa (escolha direta); aceitar grava como self.
   await page.getByRole("button", { name: "Escolher esta casa" }).click();

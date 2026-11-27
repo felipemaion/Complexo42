@@ -3,7 +3,7 @@
 -- eixos da casa (sem totem), descarta ids e notas e entrega ao navegador apenas n e médias arredondadas, com n mínimo.
 -- Nada em claro no banco e sem `service_role`: como as outras escritas e leituras sensíveis do questionário, só responde com a
 -- assinatura HMAC do servidor (chave que o navegador não tem), ligada a quem chama e à casa, válida por 5 minutos.
--- `profile_id` volta porque é o AAD para decifrar (`questionnaire_results.scores_enc.<profile_id>`); a lista fica no servidor.
+-- Teto de 5000 linhas por chamada. `profile_id` volta porque é o AAD para decifrar (`questionnaire_results.scores_enc.<profile_id>`); a lista fica no servidor.
 create or replace function public.house_member_scores_enc(p_house_key text, p_issued_at bigint, p_signature text)
 returns table (profile_id uuid, scores_enc text)
 language plpgsql
@@ -31,7 +31,11 @@ begin
   join public.house_members as m
     on m.profile_id = r.profile_id and m.house_key = p_house_key and m.left_at is null and m.accepted_at is not null
   join public.profiles as p on p.id = r.profile_id and p.access_status = 'active'
-  where r.scores_enc is not null;
+  where r.scores_enc is not null
+  -- Teto de 5000 linhas por chamada: uma casa enorme não devolve tudo de uma vez (o corte é por ordem estável e a média
+  -- passa a ser de uma amostra, o que fica documentado no ADR 0014).
+  order by r.created_at, r.profile_id
+  limit 5000;
 end;
 $$;
 
