@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AUTH_COOKIE_NAME, createAuthClient, hasAuthCookie, type CookieToSet } from "./client";
+import { AUTH_COOKIE_NAME, createAuthClient, expiredAuthCookies, hasAuthCookie, type CookieToSet } from "./client";
 
 // Usa o @supabase/ssr de verdade, sem rede: montar o endereço do Google não chama o GoTrue.
 describe("createAuthClient (#9)", () => {
@@ -41,5 +41,20 @@ describe("createAuthClient (#9)", () => {
   it("reconhece o cookie de sessão, inclusive em pedaços", () => {
     expect(hasAuthCookie([`${AUTH_COOKIE_NAME}.0`, "outro"])).toBe(true);
     expect(hasAuthCookie(["sb-outro-auth-token"])).toBe(false);
+  });
+});
+
+describe("expiredAuthCookies: limpar a sessão vencida", () => {
+  it("expira o cookie de sessão (inteiro ou em pedaços) e deixa os outros em paz, inclusive o verificador do login em andamento", () => {
+    const list = expiredAuthCookies(["a", `${AUTH_COOKIE_NAME}`, `${AUTH_COOKIE_NAME}.0`, `${AUTH_COOKIE_NAME}.1`, `${AUTH_COOKIE_NAME}-code-verifier`, `${AUTH_COOKIE_NAME}x`], true);
+    expect(list.map((c) => c.name)).toEqual([AUTH_COOKIE_NAME, `${AUTH_COOKIE_NAME}.0`, `${AUTH_COOKIE_NAME}.1`]);
+    for (const cookie of list) {
+      expect(cookie.value).toBe("");
+      expect(cookie.options).toMatchObject({ maxAge: 0, path: "/", httpOnly: true, secure: true, sameSite: "lax" });
+    }
+  });
+
+  it("sem cookie de sessão, nada a limpar", () => {
+    expect(expiredAuthCookies(["a", "b"], false)).toEqual([]);
   });
 });
