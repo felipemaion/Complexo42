@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(55);
+select plan(62);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp', 'br.mg');
@@ -179,6 +179,27 @@ select set_eq(
 reset role;
 update public.profiles set status = 'active' where id = pg_temp.person('p_sp2');
 set local role authenticated;
+
+-- Bordas do filtro "escolheu outra casa": limite, vínculo não aceito ou encerrado, a própria pessoa.
+reset role;
+insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, source) values
+  (pg_temp.person('p_none'), 'termo-1', 'casa-x', 'v1.AAAAAAAAAAAAAAAA.' || rpad('T4', 22, 'Z'), 'questionnaire'),
+  (pg_temp.person('plain'), 'termo-1', 'casa-x', 'v1.AAAAAAAAAAAAAAAA.' || rpad('T5', 22, 'Z'), 'questionnaire'),
+  (pg_temp.person('root_mgr'), 'termo-1', 'casa-x', 'v1.AAAAAAAAAAAAAAAA.' || rpad('T6', 22, 'Z'), 'questionnaire');
+-- p_none: vínculo aberto, mas NÃO aceito. plain: vínculo aceito e depois encerrado. root_mgr: aceito, outra casa.
+insert into public.house_members (profile_id, house_key, join_method) values (pg_temp.person('p_none'), 'casa-y', 'self');
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at, left_at)
+values (pg_temp.person('plain'), 'casa-y', 'self', now(), now(), now());
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values (pg_temp.person('root_mgr'), 'casa-y', 'self', now());
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select is((select count(*)::int from public.coordination_other_house_results(null, null)), 2, 'limite nulo: vale o máximo (todas as pessoas do alcance)');
+select is((select count(*)::int from public.coordination_other_house_results(null, -5)), 1, 'limite negativo: vira 1');
+select is((select count(*)::int from public.coordination_other_house_results(null, 1000)), 2, 'limite acima de 201: limitado ao máximo, sem erro');
+select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('p_none')), 0, 'vínculo aberto mas não aceito fica fora do filtro');
+select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('plain')), 0, 'vínculo encerrado fica fora do filtro');
+select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('root_mgr')), 0, 'a coordenação não aparece para si mesma');
+select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('p_sp2')), 1, 'e quem escolheu outra casa continua aparecendo');
 
 -- Só o papel de gestor revogado, com a concessão viva: perde.
 reset role;
