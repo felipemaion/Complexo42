@@ -44,7 +44,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  // Fora do proxy: arquivos estáticos e o healthz (monitorado de fora, sem sessão). Ancorado em
-  // `/` ou no fim, para `/api/healthz-x` ou `/favicon.ico.x` não escaparem (L1).
-  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|api/healthz)(?:/|$)).*)"],
+  // Fora do proxy: arquivos estáticos, as imagens das casas e o logo do app (`/casas/...`), os ícones do
+  // app e o healthz (monitorado de fora, sem sessão): a página de entrada mostra o logo e o navegador pede
+  // o favicon antes de qualquer login. Ancorado em `/` ou no fim, para `/api/healthz-x`, `/casas-x` ou
+  // `/icon.png.x` não escaparem (L1).
+  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|icon\\.png|apple-icon\\.png|api/healthz)(?:/|$))(?!casas/).*)"],
 };
