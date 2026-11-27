@@ -14,7 +14,7 @@ describe("matcher do proxy de login", () => {
       "/favicon.ico",
       "/api/healthz",
       "/casas/app-logo-128.webp",
-      "/casas/esparta-512.png",
+      "/casas/outra-512.png",
       "/icon.png",
       "/apple-icon.png",
     ]) {
