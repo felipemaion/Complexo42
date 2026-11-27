@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(45);
+select plan(55);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp', 'br.mg');
@@ -121,6 +121,64 @@ select is(
   (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('p_sp')])), 0,
   'pessoa comum não lê a casa escolhida de ninguém'
 );
+
+-- ---------------------------------------------------------------------------------------
+-- Filtro "escolheu outra casa" no banco (todas as pessoas do alcance, não só a página) e limites
+-- ---------------------------------------------------------------------------------------
+reset role;
+insert into app.questionnaire_term_versions (version) values ('termo-1') on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+values (pg_temp.person('p_mg'), 'casa-x', 'self', now());
+-- p_sp: sugerida casa-x e escolheu casa-x; p_sp2: sugerida casa-x, escolheu casa-y; p_mg: sugerida casa-y, escolheu casa-x.
+insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, source) values
+  (pg_temp.person('p_sp'), 'termo-1', 'casa-x', 'v1.AAAAAAAAAAAAAAAA.' || rpad('T1', 22, 'Z'), 'questionnaire'),
+  (pg_temp.person('p_sp2'), 'termo-1', 'casa-x', 'v1.AAAAAAAAAAAAAAAA.' || rpad('T2', 22, 'Z'), 'questionnaire'),
+  (pg_temp.person('p_mg'), 'termo-1', 'casa-y', 'v1.AAAAAAAAAAAAAAAA.' || rpad('T3', 22, 'Z'), 'questionnaire');
+set local role anon;
+select throws_ok($$ select * from public.coordination_other_house_results(null, 10) $$, '42501', null, 'anônimo NÃO lê quem escolheu outra casa');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select set_eq(
+  $$ select profile_id from public.coordination_other_house_results(null, 10) $$,
+  $$ select pg_temp.person('p_sp2') union select pg_temp.person('p_mg') $$,
+  'a nacional lê, no banco, todos os que escolheram outra casa'
+);
+select set_eq(
+  $$ select profile_id from public.coordination_other_house_results('casa-y', 10) $$,
+  $$ select pg_temp.person('p_mg') $$,
+  'filtra também pela casa sugerida'
+);
+select is((select count(*)::int from public.coordination_other_house_results(null, 1)), 1, 'respeita o limite pedido');
+select pg_temp.login('sp_mgr');
+select set_eq(
+  $$ select profile_id from public.coordination_other_house_results(null, 10) $$,
+  $$ select pg_temp.person('p_sp2') $$,
+  'o delegado lê só quem está no escopo da concessão'
+);
+select pg_temp.login('plain');
+select is((select count(*)::int from public.coordination_other_house_results(null, 10)), 0, 'pessoa comum não lê nada');
+select pg_temp.login('root_mgr');
+select throws_ok($$ select * from public.coordination_chosen_houses(null) $$, '22023', null, 'lista nula de pessoas: erro claro');
+select throws_ok(
+  $$ select * from public.coordination_chosen_houses(array(select gen_random_uuid() from generate_series(1, 201))) $$,
+  '22023', null, 'mais de 200 pessoas de uma vez: erro claro'
+);
+reset role;
+update public.profiles set status = 'suspended' where id = pg_temp.person('p_sp2');
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('p_sp2')])), 0,
+  'pessoa inativa: nem a nacional lê a casa escolhida'
+);
+select set_eq(
+  $$ select profile_id from public.coordination_other_house_results(null, 10) $$,
+  $$ select pg_temp.person('p_mg') $$,
+  'pessoa inativa não entra no filtro "escolheu outra casa"'
+);
+reset role;
+update public.profiles set status = 'active' where id = pg_temp.person('p_sp2');
+set local role authenticated;
 
 -- Só o papel de gestor revogado, com a concessão viva: perde.
 reset role;
