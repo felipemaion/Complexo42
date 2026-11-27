@@ -42,19 +42,19 @@ describe("questionnaireSchema", () => {
   it("rejeita item em dois eixos", () => {
     const raw = clone();
     raw.axes.house2.itemIds.push(raw.axes.house1.itemIds[0]!);
-    expect(fieldsOf(raw)).toEqual([`axes.house2.itemIds.${raw.axes.house2.itemIds.length - 1}`]);
+    expect(fieldsOf(raw)).toEqual(["axes.house2.itemIds", `axes.house2.itemIds.${raw.axes.house2.itemIds.length - 1}`]);
   });
 
   it("rejeita item repetido no mesmo eixo", () => {
     const raw = clone();
     raw.axes.house1.itemIds.push(raw.axes.house1.itemIds[0]!);
-    expect(fieldsOf(raw)).toEqual([`axes.house1.itemIds.${raw.axes.house1.itemIds.length - 1}`]);
+    expect(fieldsOf(raw)).toEqual(["axes.house1.itemIds", `axes.house1.itemIds.${raw.axes.house1.itemIds.length - 1}`]);
   });
 
   it("rejeita item que nenhum eixo lista", () => {
     const raw = clone();
     raw.axes.house1.itemIds = raw.axes.house1.itemIds.slice(2);
-    expect(fieldsOf(raw)).toEqual(["items.0.id", "items.1.id"]);
+    expect(fieldsOf(raw)).toEqual(["items.0.id", "items.4.id"]);
   });
 
   it("rejeita eixo que cita item inexistente", () => {

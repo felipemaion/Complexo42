@@ -29,8 +29,8 @@ ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b"
 
 **Escala de intensidade** (decisão do gestor, 2026-11-27; substitui a escolha a/b/"as duas"). Cada
 pergunta mostra seis círculos, sem meio, maiores nas pontas (a à esquerda, b à direita), **nenhum
-marcado de início** (resposta obrigatória). A resposta é um inteiro em {-3, -2, -1, 1, 2, 3}
-(negativo = polo "a"). Sem "a)" e "b)": as pontas mostram o texto de cada alternativa e, abaixo dos
+marcado de início** (resposta obrigatória). A resposta é um inteiro em {-5, -3, -1, 1, 3, 5}
+(pesos 1, 3 e 5 por lado; negativo = polo "a"; decisão do gestor, 2026-11-27, #211, no lugar de 1/2/3). Sem "a)" e "b)": as pontas mostram o texto de cada alternativa e, abaixo dos
 círculos, a **frase composta** da posição escolhida (ou em foco/sob o mouse): "Intensidade: texto da
 alternativa." (ex.: "Totalmente: …", "Na maior parte das vezes: …", "Um pouco mais: …"; as intensidades
 ficam na config da instância). A mesma frase é o nome acessível do círculo. Toda frase exibida começa
@@ -38,26 +38,21 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
 `domain/sentence.ts`). Acessível: grupo de rádio, teclado (setas, Home e End) e botão "próxima".
 
 - **Nota do eixo** = média das respostas dos itens do eixo, normalizada para -100..100
-  (`média / 3 × 100`, arredondada). O polo é o **sinal da soma** (negativo = a); nota 0 é empate.
+  (`média / 5 × 100`, arredondada). O polo é o **sinal da soma** (negativo = a).
+- **Sem empate** (#211): todo eixo tem número **ímpar** de itens e todo peso é ímpar, então a soma
+  nunca é zero. O config que traz eixo com número par de itens é rejeitado na carga (falha
+  fechada), e `tieBreakItems` deixou de existir. A chave atual tem 26 perguntas: 7 e 7 nos eixos da
+  casa, 7 e 5 nos do totem.
 - **Casa** = interseção dos polos dos eixos 1 e 2: `(a,a)` casa 1, `(a,b)` casa 2, `(b,a)` casa 3,
   `(b,b)` casa 4. O mapa vive no config (`houseByPoles`), com as quatro casas distintas.
 - **Totem** = uma letra por eixo extra (eixos 3 e 4; as letras de cada polo vêm do config). Dá
   quatro totens.
-- **Empate no eixo** (nota 0): desempata pelo sinal da média dos `tieBreakItems` do eixo
-  (subconjunto dos itens do próprio eixo, indicados pelo stakeholder; vale por eixo e pode ser
-  vazio). Se ainda for 0, ou se o eixo não tem desempate, o eixo fica sem polo. **O empate só
-  trava o que depende do eixo** (decisão do gestor, 2026-11-27, #197): os eixos 1 e 2 definem a
-  casa, então a casa sai na hora mesmo com o totem empatado; o totem fica **pendente** e a
-  coordenação decide só ele. Empate num eixo da casa deixa o resultado **inconclusivo**.
-- **Resultado** (função pura): `{ status: 'ok', houseId, totem, scores }`,
-  `{ status: 'totem_pending', houseId, axes, scores }` (só eixos do totem empatados) ou
-  `{ status: 'inconclusive', axes, scores }` (algum eixo da casa empatado; `axes` lista todos os
-  empatados). Inconclusivo não atribui casa nem totem; totem pendente atribui a casa.
+- **Resultado** (função pura): sempre `{ status: 'ok', houseId, totem, scores }`.
 - **A pontuação roda no servidor**, não no navegador (revisão do PR #173). Motivos: o navegador
   que pontua recebe a chave real (o totem deixaria de ser interno) e pode mandar qualquer casa
   e totem direto à API. O navegador manda **só as respostas**; o servidor valida (todas as
   perguntas, só os seis valores da escala), pontua com o arquivo real (`QUESTIONNAIRE_PATH`) e devolve
-  só a casa. A chave (eixos, itens de cada eixo, desempates) nunca sai do servidor
+  só a casa. A chave (eixos e itens de cada eixo) nunca sai do servidor
   (`toPublicQuestionnaire`). **Exceção** (decisão do gestor, #201): o mapa polos → casa (`houseByPoles`) vai à tela
   **só junto do resultado**, para desenhar as zonas das casas no gráfico (abaixo); a página que o navegador
   recebe antes de responder não o traz.
@@ -69,7 +64,7 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   a API direto com o próprio login, não consegue impor casa nem totem nem abrir pedido.
 - As respostas **passam pelo servidor** em todo envio (para a pontuação), mas só são **guardadas**
   no pedido de análise. Não vão para o log (R11).
-- O esquema Zod rejeita item em dois eixos, item sem eixo, desempate fora do eixo, casas
+- O esquema Zod rejeita item em dois eixos, item sem eixo, eixo com número par de itens, casas
   repetidas e letras iguais nos dois polos de um eixo do totem.
 
 ### 2. O que a pessoa vê
@@ -99,7 +94,11 @@ A sugestão é só o ponto de partida: a pessoa continua podendo **escolher outr
 pelo fluxo de sempre (`accept_house`). Trocar de casa depois de aceitar continua sendo com a
 coordenação [?] (prazo e regra para a pessoa trocar sozinha).
 
-### 3. Resultado inconclusivo ou totem pendente: pedido de análise
+### 3. Pedido de análise (casos antigos e correção pela coordenação)
+
+> Desde a chave sem empate (#211) as respostas novas sempre dão casa e totem: o app não abre mais pedido de
+> análise nem grava totem pendente. A fila, a resolução e o `totem_state` continuam para os casos já abertos e para
+> a correção pela coordenação. O que segue vale para esses pedidos.
 
 - O servidor abre um **pedido de análise** para a coordenação nacional, com os eixos empatados
   e as **respostas completas**. Há dois tipos: `full` (resultado inconclusivo: a coordenação decide

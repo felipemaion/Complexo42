@@ -79,16 +79,17 @@ describe("answerSentence (a resposta de um item como frase, para a coordenação
   const intensities = ["Totalmente", "Na maior parte das vezes", "Um pouco mais", "Um pouco mais", "Na maior parte das vezes", "Totalmente"] as const;
 
   it("respostas negativas usam o texto da alternativa a, e as positivas, o da b", () => {
-    expect(answerSentence(item, -3, intensities)).toBe("Totalmente: conversar com muita gente.");
+    expect(answerSentence(item, -5, intensities)).toBe("Totalmente: conversar com muita gente.");
     expect(answerSentence(item, -1, intensities)).toBe("Um pouco mais: conversar com muita gente.");
     expect(answerSentence(item, 1, intensities)).toBe("Um pouco mais: conversar com poucos.");
-    expect(answerSentence(item, 2, intensities)).toBe("Na maior parte das vezes: conversar com poucos.");
-    expect(answerSentence(item, 3, intensities)).toBe("Totalmente: conversar com poucos.");
+    expect(answerSentence(item, 3, intensities)).toBe("Na maior parte das vezes: conversar com poucos.");
+    expect(answerSentence(item, 5, intensities)).toBe("Totalmente: conversar com poucos.");
   });
 
   it("valor fora da escala: sem frase (nunca inventa uma intensidade)", () => {
     expect(answerSentence(item, 0, intensities)).toBeNull();
     expect(answerSentence(item, 4, intensities)).toBeNull();
     expect(answerSentence(item, 1.5, intensities)).toBeNull();
+    expect(answerSentence(item, 2, intensities)).toBeNull();
   });
 });

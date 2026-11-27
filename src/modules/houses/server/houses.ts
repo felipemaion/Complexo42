@@ -84,8 +84,8 @@ export type SubmitContext = {
  * Pontua as respostas NO SERVIDOR e grava o resultado (ADR 0014 §1). O navegador manda só as
  * respostas; nunca casa, totem, versão do termo nem id. O resultado vai ao banco assinado, e o
  * banco só o aceita para a pessoa da sessão: pela API direta, o navegador não impõe resultado.
- * As respostas só são guardadas no pedido de análise: resultado inconclusivo ou totem pendente (#197). Totem, notas e respostas
- * vão CIFRADOS (ADR 0003; AAD tabela.coluna.id-da-pessoa) e a assinatura cobre o valor cifrado.
+ * As respostas não são guardadas (sem empate, não há pedido de análise). Totem e notas vão CIFRADOS
+ * (ADR 0003; AAD tabela.coluna.id-da-pessoa) e a assinatura cobre o valor cifrado.
  */
 export async function submitQuestionnaire(client: HouseClient, input: unknown, ctx: SubmitContext): Promise<SubmitAnswersResult> {
   const parsed = z.strictObject({ answers: z.record(z.string(), z.literal([...answerValues])) }).safeParse(input);
@@ -98,65 +98,28 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     throw error;
   }
   const { userId, nowSeconds, questionnaire: { consentTermVersion: term } } = ctx;
-  if (result.status === "ok") {
-    if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
-    const totemEnc = await ctx.encrypt(result.totem, totemContext(userId));
-    const scoresEnc = await ctx.encrypt(JSON.stringify(result.scores), scoresContext(userId));
-    const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}`);
-    const { error } = await client.rpc("record_questionnaire_result", {
-      p_term_version: term,
-      p_house_key: result.houseId,
-      p_totem_enc: totemEnc,
-      p_scores_enc: scoresEnc,
-      p_issued_at: nowSeconds,
-      p_signature: signature,
-    });
-    if (error) return refusedSubmit(client, error, ctx);
-    // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.
-    return {
-      ok: true,
-      outcome: "recorded",
-      houseId: result.houseId,
-      chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
-      // O mapa das casas só vai depois das respostas, para as zonas do gráfico (#201); a chave dos itens segue no servidor.
-      byPoles: ctx.questionnaire.houseByPoles,
-    };
-  }
-  const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), answersContext(userId));
-  if (result.status === "totem_pending") {
-    // A casa já saiu pelos eixos 1 e 2 (#197): grava a casa com o totem pendente e abre o pedido só de totem.
-    if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
-    const scoresEnc = await ctx.encrypt(JSON.stringify(result.scores), scoresContext(userId));
-    const axes = result.axes.join(",");
-    const signature = ctx.sign(`totem_pending|${userId}|${term}|${result.houseId}|${scoresEnc}|${axes}|${answersEnc}|${nowSeconds}`);
-    const { error } = await client.rpc("record_totem_pending", {
-      p_term_version: term,
-      p_house_key: result.houseId,
-      p_scores_enc: scoresEnc,
-      p_tied_axes: result.axes,
-      p_answers_enc: answersEnc,
-      p_issued_at: nowSeconds,
-      p_signature: signature,
-    });
-    if (error) return { ok: false, error: errorCode(error) };
-    // O totem é interno e está pendente: a pessoa vê a casa e o perfil dos eixos da casa, como no caso conclusivo.
-    return {
-      ok: true,
-      outcome: "recorded",
-      houseId: result.houseId,
-      chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
-      byPoles: ctx.questionnaire.houseByPoles,
-    };
-  }
-  const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${answersEnc}|${nowSeconds}`);
-  const { error } = await client.rpc("request_house_analysis", {
+  if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
+  const totemEnc = await ctx.encrypt(result.totem, totemContext(userId));
+  const scoresEnc = await ctx.encrypt(JSON.stringify(result.scores), scoresContext(userId));
+  const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}`);
+  const { error } = await client.rpc("record_questionnaire_result", {
     p_term_version: term,
-    p_tied_axes: result.axes,
-    p_answers_enc: answersEnc,
+    p_house_key: result.houseId,
+    p_totem_enc: totemEnc,
+    p_scores_enc: scoresEnc,
     p_issued_at: nowSeconds,
     p_signature: signature,
   });
-  return error ? refusedSubmit(client, error, ctx) : { ok: true, outcome: "analysis" };
+  if (error) return refusedSubmit(client, error, ctx);
+  // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.
+  return {
+    ok: true,
+    outcome: "recorded",
+    houseId: result.houseId,
+    chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
+    // O mapa das casas só vai depois das respostas, para as zonas do gráfico (#201); a chave dos itens segue no servidor.
+    byPoles: ctx.questionnaire.houseByPoles,
+  };
 }
 
 /** Janela da renovação do pedido aberto: a mesma de `request_house_analysis` no banco (1 hora, #172). */

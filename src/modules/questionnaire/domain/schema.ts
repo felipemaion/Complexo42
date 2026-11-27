@@ -7,7 +7,9 @@ import { z } from "zod";
  *
  * Quatro eixos, cada um com a sua lista de itens (o config diz quais itens contam para qual
  * eixo, não a ordem de apresentação). Em todo item a alternativa "a" marca o polo "a" do eixo
- * e a "b" marca o polo "b"; a resposta é a intensidade, de -3 (muito a) a 3 (muito b), sem 0.
+ * e a "b" marca o polo "b"; a resposta é a intensidade, de -5 (muito a) a 5 (muito b), sem 0
+ * (pesos 1, 3 e 5 por lado). Cada eixo tem número ímpar de itens: com pesos ímpares a soma nunca é
+ * zero, então não há empate.
  * Os eixos 1 e 2 definem a casa; os eixos 3 e 4, o totem. Cada eixo tem um nome e o nome dos
  * seus dois polos (para o gráfico).
  *
@@ -41,11 +43,6 @@ const axisShape = {
   poleLabels: z.strictObject({ a: text, b: text }),
   /** Ids dos itens que contam para este eixo. */
   itemIds: z.array(slug).min(1),
-  /**
-   * Itens que desempatam o eixo (subconjunto de `itemIds`, indicado pelo stakeholder). Sem eles,
-   * o empate deixa o resultado inconclusivo. Vale por eixo.
-   */
-  tieBreakItems: z.array(slug).default([]),
 };
 const houseAxisSchema = z.strictObject(axisShape);
 const totemAxisSchema = z.strictObject({
@@ -104,14 +101,13 @@ export const questionnaireSchema = z
 
     const axisOfItem = new Map<string, Axis>();
     for (const axis of axisKeys) {
-      const { itemIds: ids, tieBreakItems } = config.axes[axis];
+      const { itemIds: ids } = config.axes[axis];
+      // Número ímpar de itens com pesos ímpares: a soma nunca é zero (sem empate). Falha fechada na carga.
+      if (ids.length % 2 === 0) issue("número par de itens no eixo (a soma poderia empatar)", ["axes", axis, "itemIds"]);
       ids.forEach((id, index) => {
         if (!itemIds.has(id)) return issue("item inexistente", ["axes", axis, "itemIds", index]);
         if (axisOfItem.has(id)) return issue("item em mais de um eixo (ou repetido no eixo)", ["axes", axis, "itemIds", index]);
         axisOfItem.set(id, axis);
-      });
-      tieBreakItems.forEach((id, index) => {
-        if (!ids.includes(id)) issue("item de desempate fora do eixo", ["axes", axis, "tieBreakItems", index]);
       });
     }
     config.items.forEach((item, index) => {
@@ -166,8 +162,7 @@ export function parseQuestionnaire(raw: unknown, houseIds: readonly string[]): R
 }
 
 /**
- * O que vai para o navegador: o termo e as perguntas, nunca a chave (eixos, itens de desempate e
- * mapa das casas). A pontuação roda só no servidor (ADR 0014 §1).
+ * O que vai para o navegador: o termo e as perguntas, nunca a chave (eixos e mapa das casas). A pontuação roda só no servidor (ADR 0014 §1).
  */
 export type PublicQuestionnaire = Pick<QuestionnaireConfig, "version" | "consentTermVersion" | "consentTerm" | "items">;
 

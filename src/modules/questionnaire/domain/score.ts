@@ -2,35 +2,27 @@ import type { Axis, Pole, QuestionnaireConfig } from "./schema";
 
 /*
  * Pontuação do questionário (ADR 0014, #172 e #183). Função pura: sem I/O, sem data, sem estado.
- * Roda só no servidor (ADR 0014 §1): o navegador não recebe a chave. As respostas só são
- * guardadas no caso inconclusivo, para o pedido de análise (ADR 0014 §3); as notas por eixo
- * ficam guardadas, cifradas, junto do resultado.
+ * Roda só no servidor (ADR 0014 §1): o navegador não recebe a chave. As respostas não são
+ * guardadas; as notas por eixo ficam guardadas, cifradas, junto do resultado.
  */
 
 /**
- * Intensidade da resposta, seis níveis e sem meio: negativo é o polo "a" (-3 muito a), positivo
- * é o polo "b" (3 muito b).
+ * Intensidade da resposta, seis níveis e sem meio, com pesos 1, 3 e 5 por lado: negativo é o polo
+ * "a" (-5 muito a), positivo é o polo "b" (5 muito b). Todos ímpares: com número ímpar de itens
+ * por eixo (conferido na carga da config) a soma nunca é zero.
  */
-export const answerValues = [-3, -2, -1, 1, 2, 3] as const;
+export const answerValues = [-5, -3, -1, 1, 3, 5] as const;
 export type Answer = (typeof answerValues)[number];
 export type Answers = Readonly<Record<string, Answer>>;
 
 /** Maior intensidade possível de uma resposta (a nota do eixo é normalizada por ela). */
-const maxIntensity = 3;
+const maxIntensity = 5;
 
 /** Nota de cada eixo, inteira de -100 (tudo "muito a") a 100 (tudo "muito b"). */
 export type AxisScores = Readonly<Record<Axis, number>>;
 
-/**
- * Conclusivo: a casa sugerida, o totem e as notas. Totem pendente (#197): os eixos da casa definem a
- * casa, mas algum eixo do totem empatou; `axes` são só os eixos do totem empatados. Inconclusivo: algum
- * eixo da casa sem polo (nota 0 e desempate também 0); `axes` lista todos os empatados. `scores` são as
- * notas, sem as respostas.
- */
-export type QuestionnaireResult =
-  | { status: "ok"; houseId: string; totem: string; scores: AxisScores }
-  | { status: "totem_pending"; houseId: string; axes: readonly Axis[]; scores: AxisScores }
-  | { status: "inconclusive"; axes: readonly Axis[]; scores: AxisScores };
+/** A casa sugerida, o totem e as notas dos eixos (sem as respostas). Todo resultado é conclusivo: não há empate. */
+export type QuestionnaireResult = { status: "ok"; houseId: string; totem: string; scores: AxisScores };
 
 export type AnswerErrorCode = "missing_answer" | "unknown_item" | "invalid_answer";
 
@@ -43,7 +35,7 @@ export class QuestionnaireAnswerError extends Error {
     const reason = {
       missing_answer: "item sem resposta",
       unknown_item: "resposta para item inexistente",
-      invalid_answer: "resposta fora de -3, -2, -1, 1, 2 e 3",
+      invalid_answer: "resposta fora de -5, -3, -1, 1, 3 e 5",
     }[code];
     super(`Respostas inválidas (${reason}): ${itemIds.join(", ")}`);
     this.name = "QuestionnaireAnswerError";
@@ -71,24 +63,14 @@ function scoreOf(itemIds: readonly string[], answers: Answers): number {
   return Math.round((sumOf(itemIds, answers) / itemIds.length / maxIntensity) * 100) + 0;
 }
 
-/** Polo de um conjunto de itens pelo sinal da soma (a média tem o mesmo sinal); soma 0 é empate. */
-function poleOfSum(itemIds: readonly string[], answers: Answers): Pole | null {
-  const sum = sumOf(itemIds, answers);
-  if (sum === 0) return null;
-  return sum < 0 ? "a" : "b";
-}
-
-/** Polo do eixo; em empate, desempata pela média dos itens indicados; ainda 0, `null`. */
-function poleOf(config: QuestionnaireConfig, axis: Axis, answers: Answers): Pole | null {
-  const { itemIds, tieBreakItems } = config.axes[axis];
-  return poleOfSum(itemIds, answers) ?? (tieBreakItems.length > 0 ? poleOfSum(tieBreakItems, answers) : null);
+/** Polo do eixo pelo sinal da soma (a média tem o mesmo sinal); nunca é zero (itens ímpares, pesos ímpares). */
+function poleOf(config: QuestionnaireConfig, axis: Axis, answers: Answers): Pole {
+  return sumOf(config.axes[axis].itemIds, answers) < 0 ? "a" : "b";
 }
 
 /**
  * Transforma as respostas na casa sugerida, no totem e nas notas dos eixos. A casa é a
- * interseção dos polos dos eixos 1 e 2; o totem, as letras dos polos dos eixos 3 e 4. Eixo da casa
- * sem polo (nota 0 sem desempate): inconclusivo, nenhuma casa é atribuída. Só eixo do totem sem polo:
- * a casa sai e o totem fica pendente para a coordenação (ADR 0014 §2).
+ * interseção dos polos dos eixos 1 e 2; o totem, as letras dos polos dos eixos 3 e 4.
  */
 export function scoreQuestionnaire(config: QuestionnaireConfig, answers: Answers): QuestionnaireResult {
   checkAnswers(config, answers);
@@ -98,20 +80,11 @@ export function scoreQuestionnaire(config: QuestionnaireConfig, answers: Answers
     totem1: scoreOf(config.axes.totem1.itemIds, answers),
     totem2: scoreOf(config.axes.totem2.itemIds, answers),
   };
-  const poles = {
-    house1: poleOf(config, "house1", answers),
-    house2: poleOf(config, "house2", answers),
-    totem1: poleOf(config, "totem1", answers),
-    totem2: poleOf(config, "totem2", answers),
-  };
-  const tied = (Object.keys(poles) as Axis[]).filter((axis) => poles[axis] === null);
-  if (poles.house1 === null || poles.house2 === null) return { status: "inconclusive", axes: tied, scores };
-  const houseId = config.houseByPoles[`${poles.house1}${poles.house2}`];
-  if (poles.totem1 === null || poles.totem2 === null) return { status: "totem_pending", houseId, axes: tied, scores };
+  const pole = (axis: Axis) => poleOf(config, axis, answers);
   return {
     status: "ok",
-    houseId,
-    totem: config.axes.totem1.letters[poles.totem1] + config.axes.totem2.letters[poles.totem2],
+    houseId: config.houseByPoles[`${pole("house1")}${pole("house2")}`],
+    totem: config.axes.totem1.letters[pole("totem1")] + config.axes.totem2.letters[pole("totem2")],
     scores,
   };
 }

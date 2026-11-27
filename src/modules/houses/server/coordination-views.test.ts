@@ -39,7 +39,7 @@ const encName = (id: string, name: string) => `enc[profiles.display_name_enc.${i
 const encTotem = (id: string, totem: string) => `enc[questionnaire_results.totem_enc.${id}](${totem})`;
 const scores = { house1: -40, house2: 75, totem1: 0, totem2: -100 };
 const encScores = (id: string) => `enc[questionnaire_results.scores_enc.${id}](${JSON.stringify(scores)})`;
-const allA = Object.fromEntries(questionnaire.items.map((item) => [item.id, -3]));
+const allA = Object.fromEntries(questionnaire.items.map((item) => [item.id, -5]));
 const encAnswers = (id: string, answers: object = allA) => `enc[house_analysis_requests.answers_enc.${id}](${JSON.stringify(answers)})`;
 
 type Response = { data?: unknown; error?: unknown };
