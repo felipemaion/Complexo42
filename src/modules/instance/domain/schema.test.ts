@@ -113,7 +113,7 @@ const valid = {
     consentDecline: "t",
     progress: "{current} de {total}",
     scaleLegend: "t",
-    scaleOptions: ["t", "t", "t", "t", "t", "t"],
+    scaleIntensities: ["t", "t", "t", "t", "t", "t"],
     nextButton: "t",
     finishButton: "t",
     chartTitle: "t",

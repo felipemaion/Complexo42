@@ -142,7 +142,18 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
       await circle(-3).focus();
       await page.keyboard.press("ArrowRight");
       await expect(circle(-2)).toHaveAttribute("aria-checked", "true");
-      await expect(page.getByTestId("scale-reading")).toHaveText("a");
+      // Abaixo dos círculos, a frase composta da posição (intensidade + texto da alternativa), com maiúscula
+      // e pontuação final; o mesmo texto é o nome acessível do círculo, e o "a)"/"b)" não aparece.
+      const first = questionnaire.items[0]!;
+      const sentence = `Na maior parte das vezes: ${first.a.text.trim().replace(/[;,:]$/, "").replace(/([^.!?…])$/, "$1.")}`;
+      await expect(page.getByTestId("scale-reading")).toHaveText(sentence);
+      await expect(circle(-2)).toHaveAttribute("aria-label", sentence);
+      await expect(page.getByText(/^\s*[ab]\)/)).toHaveCount(0);
+      // Passar o mouse mostra a frase do outro círculo; sair volta à marcada.
+      await circle(1).hover();
+      await expect(page.getByTestId("scale-reading")).toHaveText(/^Um pouco mais: /);
+      await page.mouse.move(0, 0);
+      await expect(page.getByTestId("scale-reading")).toHaveText(sentence);
     }
     if (i === 1) {
       // Voltar mantém a resposta anterior marcada e deixa trocar.

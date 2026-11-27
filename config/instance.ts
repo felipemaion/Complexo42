@@ -179,7 +179,8 @@ export const instance = parseInstanceConfig({
     consentDecline: "Não aceito, prefiro escolher a casa",
     progress: "{current} de {total}",
     scaleLegend: "Quanto você se identifica com a ou com b?",
-    scaleOptions: ["muito a", "a", "um pouco a", "um pouco b", "b", "muito b"],
+    // Intensidade de cada círculo, da ponta "a" à ponta "b"; a frase da posição junta a intensidade ao texto da alternativa.
+    scaleIntensities: ["Totalmente", "Na maior parte das vezes", "Um pouco mais", "Um pouco mais", "Na maior parte das vezes", "Totalmente"],
     nextButton: "Próxima",
     finishButton: "Ver o resultado",
     chartTitle: "Seu perfil",

@@ -1,16 +1,19 @@
 "use client";
-// Escala de intensidade (ADR 0014, #183): seis círculos, de "muito a" (esquerda) a "muito b"
+// Escala de intensidade (ADR 0014, #183 e #190): seis círculos, da ponta "a" (esquerda) à ponta "b"
 // (direita), maiores nas pontas, sem meio e SEM nenhum marcado de início (resposta obrigatória).
-// Acessível: grupo de rádio com os seis nomes, teclado (setas, Home e End movem e marcam) e o
-// nome da opção marcada lido em voz alta. Só apresentação: a resposta sobe por `onChange`.
-import { useId, useRef } from "react";
+// Abaixo dos círculos aparece a frase da posição (marcada, ou em foco/sob o mouse): a intensidade
+// mais o texto da alternativa, e a mesma frase é o nome acessível do círculo. Acessível: grupo de
+// rádio, teclado (setas, Home e End movem e marcam) e a frase marcada lida em voz alta. Só
+// apresentação: a resposta sobe por `onChange`.
+import { useId, useRef, useState } from "react";
 import { answerValues, type Answer } from "../domain/score";
+import { intensitySentence, toDisplaySentence } from "../domain/sentence";
 
 type Props = {
   /** Pergunta do grupo para o leitor de tela (ex.: "Quanto você se identifica com a ou com b?"). */
   legend: string;
-  /** Nome de cada círculo, de "muito a" a "muito b" (vem da config, R17). */
-  options: readonly [string, string, string, string, string, string];
+  /** Intensidade de cada círculo, da ponta "a" à ponta "b" (vem da config, R17). */
+  intensities: readonly [string, string, string, string, string, string];
   /** Texto das duas alternativas, que ficam nas pontas. */
   poleA: string;
   poleB: string;
@@ -21,15 +24,19 @@ type Props = {
 /** Diâmetro de cada círculo em px: maiores nas pontas. */
 const diameterPx = [56, 44, 34, 34, 44, 56] as const;
 
-export function IntensityScale({ legend, options, poleA, poleB, value, onChange }: Readonly<Props>) {
+export function IntensityScale({ legend, intensities, poleA, poleB, value, onChange }: Readonly<Props>) {
   const legendId = useId();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const selected = value === undefined ? -1 : answerValues.indexOf(value);
+  // Os três primeiros círculos são do polo "a", os três últimos do "b".
+  const sentences = answerValues.map((_value, index) => intensitySentence(intensities[index]!, index < 3 ? poleA : poleB));
+  const shownIndex = previewIndex ?? selected;
 
   const choose = (index: number) => {
-    const next = answerValues[(index + answerValues.length) % answerValues.length]!;
-    onChange(next);
-    refs.current[(index + answerValues.length) % answerValues.length]?.focus();
+    const wrapped = (index + answerValues.length) % answerValues.length;
+    onChange(answerValues[wrapped]!);
+    refs.current[wrapped]?.focus();
   };
   const onKeyDown = (event: React.KeyboardEvent, index: number) => {
     const moves: Record<string, number> = {
@@ -49,8 +56,8 @@ export function IntensityScale({ legend, options, poleA, poleB, value, onChange 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex justify-between gap-4 text-lg font-semibold">
-        <span className="max-w-[45%] text-left">a) {poleA}</span>
-        <span className="max-w-[45%] text-right">b) {poleB}</span>
+        <span className="max-w-[45%] text-left">{toDisplaySentence(poleA)}</span>
+        <span className="max-w-[45%] text-right">{toDisplaySentence(poleB)}</span>
       </div>
       <div role="radiogroup" aria-labelledby={legendId} className="flex items-center justify-between gap-1">
         <span id={legendId} className="sr-only">
@@ -69,11 +76,15 @@ export function IntensityScale({ legend, options, poleA, poleB, value, onChange 
               type="button"
               role="radio"
               aria-checked={isChecked}
-              aria-label={options[index]}
+              aria-label={sentences[index]}
               tabIndex={isTabStop ? 0 : -1}
               data-testid={`scale-${answerValue}`}
               onClick={() => onChange(answerValue)}
               onKeyDown={(event) => onKeyDown(event, index)}
+              onMouseEnter={() => setPreviewIndex(index)}
+              onMouseLeave={() => setPreviewIndex(null)}
+              onFocus={() => setPreviewIndex(index)}
+              onBlur={() => setPreviewIndex(null)}
               className="flex min-h-14 min-w-11 items-center justify-center"
             >
               <span
@@ -86,8 +97,12 @@ export function IntensityScale({ legend, options, poleA, poleB, value, onChange 
           );
         })}
       </div>
-      <p className="min-h-7 text-center text-lg" aria-live="polite" data-testid="scale-reading">
-        {selected === -1 ? "" : options[selected]}
+      {/* A frase em foco ou sob o mouse aparece só para quem enxerga; a marcada é lida em voz alta. */}
+      <p className="min-h-14 text-center text-lg" aria-hidden="true" data-testid="scale-reading">
+        {shownIndex === -1 ? "" : sentences[shownIndex]}
+      </p>
+      <p className="sr-only" aria-live="polite" data-testid="scale-selected">
+        {selected === -1 ? "" : sentences[selected]}
       </p>
     </div>
   );

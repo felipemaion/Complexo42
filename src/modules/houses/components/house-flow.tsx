@@ -156,7 +156,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
           <IntensityScale
             key={item.id}
             legend={text.scaleLegend}
-            options={text.scaleOptions}
+            intensities={text.scaleIntensities}
             poleA={item.a.text}
             poleB={item.b.text}
             value={chosen}
