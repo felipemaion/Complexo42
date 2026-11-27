@@ -104,7 +104,25 @@ printf "insert into app.server_secrets (name, value) values ('questionnaire_sign
       exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
 ```
 
-Sem a chave no banco, ou diferente da do app, gravar o resultado do questionário falha (fechado).
+Sem a chave no banco, curta (menos de 32 caracteres) ou diferente da do app, gravar o resultado do
+questionário falha (fechado).
+
+- **Janela de relógio:** o banco recusa assinatura emitida há mais de 5 minutos (ou mais de 30
+  segundos no futuro). Mantenha os relógios do app e do banco sincronizados (NTP).
+- **Rotação da chave:** gere outra, **instale no banco e no app juntos** (o passo acima e o
+  `.env` do app, depois reinicie o app). Entre uma troca e a outra, o questionário falha fechado
+  por alguns minutos; nada é perdido (a pessoa tenta de novo).
+- **O `pg_dump` e o backup contêm a chave** (`app.server_secrets`). Vale a cifra e a retenção do
+  backup (#84); quem restaura um backup antigo restaura a chave antiga: confira se ainda é a do
+  app e, se a chave vazou, rotacione.
+- **Purga das respostas vencidas (30 dias):** além da purga que acontece a cada uso das funções
+  do pedido, agende uma chamada **diária** no cron do operador, para apagar as respostas de
+  quem nunca mais voltou:
+
+```bash
+docker compose -f docker-compose.supabase.yml --env-file <segredos> \
+  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c "select app.purge_expired_analysis()"
+```
 A versão do termo do arquivo do questionário também precisa estar em
 `app.questionnaire_term_versions`.
 

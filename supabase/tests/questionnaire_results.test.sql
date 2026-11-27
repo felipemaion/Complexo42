@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(97);
+select plan(101);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -61,10 +61,10 @@ select id, 'termo-1' from people where name in ('p1', 'p2', 'p3', 'wait');
 
 
 -- Assinatura do servidor (ADR 0014): a mesma chave do banco, num temp para o teste assinar como o app.
-insert into app.server_secrets (name, value) values ('questionnaire_signing_key', 'chave-de-teste-do-servidor')
+insert into app.server_secrets (name, value) values ('questionnaire_signing_key', 'chave-de-teste-do-servidor-com-32-ou-mais')
 on conflict (name) do update set value = excluded.value;
 create temp table signing_key (k text);
-insert into signing_key values ('chave-de-teste-do-servidor');
+insert into signing_key values ('chave-de-teste-do-servidor-com-32-ou-mais');
 grant select on signing_key to anon, authenticated;
 create function pg_temp.sig(p_message text, p_key text default null) returns text language sql stable as $$
   select encode(extensions.hmac(convert_to(p_message, 'utf8'), convert_to(coalesce(p_key, (select k from signing_key)), 'utf8'), 'sha256'), 'hex')
@@ -78,7 +78,8 @@ $$;
 create function pg_temp.analyze(p_term text, p_axes text[], p_answers jsonb) returns uuid language sql as $$
   select public.request_house_analysis(p_term, p_axes, p_answers, pg_temp.now_s(),
     pg_temp.sig(format('analysis|%s|%s|%s|%s|%s', (select auth.uid()), p_term, array_to_string(p_axes, ','), pg_temp.now_s(),
-      (select count(*) from jsonb_object_keys(p_answers)))))
+      (select encode(extensions.digest(convert_to(coalesce(string_agg(e.key || '=' || (e.value #>> '{}'), ',' order by e.key collate "C"), ''), 'utf8'), 'sha256'), 'hex')
+       from jsonb_each(p_answers) as e))))
 $$;
 
 create function pg_temp.results_seen() returns int language sql stable as $$
@@ -315,11 +316,43 @@ select throws_ok($$ select pg_temp.record('termo-1', 'casa-t2', 'AA', 600) $$, '
   'assinatura emitida há mais de 5 minutos é recusada');
 select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "a"}', pg_temp.now_s(), 'x') $$, '42501', null,
   'pedido de análise sem assinatura do servidor é recusado');
-select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "a", "q02": "a"}', pg_temp.now_s(),
-    pg_temp.sig(format('analysis|%s|termo-1|house1|%s|1', pg_temp.person('p2'), pg_temp.now_s()))) $$, '42501', null,
-  'a assinatura cobre a quantidade de respostas (não dá para trocar por um conjunto menor ou maior)');
+select throws_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q01": "b"}', pg_temp.now_s(),
+    pg_temp.sig(format('analysis|%s|termo-1|house1|%s|%s', pg_temp.person('p2'), pg_temp.now_s(),
+      encode(extensions.digest(convert_to('q01=a', 'utf8'), 'sha256'), 'hex')))) $$, '42501', null,
+  'a assinatura cobre o conteúdo das respostas (trocar uma resposta invalida)');
+select lives_ok($$ select public.request_house_analysis('termo-1', array['house1'], '{"q02": "both", "q01": "a"}', pg_temp.now_s(),
+    pg_temp.sig(format('analysis|%s|termo-1|house1|%s|%s', pg_temp.person('p2'), pg_temp.now_s(),
+      encode(extensions.digest(convert_to('q01=a,q02=both', 'utf8'), 'sha256'), 'hex')))) $$,
+  'o resumo é canônico: ordem das chaves não importa (ids ordenados)');
+reset role;
+delete from public.house_analysis_requests where profile_id = pg_temp.person('p2') and status = 'open';
+set local role authenticated;
+select pg_temp.login('p2');
 select throws_ok($$ select public.request_house_analysis('termo-1', null, '{}', pg_temp.now_s(), 'x') $$, '42501', null,
   'pedido vazio e sem assinatura é recusado');
+reset role;
+update app.server_secrets set value = '' where name = 'questionnaire_signing_key';
+set local role authenticated;
+select pg_temp.login('p2');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(),
+    pg_temp.sig(format('result|%s|termo-1|casa-t2|AA|%s', pg_temp.person('p2'), pg_temp.now_s()), '')) $$, '42501', null,
+  'chave vazia no banco: falha fechado, mesmo com assinatura feita com a chave vazia');
+reset role;
+update app.server_secrets set value = 'curta-demais-31-caracteres-xxxx' where name = 'questionnaire_signing_key';
+set local role authenticated;
+select pg_temp.login('p2');
+select throws_ok($$ select public.record_questionnaire_result('termo-1', 'casa-t2', 'AA', pg_temp.now_s(),
+    pg_temp.sig(format('result|%s|termo-1|casa-t2|AA|%s', pg_temp.person('p2'), pg_temp.now_s()), 'curta-demais-31-caracteres-xxxx')) $$, '42501', null,
+  'chave com menos de 32 caracteres: falha fechado');
+reset role;
+delete from app.server_secrets where name = 'questionnaire_signing_key';
+set local role authenticated;
+select pg_temp.login('p2');
+select throws_ok($$ select pg_temp.record('termo-1', 'casa-t2', 'AA') $$, '42501', null, 'sem chave instalada: falha fechado');
+reset role;
+insert into app.server_secrets (name, value) values ('questionnaire_signing_key', 'chave-de-teste-do-servidor-com-32-ou-mais');
+set local role authenticated;
+select pg_temp.login('p2');
 select throws_ok($$ select * from app.server_secrets $$, '42501', null, 'a chave de assinatura NÃO é lida pela API');
 
 -- ---------------------------------------------------------------------------------------

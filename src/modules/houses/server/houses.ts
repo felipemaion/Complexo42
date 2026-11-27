@@ -69,6 +69,8 @@ export type SubmitContext = {
   /** Segundos desde 1970 (injetado para o teste). */
   nowSeconds: number;
   sign(message: string): string;
+  /** Resumo SHA-256 das respostas, que a assinatura do pedido de análise cobre. */
+  answersDigest(answers: Readonly<Record<string, string>>): string;
 };
 
 /**
@@ -100,8 +102,8 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     });
     return error ? { ok: false, error: errorCode(error) } : { ok: true, outcome: "recorded", houseId: result.houseId };
   }
-  const answerCount = Object.keys(parsed.data.answers).length;
-  const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${nowSeconds}|${answerCount}`);
+  const digest = ctx.answersDigest(parsed.data.answers);
+  const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${nowSeconds}|${digest}`);
   const { error } = await client.rpc("request_house_analysis", {
     p_term_version: term,
     p_tied_axes: result.axes,

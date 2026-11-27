@@ -60,9 +60,14 @@ declare
   age_seconds bigint := extract(epoch from now())::bigint - issued_at;
 begin
   select s.value into signing_key from app.server_secrets as s where s.name = 'questionnaire_signing_key';
-  if signing_key is null or signature is null or issued_at is null
+  -- Chave ausente ou curta demais (menos de 32 caracteres) falha fechado. A comparação é entre
+  -- digests, para não depender de onde as assinaturas começam a diferir.
+  if signing_key is null or length(signing_key) < 32 or signature is null or issued_at is null
      or age_seconds not between -30 and 300
-     or signature <> encode(extensions.hmac(convert_to(payload, 'utf8'), convert_to(signing_key, 'utf8'), 'sha256'), 'hex') then
+     or extensions.digest(convert_to(signature, 'utf8'), 'sha256')
+        <> extensions.digest(convert_to(
+             encode(extensions.hmac(convert_to(payload, 'utf8'), convert_to(signing_key, 'utf8'), 'sha256'), 'hex'),
+             'utf8'), 'sha256') then
     raise exception 'resultado sem assinatura válida do servidor' using errcode = 'insufficient_privilege';
   end if;
 end;
@@ -346,14 +351,18 @@ declare
   caller uuid := app.lock_active_caller();
   request_id uuid;
   open_since timestamptz;
-  answer_count integer;
+  answers_digest text;
 begin
   if p_answers is null or jsonb_typeof(p_answers) <> 'object' then
     raise exception 'respostas inválidas' using errcode = 'invalid_parameter_value';
   end if;
-  select count(*)::integer into answer_count from jsonb_object_keys(p_answers);
+  -- A assinatura cobre o resumo (SHA-256) das respostas canonicalizadas: `id=valor`, ordenado pelo
+  -- id e separado por vírgula. O app calcula o mesmo resumo; trocar uma resposta invalida a assinatura.
+  select encode(extensions.digest(convert_to(coalesce(string_agg(e.key || '=' || (e.value #>> '{}'), ',' order by e.key collate "C"), ''), 'utf8'), 'sha256'), 'hex')
+  into answers_digest
+  from jsonb_each(p_answers) as e;
   perform app.verify_server_signature(
-    format('analysis|%s|%s|%s|%s|%s', caller, p_term_version, array_to_string(p_tied_axes, ','), p_issued_at, answer_count),
+    format('analysis|%s|%s|%s|%s|%s', caller, p_term_version, array_to_string(p_tied_axes, ','), p_issued_at, answers_digest),
     p_issued_at, p_signature);
   perform app.purge_expired_analysis();
   if p_tied_axes is null or cardinality(p_tied_axes) not between 1 and 4

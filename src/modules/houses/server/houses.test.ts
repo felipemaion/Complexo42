@@ -155,6 +155,7 @@ describe("submitQuestionnaire", () => {
     userId: "u-1",
     nowSeconds: 1000,
     sign: (message: string) => (signed.push(message), `sig(${message})`),
+    answersDigest: (answers: Readonly<Record<string, string>>) => `digest(${Object.keys(answers).length})`,
   };
   const all = (value: "a" | "b" | "both") => Object.fromEntries(items.map((i) => [i.id, value]));
 
@@ -193,7 +194,7 @@ describe("submitQuestionnaire", () => {
           p_tied_axes: ["house1", "house2", "totem1", "totem2"],
           p_answers: answers,
           p_issued_at: 1000,
-          p_signature: "sig(analysis|u-1|termo-1|house1,house2,totem1,totem2|1000|8)",
+          p_signature: "sig(analysis|u-1|termo-1|house1,house2,totem1,totem2|1000|digest(8))",
         },
       },
     ]);

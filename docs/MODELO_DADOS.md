@@ -355,7 +355,7 @@ política e sem grant: só funções `security definer` leem.
   chamar a API direto, sem a chave, não impõe resultado.
 - **`request_house_analysis(termo, eixos, respostas, emitido_em, assinatura)`:** a pessoa da
   sessão abre (ou renova) o pedido do resultado inconclusivo e apaga o resultado anterior; também
-  só com a assinatura (que cobre os eixos e a quantidade de respostas). Valida os eixos, o formato
+  só com a assinatura (que cobre os eixos e o resumo SHA-256 das respostas). Valida os eixos, o formato
   das respostas e o tamanho (erro 54000). Renovar um pedido aberto antes de 1 hora é recusado
   (54000). Gera `house_analysis_requested`.
 - **`resolve_house_analysis(pedido, casa, totem)`:** só a coordenação nacional, nunca sobre o

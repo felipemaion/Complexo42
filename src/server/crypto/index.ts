@@ -5,7 +5,7 @@ import { decryptWith, emailBlindIndexWith, encryptWith, reencryptWith, whatsappB
 import { getEnv } from "../env";
 import { FieldCryptoError } from "./errors";
 import { getKeyring } from "./keys";
-import { signMessage } from "./result-signature";
+import { answersDigest, signMessage } from "./result-signature";
 
 export { FieldCryptoError, type FieldCryptoErrorCode } from "./errors";
 export { keyVersionOf, normalizeE164, normalizeEmail, type FieldContext } from "./field";
@@ -41,3 +41,5 @@ export function signQuestionnaireMessage(message: string): string {
   if (!key) throw new FieldCryptoError("missing_key");
   return signMessage(key, message);
 }
+
+export { answersDigest };

@@ -1,6 +1,6 @@
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { signMessage } from "./result-signature";
+import { answersDigest, signMessage } from "./result-signature";
 
 describe("signMessage", () => {
   it("é o HMAC-SHA256 em hex da mensagem (o banco confere o mesmo valor)", () => {
@@ -14,5 +14,19 @@ describe("signMessage", () => {
     expect(signMessage("k2", "result|u|termo|casa|AB|1")).not.toBe(base);
     expect(signMessage("k1", "result|u|termo|casa|BA|1")).not.toBe(base);
     expect(signMessage("k1", "result|v|termo|casa|AB|1")).not.toBe(base);
+  });
+});
+
+describe("answersDigest", () => {
+  it("é o SHA-256 das respostas `id=valor` ordenadas pelo id, qualquer que seja a ordem de entrada", () => {
+    const expected = createHash("sha256").update("a1=a,b2=both,c3=b", "utf8").digest("hex");
+    expect(answersDigest({ c3: "b", a1: "a", b2: "both" })).toBe(expected);
+    expect(answersDigest({ a1: "a", b2: "both", c3: "b" })).toBe(expected);
+  });
+
+  it("muda se uma resposta ou um id muda", () => {
+    const base = answersDigest({ a1: "a", b2: "b" });
+    expect(answersDigest({ a1: "a", b2: "both" })).not.toBe(base);
+    expect(answersDigest({ a1: "a", b3: "b" })).not.toBe(base);
   });
 });

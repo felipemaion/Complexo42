@@ -46,7 +46,7 @@ ordem 1..n) e, em todo item, "a" marca o polo "a" do eixo e "b" marca o polo "b"
   em vez dela, assina cada resultado com HMAC-SHA256 (`QUESTIONNAIRE_SIGNING_KEY`, a mesma chave
   em `app.server_secrets`, sem acesso pela API). A assinatura cobre a pessoa da sessão
   (`auth.uid()`, nunca um parâmetro), a versão do termo, a casa e o totem (ou, no pedido de
-  análise, os eixos e a quantidade de respostas) e vale 5 minutos. O navegador, mesmo chamando
+  análise, os eixos e o resumo SHA-256 das respostas) e vale 5 minutos. O navegador, mesmo chamando
   a API direto com o próprio login, não consegue impor casa nem totem nem abrir pedido.
 - As respostas **passam pelo servidor** em todo envio (para a pontuação), mas só são **guardadas**
   no pedido de análise. Não vão para o log (R11).

@@ -4,7 +4,7 @@
 // análise do resultado inconclusivo (ADR 0014). O cliente
 // do Supabase é o da sessão, com o JWT de quem está logado (R14).
 import { instance } from "@config/instance";
-import { signQuestionnaireMessage } from "@/server/crypto";
+import { answersDigest, signQuestionnaireMessage } from "@/server/crypto";
 import { requireUser, requireUserClient } from "@/server/auth/session";
 import { log } from "@/server/log";
 import type { HouseActionResult, SubmitAnswersResult } from "../types";
@@ -51,6 +51,7 @@ export async function submitAnswersAction(input: unknown): Promise<SubmitAnswers
       userId: user.id,
       nowSeconds: Math.floor(Date.now() / 1000),
       sign: signQuestionnaireMessage,
+      answersDigest,
     });
   } catch {
     // Sem chave de assinatura (ou erro inesperado): falha fechado, sem detalhe nem respostas no log.
