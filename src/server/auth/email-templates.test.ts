@@ -25,7 +25,7 @@ describe("templates de e-mail do login (GoTrue)", () => {
   it("são HTML de e-mail simples: sem JavaScript, sem recurso externo, sem marca de terceiros", () => {
     for (const kind of emailTemplateKinds) {
       const html = renderEmailTemplate(kind, instance);
-      expect(html, kind).not.toMatch(/<script|javascript:|on[a-z]+=|<iframe|<link|<img|@import|url\(/i);
+      expect(html, kind).not.toMatch(/<script|javascript:|\\son[a-z]+=|<iframe|<link|<img|@import|url\(/i);
       expect(html, kind).not.toMatch(/https?:\/\//i);
       expect(html, kind).not.toMatch(/supabase|gotrue|google|cloudflare/i);
     }

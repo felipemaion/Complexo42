@@ -198,6 +198,22 @@ apontando para o app, o middleware redireciona para o login levando o token na
 query string, e o login nunca acontece. É uma falha que nenhum teste pega — só
 aparece com o GoTrue de verdade montando o e-mail —, então o CI trava a linha.
 
+### E-mails em português (templates do GoTrue)
+
+O e-mail de login sai em português porque o GoTrue busca cada template **no app**, pela rede interna
+(`${APP_INTERNAL_URL}`, padrão `http://app:3000`, o alias do app na rede `interna`), nas rotas públicas e
+estáticas `/emails/<nome>` (`magic-link`, `confirmation`, `recovery`, `invite`, `email-change`; sem sessão, sem
+dado pessoal). O compose define os cinco `GOTRUE_MAILER_TEMPLATES_*` e os cinco `GOTRUE_MAILER_SUBJECTS_*` (os
+assuntos são os de `config/instance.ts`). O texto e o nome do app vêm da config da instância.
+
+**Falha silenciosa:** se a URL de um template não responde (app fora do ar, alias errado, rota que passou a
+exigir sessão), o GoTrue **cai no template padrão em inglês** e o login continua funcionando: ninguém percebe. Três
+travas: (1) o teste `tests/gotrue-email-templates.test.ts` e o passo de CI "define templates e assuntos" exigem as
+dez chaves, ancoradas; (2) o teste da rota confere o 200 e o conteúdo; (3) **no teste de fumaça do login, compare
+o ASSUNTO do e-mail recebido com o configurado** (por exemplo "Seu link de entrada" para o link de entrada): assunto
+em inglês (ou o padrão do GoTrue) significa que o template não foi buscado. Depois de mudar o compose, recrie só o
+`auth`; mudar o texto de um template só exige redeploy do app (o GoTrue busca de novo, com cache curto).
+
 ## O que está exposto
 
 Só `/auth/v1/*`, publicado pelo proxy reverso. `/rest/v1` responde 404 de

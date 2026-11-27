@@ -259,3 +259,26 @@ jobs:
             exit 1
           fi
           echo "ok: $linha"
+
+      # O GoTrue CAI EM SILENCIO no template padrao (em ingles) quando a URL do
+      # template nao responde, ou quando a variavel some: o login continua
+      # funcionando e ninguem percebe. Esta trava exige as 10 chaves (templates e
+      # assuntos), ancoradas no comeco da linha para nao contar comentario. Quem
+      # confere que a rota responde e que o assunto e o da config sao os testes
+      # (tests/gotrue-email-templates.test.ts) e o smoke da OPERACAO.md.
+      - name: O compose do Supabase define templates e assuntos de e-mail do GoTrue
+        run: |
+          falta=0
+          for chave in MAGIC_LINK CONFIRMATION RECOVERY INVITE EMAIL_CHANGE; do
+            for grupo in TEMPLATES SUBJECTS; do
+              if ! grep -qE "^[[:space:]]*GOTRUE_MAILER_${grupo}_${chave}:[[:space:]]*[^[:space:]#]" deploy/docker-compose.supabase.yml; then
+                echo "ERRO: falta GOTRUE_MAILER_${grupo}_${chave} no compose do Supabase"
+                falta=1
+              fi
+            done
+          done
+          if [ "$falta" -ne 0 ]; then
+            echo "Sem elas o GoTrue manda o e-mail em ingles, em silencio."
+            exit 1
+          fi
+          echo "ok: 5 templates e 5 assuntos de e-mail definidos"
