@@ -215,15 +215,20 @@ export async function hasOwnProfile(client: ProfileDbClient, userId: string): Pr
   return data !== null;
 }
 
+/** Teto de linhas por consulta da API (PostgREST); explícito para o corte nunca ser silencioso. */
+const referenceListMaxRows = 1000;
 const stateCodeSchema = z.string().regex(/^[A-Z]{2}$/);
 const codeNameRows = z.array(z.object({ code: z.number().int(), name: z.string() }));
 
 /**
  * Municípios de uma UF para a lista de escolha, em ordem alfabética. Por UF e não todos: o maior
- * (MG) tem 853, e a API devolve no máximo 1000 linhas por consulta.
+ * (MG) tem 853, abaixo do teto de 1000 linhas (um teste confere nos dados).
  */
 export async function listMunicipalitiesByState(client: ProfileDbClient, stateCode: string): Promise<MunicipalityOption[]> {
-  const { data, error } = await client.from("municipalities").select("code, name").eq("state_code", stateCodeSchema.parse(stateCode));
+  const { data, error } = await client.from("municipalities").select("code, name")
+    .eq("state_code", stateCodeSchema.parse(stateCode))
+    .order("name")
+    .limit(referenceListMaxRows);
   if (error) throw new Error(`municipalities_read_failed:${errorCode(error)}`);
   return codeNameRows.parse(data).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }
@@ -233,7 +238,9 @@ export async function listDistricts(client: ProfileDbClient, municipalityCode: n
   const { data, error } = await client
     .from("districts")
     .select("code, name")
-    .eq("municipality_code", z.number().int().min(1_000_000).max(9_999_999).parse(municipalityCode));
+    .eq("municipality_code", z.number().int().min(1_000_000).max(9_999_999).parse(municipalityCode))
+    .order("name")
+    .limit(referenceListMaxRows);
   if (error) throw new Error(`districts_read_failed:${errorCode(error)}`);
   return codeNameRows.parse(data).sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }

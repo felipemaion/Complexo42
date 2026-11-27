@@ -72,6 +72,18 @@ describe("SQL gerado", () => {
 });
 
 describe("migrations de localidades no repositório", () => {
+  const guardOf = (sql: string) => /-- guard:start\n([\s\S]*?)-- guard:end/.exec(sql)?.[1]?.trim();
+
+  it("a migration do perfil aborta, antes de apagar a coluna, se um nome de distrito não virou código", () => {
+    const sql = migration("20261127100200_profile_district_code.sql");
+    expect(sql.indexOf("-- guard:start")).toBeGreaterThan(-1);
+    expect(sql.indexOf("-- guard:end")).toBeLessThan(sql.indexOf("drop column district"));
+    expect(guardOf(sql)).toContain("raise exception");
+    // O pgTAP (supabase/tests/district_migration.test.sql) executa este mesmo bloco: tem de ser igual.
+    const pgTap = readFileSync(new URL("../supabase/tests/district_migration.test.sql", import.meta.url), "utf8");
+    expect(guardOf(pgTap)).toBe(guardOf(sql));
+  });
+
   const municipalitiesSql = migration(municipalitiesMigrationName);
   const districtsSql = migration(districtsMigrationName);
 
@@ -83,6 +95,17 @@ describe("migrations de localidades no repositório", () => {
   it("o município e a capital paulista que o perfil usa estão lá, com os 96 distritos", () => {
     expect(municipalitiesSql).toContain("(3550308, 'São Paulo', 'SP')");
     expect(districtsSql.match(/\(3550308\d\d, 3550308, '/g)).toHaveLength(96);
+  });
+
+  it("nenhuma UF passa de 1000 municípios nem município de 1000 distritos (teto de linhas da API)", () => {
+    const perState = new Map<string, number>();
+    for (const [, state] of municipalitiesSql.matchAll(/, '([A-Z]{2})'\)/g)) perState.set(state!, (perState.get(state!) ?? 0) + 1);
+    const perMunicipality = new Map<string, number>();
+    for (const [, municipality] of districtsSql.matchAll(/\(\d{9}, (\d{7}), '/g)) {
+      perMunicipality.set(municipality!, (perMunicipality.get(municipality!) ?? 0) + 1);
+    }
+    expect(Math.max(...perState.values())).toBeLessThan(1000);
+    expect(Math.max(...perMunicipality.values())).toBeLessThan(1000);
   });
 
   it("toda UF dos municípios está na lista do formulário, e vice-versa", () => {

@@ -6,6 +6,10 @@
 -- não é conferido (match simple). Os nomes já gravados (só havia distritos da capital paulista,
 -- município 3550308) são convertidos pelo nome, dentro do município.
 --
+-- Janela de deploy: entre esta migration e a troca do app, salvar e ler perfil falham por
+-- segundos (o app antigo ainda usa `district`). Aceito: ainda não há app em produção
+-- (docs/OPERACAO.md, "Mudança de coluna").
+--
 -- `save_own_profile` troca o parâmetro de nome por código, e `export_own_data` passa a mostrar
 -- código e nome do distrito.
 
@@ -22,6 +26,19 @@ alter table public.profiles
   add constraint profiles_district_in_municipality
   foreign key (municipality_code, district_code)
   references public.districts (municipality_code, code);
+
+-- Falha fechado: nome de distrito que não virou código (nome que não existe no município)
+-- aborta a migration em vez de ser apagado junto com a coluna. A transação desfaz tudo.
+-- guard:start
+do $$
+begin
+  if exists (select 1 from public.profiles where district is not null and district_code is null) then
+    raise exception 'district_migration_incomplete: perfil com distrito sem código; corrija antes de migrar'
+      using errcode = 'data_exception';
+  end if;
+end
+$$;
+-- guard:end
 
 -- Leva junto a CHECK `profiles_district_format`. A coluna nova não ganha grant: a escrita do
 -- perfil pela API é só por `save_own_profile` (#12).

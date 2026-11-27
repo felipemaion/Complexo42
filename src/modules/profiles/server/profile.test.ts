@@ -38,6 +38,7 @@ function fakeClient(
   opts: { rpcData?: unknown; rpcError?: unknown; row?: unknown; rows?: unknown; readError?: unknown } = {},
 ) {
   const calls: Call[] = [];
+  const orders: { column: string; limit: number }[] = [];
   const reads: { table: string; columns: string; eq?: [string, string | number] }[] = [];
   const client = {
     rpc: async (fn: string, args: Record<string, unknown>) => {
@@ -51,15 +52,21 @@ function fakeClient(
         // `.eq(...)` pode terminar a consulta (listas) ou seguir para `.maybeSingle()` (uma linha).
         eq: (column: string, value: string | number) => {
           reads.push({ table, columns, eq: [column, value] });
-          const rowsResult = Promise.resolve({ data: opts.rows ?? [], error: opts.readError ?? null });
-          return Object.assign(rowsResult, {
+          const result = { data: opts.rows ?? [], error: opts.readError ?? null };
+          return {
             maybeSingle: async () => ({ data: opts.row ?? null, error: opts.readError ?? null }),
-          });
+            order: (orderColumn: string) => ({
+              limit: async (max: number) => {
+                orders.push({ column: orderColumn, limit: max });
+                return result;
+              },
+            }),
+          };
         },
       }),
     }),
   };
-  return { client: client as unknown as ProfileDbClient, calls, reads };
+  return { client: client as unknown as ProfileDbClient, calls, reads, orders };
 }
 
 const leaks = (text: string) => [NAME, "98765", "4321", PHONE].filter((secret) => text.includes(secret));
@@ -398,9 +405,10 @@ describe("hasOwnProfile e listMunicipalities", () => {
       { code: 3503901, name: "Arujá" },
       { code: 3515004, name: "Embu das Artes" },
     ];
-    const { client, reads } = fakeClient({ rows });
+    const { client, reads, orders } = fakeClient({ rows });
     expect((await listMunicipalitiesByState(client, "SP")).map((m) => m.name)).toEqual(["Arujá", "Embu das Artes", "São Paulo"]);
     expect(reads[0]).toMatchObject({ table: "municipalities", eq: ["state_code", "SP"] });
+    expect(orders).toEqual([{ column: "name", limit: 1000 }]);
   });
 
   it("recusa UF fora do formato antes de consultar o banco", async () => {
@@ -423,9 +431,10 @@ describe("listDistricts", () => {
       { code: 355030801, name: "Água Rasa" },
       { code: 355030802, name: "Alto de Pinheiros" },
     ];
-    const { client, reads } = fakeClient({ rows });
+    const { client, reads, orders } = fakeClient({ rows });
     expect((await listDistricts(client, SP)).map((d) => d.name)).toEqual(["Água Rasa", "Alto de Pinheiros", "Vila Mariana"]);
     expect(reads[0]).toMatchObject({ table: "districts", eq: ["municipality_code", SP] });
+    expect(orders).toEqual([{ column: "name", limit: 1000 }]);
   });
 
   it("recusa código de município fora do formato", async () => {

@@ -15,6 +15,7 @@ export const districtsMigrationName = "20261127100100_districts.sql";
 
 const nameMaxChars = 80; // mesmo teto dos CHECKs de `municipalities.name` e `districts.name`
 const sqlLineMaxChars = 100;
+const fetchTimeoutMs = 60_000; // a API do IBGE sem resposta não pode travar o script
 
 function fail(message) {
   throw new Error(`localidades: ${message}`);
@@ -139,7 +140,7 @@ ${wrapTuples(tuples)};
 }
 
 async function fetchJson(path) {
-  const response = await fetch(`${ibgeApiBase}/${path}`, { headers: { accept: "application/json" } });
+  const response = await fetch(`${ibgeApiBase}/${path}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(fetchTimeoutMs) });
   if (!response.ok) fail(`a API do IBGE respondeu ${response.status} em /${path}`);
   return response.json();
 }
