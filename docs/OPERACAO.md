@@ -528,11 +528,26 @@ todo o resto: tudo o que ele executa ou interpreta é conferido antes.
 
 ### As três entradas, e por que cada uma é tratada assim
 
-**A tag** chega por **argumento**, não por `SSH_ORIGINAL_COMMAND` — essa
-variável não sobrevive ao `sudo` (`env_reset`). É validada com `[[ =~ ]]` e
-**não** com `grep`: o `grep` casa por **linha**, então `sha-abc\nrm -rf /`
-passaria por um `^...$` olhando só a primeira linha. Isso foi medido, não
-suposto. Aceita `sha-<hex>`, `vAAAA.MM.DD[.n]` e `main`.
+**A referência da imagem** chega por **argumento**, não por
+`SSH_ORIGINAL_COMMAND` — essa variável não sobrevive ao `sudo` (`env_reset`).
+É validada com `[[ =~ ]]` e **não** com `grep`: o `grep` casa por **linha**,
+então `sha-abc\nrm -rf /` passaria por um `^...$` olhando só a primeira linha.
+Isso foi medido, não suposto.
+
+**No caminho normal, só digest** (`sha256:<64 hex>`). Tag é ponteiro: aceitá-la
+aqui esvaziaria a #161, porque o destino não imporia nada. O `deploy.yml`
+resolve tag→digest **no runner** (`buildx imagetools inspect`) antes de
+chamar o servidor, inclusive no `workflow_dispatch` manual.
+
+**Break-glass:** `emergencia:<tag>` implanta por tag, e o log registra
+`modo=emergencia`. Existe para o registro estar indisponível para resolver
+digest, ou para alguém precisar voltar à mão com o Actions fora do ar. Um
+token só, porque o forced-command entrega um argumento só.
+
+> `main` não é aceita em lugar nenhum — nem pelo workflow, nem pelo script,
+> nem como `emergencia:main`. É um ponteiro móvel, e implantar ponteiro móvel
+> é exatamente o que esta issue fecha. Exceção que não deixa rastro vira regra
+> sem ninguém decidir; por isso o `modo=` no log.
 
 > O forced-command restringe o **comando**, não o argumento.
 
@@ -591,16 +606,32 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 
 ### As quatro etapas, e por que nesta ordem
 
-1. `pull` da tag;
+1. `pull` da imagem;
 2. **migrations** — falhou, aborta e o app **não** é trocado;
 3. `up -d`;
-4. **smoke** em `/api/healthz`; falhou, volta para a tag anterior.
+4. **smoke** em `/api/healthz`; falhou, volta para a imagem anterior.
 
-A tag anterior vem do **ID** do container no ar (`compose ps -q`), não de um
-nome montado à mão nem de arquivo de estado: o sufixo `-app-1` é convenção do
-Compose, e arquivo mente quando alguém mexe à mão. Imagem presa por **digest**
-não tem tag para onde voltar, e `main` é **móvel** — nos dois casos o script
-diz que não há rollback possível em vez de fingir que fez.
+A imagem anterior vem do **`RepoDigests`** do container no ar, não do
+`.Config.Image`: aquele é o **nome** com que o container subiu (pode ser uma
+tag, que já se moveu), este é o **digest** que o Docker realmente tem. Sem
+`RepoDigests` — imagem só local, nunca vinda de registro — o deploy segue
+**sem rollback**, em vez de voltar para algo que não sabemos o que é.
+
+O destino do rollback é a única coisa que o script escolhe sozinho, sem
+ninguém revisar no momento. Por isso a checagem ali é a mais estreita do
+script: aceita **só um digest do nosso próprio repositório**, com regex
+ancorada. Recusa `:latest`, `:main`, tag qualquer, `repo` sem nada, digest
+truncado, e digest de outro registro ou de `host:porta/outro`.
+
+**O compose usa `image: ${APP_IMAGEM}`**, a referência completa — antes era
+`ghcr.io/...:${APP_TAG}`, que não comporta digest, porque `@sha256:...` não
+entra depois de um `:`.
+
+> ⚠️ **Ordem obrigatória para a produção** (cópia do compose fora deste
+> repositório, ADR 0009 §3): **trocar o `image:` para `${APP_IMAGEM}` ANTES**
+> de atualizar o `deploy.sh`. Na ordem inversa, o compose antigo espera
+> `APP_TAG`, o script novo manda `APP_IMAGEM`, e o `up` falha com
+> "obrigatorio" — no meio de um deploy.
 
 > **Migrations são expand/contract.** O rollback troca só o **app**; o banco
 > continua no schema novo. Uma migration que remove ou renomeia coluna torna o
@@ -658,8 +689,8 @@ trava aqui e o erro aparece no passo 2, antes de o app ser trocado.
 - `ALTER TYPE ... ADD VALUE` não pode ser usado na **mesma** transação que o
   criou; separe em duas migrations.
 
-Variáveis: `APP_TAG` (vem do `deploy.sh`), `IMAGEM`, `DB_CONTAINER` e,
-opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
+Variáveis: `APP_IMAGEM` (a referência completa, vem do `deploy.sh`),
+`DB_CONTAINER` e, opcionais, `DB_USER` (padrão `supabase_admin`) e `DB_NOME`.
 
 Testes: `deploy/migra.test.sh` (25 asserções, dublê de `docker`) e
 `deploy/migra-integracao.test.sh` (12 asserções contra um Postgres de
@@ -679,10 +710,12 @@ vira escrita como root. Sai com 3 se outro deploy está em andamento.
 
 ### Registro
 
-Uma linha por execução em `data/logs/deploy.log`: data, tag, resultado
-(`ok`, `pull_falhou`, `migrations_falharam`, `rollback_ok=<tag>`,
-`rollback_falhou=<tag>`, `smoke_falhou_sem_rollback`, `up_falhou_sem_rollback`)
-e duração. O script recusa escrever se o log for link simbólico.
+Uma linha por execução em `data/logs/deploy.log`: data, **imagem**
+(referência completa — com digest a linha fica mais longa, e é o digest que
+identifica o que subiu), **modo** (`normal` ou `emergencia`), resultado
+(`ok`, `pull_falhou`,
+`migrations_falharam`, `rollback_ok=<imagem>`, `rollback_falhou=<imagem>`,
+`smoke_falhou_sem_rollback`, `up_falhou_sem_rollback`) e duração. O script recusa escrever se o log for link simbólico.
 
 ### Teste
 
@@ -699,6 +732,11 @@ Preferi `workflow_call` a `workflow_run`: ali os valores chegam explícitos em
 vez de serem garimpados do payload do evento. Escolher o ambiente errado por
 uma leitura equivocada do payload é o tipo de erro que só aparece quando algo
 vai para produção sem querer.
+
+O `build.yml` confere as migrations e move a tag `main` **pelo digest**, não
+pela tag — entre publicar e conferir, uma tag pode ter sido movida, e o que
+se confere tem de ser o que sobe. O `deploy.yml` manda **sempre um digest**
+pelo SSH: no `workflow_dispatch` manual, resolve a tag digitada no runner.
 
 | Evento | Tags publicadas | Ambiente |
 |---|---|---|
