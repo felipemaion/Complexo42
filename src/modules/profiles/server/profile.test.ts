@@ -120,6 +120,39 @@ describe("saveOwnProfile", () => {
     expect(calls[1]!.args.p_neighborhood_enc).toBeNull();
   });
 
+  describe("bairro guardado (#179): envio sem o campo não o apaga", () => {
+    const withoutNeighborhood = { ...form, neighborhood: undefined };
+    const storedBairro = "v1.AAAAAAAAAAAAAAAA.BBBBBBBBBBBBBBBBBBBBBB";
+
+    it("formulário antigo ou valor que não abriu: repassa o cifrado guardado, sem abrir nem recifrar", async () => {
+      const { client, calls, reads } = fakeClient({ row: { neighborhood_enc: storedBairro, social_links_enc: null } });
+      const { deps: d } = deps();
+      const encrypt = vi.spyOn(d, "encrypt");
+      expect(await saveOwnProfile(client, USER, withoutNeighborhood, d)).toEqual({ status: "saved" });
+      expect(calls[0]!.args.p_neighborhood_enc).toBe(storedBairro);
+      expect(reads.some((read) => read.table === "profiles" && read.columns === "neighborhood_enc")).toBe(true);
+      expect(encrypt.mock.calls.map(([, ctx]) => ctx.column)).not.toContain("neighborhood_enc");
+    });
+
+    it("sem bairro guardado, vai nulo", async () => {
+      const { client, calls } = fakeClient({ row: { neighborhood_enc: null, social_links_enc: null } });
+      await saveOwnProfile(client, USER, withoutNeighborhood, deps().deps);
+      expect(calls[0]!.args.p_neighborhood_enc).toBeNull();
+    });
+
+    it("com o campo enviado vazio, o bairro é apagado de propósito", async () => {
+      const { client, calls } = fakeClient({ row: { neighborhood_enc: storedBairro, social_links_enc: null } });
+      await saveOwnProfile(client, USER, { ...form, neighborhood: "" }, deps().deps);
+      expect(calls[0]!.args.p_neighborhood_enc).toBeNull();
+    });
+
+    it("erro ao ler o guardado: falha, sem chamar o banco de escrita", async () => {
+      const { client, calls } = fakeClient({ readError: { code: "42501" } });
+      expect(await saveOwnProfile(client, USER, withoutNeighborhood, deps().deps)).toEqual({ status: "failed" });
+      expect(calls).toEqual([]);
+    });
+  });
+
   it("entrada inválida: não cifra nem chama o banco, e devolve só os nomes dos campos", async () => {
     const { client, calls } = fakeClient();
     const { deps: d, lines } = deps();
@@ -242,10 +275,30 @@ describe("loadOwnProfile", () => {
       stateCode: "SP",
       districtCode: SE_DISTRICT,
       neighborhood: NEIGHBORHOOD,
+      neighborhoodUnreadable: false,
       socialLinks: [],
       socialLinksUnreadable: false,
     });
     expect(reads[0]).toMatchObject({ table: "profiles", eq: ["id", USER] });
+  });
+
+  it("bairro que não decifra: campo vazio, neighborhoodUnreadable, log sem o valor", async () => {
+    const { deps: d, lines } = deps();
+    const copied = await d.encrypt(NEIGHBORHOOD, { table: "profiles", column: "neighborhood_enc", rowId: "outra" });
+    const row = {
+      display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
+      municipality_code: SP,
+      state_code: "SP",
+      district_code: null,
+      neighborhood_enc: copied,
+      profile_contacts: null,
+    };
+    expect(await loadOwnProfile(fakeClient({ row }).client, USER, d)).toMatchObject({
+      neighborhood: "",
+      neighborhoodUnreadable: true,
+    });
+    expect(lines.filter((line) => line.includes("neighborhood_enc"))).toHaveLength(1);
+    expect(lines.join("")).not.toContain(copied);
   });
 
   it("sem perfil devolve null; valor que não decifra vira campo vazio, sem logar o valor", async () => {
@@ -260,6 +313,7 @@ describe("loadOwnProfile", () => {
       stateCode: "SP",
       districtCode: null,
       neighborhood: "",
+      neighborhoodUnreadable: false,
       socialLinks: [],
       socialLinksUnreadable: false,
     });

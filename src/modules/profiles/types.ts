@@ -67,8 +67,10 @@ export type OwnProfile = {
   /** UF do município, derivada pelo banco. */
   stateCode: string;
   districtCode: number | null;
-  /** Bairro decifrado, ou "" se não informou (ou não abriu). */
+  /** Bairro decifrado, ou "" se não informou ou não abriu (ver `neighborhoodUnreadable`). */
   neighborhood: string;
+  /** O bairro guardado existe mas não abriu: o formulário não o envia e o servidor o mantém. */
+  neighborhoodUnreadable: boolean;
   /** Links de rede (#17), já normalizados (só os que abriram e passam na regra). */
   socialLinks: string[];
   /**

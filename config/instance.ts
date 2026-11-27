@@ -81,6 +81,9 @@ export const instance = parseInstanceConfig({
     districtNone: "Não sei ou prefiro não dizer",
     neighborhoodLabel: "Seu bairro (se quiser)",
     neighborhoodHint: "Só o nome do bairro. Não informe rua nem número. Pode deixar em branco.",
+    neighborhoodUnreadable:
+      "Não conseguimos abrir o seu bairro agora. Ele continua guardado: salvar os outros dados não o apaga.",
+    replaceNeighborhood: "Trocar o bairro guardado",
     socialLinksLabel: "Suas redes sociais (se quiser)",
     socialLinksHint: "Até 5 links, como instagram.com/seunome. Pode deixar em branco.",
     socialLinkLabel: "Link",

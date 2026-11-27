@@ -113,6 +113,9 @@ export const instanceConfigSchema = z.strictObject({
     /** Bairro (#179): texto livre, opcional. */
     neighborhoodLabel: text,
     neighborhoodHint: text,
+    /** Bairro guardado que não abriu: aviso de que continua guardado e o botão para trocá-lo. */
+    neighborhoodUnreadable: text,
+    replaceNeighborhood: text,
     /** Redes sociais (#17): grupo do formulário, cada caixa ("Link 1"...) e os botões. */
     socialLinksLabel: text,
     socialLinksHint: text,

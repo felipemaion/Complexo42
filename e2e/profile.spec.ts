@@ -127,6 +127,15 @@ test.describe("formulário com o Supabase local", () => {
     await district.selectOption({ label: "Sé" });
     // Bairro: texto livre opcional; rua e número são recusados, o nome do bairro passa.
     await expect(neighborhood).toBeEnabled();
+    // Trocar de cidade ou de estado zera o bairro (e o distrito).
+    await neighborhood.fill("Vila Antiga");
+    await city.selectOption({ label: "Guarulhos" });
+    await expect(neighborhood).toHaveValue("");
+    await neighborhood.fill("Vila Antiga");
+    await state.selectOption({ label: "Minas Gerais" });
+    await expect(neighborhood).toHaveValue("");
+    await chooseCity(page, "São Paulo");
+    await district.selectOption({ label: "Sé" });
     await neighborhood.fill("Rua A, 12");
     await save.click();
     await expect(neighborhood).toHaveAttribute("aria-invalid", "true");

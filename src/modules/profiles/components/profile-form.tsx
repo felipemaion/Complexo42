@@ -2,7 +2,7 @@
 
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import type { StateOption } from "@config/states";
-import { socialLinksSentField, type ProfileFormField } from "../domain/form";
+import { neighborhoodSentField, socialLinksSentField, type ProfileFormField } from "../domain/form";
 import { profileLimits } from "../domain/schema";
 import { formatBrazilianWhatsapp, whatsappInputMaxLength } from "../domain/whatsapp";
 import type { DistrictOption, MunicipalityOption, ProfileFormState, ProfileFormValues } from "../types";
@@ -15,6 +15,9 @@ import { LocationFields, type LocationText } from "./location-fields";
 export type ProfileFormText = LocationText & {
   neighborhoodLabel: string;
   neighborhoodHint: string;
+  /** Bairro guardado que não abriu: aviso de que continua guardado, e o botão para trocá-lo. */
+  neighborhoodUnreadable: string;
+  replaceNeighborhood: string;
   intro: string;
   nameLabel: string;
   nameHint: string;
@@ -54,6 +57,8 @@ type Props = {
    * servidor manter o valor cifrado, até a pessoa tocar em "trocar".
    */
   socialLinksUnreadable?: boolean;
+  /** O bairro guardado não abriu: sem a caixa nem o campo escondido, até a pessoa tocar em "trocar". */
+  neighborhoodUnreadable?: boolean;
   text: ProfileFormText;
 };
 
@@ -81,6 +86,7 @@ export function ProfileForm({
   loadMunicipalities,
   loadDistricts,
   socialLinksUnreadable = false,
+  neighborhoodUnreadable = false,
   text,
 }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" } as ProfileFormState);
@@ -89,6 +95,7 @@ export function ProfileForm({
   const addLinkRef = useRef<HTMLButtonElement>(null);
   // Para onde vai o foco depois de pôr ou tirar um link: a caixa nova, ou o botão de acrescentar.
   const [editingLinks, setEditingLinks] = useState(!socialLinksUnreadable);
+  const [editingNeighborhood, setEditingNeighborhood] = useState(!neighborhoodUnreadable);
   const [linkFocus, setLinkFocus] = useState<{ target: number | "add" } | null>(null);
 
   // Depois de cada resposta com erro: volta o que a pessoa digitou e leva o foco para o resumo.
@@ -226,7 +233,11 @@ export function ProfileForm({
 
       <LocationFields
         values={values}
-        onChange={(patch) => setValues((current) => ({ ...current, ...patch }))}
+        onChange={(patch) => {
+          setValues((current) => ({ ...current, ...patch }));
+          // Trocar de lugar zera o bairro, inclusive o guardado que não abriu: a caixa volta, vazia.
+          if (patch.neighborhood !== undefined) setEditingNeighborhood(true);
+        }}
         states={states}
         initialMunicipalities={initialMunicipalities}
         initialDistricts={initialDistricts}
@@ -247,19 +258,36 @@ export function ProfileForm({
         <p id={`${fieldId.neighborhood}-dica`} className="text-base">
           {text.neighborhoodHint}
         </p>
-        <input
-          id={fieldId.neighborhood}
-          name="neighborhood"
-          type="text"
-          autoComplete="off"
-          maxLength={profileLimits.neighborhoodMax}
-          disabled={values.municipalityCode === ""}
-          value={values.neighborhood}
-          onChange={set("neighborhood")}
-          aria-invalid={invalid.has("neighborhood")}
-          aria-describedby={describedBy("neighborhood", true)}
-          className={inputClass}
-        />
+        {!editingNeighborhood && (
+          <>
+            <p role="status" className="rounded-xl border-2 border-current p-4 text-lg">
+              {text.neighborhoodUnreadable}
+            </p>
+            <button
+              type="button"
+              onClick={() => setEditingNeighborhood(true)}
+              className={buttonClass}
+            >
+              {text.replaceNeighborhood}
+            </button>
+          </>
+        )}
+        {editingNeighborhood && <input type="hidden" name={neighborhoodSentField} value="1" />}
+        {editingNeighborhood && (
+          <input
+            id={fieldId.neighborhood}
+            name="neighborhood"
+            type="text"
+            autoComplete="off"
+            maxLength={profileLimits.neighborhoodMax}
+            disabled={values.municipalityCode === ""}
+            value={values.neighborhood}
+            onChange={set("neighborhood")}
+            aria-invalid={invalid.has("neighborhood")}
+            aria-describedby={describedBy("neighborhood", true)}
+            className={inputClass}
+          />
+        )}
         {errorText("neighborhood")}
       </div>
 

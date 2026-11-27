@@ -10,6 +10,7 @@ vi.mock("@/modules/profiles", () => ({
   saveOwnProfile: (...args: unknown[]) => saveOwnProfile(...args),
   socialLinkFormEntriesMax: 20,
   socialLinkInputMaxLength: 2048,
+  neighborhoodSentField: "neighborhoodSent",
   socialLinksSentField: "socialLinksSent",
 }));
 vi.mock("@/server/auth/session", () => ({
@@ -28,6 +29,7 @@ const values = { ...fields, socialLinks: [] };
 function formData() {
   const data = new FormData();
   for (const [key, value] of Object.entries(fields)) data.set(key, value);
+  data.set("neighborhoodSent", "1");
   return data;
 }
 
@@ -64,6 +66,22 @@ describe("saveProfileAction", () => {
       values: { ...values, socialLinks: ["instagram.com/maria", "javascript:alert(1)"] },
     });
     expect(saveOwnProfile.mock.calls[0]![2]).toMatchObject({ socialLinks: ["instagram.com/maria", "javascript:alert(1)"] });
+  });
+
+  it("bairro (#179): sem o campo escondido, o serviço recebe `undefined` (mantém o guardado)", async () => {
+    saveOwnProfile.mockResolvedValue({ status: "failed" });
+    const data = formData();
+    data.delete("neighborhoodSent");
+    await saveProfileAction({ status: "idle" }, data);
+    expect(saveOwnProfile.mock.calls[0]![2]).toMatchObject({ neighborhood: undefined });
+  });
+
+  it("bairro (#179): com o campo escondido, o texto digitado vai ao serviço, mesmo vazio (apagar é escolha)", async () => {
+    saveOwnProfile.mockResolvedValue({ status: "failed" });
+    const data = formData();
+    data.set("neighborhood", "");
+    await saveProfileAction({ status: "idle" }, data);
+    expect(saveOwnProfile.mock.calls[0]![2]).toMatchObject({ neighborhood: "" });
   });
 
   it("links (#17): sem o campo escondido, o serviço recebe `undefined` (mantém os guardados)", async () => {

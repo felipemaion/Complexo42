@@ -38,6 +38,7 @@ export default async function ProfilePage() {
         initialDistricts={initialDistricts}
         loadMunicipalities={loadMunicipalitiesAction}
         loadDistricts={loadDistrictsAction}
+        neighborhoodUnreadable={own?.neighborhoodUnreadable ?? false}
         socialLinksUnreadable={own?.socialLinksUnreadable ?? false}
         text={text}
       />

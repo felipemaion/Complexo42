@@ -11,6 +11,7 @@ export {
 } from "./domain/schema";
 export {
   consentNotYetGiven,
+  neighborhoodSentField,
   parseProfileForm,
   profileFormFields,
   socialLinkFormEntriesMax,

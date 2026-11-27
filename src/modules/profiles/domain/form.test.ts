@@ -18,6 +18,7 @@ describe("parseProfileForm", () => {
       profile: { displayName: "Ana Souza", municipalityCode: SP, districtCode: SE_DISTRICT, neighborhood: "Vila Exemplo", consentVersion: consentNotYetGiven },
       contact: { whatsapp: "+5511912345678", socialLinks: [] },
       keepSocialLinks: true,
+      keepNeighborhood: false,
     });
   });
 
@@ -31,6 +32,14 @@ describe("parseProfileForm", () => {
     expect(blank.ok && blank.profile.neighborhood).toBeNull();
     const curly = parseProfileForm({ ...valid, neighborhood: "Jardim d’Abril" });
     expect(curly.ok && curly.profile.neighborhood).toBe("Jardim d'Abril");
+  });
+
+  it("sem o campo do bairro no envio (formulário antigo), mantém o guardado; vazio enviado apaga", () => {
+    const withoutNeighborhood = { ...valid, neighborhood: undefined };
+    const kept = parseProfileForm(withoutNeighborhood);
+    expect(kept.ok && [kept.keepNeighborhood, kept.profile.neighborhood]).toEqual([true, null]);
+    const cleared = parseProfileForm({ ...valid, neighborhood: "" });
+    expect(cleared.ok && [cleared.keepNeighborhood, cleared.profile.neighborhood]).toEqual([false, null]);
   });
 
   it("bairro com rua, número, símbolo ou fora de 2 a 60 caracteres é recusado", () => {

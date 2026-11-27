@@ -48,6 +48,8 @@ const valid = {
     districtNone: "t",
     neighborhoodLabel: "t",
     neighborhoodHint: "t",
+    neighborhoodUnreadable: "t",
+    replaceNeighborhood: "t",
     socialLinksLabel: "t",
     socialLinksHint: "t",
     socialLinkLabel: "t",

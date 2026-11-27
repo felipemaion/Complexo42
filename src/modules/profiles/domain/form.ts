@@ -30,6 +30,13 @@ export const socialLinkFormEntriesMax = 20;
  */
 export const socialLinksSentField = "socialLinksSent";
 
+/**
+ * Campo escondido que o formulário envia junto do bairro quando a caixa está à vista. Sem ele, o
+ * envio não trouxe o bairro (formulário antigo, ou o valor guardado não abriu e a caixa ficou
+ * escondida): o cifrado guardado é mantido, em vez de apagado (mesma ideia dos links, #17).
+ */
+export const neighborhoodSentField = "neighborhoodSent";
+
 const field = z.string().max(200).optional();
 const formSchema = z.object({
   displayName: field,
@@ -51,6 +58,8 @@ export type ParsedProfileForm =
       contact: ProfileContactInput;
       /** O envio não trouxe os links: manter os guardados em vez de apagar (comentário da #17). */
       keepSocialLinks: boolean;
+      /** O envio não trouxe o bairro: manter o cifrado guardado. */
+      keepNeighborhood: boolean;
     }
   | {
       ok: false;
@@ -116,5 +125,5 @@ export function parseProfileForm(raw: unknown): ParsedProfileForm {
     const fields = profileFormFields.filter((name) => invalid.has(name));
     return social.bad.length > 0 ? { ok: false, fields, badLinks: social.bad } : { ok: false, fields };
   }
-  return { ok: true, profile: profile.data, contact: contact.data, keepSocialLinks: socialLinks === undefined };
+  return { ok: true, profile: profile.data, contact: contact.data, keepSocialLinks: socialLinks === undefined, keepNeighborhood: neighborhood === undefined };
 }
