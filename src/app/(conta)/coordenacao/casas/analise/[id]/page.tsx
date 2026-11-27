@@ -54,36 +54,44 @@ export default async function CasePage({
       <h1 className="text-3xl font-bold">{fill(text.queue.caseTitle, { name: opened.name ?? text.noName })}</h1>
       <p className="text-lg">
         <span className="font-semibold">{text.queue.tiedAxesLabel}: </span>
-        {opened.tiedAxes.map(axisName).join(", ")} · {shortDate(opened.createdAt)}
+        {opened.legacyKey ? text.queue.legacyKey : opened.tiedAxes.map(axisName).join(", ")} · {shortDate(opened.createdAt)}
       </p>
       {errorText && (
         <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
           {errorText}
         </p>
       )}
-      <section className="flex flex-col gap-2" aria-labelledby="case-chart-title">
-        <h2 id="case-chart-title" className="text-2xl font-bold">
-          {text.queue.chartTitle}
-        </h2>
-        <SpiderChart
-          chart={crossOrder(opened.chart)}
-          title={text.queue.chartTitle}
-          houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentHouseId: opened.houseId ?? undefined, currentLabel: text.queue.chartCurrentHouse }}
-        />
-      </section>
-      <section className="flex flex-col gap-3" aria-labelledby="case-answers-title">
-        <h2 id="case-answers-title" className="text-2xl font-bold">
-          {text.queue.answersTitle}
-        </h2>
-        <ol className="flex flex-col gap-3 text-lg">
-          {deps.questionnaire.items.map((item) => (
-            <li key={item.id} data-testid="case-answer">
-              <p className="font-semibold">{item.text}</p>
-              <p>{answerSentence(item, opened.answers[item.id] ?? 0, instance.houseSelection.scaleIntensities)}</p>
-            </li>
-          ))}
-        </ol>
-      </section>
+      {opened.legacyKey ? (
+        <p role="status" className="rounded-xl border-2 border-current p-4 text-lg" data-testid="case-legacy-key">
+          {text.queue.legacyKeyNotice}
+        </p>
+      ) : (
+        <>
+        <section className="flex flex-col gap-2" aria-labelledby="case-chart-title">
+          <h2 id="case-chart-title" className="text-2xl font-bold">
+            {text.queue.chartTitle}
+          </h2>
+          <SpiderChart
+            chart={crossOrder(opened.chart)}
+            title={text.queue.chartTitle}
+            houses={{ byPoles: deps.questionnaire.houseByPoles, houses: instance.houses, currentHouseId: opened.houseId ?? undefined, currentLabel: text.queue.chartCurrentHouse }}
+          />
+        </section>
+        <section className="flex flex-col gap-3" aria-labelledby="case-answers-title">
+          <h2 id="case-answers-title" className="text-2xl font-bold">
+            {text.queue.answersTitle}
+          </h2>
+          <ol className="flex flex-col gap-3 text-lg">
+            {deps.questionnaire.items.map((item) => (
+              <li key={item.id} data-testid="case-answer">
+                <p className="font-semibold">{item.text}</p>
+                <p>{answerSentence(item, opened.answers[item.id] ?? 0, instance.houseSelection.scaleIntensities)}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+        </>
+      )}
       <form action={resolveCaseAction} className="flex flex-col gap-4">
         <h2 className="text-2xl font-bold">{text.queue.resolveTitle}</h2>
         <input type="hidden" name="pedido" value={opened.requestId} />

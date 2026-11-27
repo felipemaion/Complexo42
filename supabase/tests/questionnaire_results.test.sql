@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(244);
+select plan(245);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -318,6 +318,11 @@ select throws_ok($$ select public.resolve_house_analysis((select id from request
 select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), pg_temp.enc('SC'), repeat('0', 64), pg_temp.now_s(),
     pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), pg_temp.enc('SC'), repeat('0', 64), pg_temp.now_s()))) $$, '40001', null,
   'hash das respostas que não é o do pedido (assinado): recusado, as notas não valem para outras respostas');
+-- Pedido de chave antiga (#220): sem notas. Nulo passa da validação das notas (só a conferência do hash recusa);
+-- a assinatura cobre o nulo (vazio) e um valor que não é cifrado continua recusado.
+select throws_ok($$ select public.resolve_house_analysis((select id from request_ids), 'casa-t2', pg_temp.enc('BB'), null, repeat('0', 64), pg_temp.now_s(),
+    pg_temp.sig(format('resolve|%s|%s|casa-t2|%s|%s|%s|%s', pg_temp.person('root_mgr'), (select id from request_ids), pg_temp.enc('BB'), null::text, repeat('0', 64), pg_temp.now_s()))) $$, '40001', null,
+  'sem notas (chave antiga): passa da validação das notas, e só o hash das respostas recusa');
 create temp table seen_hash (h text not null);
 insert into seen_hash select pg_temp.req_hash((select id from request_ids));
 grant select on seen_hash to authenticated;

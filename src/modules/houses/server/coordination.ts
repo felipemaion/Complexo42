@@ -7,7 +7,6 @@
 import "server-only";
 import { z } from "zod";
 import {
-  answerValues,
   axisKeys,
   chartAxes,
   scoreQuestionnaire,
@@ -121,7 +120,8 @@ const requestRow = z.object({
   answers_enc: z.string(),
   created_at: z.string(),
 });
-const answersJson = z.record(z.string(), z.literal([...answerValues]));
+/** Respostas guardadas: inteiros de qualquer chave (a atual usa -5..5; a antiga, -3..3). */
+const answersJson = z.record(z.string(), z.number().int().min(-5).max(5));
 
 /** `full`: a coordenação decide casa e totem; `totem`: a casa já saiu e falta só o totem (#197). */
 export type AnalysisKind = "full" | "totem";
@@ -132,6 +132,8 @@ export type AnalysisRequestView = {
   kind: AnalysisKind;
   tiedAxes: string[];
   answers: Record<string, number>;
+  /** As respostas não pontuam na chave atual (itens ou escala de outra chave): a coordenação resolve sem notas. */
+  legacyKey: boolean;
   createdAt: string;
 };
 
@@ -147,7 +149,7 @@ export type AnalysisRequestList = {
 export const maxAnalysisRows = 200;
 
 /** Uma linha do banco como pedido legível; falha só com o NOME da coluna (nunca valor nem mensagem). */
-async function decryptRequest(raw: unknown, crypto: CoordinationCrypto): Promise<AnalysisRequestView> {
+async function decryptRequest(raw: unknown, crypto: CoordinationCrypto, questionnaire: QuestionnaireConfig): Promise<AnalysisRequestView> {
   const row = requestRow.safeParse(raw);
   if (!row.success) throw new UnreadableRow("row");
   let plain: string;
@@ -162,7 +164,7 @@ async function decryptRequest(raw: unknown, crypto: CoordinationCrypto): Promise
   } catch {
     throw new UnreadableRow("answers_enc");
   }
-  return { requestId: row.data.id, profileId: row.data.profile_id, kind: row.data.kind, tiedAxes: row.data.tied_axes, answers, createdAt: row.data.created_at };
+  return { requestId: row.data.id, profileId: row.data.profile_id, kind: row.data.kind, tiedAxes: row.data.tied_axes, answers, legacyKey: !scores(questionnaire, answers), createdAt: row.data.created_at };
 }
 
 const requestColumns = "id,profile_id,kind,tied_axes,answers_enc,created_at";
@@ -176,6 +178,7 @@ const requestColumns = "id,profile_id,kind,tied_axes,answers_enc,created_at";
 export async function listOpenAnalysisRequests(
   client: HouseClient,
   crypto: CoordinationCrypto,
+  questionnaire: QuestionnaireConfig,
   onUnreadable?: (column: string) => void,
 ): Promise<AnalysisRequestList> {
   const { data, error } = await client
@@ -187,7 +190,7 @@ export async function listOpenAnalysisRequests(
   if (error) throw new Error(`analysis_read_failed:${errorOf(error)}`);
   const all: unknown[] = Array.isArray(data) ? data : [];
   const rawRows = all.slice(0, maxAnalysisRows);
-  const settled = await Promise.allSettled(rawRows.map((raw) => decryptRequest(raw, crypto)));
+  const settled = await Promise.allSettled(rawRows.map((raw) => decryptRequest(raw, crypto, questionnaire)));
   const requests: AnalysisRequestView[] = [];
   let unreadable = 0;
   for (const outcome of settled) {
@@ -206,7 +209,7 @@ export type OneAnalysisRequest =
   | { status: "unreadable" };
 
 /** Um pedido aberto, só ele (id e status no banco; a RLS decide se quem chama o vê), com as respostas decifradas. */
-export async function readOpenAnalysisRequest(client: HouseClient, requestId: string, crypto: CoordinationCrypto): Promise<OneAnalysisRequest> {
+export async function readOpenAnalysisRequest(client: HouseClient, requestId: string, crypto: CoordinationCrypto, questionnaire: QuestionnaireConfig): Promise<OneAnalysisRequest> {
   const { data, error } = await client
     .from("house_analysis_requests")
     .select(requestColumns)
@@ -216,7 +219,7 @@ export async function readOpenAnalysisRequest(client: HouseClient, requestId: st
   if (error) throw new Error(`analysis_read_failed:${errorOf(error)}`);
   if (data === null || data === undefined) return { status: "not_found" };
   try {
-    return { status: "ok", request: await decryptRequest(data, crypto) };
+    return { status: "ok", request: await decryptRequest(data, crypto, questionnaire) };
   } catch {
     return { status: "unreadable" };
   }
@@ -243,7 +246,7 @@ export type ResolveDeps = {
 };
 
 /**
- * Resolve o pedido: a coordenação escolhe a casa (da config) e o totem; o servidor refaz as notas
+ * Resolve o pedido: a coordenação escolhe a casa (da config) e o totem; o servidor refaz as notas (sem elas se a chave é antiga)
  * dos eixos a partir das respostas do pedido e cifra o totem e as notas para a pessoa do pedido.
  * Resolve a nacional ou o delegado, no escopo dele (o banco decide). Em pedido de totem (#197) a casa
  * é a do resultado da pessoa: o banco recusa outra.
@@ -267,16 +270,17 @@ export async function resolveAnalysis(client: HouseClient, input: unknown, deps:
   if (found.error) return { ok: false, error: errorOf(found.error) };
   const request = z.nullable(z.object({ profile_id: z.string(), answers_enc: z.string() })).parse(found.data);
   if (!request) return { ok: false, error: "not_found" };
-  const scores = await scoresOfRequest(request, questionnaire, crypto);
-  if (!scores) return { ok: false, error: "failed" };
+  const rescored = await scoresOfRequest(request, questionnaire, crypto);
+  if (!rescored.ok) return { ok: false, error: "failed" };
   const totemEnc = await crypto.encrypt(parsed.data.totem, totemContext(request.profile_id));
-  const scoresEnc = await crypto.encrypt(JSON.stringify(scores), scoresContext(request.profile_id));
+  // Chave antiga: sem notas (nulas no banco e vazias na assinatura); a coordenação só escolhe casa e totem.
+  const scoresEnc = rescored.scores ? await crypto.encrypt(JSON.stringify(rescored.scores), scoresContext(request.profile_id)) : null;
   // O banco só aceita a resolução assinada pelo servidor (pedido, casa, totem e notas cifrados, para quem resolve).
   // A assinatura também cobre o hash das respostas cifradas que acabamos de ler: o banco confere que o
   // pedido ainda as tem (se a pessoa o renovou no meio, a resolução é recusada em vez de gravar notas velhas).
   const { userId, nowSeconds, sign, sha256Hex } = signing;
   const answersHash = sha256Hex(request.answers_enc);
-  const signature = sign(`resolve|${userId}|${parsed.data.requestId}|${parsed.data.houseId}|${totemEnc}|${scoresEnc}|${answersHash}|${nowSeconds}`);
+  const signature = sign(`resolve|${userId}|${parsed.data.requestId}|${parsed.data.houseId}|${totemEnc}|${scoresEnc ?? ""}|${answersHash}|${nowSeconds}`);
   const { error } = await client.rpc("resolve_house_analysis", {
     p_request_id: parsed.data.requestId,
     p_house_key: parsed.data.houseId,
@@ -289,18 +293,29 @@ export async function resolveAnalysis(client: HouseClient, input: unknown, deps:
   return error ? { ok: false, error: errorOf(error) } : { ok: true };
 }
 
-/** Notas dos eixos refeitas das respostas do pedido; null se não decifra ou não pontua (sem vazar o motivo). */
+/** Notas das respostas na chave atual; null se não pontuam (itens ou escala de outra chave). */
+function scores(questionnaire: QuestionnaireConfig, answers: Record<string, number>): AxisScores | null {
+  try {
+    return scoreQuestionnaire(questionnaire, answers as never).scores;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Notas refeitas das respostas do pedido: `{ ok: true, scores }`, ou `scores: null` se são de chave antiga
+ * (a coordenação resolve sem notas). `ok: false` se não decifra ou não é JSON de inteiros (sem vazar o motivo).
+ */
 async function scoresOfRequest(
   request: { profile_id: string; answers_enc: string },
   questionnaire: QuestionnaireConfig,
   crypto: CoordinationCrypto,
-): Promise<AxisScores | null> {
+): Promise<{ ok: true; scores: AxisScores | null } | { ok: false }> {
   try {
     const plain = await crypto.decrypt(request.answers_enc, answersContext(request.profile_id));
-    return scoreQuestionnaire(questionnaire, answersJson.parse(JSON.parse(plain))).scores;
+    return { ok: true, scores: scores(questionnaire, answersJson.parse(JSON.parse(plain))) };
   } catch {
-    // Não decifra, não é JSON ou não pontua (ex.: escala antiga): sem notas, e nunca o motivo.
-    return null;
+    return { ok: false };
   }
 }
 

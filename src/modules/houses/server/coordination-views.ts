@@ -226,11 +226,11 @@ async function readNamesOne(client: HouseClient, id: string, crypto: Coordinatio
 // ---------------------------------------------------------------------------------------
 // Fila de análise
 // ---------------------------------------------------------------------------------------
-export type CaseRow = { requestId: string; profileId: string; name: string | null; kind: AnalysisKind; tiedAxes: string[]; createdAt: string };
+export type CaseRow = { requestId: string; profileId: string; name: string | null; kind: AnalysisKind; tiedAxes: string[]; legacyKey: boolean; createdAt: string };
 
-/** Casos inconclusivos abertos visíveis a quem chama (nome, data, eixos empatados). Ilegíveis, contados. */
+/** Casos abertos visíveis a quem chama (nome, data, eixos empatados). Ilegíveis, contados. */
 export async function listCases(client: HouseClient, deps: ViewDeps): Promise<{ rows: CaseRow[]; unreadable: number; truncated: boolean }> {
-  const { requests, unreadable, truncated } = await listOpenAnalysisRequests(client, deps.crypto);
+  const { requests, unreadable, truncated } = await listOpenAnalysisRequests(client, deps.crypto, deps.questionnaire);
   const names = await readNames(client, requests.map((request) => request.profileId), deps.crypto);
   const rows = requests
     .map((request) => ({
@@ -239,6 +239,7 @@ export async function listCases(client: HouseClient, deps: ViewDeps): Promise<{ 
       name: names.get(request.profileId) ?? null,
       kind: request.kind,
       tiedAxes: request.tiedAxes,
+      legacyKey: request.legacyKey,
       createdAt: request.createdAt,
     }))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
@@ -256,26 +257,24 @@ export type OpenedCase =
       houseId: string | null;
       tiedAxes: string[];
       createdAt: string;
+      /** Chave antiga: sem respostas, notas nem gráfico; a coordenação só escolhe casa e totem. */
+      legacyKey: boolean;
       answers: Record<string, number>;
-      scores: AxisScores;
+      scores: AxisScores | null;
       chart: ChartAxis[];
     }
   | { status: "not_found" }
   | { status: "unreadable" };
 
-/** Abre um caso: as respostas, as notas refeitas e o gráfico completo; registra o acesso à pessoa. */
+/** Abre um caso: as respostas, as notas refeitas e o gráfico completo (nada disso na chave antiga); registra o acesso à pessoa. */
 export async function openCase(client: HouseClient, requestId: string, deps: ViewDeps): Promise<OpenedCase> {
   if (!uuid.safeParse(requestId).success) return { status: "not_found" };
   // Só este pedido (id e status no banco): não decifra a fila inteira para abrir um caso.
-  const one = await readOpenAnalysisRequest(client, requestId, deps.crypto);
+  const one = await readOpenAnalysisRequest(client, requestId, deps.crypto, deps.questionnaire);
   if (one.status !== "ok") return one;
   const found = one.request;
-  let scores: AxisScores;
-  try {
-    scores = scoreQuestionnaire(deps.questionnaire, found.answers as never).scores;
-  } catch {
-    return { status: "unreadable" };
-  }
+  // Chave antiga: as respostas não pontuam na chave atual e não são mostradas.
+  const scores = found.legacyKey ? null : scoreQuestionnaire(deps.questionnaire, found.answers as never).scores;
   let houseId: string | null = null;
   if (found.kind === "totem") {
     // A casa já saiu: sem o resultado (ilegível ou sumido) o caso não tem como ser resolvido só no totem.
@@ -297,9 +296,10 @@ export async function openCase(client: HouseClient, requestId: string, deps: Vie
     houseId,
     tiedAxes: found.tiedAxes,
     createdAt: found.createdAt,
-    answers: found.answers,
+    legacyKey: found.legacyKey,
+    answers: found.legacyKey ? {} : found.answers,
     scores,
-    chart: chartAxes(deps.questionnaire, scores, axisKeys),
+    chart: scores ? chartAxes(deps.questionnaire, scores, axisKeys) : [],
   };
 }
 

@@ -381,9 +381,9 @@ describe("listCases e openCase (fila de análise)", () => {
     expect(await openCase(refused.client, REQ, deps)).toEqual({ status: "not_found" });
   });
 
-  it("respostas que não pontuam (escala antiga ou incompletas): unreadable", async () => {
-    const old = fake({ house_analysis_requests: { data: requestRow(U1, { answers_enc: encAnswers(U1, { q01: -3 }) }) } });
-    expect(await openCase(old.client, REQ, deps)).toEqual({ status: "unreadable" });
+  it("respostas que não são inteiros da escala (formato errado): unreadable", async () => {
+    const bad = fake({ house_analysis_requests: { data: requestRow(U1, { answers_enc: encAnswers(U1, { q01: "a" }) }) } });
+    expect(await openCase(bad.client, REQ, deps)).toEqual({ status: "unreadable" });
   });
 });
 
