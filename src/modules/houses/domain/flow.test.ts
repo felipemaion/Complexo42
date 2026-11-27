@@ -95,6 +95,12 @@ describe("fluxo da escolha da casa", () => {
       });
     });
 
+    it("o mapa das casas do resultado (#201) vai junto para a apresentação, para as zonas coloridas do gráfico", () => {
+      const houseByPoles = { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" };
+      const step = nextFlow(run(answerAll), { type: "result_recorded", houseId: "casa-x", chart, houseByPoles }, ctx).step;
+      expect(step).toEqual({ kind: "presentation", houseId: "casa-x", method: "questionnaire", chart, houseByPoles });
+    });
+
     it("o servidor abriu o pedido de análise: segue para a análise, sem casa atribuída", () => {
       const submitting = run(answerAll);
       expect(nextFlow(submitting, { type: "analysis_requested" }, ctx).step).toEqual({ kind: "analysis" });
