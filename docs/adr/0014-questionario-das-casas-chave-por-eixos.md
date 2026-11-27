@@ -87,7 +87,7 @@ coordenação os raios saem na ordem a1, a3, a2, a4, b1, b3, b2, b4: os eixos da
 diagonais (`crossOrder`, `houseZones` em `domain/chart.ts`). A pessoa vê 4 raios; a coordenação nacional e os
 delegados veem os 4 eixos (8 raios) e o totem. Os nomes das dimensões e dos polos vêm do config do
 questionário: o exemplo público usa nomes genéricos; no arquivo privado são **provisórios** até o
-stakeholder (Convívio: Expansivo/Reservado; Decisão: Razão/Coração; Percepção: P·Prático/A·Abstrato;
+stakeholder (Ação × Contemplação; Leis × Costumes, decisão do Cortez; Percepção: P·Prático/A·Abstrato;
 Ritmo: R·Regrado/A·Adaptável).
 
 A sugestão é só o ponto de partida: a pessoa continua podendo **escolher outra casa** e aceitar
