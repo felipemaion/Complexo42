@@ -166,7 +166,7 @@ com a lista importada.
 | `display_name_enc` | text | 🔒 `v1.iv.ct` (ADR 0003 §3) |
 | `municipality_code` | int FK | IBGE |
 | `state_code` | char(2) | derivado do município (trigger); no cadastro, o aluno entra na unidade do seu estado |
-| `district` | text null | distrito, só para município com lista em `config/districts.ts` (hoje a capital paulista, 96 distritos do IBGE); nulo nos demais (2 a 60 caracteres) |
+| `district_code` | int null FK | distrito (código IBGE de 9 dígitos, `districts`). Chave estrangeira composta com o município: o banco recusa distrito de outro. Nulo = sem escolha ou município com um distrito só (ver `districts`) |
 | `status` | text | `pending`, `active`, `suspended` |
 | `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
 | `consent_version`, `consent_at` | text, timestamptz | Espelho do último aceite do termo (#11), para leitura rápida; a prova é `consent_acceptances`. `save_own_profile` cria o perfil já com a versão vigente (e recusa quem não aceitou); `accept_consent` avança a versão de quem já tem perfil, e o trigger grava `consent_at`. Nenhuma outra via muda |
@@ -177,7 +177,7 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 - **O titular** cria e edita só o próprio perfil e o próprio contato, e **só pela função
   `public.save_own_profile`** (#12), que o servidor chama com os valores já cifrados e o HMAC
   calculado no servidor. `profiles` e `profile_contacts` não têm grant de INSERT/UPDATE para a
-  API. A função grava `display_name_enc`, `municipality_code`, `district` e o contato. Ela não
+  API. A função grava `display_name_enc`, `municipality_code`, `district_code` e o contato. Distrito que não é do município volta como erro `PT422`; município com um distrito só grava distrito nulo. Ela não
   recebe a versão do termo: cria o perfil com `consent_version = 'none'` e nunca a altera (só a
   função do aceite, #11, avança a versão, derivada no servidor). Perfil `blocked` ou com conta `suspended` não edita (mas lê o
   próprio). WhatsApp repetido volta como o retorno `duplicate_whatsapp`, sem dizer de quem é
@@ -249,10 +249,25 @@ linha vale `none` (só a coordenação). Só o titular lê (RLS) e só ele grava
   o id (aceito: a pessoa já tem o direito de saber quem viu). Tela "Quem vê meu contato"
   (`/perfil/contato`).
 
-### `municipalities` (referência pública, só leitura)
-`code` (IBGE, 7 dígitos), `name`, `state_code`, `metro_region` (ex.: `rmsp`). Carregada por
-migration (referência de produção), conferida com a API de localidades do IBGE. Hoje: os 39
-municípios da Região Metropolitana de São Paulo.
+### `municipalities` e `districts` (referência pública, só leitura)
+`municipalities`: `code` (IBGE, 7 dígitos), `name`, `state_code`, `metro_region` (ex.: `rmsp`).
+Todos os municípios da API de localidades do IBGE (5.571 registros na consulta de 2026-11-27).
+`metro_region` só está preenchida nos 39 da Região Metropolitana de São Paulo: a API de regiões
+metropolitanas lista 39 municípios em mais de uma região e a coluna guarda uma chave só.
+
+`districts`: `code` (IBGE, 9 dígitos: os 7 primeiros são o município), `municipality_code`, `name`.
+Todos os distritos do IBGE (10.751). Em 3.332 municípios o único distrito é a sede: ali o
+formulário **esconde a escolha** e o perfil grava `district_code` nulo (o distrito seria o
+próprio município; `save_own_profile` aplica a regra, não só a tela).
+
+As duas são dado público, sem dado pessoal, com a mesma RLS: lê quem está logado e não está na
+espera nem bloqueado; escrita só por migration. Vêm de migrations **geradas** por
+`npm run db:gen-localities` (`scripts/generate-localities-sql.mjs`), que cita a URL e a data da
+consulta no cabeçalho; para atualizar, rode o script e crie uma migration nova com a diferença.
+O formulário do perfil carrega as cidades **por UF** (o maior estado tem 853), nunca as 5.570.
+
+**Bairro não entra.** Não há base oficial nacional de bairros, e texto livre seria dado pessoal
+sem ganho para a coordenação. A menor divisão que guardamos é o distrito.
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)
@@ -456,7 +471,7 @@ arquivo e rode `npm run db:reset`. Aprovado, o catálogo entra em produção por
 
 **Perfis fictícios (~50):** `npm run db:seed-profiles` (depois do `db:reset`) cria, só no
 Supabase local, 50 contas `perfil-ficticio-NN@example.com` com nome e WhatsApp
-(`+55119000000NN`, convenção deste projeto para teste) cifrados pelo código do app, município, distrito (capital) e 2 a 6
+(`+55119000000NN`, convenção deste projeto para teste) cifrados pelo código do app, município (da Região Metropolitana de São Paulo), distrito (onde há mais de um) e 2 a 6
 habilidades. Roda de novo sem duplicar; recusa produção e qualquer endereço não local.
 
 ### Missões, entregas e pontos (ADR 0006)

@@ -121,7 +121,8 @@
 
 ## M7 · Expansão SP/Brasil
 
-- #43 Expandir municípios (SP e Brasil) e reavaliar limites gratuitos — `backend, infra`
+- #43 Expandir municípios (SP e Brasil) e reavaliar limites gratuitos — `backend, infra`. Os municípios do IBGE já entraram pela #175; resta a estimativa de uso do plano gratuito e a proposta de custo
+- #175 Localidades do Brasil inteiro: municípios e distritos do IBGE no perfil (UF → município → distrito) — `backend, frontend`
 
 ## M8 · Núcleos
 

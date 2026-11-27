@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
+import { chooseCity } from "./choose-city";
 
 // Telas da coordenação (#26, ADR 0008 §1): lista de autorizados e fila de espera. Sem Supabase
 // (o CI): só a proteção das rotas. Com o Supabase local, o fluxo real: pessoas se cadastram e
@@ -55,7 +56,7 @@ test.describe("coordenação com o Supabase local", () => {
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill(person.name);
     await page.getByLabel("Seu WhatsApp, com DDD").fill(`11 9${String(run + ++phone).slice(-8)}`);
-    await page.getByLabel("Sua cidade").selectOption({ label: "São Paulo" });
+    await chooseCity(page, "São Paulo");
     await page.getByRole("button", { name: "Salvar meus dados" }).click();
     await expect(page).toHaveURL(`${baseURL}/espera`);
     expect(await accessStatus(id)).toBe("waitlisted");

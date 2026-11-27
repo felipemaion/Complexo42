@@ -16,12 +16,12 @@ function fieldsOf(parse: () => unknown): string[] {
 
 describe("parseProfileInput", () => {
   it("aceita um perfil válido e normaliza espaços do nome", () => {
-    const parsed = parseProfileInput({ ...profile, displayName: "  Ana   Souza ", district: " Sé " });
-    expect(parsed).toEqual({ displayName: "Ana Souza", municipalityCode: 3550308, district: "Sé", consentVersion: "v1" });
+    const parsed = parseProfileInput({ ...profile, displayName: "  Ana   Souza ", districtCode: 355030878 });
+    expect(parsed).toEqual({ displayName: "Ana Souza", municipalityCode: 3550308, districtCode: 355030878, consentVersion: "v1" });
   });
 
   it("distrito é opcional", () => {
-    expect(parseProfileInput(profile).district).toBeNull();
+    expect(parseProfileInput(profile).districtCode).toBeNull();
   });
 
   it("nome com 2 e com 80 caracteres passa; com 1 e com 81 não", () => {

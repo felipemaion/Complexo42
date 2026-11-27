@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
+import { chooseCity } from "./choose-city";
 
 // Redes sociais (#17). Sem Supabase (o CI): só a proteção da rota. Com o Supabase local, o fluxo
 // real: a pessoa se cadastra pondo links, um `javascript:` é recusado só naquela caixa, o banco
@@ -54,7 +55,7 @@ test.describe("redes sociais com o Supabase local", () => {
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill("Pessoa Redes");
     await page.getByLabel("Seu WhatsApp, com DDD").fill(phone);
-    await page.getByLabel("Sua cidade").selectOption({ label: "Osasco" });
+    await chooseCity(page, "Osasco");
 
     // Uma caixa já aparece; mais uma pelo botão grande, que leva o foco para a caixa nova.
     const add = page.getByRole("button", { name: "Pôr mais um link" });

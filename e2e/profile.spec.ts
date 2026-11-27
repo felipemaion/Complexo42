@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
+import { chooseCity } from "./choose-city";
 
 // Formulário do perfil (#12). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o Supabase local
 // e o Mailpit (como em e2e/auth-live.spec.ts), o fluxo real: entrar, cair no formulário, máscara,
@@ -62,7 +63,8 @@ test.describe("formulário com o Supabase local", () => {
     // Tudo com rótulo; botão grande e sem rolagem lateral no celular.
     const name = page.getByLabel("Seu nome");
     const whatsapp = page.getByLabel("Seu WhatsApp, com DDD");
-    const city = page.getByLabel("Sua cidade");
+    const state = page.getByLabel("Seu estado");
+    const city = page.getByLabel("Sua cidade", { exact: true });
     const save = page.getByRole("button", { name: "Salvar meus dados" });
     expect((await save.boundingBox())?.height).toBeGreaterThanOrEqual(56);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -82,13 +84,29 @@ test.describe("formulário com o Supabase local", () => {
     await whatsapp.pressSequentially("11987654321");
     await expect(whatsapp).toHaveValue("(11) 98765-4321");
 
-    // Distrito só na capital.
+    // Cidades por estado, com busca; distrito só onde a cidade tem mais de um.
     const district = page.getByLabel("Seu distrito");
+    await expect(city).toBeDisabled();
+    await state.selectOption({ label: "São Paulo" });
+    await expect(city.getByRole("option", { name: "Osasco" })).toHaveCount(1);
+    await expect(city.getByRole("option", { name: "Belo Horizonte" })).toHaveCount(0);
+    await page.getByLabel("Procurar pelo nome").fill("sao jose do");
+    await expect(city.getByRole("option", { name: /^São José do / }).first()).toBeAttached();
+    await expect(city.getByRole("option", { name: "Osasco" })).toHaveCount(0);
+    await page.getByLabel("Procurar pelo nome").fill("");
     await expect(district).toHaveCount(0);
     await city.selectOption({ label: "São Paulo" });
     await expect(district).toBeVisible();
-    await city.selectOption({ label: "Guarulhos" });
+    await expect(district.getByRole("option")).toHaveCount(97);
+    await city.selectOption({ label: "Osasco" });
     await expect(district).toHaveCount(0);
+    await city.selectOption({ label: "Guarulhos" });
+    await expect(district).toBeVisible();
+    await state.selectOption({ label: "Minas Gerais" });
+    await expect(city).toHaveValue("");
+    await expect(city.getByRole("option", { name: "Belo Horizonte" })).toHaveCount(1);
+    await expect(city.getByRole("option", { name: "Osasco" })).toHaveCount(0);
+    await chooseCity(page, "Guarulhos");
 
     // Celular inválido: só ele volta com erro, e o que foi digitado continua lá.
     await name.fill("Pessoa de Teste");
@@ -104,7 +122,7 @@ test.describe("formulário com o Supabase local", () => {
     // não está na lista de autorizados, então a pessoa vai para a espera (ADR 0008 §1).
     await whatsapp.fill(phone);
     await city.selectOption({ label: "São Paulo" });
-    await district.selectOption("Sé");
+    await district.selectOption({ label: "Sé" });
     await save.click();
     await expect(page).toHaveURL(`${baseURL}/espera`);
     await expect(page.locator("body")).not.toContainText("Pessoa de Teste");
@@ -118,7 +136,7 @@ test.describe("formulário com o Supabase local", () => {
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await page.getByLabel("Seu nome").fill("Outra Pessoa");
     await page.getByLabel("Seu WhatsApp, com DDD").fill(phone);
-    await page.getByLabel("Sua cidade").selectOption({ label: "Osasco" });
+    await chooseCity(page, "Osasco");
     await page.getByRole("button", { name: "Salvar meus dados" }).click();
     const summary = page.getByRole("main").getByRole("alert");
     await expect(summary).toBeFocused();

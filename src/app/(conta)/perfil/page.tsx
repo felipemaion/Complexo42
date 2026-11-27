@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { districtsByMunicipality } from "@config/districts";
 import { instance } from "@config/instance";
-import { formatBrazilianWhatsapp, listMunicipalities, loadOwnProfile, ProfileForm } from "@/modules/profiles";
+import { states } from "@config/states";
+import { formatBrazilianWhatsapp, listDistricts, listMunicipalitiesByState, loadOwnProfile, ProfileForm } from "@/modules/profiles";
 import { requireUserClient } from "@/server/auth/session";
 import { saveProfileAction } from "./actions";
+import { loadDistrictsAction, loadMunicipalitiesAction } from "./localities-actions";
 
 export const metadata: Metadata = { title: instance.profile.title };
 
@@ -11,7 +12,11 @@ export const metadata: Metadata = { title: instance.profile.title };
 // pessoa só é decifrado aqui, no servidor, para preencher os campos.
 export default async function ProfilePage() {
   const { user, client } = await requireUserClient();
-  const [own, municipalities] = await Promise.all([loadOwnProfile(client, user.id), listMunicipalities(client)]);
+  const own = await loadOwnProfile(client, user.id);
+  // Quem já tem perfil abre o formulário com as listas da própria cidade; quem começa, vazias.
+  const [initialMunicipalities, initialDistricts] = own
+    ? await Promise.all([listMunicipalitiesByState(client, own.stateCode), listDistricts(client, own.municipalityCode)])
+    : [[], []];
   const text = instance.profile;
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
@@ -21,13 +26,17 @@ export default async function ProfilePage() {
         initial={{
           displayName: own?.displayName ?? "",
           whatsapp: own ? formatBrazilianWhatsapp(own.whatsapp) : "",
+          stateCode: own?.stateCode ?? "",
           municipalityCode: own ? String(own.municipalityCode) : "",
-          district: own?.district ?? "",
+          district: own?.districtCode === null || own === null ? "" : String(own.districtCode),
           // Os links salvos voltam para as caixas: salvar sem mexer neles os mantém (#17).
           socialLinks: own?.socialLinks ?? [],
         }}
-        municipalities={municipalities}
-        districts={districtsByMunicipality}
+        states={states}
+        initialMunicipalities={initialMunicipalities}
+        initialDistricts={initialDistricts}
+        loadMunicipalities={loadMunicipalitiesAction}
+        loadDistricts={loadDistrictsAction}
         socialLinksUnreadable={own?.socialLinksUnreadable ?? false}
         text={text}
       />

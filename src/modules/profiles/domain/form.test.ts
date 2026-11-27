@@ -1,39 +1,35 @@
 import { describe, expect, it } from "vitest";
-import { consentNotYetGiven, parseProfileForm, type DistrictCatalog } from "./form";
+import { consentNotYetGiven, parseProfileForm } from "./form";
 
 const SP = 3550308;
-const districtsFor: DistrictCatalog = (code) => (code === SP ? ["Sé", "Vila Mariana"] : undefined);
-const valid = { displayName: "  Ana   Souza ", whatsapp: "(11) 91234-5678", municipalityCode: String(SP), district: "Sé" };
+const SE_DISTRICT = 355030878;
+const valid = { displayName: "  Ana   Souza ", whatsapp: "(11) 91234-5678", municipalityCode: String(SP), district: String(SE_DISTRICT) };
 
 function fieldsOf(raw: unknown): string[] {
-  const result = parseProfileForm(raw, districtsFor);
+  const result = parseProfileForm(raw);
   if (result.ok) throw new Error("esperava entrada inválida");
   return result.fields;
 }
 
 describe("parseProfileForm", () => {
   it("formulário válido vira os dados do perfil e do contato (E.164)", () => {
-    expect(parseProfileForm(valid, districtsFor)).toEqual({
+    expect(parseProfileForm(valid)).toEqual({
       ok: true,
-      profile: { displayName: "Ana Souza", municipalityCode: SP, district: "Sé", consentVersion: consentNotYetGiven },
+      profile: { displayName: "Ana Souza", municipalityCode: SP, districtCode: SE_DISTRICT, consentVersion: consentNotYetGiven },
       contact: { whatsapp: "+5511912345678", socialLinks: [] },
       keepSocialLinks: true,
     });
   });
 
-  it("distrito é opcional na capital", () => {
-    const result = parseProfileForm({ ...valid, district: "" }, districtsFor);
-    expect(result.ok && result.profile.district).toBeNull();
+  it("distrito é opcional", () => {
+    const result = parseProfileForm({ ...valid, district: "" });
+    expect(result.ok && result.profile.districtCode).toBeNull();
   });
 
-  it("distrito fora da lista é recusado na capital", () => {
-    expect(fieldsOf({ ...valid, district: "Centro" })).toEqual(["district"]);
-    expect(fieldsOf({ ...valid, district: "sé" })).toEqual(["district"]);
-  });
-
-  it("fora da capital, o distrito enviado é descartado", () => {
-    const result = parseProfileForm({ ...valid, municipalityCode: "3518800", district: "Sé" }, districtsFor);
-    expect(result.ok && result.profile).toMatchObject({ municipalityCode: 3518800, district: null });
+  it("distrito que não é um código IBGE de 9 dígitos é recusado", () => {
+    expect(fieldsOf({ ...valid, district: "Sé" })).toEqual(["district"]);
+    expect(fieldsOf({ ...valid, district: "35503080" })).toEqual(["district"]);
+    expect(fieldsOf({ ...valid, district: "355030878; drop" })).toEqual(["district"]);
   });
 
   it("cada campo inválido aparece pelo nome, sem o valor (R11)", () => {
@@ -48,7 +44,7 @@ describe("parseProfileForm", () => {
       "whatsapp",
       "municipalityCode",
     ]);
-    const result = parseProfileForm({ ...valid, whatsapp: "(11) 1234-5678" }, districtsFor);
+    const result = parseProfileForm({ ...valid, whatsapp: "(11) 1234-5678" });
     expect(JSON.stringify(result)).not.toContain("1234");
   });
 
@@ -64,7 +60,7 @@ describe("parseProfileForm", () => {
 });
 
 describe("parseProfileForm: redes sociais (#17)", () => {
-  const parse = (socialLinks: unknown) => parseProfileForm({ ...valid, socialLinks }, districtsFor);
+  const parse = (socialLinks: unknown) => parseProfileForm({ ...valid, socialLinks });
 
   it("normaliza os links (https:// por padrão), ignora caixas vazias e marca que vieram no envio", () => {
     const result = parse(["instagram.com/ana", "", "  https://WWW.TikTok.com/@ana  "]);
@@ -73,7 +69,7 @@ describe("parseProfileForm: redes sociais (#17)", () => {
   });
 
   it("sem o campo no envio: manter os guardados; com o campo vazio: a pessoa tirou todos", () => {
-    const absent = parseProfileForm(valid, districtsFor);
+    const absent = parseProfileForm(valid);
     expect(absent.ok && absent.keepSocialLinks).toBe(true);
     const cleared = parse([""]);
     expect(cleared.ok && cleared.keepSocialLinks).toBe(false);

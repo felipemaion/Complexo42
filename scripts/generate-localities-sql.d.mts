@@ -1,0 +1,10 @@
+export type MunicipalityRow = { code: number; name: string; stateCode: string };
+export type DistrictRow = { code: number; municipalityCode: number; name: string };
+export const ibgeApiBase: string;
+export const municipalitiesMigrationName: string;
+export const districtsMigrationName: string;
+export function parseMunicipalities(json: unknown): MunicipalityRow[];
+export function parseDistricts(json: unknown, municipalityCodes: readonly number[]): DistrictRow[];
+export function buildMunicipalitiesSql(input: { rows: readonly MunicipalityRow[]; queriedOn: string }): string;
+export function buildDistrictsSql(input: { rows: readonly DistrictRow[]; queriedOn: string }): string;
+export function main(options?: { outDir?: string; today?: Date }): Promise<void>;

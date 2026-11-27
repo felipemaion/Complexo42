@@ -22,7 +22,8 @@ const rows: OwnDataRows = {
     municipality_code: 3550308,
     municipality_name: "São Paulo",
     state_code: "SP",
-    district: "Sé",
+    district_code: 355030878,
+    district_name: "Sé",
     status: "active",
     access_status: "active",
     consent_version: "v1",
@@ -119,12 +120,12 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 5, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 6, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
         municipio: { codigoIbge: 3550308, nome: "São Paulo", uf: "SP" },
-        distrito: "Sé",
+        distrito: { codigoIbge: 355030878, nome: "Sé" },
         situacaoDaConta: "active",
         liberacaoDeAcesso: "active",
         termoDeConsentimento: { versao: "v1", aceitoEm: "2026-11-19T12:00:00+00:00" },
