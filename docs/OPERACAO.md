@@ -203,11 +203,19 @@ Por isso o compose define os **quatro** caminhos como `/auth/v1/verify`. São
 quatro porque o magic link reusa o de **recovery**, não o de confirmation —
 deixar um de fora quebra um fluxo só, em silêncio.
 
-O `API_EXTERNAL_URL` com `/auth/v1` serve a outra coisa: o **callback do
-OAuth**, que o GoTrue monta por concatenação de string. Com a raiz do site, o
-callback sairia `{site}/callback`, fora do que o proxy roteia. Hoje é inerte
-porque nenhum provedor externo está ligado — e é por isso que precisa estar
-certo antes de ligar o Google.
+O `API_EXTERNAL_URL` com `/auth/v1` serve a outras três coisas, e **nenhuma
+delas é o Google**. Na v2.198.0 a chave é lida em exatamente três pontos: a
+base do e-mail (`middleware.go:385`, onde o `/auth/v1` é irrelevante porque os
+`MAILER_URLPATHS_*` são absolutos), os metadados SAML (`saml.go:60`,
+desligado), e o callback de OAuth **customizado** (`external.go:711`, prefixo
+`custom:`), que é concatenação de string — com a raiz do site sairia
+`{site}/callback`, fora do que o proxy roteia.
+
+> **Provedor embutido não usa essa base.** Google, GitHub e companhia exigem o
+> próprio `GOTRUE_EXTERNAL_<PROVEDOR>_REDIRECT_URI`, e ele é **obrigatório**: o
+> GoTrue recusa a configuração com `missing redirect URI` se o provedor estiver
+> ligado e a chave vazia. Para este ambiente, o valor a cadastrar no provedor e
+> na chave é `<SITE_URL>/auth/v1/callback`.
 
 Nada disso aparece em teste: o link só é montado com o GoTrue de verdade
 enviando e-mail. Então o CI trava as cinco linhas.

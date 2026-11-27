@@ -83,17 +83,26 @@ services:
       # Sem API_EXTERNAL_URL o GoTrue morre no boot: "required key
       # API_EXTERNAL_URL missing value". A chave NAO tem o prefixo GOTRUE_.
       #
-      # O /auth/v1 aqui serve ao CALLBACK DO OAUTH, e so a ele. Lido no fonte
-      # da v2.198.0, internal/api/external.go:715, o callback e montado por
-      # CONCATENACAO DE STRING:
-      #     redirectURL := strings.TrimRight(externalURL, "/") + "/callback"
-      # Com a raiz do site aqui, o callback sairia {site}/callback -- fora do
-      # que o proxy roteia. Com /auth/v1, sai {site}/auth/v1/callback.
-      # Hoje e inerte (nenhum GOTRUE_EXTERNAL_*_ENABLED esta ligado), e e
-      # exatamente por isso que precisa estar certo ANTES de ligar o Google:
-      # ninguem vai lembrar desta linha naquele dia.
+      # Esta chave e usada em EXATAMENTE TRES lugares na v2.198.0. Fui conferir
+      # um por um, porque na primeira tentativa eu atribui a ela um efeito que
+      # ela nao tem:
       #
-      # NAO serve ao link do e-mail. Ver os MAILER_URLPATHS_* abaixo.
+      #   internal/api/middleware.go:385  base do e-mail -- usada quando o host
+      #     do pedido nao esta em GOTRUE_MAILER_EXTERNAL_HOSTS (nao esta aqui).
+      #     O /auth/v1 e IRRELEVANTE para o e-mail: os MAILER_URLPATHS_* abaixo
+      #     sao caminhos absolutos, e ResolveReference descarta o caminho da
+      #     base. Medido.
+      #   internal/api/saml.go:60         base dos metadados SAML (desligado).
+      #   internal/api/external.go:711    OAuth CUSTOMIZADO (prefixo `custom:`),
+      #     onde o callback e `strings.TrimRight(externalURL,"/") + "/callback"`.
+      #
+      # O /auth/v1 serve ao TERCEIRO caso, e ao SAML. Com a raiz do site, esse
+      # callback sairia {site}/callback -- fora do que o proxy roteia.
+      #
+      # NAO serve aos provedores EMBUTIDOS. Google, GitHub e companhia exigem o
+      # proprio GOTRUE_EXTERNAL_<PROVEDOR>_REDIRECT_URI, obrigatorio
+      # (conf: "missing redirect URI" se vazio com o provedor ligado). Quem
+      # ligar o Google configura o redirect la, nao aqui.
       API_EXTERNAL_URL: ${SITE_URL:?obrigatorio}/auth/v1
       # O LINK DO E-MAIL VEM DAQUI, nao do API_EXTERNAL_URL.
       #
