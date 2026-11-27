@@ -99,6 +99,20 @@ describe("CSP com nonce no proxy (#152)", () => {
     expect(response.headers.get("x-middleware-request-x-nonce")).toBeTruthy();
   });
 
+  it("o compose do app repassa CSP_REPORT_ONLY (estreia só avisando no staging), e o padrão é bloquear", () => {
+    // Arrange: o container só recebe as variáveis listadas em `environment:`.
+    const compose = readFileSync(join(process.cwd(), "deploy", "docker-compose.app.yml"), "utf8");
+    const envExample = readFileSync(join(process.cwd(), "deploy", "env.example"), "utf8");
+
+    // Act
+    const line = /^\s+CSP_REPORT_ONLY: \$\{CSP_REPORT_ONLY:-([^}]*)\}$/m.exec(compose);
+
+    // Assert
+    expect(line).not.toBeNull();
+    expect(line?.[1]).toBe("");
+    expect(envExample).toMatch(/^CSP_REPORT_ONLY=$/m);
+  });
+
   it("nenhuma página sai pronta do build: página estática não recebe nonce e teria os scripts bloqueados", () => {
     // Arrange
     const layout = readFileSync(join(process.cwd(), "src", "app", "layout.tsx"), "utf8");
