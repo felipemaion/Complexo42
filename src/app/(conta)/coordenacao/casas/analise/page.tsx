@@ -51,7 +51,9 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
               <tr key={row.requestId} className="border-t border-current/30" data-testid="case-row">
                 <td className="py-2">{row.name ?? text.noName}</td>
                 <td className="py-2">{shortDate(row.createdAt)}</td>
-                <td className="py-2">{row.tiedAxes.map(axisName).join(", ")}</td>
+                <td className="py-2">{row.tiedAxes.map(axisName).join(", ")}
+                  {row.kind === "totem" && ` (${text.queue.kindTotem})`}
+                </td>
                 <td className="py-2 text-right">
                   <Link href={`/coordenacao/casas/analise/${row.requestId}`} prefetch={false} className="underline">
                     {text.queue.openLink}
