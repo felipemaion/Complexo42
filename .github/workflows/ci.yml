@@ -296,3 +296,40 @@ jobs:
             exit 1
           fi
           echo "ok: 5 templates e 5 assuntos de e-mail definidos"
+      # Credencial e host de provedor social sao o lugar classico onde alguem
+      # "resolve rapido" colando o valor no compose. Aqui as quatro chaves do
+      # Google tem que ser REFERENCIA a variavel, nunca literal, e o redirect
+      # tem que sair do SITE_URL -- e o mesmo valor cadastrado no Google Cloud.
+      # Os tres de sessao sao travados no valor, porque mudar qualquer um deles
+      # muda a seguranca do login e merece passar por revisao, nao por descuido.
+      - name: Google e sessão vêm da configuração, com os valores revisados
+        run: |
+          arq=deploy/docker-compose.supabase.yml
+          falhou=
+          exige() { # exige <chave> <regex-do-valor> <explicacao>
+            if grep -qE "^[[:space:]]*$1:[[:space:]]*$2[[:space:]]*\$" "$arq"; then
+              echo "ok: $1"
+            else
+              echo "ERRO: $1 -- esperava $3. Achei:"
+              grep -nE "^[[:space:]]*$1:" "$arq" || echo "  (a linha nao existe)"
+              falhou=1
+            fi
+          }
+          exige GOTRUE_EXTERNAL_GOOGLE_ENABLED     '\$\{GOOGLE_ENABLED:-false\}'       'vir de GOOGLE_ENABLED, desligado por padrao'
+          exige GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID   '\$\{GOOGLE_CLIENT_ID:-\}'          'ser referencia a GOOGLE_CLIENT_ID, nunca literal'
+          exige GOTRUE_EXTERNAL_GOOGLE_SECRET      '\$\{GOOGLE_CLIENT_SECRET:-\}'      'ser referencia a GOOGLE_CLIENT_SECRET, nunca literal'
+          exige GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI '\$\{SITE_URL[^}]*\}/auth/v1/callback' 'sair do SITE_URL e terminar em /auth/v1/callback'
+          exige GOTRUE_JWT_EXP                     '"3600"'                            'ficar em 3600 -- sessao longa vem do refresh, nao do token de acesso'
+          exige GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED '"true"'                 'ser true'
+          exige GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL   '"10"'                   'ser 10 -- zero derruba sessao com duas abas renovando'
+          exige GOTRUE_SESSIONS_TIMEBOX            '720h'                              'ser 720h (30 dias)'
+
+          # Nenhuma dessas chaves pode ter sido definida por engano junto.
+          for k in GOTRUE_SESSIONS_INACTIVITY_TIMEOUT GOTRUE_SESSIONS_SINGLE_PER_USER; do
+            if grep -nE "^[[:space:]]*$k:" "$arq"; then
+              echo "ERRO: $k foi definido -- decisao deliberada era NAO definir; leve a revisao"
+              falhou=1
+            fi
+          done
+
+          [ -z "$falhou" ] || exit 1
