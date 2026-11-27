@@ -125,7 +125,7 @@
 
 ## M8 · Núcleos
 
-Aguardam o stakeholder (perguntas 87 a 89) e o parecer jurídico sobre o vínculo.
+Aguardam o stakeholder (perguntas 91 a 93) e o parecer jurídico sobre o vínculo.
 
 - #168 Núcleos: árvore, vínculo com principal, cargos, pedido de entrada e RLS (ADR 0013) — `bloqueada, precisa-decisao, seguranca, backend`
 - #169 Núcleos: reuniões com pauta e presença que conta pontos (ADR 0013) — `bloqueada, precisa-decisao, seguranca, backend`

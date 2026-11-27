@@ -1,7 +1,7 @@
 # ADR 0013: Núcleos, uma árvore de grupos fora do território
 
 - **Status:** Proposto. É decisão do gestor de 2026-11-24, com as respostas dele no mesmo dia.
-  Os itens marcados com [?] dependem do stakeholder (`PERGUNTAS_STAKEHOLDER.md`, 87 a 89), e
+  Os itens marcados com [?] dependem do stakeholder (`PERGUNTAS_STAKEHOLDER.md`, 91 a 93), e
   cada um traz o **padrão conservador** que vale até a resposta.
 - **Data:** 2026-11-24
 - **Numeração:** o 0012 está reservado pela issue #136.
@@ -36,7 +36,7 @@ O gestor confirmou que valem **duas hierarquias ao mesmo tempo**: (1) a **árvor
   cada subnúcleo tem o seu.
 - **Núcleo dentro de núcleo é permitido.** Um subnúcleo não muda de pai: para reorganizar,
   arquiva-se e cria-se de novo. Arquivar um núcleo arquiva os de baixo.
-- **Quem cria:** o núcleo de topo, o `manager` da raiz [?] (pergunta 87); um subnúcleo, quem
+- **Quem cria:** o núcleo de topo, o `manager` da raiz [?] (pergunta 91); um subnúcleo, quem
   está no nível de topo (§4) do núcleo pai ou de um núcleo acima dele.
 - **Independente da casa:** nenhuma regra de casa vale no núcleo, e nenhuma de núcleo vale na
   casa. O coordenador de casa não vê núcleos.
@@ -76,7 +76,7 @@ circle_join_requests(id, circle_id, profile_id, status, requested_at, decided_by
   qualquer ancestral. Níveis intermediários não aprovam (§4). Ninguém aprova o próprio pedido.
 - **Sem diretório:** a pessoa não lista núcleos. Ela chega ao núcleo por um **link de pedido**
   que o coordenador compartilha; o link só abre a tela de pedir, e não dá entrada.
-- **Para pedir um subnúcleo, não é preciso ser membro do pai** [?] (pergunta 88, padrão).
+- **Para pedir um subnúcleo, não é preciso ser membro do pai** [?] (pergunta 92, padrão).
 - Pedido, aprovação, recusa, entrada e saída geram evento no `audit_log` (§7), sem dado pessoal
   em claro.
 
@@ -141,7 +141,7 @@ circle_attendance(meeting_id, profile_id, registered_by)          -- só quem es
   dele e acima. Sem município, só as nacionais.
 - **Validação:** quem tem escopo sobre a missão (monitor ou gestor). **Quem está no núcleo não
   valida as entregas dele** (ADR 0006 §4). O núcleo **não entra no placar de turmas** (ADR 0006
-  §6) até decisão [?] (pergunta 89).
+  §6) até decisão [?] (pergunta 93).
 - **Sem localização das pessoas.** A pessoa, por causa do núcleo, nunca ganha local novo. Nada
   de mapa nem de endereço de reunião. A conversa continua no WhatsApp (ADR 0006 §5).
 - **O vínculo e a presença só os veem a própria pessoa e quem a vê pelo §5.** O gestor da raiz
@@ -164,9 +164,9 @@ circle_attendance(meeting_id, profile_id, registered_by)          -- só quem es
 
 | # | Pergunta | Padrão até a resposta |
 |---|---|---|
-| 87 | Quem cria núcleos de topo e designa o primeiro coordenador? | `manager` da raiz |
-| 88 | Para pedir um subnúcleo, é preciso ser membro do núcleo pai? | Não |
-| 89 | Núcleos entram em algum placar (de núcleos ou de turmas)? | Não |
+| 91 | Quem cria núcleos de topo e designa o primeiro coordenador? | `manager` da raiz |
+| 92 | Para pedir um subnúcleo, é preciso ser membro do núcleo pai? | Não |
+| 93 | Núcleos entram em algum placar (de núcleos ou de turmas)? | Não |
 
 **Respondidas pelo gestor em 2026-11-24:** vários núcleos com um principal (§2); entrada por
 pedido aprovado (§3); sem diretório por enquanto (§3); núcleo independente da casa (§1);
@@ -196,4 +196,4 @@ níveis de cargo configuráveis (§4); as duas hierarquias valem juntas (§5).
 - (−) Presença é dado novo, pauta é texto livre e o vínculo pode revelar convicção: termo de
   consentimento e parecer jurídico antes do lançamento.
 - (−) Nada disso existe em código: as issues #168 a #170 ficam bloqueadas até o stakeholder
-  responder as perguntas 87 a 89 e o jurídico opinar.
+  responder as perguntas 91 a 93 e o jurídico opinar.

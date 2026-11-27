@@ -167,6 +167,6 @@ sequenceDiagram
 - Colegas verem o perfil uns dos outros: hoje não veem; decisão de produto na pergunta 80 de
   [`PERGUNTAS_STAKEHOLDER.md`](PERGUNTAS_STAKEHOLDER.md).
 - Núcleos, cargos internos, reuniões e presença: só o ADR 0013 (proposto), nas issues #168 a
-  #170, bloqueadas até o stakeholder responder (perguntas 87 a 89).
+  #170, bloqueadas até o stakeholder responder (perguntas 91 a 93).
 - Porta-voz do ciclo e avaliação (dupla): sem código ainda, nas issues #69 e #72. O painel da casa
   (ADR 0008 §3) e as funções `app.can_*` dele ainda não têm issue própria.

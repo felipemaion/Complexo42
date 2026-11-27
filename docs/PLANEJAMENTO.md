@@ -80,7 +80,7 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
     o parecer jurídico.
 11. **Núcleos** (ADR 0013, proposto, marco futuro): árvore de núcleos e subnúcleos fora do
     território, com cargos internos, entrada por pedido aprovado, reuniões com pauta, presença
-    que conta pontos e missões assumidas pelo núcleo. Pendem as perguntas 87 a 89.
+    que conta pontos e missões assumidas pelo núcleo. Pendem as perguntas 91 a 93.
 
 ### Fora do POC (por enquanto)
 - Chat interno: o WhatsApp continua sendo o canal de conversa.

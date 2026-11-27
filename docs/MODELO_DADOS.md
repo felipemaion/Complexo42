@@ -302,7 +302,7 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   outra (erro C7602): a volta é decisão da coordenação.
 
 ### `circles`, `circle_members` e reuniões (PROPOSTO, ADR 0013)
-Nada disso existe em migration: depende das perguntas 87 a 89 e do parecer jurídico. O núcleo é
+Nada disso existe em migration: depende das perguntas 91 a 93 e do parecer jurídico. O núcleo é
 uma **árvore própria**, fora do território e da casa; os rótulos ("Núcleo", "Subnúcleo" e os
 níveis de cargo) vêm de `config/` (R17).
 

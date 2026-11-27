@@ -130,16 +130,16 @@ O núcleo é um agrupamento de debate e de tarefas públicas, fora da árvore de
 pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos internos. A
 **sugestão padrão** das perguntas em aberto vale até a resposta.
 
-81. ✅ *(gestor, 2026-11-24)* **Um ou vários núcleos por pessoa?** Vários, com exatamente um
+85. ✅ *(gestor, 2026-11-24)* **Um ou vários núcleos por pessoa?** Vários, com exatamente um
     principal.
-82. ✅ *(gestor, 2026-11-24)* **Entrada:** a pessoa pede e o coordenador aprova ou recusa.
-83. ✅ *(gestor, 2026-11-24)* **Diretório de núcleos** visível aos membros? Por enquanto não.
-84. ✅ *(gestor, 2026-11-24)* **Relação com as casas:** independentes, sem vínculo.
-85. ✅ *(gestor, 2026-11-24)* **Reuniões, pauta e presença** entram na plataforma.
-86. ✅ *(gestor, 2026-11-24)* **A presença conta pontos**, além da medalha de presença.
-87. **Quem cria núcleos de topo e designa o primeiro coordenador?** *Padrão: o gestor da raiz.*
-88. **Para pedir um subnúcleo, é preciso ser membro do núcleo pai?** *Padrão: não.*
-89. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
+86. ✅ *(gestor, 2026-11-24)* **Entrada:** a pessoa pede e o coordenador aprova ou recusa.
+87. ✅ *(gestor, 2026-11-24)* **Diretório de núcleos** visível aos membros? Por enquanto não.
+88. ✅ *(gestor, 2026-11-24)* **Relação com as casas:** independentes, sem vínculo.
+89. ✅ *(gestor, 2026-11-24)* **Reuniões, pauta e presença** entram na plataforma.
+90. ✅ *(gestor, 2026-11-24)* **A presença conta pontos**, além da medalha de presença.
+91. **Quem cria núcleos de topo e designa o primeiro coordenador?** *Padrão: o gestor da raiz.*
+92. **Para pedir um subnúcleo, é preciso ser membro do núcleo pai?** *Padrão: não.*
+93. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
 
 ## Novas perguntas (após as definições)
 
