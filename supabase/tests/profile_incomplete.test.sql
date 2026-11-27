@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(19);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -72,6 +72,17 @@ select throws_ok($$ update public.profiles set profile_completed_at = null where
   'perfil completo NÃO volta a incompleto');
 select throws_ok($$ update public.profiles set profile_completed_at = now() where id = (select id from public.profiles where id = '00000000-0000-0000-0000-0000000000c4') $$, '23514', null,
   'perfil incompleto NÃO pode ser marcado completo sem nome e município');
+-- Linha gravada já com tudo (fixtures, scripts, SQL direto): nasce completa. Faltando qualquer campo, fica incompleta.
+select lives_ok($$ insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000c5'), ('00000000-0000-0000-0000-0000000000c6');
+                   insert into public.profiles (id, display_name_enc, municipality_code, consent_version, status, access_status)
+                   values ('00000000-0000-0000-0000-0000000000c5', pg_temp.enc('c5'), 3550308, 'v1', 'active', 'active'),
+                          ('00000000-0000-0000-0000-0000000000c6', pg_temp.enc('c6'), null, 'v1', 'active', 'active') $$,
+  'inserir com e sem município');
+select results_eq($$ select id::text, profile_completed_at is not null from public.profiles
+                     where id in ('00000000-0000-0000-0000-0000000000c5', '00000000-0000-0000-0000-0000000000c6') order by id $$,
+  $$ values ('00000000-0000-0000-0000-0000000000c5'::text, true), ('00000000-0000-0000-0000-0000000000c6'::text, false) $$,
+  'com nome, município e termo a linha nasce completa; sem município, incompleta');
+
 -- ---------------------------------------------------------------------------------------
 -- Exportação ("Baixar meus dados") de quem tem perfil incompleto: não quebra
 -- ---------------------------------------------------------------------------------------
