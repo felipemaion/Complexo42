@@ -136,5 +136,8 @@ ao juntar, para você conferir:
   linha → multiplicador 1,5):
   93, 98, 77 e 89 (mediana 91; LCP ~1 s, CLS 0). Com o multiplicador padrão 4× a nota oscila 71–93 só pela
   carga do servidor (2 núcleos, carga 8–12 de outros programas). O que sobra é a partida do React (base de
-  qualquer página Next). A nota oficial do PageSpeed segue sem medir: a cota grátis de quem chama deste
-  servidor acabou (até exemplo.com falha) e ele não abre `trycloudflare`. Medir no endereço final.
+  qualquer página Next). Medição de fora, independente (DebugBear, Lighthouse 13.5, celular, servidores
+  deles nos EUA, 27/11, versão `38312df`): **nota 98**, FCP e LCP 1,55 s, TBT 102 ms, CLS 0, 250 KB, 30
+  de 30 recomendações cumpridas — https://www.debugbear.com/test/website-speed/p98rXkz9/overview. O
+  PageSpeed do Google não mediu: a cota grátis sem chave estava esgotada (429). Vale medir de novo no
+  endereço final.
