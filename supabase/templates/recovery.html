@@ -1,0 +1,12 @@
+<!-- Recuperação de senha (ADR 0018). Genérico (R17): sem nome de instância nem dado pessoal. Abre
+     /auth/confirmar, que só mostra o botão; o token é conferido no POST (pré-visualização e
+     antivírus não o gastam) e o clique leva à página para criar a nova senha. -->
+<h2>Criar uma nova senha</h2>
+<p>Toque no botão abaixo para criar uma nova senha. O link vale por pouco tempo e só pode ser usado uma vez.</p>
+<p>
+  <a href="{{ .SiteURL }}/auth/confirmar?token_hash={{ .TokenHash }}&amp;type=recovery"
+     style="display:inline-block;padding:16px 24px;font-size:18px;font-weight:bold;text-decoration:none;border-radius:12px;background:#222222;color:#ffffff">
+    Criar nova senha
+  </a>
+</p>
+<p>Se você não pediu isto, ignore esta mensagem: a sua senha continua a mesma.</p>

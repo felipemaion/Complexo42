@@ -6,7 +6,7 @@ import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { coordinationViewDeps, OwnHouse, readHouseLock, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
-import { PROFILE_PATH } from "@/server/auth/routes";
+import { PASSWORD_PATH, PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
 export const metadata: Metadata = { title: instance.auth.signedInTitle };
@@ -63,6 +63,13 @@ export default async function SignedInHome({ searchParams }: Props) {
         className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
       >
         {instance.contactVisibility.homeLink}
+      </Link>
+      {/* Senha opcional para entrar sem e-mail (ADR 0018). */}
+      <Link
+        href={PASSWORD_PATH}
+        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+      >
+        {instance.password.homeLink}
       </Link>
       {/* "Baixar meus dados" (#20): POST para o servidor montar o arquivo; nada no navegador. */}
       <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-3">

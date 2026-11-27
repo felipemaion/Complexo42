@@ -8,6 +8,51 @@
 _format_version: "3.0"
 
 services:
+  # O cadastro com senha nunca e usado pelo app (so o link por /otp cria conta). Hoje o
+  # GOTRUE_DISABLE_SIGNUP ja e "true"; este 404 e defesa em profundidade para o dia em que o
+  # cadastro abrir: aberto, /signup criaria conta nao confirmada com o e-mail de outra pessoa e
+  # uma senha do atacante, e gastaria a cota de e-mail (ADR 0018 §1). Vale para todos.
+  - name: auth-signup-bloqueado
+    url: http://auth:9999/
+    routes:
+      - name: auth-v1-signup
+        strip_path: true
+        paths:
+          - /auth/v1/signup
+    plugins:
+      - name: request-termination
+        config:
+          status_code: 404
+          message: "Not Found"
+
+  # Endpoints do Auth que SO o servidor do app usa (pela rede interna): login por senha
+  # (/token), recuperacao, link, reenvio, troca de senha e reautenticacao. Vindo de FORA o
+  # proxy sempre acrescenta X-Forwarded-For; a chamada interna do app nao tem esse cabecalho.
+  # Entao: com o cabecalho, 404. Assim o login por senha nao pode ser forcado direto no
+  # Kong, contornando o Turnstile (que so protege o app), e uma conta Google nao define senha
+  # por /user com o proprio JWT (ADR 0018 §3). O navegador so precisa de /verify, /authorize
+  # e /callback, que seguem abertos. Medido com o Kong 3.9.4 (deploy/kong.test.sh).
+  - name: auth-sensivel-so-interno
+    url: http://auth:9999/
+    routes:
+      - name: auth-v1-so-interno
+        strip_path: true
+        paths:
+          - /auth/v1/token
+          - /auth/v1/recover
+          - /auth/v1/otp
+          - /auth/v1/magiclink
+          - /auth/v1/resend
+          - /auth/v1/user
+          - /auth/v1/reauthenticate
+        headers:
+          x-forwarded-for: ["~*.+"]
+    plugins:
+      - name: request-termination
+        config:
+          status_code: 404
+          message: "Not Found"
+
   - name: auth
     url: http://auth:9999/
     routes:
