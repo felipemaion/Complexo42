@@ -63,6 +63,7 @@ export const instance = parseInstanceConfig({
       unavailable: "O login está indisponível agora. Tente de novo em alguns minutos.",
       failed: "Não foi possível entrar. Tente de novo.",
       blocked: "Seu acesso está bloqueado. Fale com a coordenação.",
+      legacy_link: "Esse link de entrada é antigo ou já foi usado. Peça um novo link e entre de novo.",
     },
   },
   profile: {
@@ -202,6 +203,7 @@ export const instance = parseInstanceConfig({
     consentLockNotice: "Depois que a sua casa for definida, só você poderá trocá-la depois de 4 meses. A coordenação pode trocar antes, se for preciso.",
     lockedUntilNotice: "Você poderá trocar de casa a partir de {date}.",
     changeHouseLink: "Trocar de casa",
+    continueLink: "Continuar",
     errors: {
       unavailable: "Esta casa não está disponível no momento. Fale com a coordenação.",
       already_accepted: "Você já aceitou uma casa. Para trocar, fale com a coordenação.",

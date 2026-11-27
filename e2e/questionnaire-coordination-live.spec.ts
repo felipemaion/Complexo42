@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import type { QuestionnaireConfig } from "../src/modules/questionnaire/domain/schema";
+import { giveHouse } from "./give-house";
 
 // Telas da coordenação do questionário (#174, ADR 0014) contra um Supabase local: resultados com o
 // gráfico completo, fila de análise vazia, delegações e o 404 de quem
@@ -27,7 +28,8 @@ async function unitId(path: string): Promise<string> {
 }
 
 /** Pessoa ativa, em SP (estado), com o termo aceito. `inUnit` a move para outra unidade. */
-async function createPerson(tag: string, inUnit?: string): Promise<{ id: string; email: string }> {
+/** `withHouse`: quem só usa as telas (coordenação, pessoa comum) tem a casa aceita (ADR 0017); quem responde o questionário não. */
+async function createPerson(tag: string, inUnit?: string, withHouse = false): Promise<{ id: string; email: string }> {
   const email = `coord.${tag}.${Date.now()}@exemplo.org`;
   const user = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, email_confirm: true }) })).json();
   const res = await admin("/rest/v1/profiles", {
@@ -43,6 +45,7 @@ async function createPerson(tag: string, inUnit?: string): Promise<{ id: string;
     }),
   });
   expect(res.status).toBe(201);
+  if (withHouse) await giveHouse(admin, user.id);
   await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
   if (inUnit) {
     await admin(`/rest/v1/unit_members?profile_id=eq.${user.id}&left_at=is.null`, { method: "PATCH", body: JSON.stringify({ left_at: new Date().toISOString() }) });
@@ -99,14 +102,14 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   test.setTimeout(180_000);
   // Gente: a coordenação nacional (gestora da raiz), um gestor de SP (futuro delegado), duas pessoas
   // de SP com resultado, uma de Minas Gerais com resultado e uma pessoa comum (sem resultado).
-  const root = await createPerson("raiz");
+  const root = await createPerson("raiz", undefined, true);
   await makeManager(root.id, "br");
-  const state = await createPerson("sp");
+  const state = await createPerson("sp", undefined, true);
   await makeManager(state.id, "br.sp");
   const first = await createPerson("a");
   const second = await createPerson("b");
   const outside = await createPerson("mg", "br.mg");
-  const plain = await createPerson("comum");
+  const plain = await createPerson("comum", undefined, true);
   await answerQuestionnaire(browser, first, allA);
   await answerQuestionnaire(browser, second, houseB);
   await answerQuestionnaire(browser, outside, allA);
@@ -213,7 +216,7 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
 
 test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troca fica no audit_log (ADR 0016)", async ({ browser }) => {
   test.setTimeout(120_000);
-  const root = await createPerson("raiz-troca");
+  const root = await createPerson("raiz-troca", undefined, true);
   await makeManager(root.id, "br");
   const person = await createPerson("troca");
   // A pessoa responde na tela e aceita a casa sugerida: a trava de 4 meses nasce no banco.

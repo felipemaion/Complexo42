@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { giveHouse } from "./give-house";
 
 // Bloquear e desbloquear quem já entrou (#26, ADR 0008 §1), com o navegador da coordenação SEM
 // JavaScript: pedido, confirmação ("Não, voltar" não muda nada), bloqueio com efeito imediato
@@ -69,6 +70,7 @@ test.describe("bloqueio com o Supabase local", () => {
       }),
     });
     expect(profile.status).toBe(201);
+    await giveHouse(admin, user.id);
     const consent = await admin("/rest/v1/consent_acceptances", {
       method: "POST",
       headers: { Prefer: "return=minimal" },

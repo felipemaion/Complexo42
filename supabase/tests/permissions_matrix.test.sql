@@ -896,6 +896,9 @@ grant select on people to authenticated;
 
 -- Todas as pessoas aceitaram o termo vigente (#11): `save_own_profile` exige o aceite.
 insert into public.consent_acceptances (user_id, version) select id, 'v1' from auth.users;
+-- Quem salva o próprio perfil pela função precisa da casa aceita (ADR 0017): o coordenador do teste a tem.
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select id, 'casa-t1', 'self', now() from people where name = 'team_a_mon' and not exists (select 1 from public.house_members h where h.profile_id = people.id and h.left_at is null);
 
 select plan((select count(*)::int from matrix) + 156);
 

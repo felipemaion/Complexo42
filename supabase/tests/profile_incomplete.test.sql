@@ -43,6 +43,10 @@ select is((select count(*)::int from public.profiles where id = '00000000-0000-0
 -- ---------------------------------------------------------------------------------------
 -- Completar o perfil: só por save_own_profile
 -- ---------------------------------------------------------------------------------------
+reset role;
+insert into public.houses (key, active) values ('casa-t1', true) on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values ('00000000-0000-0000-0000-0000000000c1', 'casa-t1', 'self', now());
+set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000c1');
 select is(
   public.save_own_profile(pg_temp.enc('c1'), 3550308, null, pg_temp.enc('wa'), repeat('a', 64), null, null),
@@ -139,6 +143,7 @@ select is((select consent_at is null from public.profiles where id = '00000000-0
 insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000d5');
 insert into public.profiles (id, consent_version, status, access_status) values ('00000000-0000-0000-0000-0000000000d5', 'v0-velho', 'active', 'active');
 insert into public.consent_acceptances (user_id, version) values ('00000000-0000-0000-0000-0000000000d5', 'v1');
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values ('00000000-0000-0000-0000-0000000000d5', 'casa-t1', 'self', now());
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000d5');
 select is(public.save_own_profile(pg_temp.enc('d5'), 3550308, null, pg_temp.enc('wa'), repeat('d', 64), null, null), 'saved', 'completa a linha incompleta');

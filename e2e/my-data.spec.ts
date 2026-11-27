@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
 import { chooseCity } from "./choose-city";
+import { giveHouse } from "./give-house";
 
 // "Baixar meus dados" (#20). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o Supabase local,
 // o fluxo real: duas pessoas se cadastram, são liberadas e cada uma baixa o próprio arquivo,
@@ -58,6 +59,7 @@ test.describe("download com o Supabase local", () => {
       body: JSON.stringify({ access_status: "active", status: "active" }),
     });
     expect(res.ok).toBe(true);
+    await giveHouse(admin, link.id); // casa antes de tudo (ADR 0017)
     return page;
   }
 

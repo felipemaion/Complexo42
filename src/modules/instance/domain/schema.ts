@@ -94,6 +94,7 @@ export const instanceConfigSchema = z.strictObject({
       unavailable: text,
       failed: text,
       blocked: text,
+      legacy_link: text,
     }),
   }),
   /** Formulário do perfil (#12): nome, WhatsApp e localização. Linguagem simples. */
@@ -262,6 +263,8 @@ export const instanceConfigSchema = z.strictObject({
     consentLockNotice: text,
     lockedUntilNotice: text.refine((v) => v.includes("{date}"), "use {date}"),
     changeHouseLink: text,
+    /** Depois da casa aceita: o próximo passo é o perfil (via /inicio), ADR 0017. */
+    continueLink: text,
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,

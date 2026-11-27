@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
 import { chooseCity } from "./choose-city";
+import { giveHouse } from "./give-house";
 
 // "Quem vê meu contato" (#119, ADR 0010). Sem Supabase (job "E2E" do CI): só a proteção da rota. Com o
 // Supabase local, o fluxo real: A e B se cadastram, são liberadas e postas na mesma equipe
@@ -59,6 +60,7 @@ test.describe("quem vê meu contato com o Supabase local", () => {
       body: JSON.stringify({ access_status: "active", status: "active" }),
     });
     expect(res.ok).toBe(true);
+    await giveHouse(admin, link.id); // casa antes de tudo (ADR 0017)
     return page;
   }
 

@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { acceptTermIfAsked } from "./accept-term";
 import { chooseCity } from "./choose-city";
+import { giveHouse } from "./give-house";
 
 // Fluxo completo do cadastro (#21), de ponta a ponta, contra o Supabase local com o Mailpit (o
 // job "E2E com banco" do CI sobe os dois). Uma pessoa nova percorre tudo pela interface:
@@ -58,6 +59,7 @@ async function createRootManager(): Promise<string> {
     }),
   });
   expect(profile.status).toBe(201);
+  await giveHouse(admin, user.id);
   // Já aceitou o termo vigente (#11): sem a linha, o portão manda a pessoa para /termo.
   await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
   const [root] = await (await admin("/rest/v1/units?parent_id=is.null&select=id")).json();
@@ -135,10 +137,25 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   const page = await (await browser.newContext({ acceptDownloads: true })).newPage();
   await signInByEmail(page, request, person.email);
 
-  // Perfil (#12): sem perfil, o login leva ao formulário. Na lista, salvar libera o acesso.
+  // Casa antes de tudo (ADR 0017): liberada na lista, a pessoa cai em /casa; o perfil e o resto só depois dela.
   await acceptTermIfAsked(page);
-  await expect(page).toHaveURL(`${baseURL}/perfil`);
+  await expect(page).toHaveURL(`${baseURL}/casa`);
   await expect(page.getByTestId("connected-as")).toHaveText("Conectado como fl***@e***.org");
+  // Não consegue pular: por URL direta, o perfil, a página inicial e a coordenação levam de volta à casa.
+  for (const path of ["/perfil", "/perfil/contato", "/inicio", "/coordenacao"]) {
+    await page.goto(path);
+    await expect(page, path).toHaveURL(`${baseURL}/casa`);
+  }
+  // Casa (#76/#135): sabe qual quer, conhece e aceita.
+  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
+  await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
+  await expect(page.getByTestId("house-name")).toHaveText("Atenas");
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+
+  // Só então o perfil (#12): "Continuar" leva à página inicial, que manda quem não tem perfil ao formulário.
+  await page.getByTestId("continue-link").click();
+  await expect(page).toHaveURL(`${baseURL}/perfil`);
   await page.getByLabel("Seu nome").fill(person.name);
   await page.getByLabel("Seu WhatsApp, com DDD").fill(person.phone);
   await chooseCity(page, "São Paulo");
@@ -152,15 +169,6 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   // Liberada na hora, sem passar pela espera; o e-mail nunca aparece inteiro.
   expect(await rows(`access_waitlist_hmac?profile_id=eq.${id}&select=profile_id`)).toEqual([]);
   await expect(page.locator("body")).not.toContainText(person.email);
-
-  // Casa (#76/#135): sabe qual quer, conhece e aceita.
-  await page.getByRole("link", { name: "Escolher sua casa" }).click();
-  await expect(page).toHaveURL(`${baseURL}/casa`);
-  await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
-  await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
-  await expect(page.getByTestId("house-name")).toHaveText("Atenas");
-  await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
   // Quem vê o contato (#119): da coordenação (padrão) para equipe e casa.
   await page.goto("/inicio");
@@ -238,8 +246,8 @@ test("pessoa fora da lista: espera até o gestor importar o e-mail dela", async 
   expect(await importAllowlist(managerToken, [person.email])).toEqual({ received: 1, promoted: 1 });
   expect(await rows(`access_waitlist_hmac?profile_id=eq.${id}&select=profile_id`)).toEqual([]);
   expect(await rows(`audit_log?target_id=eq.${id}&event=eq.access_granted&select=reason`)).toEqual([{ reason: "import" }]);
+  // Liberada, ainda sem casa: o primeiro passo é a casa, não a página inicial (ADR 0017).
   await page.goto("/inicio");
-  await expect(page).toHaveURL(`${baseURL}/inicio`);
-  await expect(page.getByRole("link", { name: "Escolher sua casa" })).toBeVisible();
+  await expect(page).toHaveURL(`${baseURL}/casa`);
   await page.context().close();
 });

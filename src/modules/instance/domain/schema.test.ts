@@ -28,7 +28,7 @@ const valid = {
     confirmTitle: "t",
     confirmMessage: "t",
     confirmButton: "t",
-    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t" },
+    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t", legacy_link: "t" },
   },
   profile: {
     title: "t",
@@ -133,6 +133,7 @@ const valid = {
     consentLockNotice: "t",
     lockedUntilNotice: "{date}",
     changeHouseLink: "t",
+    continueLink: "t",
     errors: {
       unavailable: "t",
       already_accepted: "t",
