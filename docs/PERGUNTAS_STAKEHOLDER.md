@@ -124,6 +124,23 @@ substituídas pelas abaixo.
 84. [?] **Ids reais das casas:** a ligação das casas 1 a 4 aos polos usa os ids de `config/instance.ts`;
     falta a config real da instância para fechar o mapa do arquivo privado.
 
+## Núcleos (decisão do gestor de 2026-11-24, ADR 0013)
+
+O núcleo é um agrupamento de debate e de tarefas públicas, fora da árvore de território, com
+pessoas de regiões diferentes, em árvore (núcleo e subnúcleos) e com cargos internos. A
+**sugestão padrão** das perguntas em aberto vale até a resposta.
+
+85. ✅ *(gestor, 2026-11-24)* **Um ou vários núcleos por pessoa?** Vários, com exatamente um
+    principal.
+86. ✅ *(gestor, 2026-11-24)* **Entrada:** a pessoa pede e o coordenador aprova ou recusa.
+87. ✅ *(gestor, 2026-11-24)* **Diretório de núcleos** visível aos membros? Por enquanto não.
+88. ✅ *(gestor, 2026-11-24)* **Relação com as casas:** independentes, sem vínculo.
+89. ✅ *(gestor, 2026-11-24)* **Reuniões, pauta e presença** entram na plataforma.
+90. ✅ *(gestor, 2026-11-24)* **A presença conta pontos**, além da medalha de presença.
+91. **Quem cria núcleos de topo e designa o primeiro coordenador?** *Padrão: o gestor da raiz.*
+92. **Para pedir um subnúcleo, é preciso ser membro do núcleo pai?** *Padrão: não.*
+93. **Núcleos entram em algum placar** (de núcleos ou de turmas)? *Padrão: não.*
+
 ## Novas perguntas (após as definições)
 
 46. ⛔ **O que é uma turma?** Tem monitor fixo, datas de início e fim? Um aluno pode estar em

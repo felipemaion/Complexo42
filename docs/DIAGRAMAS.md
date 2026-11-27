@@ -3,7 +3,8 @@
 Visão geral para quem chega. A fonte da verdade continua sendo os ADRs
 ([0002](adr/0002-permissoes-hierarquicas.md), [0005](adr/0005-framework-e-hierarquia-generica.md),
 [0007](adr/0007-equipes-rotativas-medalhas-avaliacao.md), [0008](adr/0008-acesso-casas-avaliacao-dupla.md),
-[0010](adr/0010-visibilidade-do-contato.md), [0011](adr/0011-casa-nacional-coordenador-por-territorio.md))
+[0010](adr/0010-visibilidade-do-contato.md), [0011](adr/0011-casa-nacional-coordenador-por-territorio.md)
+e, proposto, [0013](adr/0013-nucleos-fora-do-territorio.md))
 e as funções `app.can_*` das migrations. Os diagramas mostram o que está decidido; o que ainda é
 intenção do stakeholder vem marcado.
 
@@ -11,7 +12,7 @@ intenção do stakeholder vem marcado.
 
 ## 1. Unidades e hierarquia (ADR 0005, 0008, 0011)
 
-Há **dois eixos independentes**. O território é uma árvore (`units`, com `ltree`); a casa é uma
+Há **dois eixos independentes** (e, proposto, um terceiro: o núcleo). O território é uma árvore (`units`, com `ltree`); a casa é uma
 trilha nacional, fora da árvore (`houses`). Cada pessoa tem **um vínculo de território aberto**
 (`unit_members`) e **um vínculo de casa aberto** (`house_members`).
 
@@ -31,8 +32,13 @@ flowchart TB
     H3["Casa 3"]
     H4["Casa 4"]
   end
+  subgraph N["Eixo do núcleo (circles, PROPOSTO, ADR 0013)"]
+    direction LR
+    N1["Núcleo"] --> N2["Subnúcleo"]
+  end
   P(("Pessoa")) -- "unit_members: 1 vínculo aberto" --> EQ
   P -- "house_members: 1 vínculo aberto, com aceite" --> H1
+  P -. "circle_members: vários, 1 principal, com aceite" .-> N2
 ```
 
 - A regra de escopo é uma só: quem tem papel na unidade **U** enxerga **U e tudo abaixo**
@@ -41,6 +47,11 @@ flowchart TB
   (`unit_id` + `house_key`): vê as pessoas ativas daquela casa cujo vínculo de território está
   nele ou abaixo.
 - Quem ainda está em `waitlisted` não aparece em nenhum dos dois eixos (ADR 0008 §1).
+- **Núcleo (proposto, ADR 0013):** árvore própria (`ltree`) de núcleos e subnúcleos, fora do
+  território, com pessoas de regiões diferentes. Valem **duas hierarquias juntas**: a árvore diz
+  *onde* a pessoa alcança e o cargo diz *o quê* ela faz. Só o nível de topo desce a árvore (vê e
+  aprova no núcleo e nos subnúcleos); os cargos intermediários valem dentro de cada núcleo. Sem
+  vista para cima nem para os lados, e sem localização.
 
 ## 2. Papéis e quem concede quem
 
@@ -155,5 +166,7 @@ sequenceDiagram
 
 - Colegas verem o perfil uns dos outros: hoje não veem; decisão de produto na pergunta 80 de
   [`PERGUNTAS_STAKEHOLDER.md`](PERGUNTAS_STAKEHOLDER.md).
+- Núcleos, cargos internos, reuniões e presença: só o ADR 0013 (proposto), nas issues #168 a
+  #170, bloqueadas até o stakeholder responder (perguntas 91 a 93).
 - Porta-voz do ciclo e avaliação (dupla): sem código ainda, nas issues #69 e #72. O painel da casa
   (ADR 0008 §3) e as funções `app.can_*` dele ainda não têm issue própria.
