@@ -127,6 +127,9 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
           <p className="rounded-xl border-2 border-current p-4 text-lg font-semibold" data-testid="consent-lock-notice">
             {text.consentLockNotice}
           </p>
+          <p className="rounded-xl border-2 border-current p-4 text-lg" data-testid="consent-stored-notice">
+            {text.consentStoredNotice}
+          </p>
           <button type="button" className={primary} onClick={acceptConsent} disabled={pending}>
             {text.consentAccept}
           </button>
