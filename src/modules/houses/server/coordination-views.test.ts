@@ -274,7 +274,7 @@ describe("delegações", () => {
     expect(await listDelegationCandidates(client, deps)).toEqual([{ granteeId: U1, granteeName: "Gestora", unitId: UNIT, unitName: "Estado Exemplo" }]);
     expect(log).toContainEqual(["eq", "role", "manager"]);
     expect(log).toContainEqual(["is", "revoked_at", null]);
-    expect(log).toContainEqual(["not", "unit.parent_id", null]);
+    expect(log).toContainEqual(["not", "unit.parent_id", "is", null]);
   });
 
   it("erro do banco: falha sem vazar mensagem", async () => {

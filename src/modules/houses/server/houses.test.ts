@@ -15,6 +15,9 @@ function fakeClient(result: { data?: unknown; error?: unknown } = {}) {
     eq: (...a) => (filters.push(["eq", ...a]), query),
     is: (...a) => (filters.push(["is", ...a]), query),
     not: (...a) => (filters.push(["not", ...a]), query),
+    in: (...a) => (filters.push(["in", ...a]), query),
+    order: (...a) => (filters.push(["order", ...a]), query),
+    limit: (...a) => (filters.push(["limit", ...a]), query),
     maybeSingle: () => Promise.resolve(response),
     then: (ok, fail) => Promise.resolve(response).then(ok, fail),
   };
