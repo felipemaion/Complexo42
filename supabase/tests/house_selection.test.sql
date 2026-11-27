@@ -537,8 +537,8 @@ select set_eq(
 );
 select columns_are('public', 'house_members',
   array['id', 'profile_id', 'house_key', 'join_method', 'consent_version', 'joined_at',
-        'accepted_at', 'left_at', 'ended_by'],
-  'house_members guarda só a pessoa, a casa, a forma, a versão do termo e as datas'
+        'accepted_at', 'left_at', 'ended_by', 'locked_until', 'moved'],
+  'house_members guarda só a pessoa, a casa, a forma, a versão do termo, as datas e a trava'
 );
 select columns_are('public', 'houses', array['key', 'active', 'created_at'],
   'houses guarda só a chave e a situação (nome e textos ficam na config, R17)');
@@ -588,6 +588,7 @@ select ok(
 -- ---------------------------------------------------------------------------------------
 select has_column('public', 'house_members', 'locked_until', 'house_members guarda até quando a casa está travada');
 
+set local role authenticated;
 select pg_temp.login('p_lock');
 select isnt(public.accept_house('casa-x', 'self', null), null, 'p_lock define a casa X');
 select ok(
@@ -657,6 +658,8 @@ select throws_ok(
 );
 select isnt(public.coordination_set_house(pg_temp.person('p_lock3'), 'casa-y'), null,
   'a coordenação com alcance troca a casa dentro da trava');
+-- Leituras como dono: depois da troca a coordenação deixa de enxergar o vínculo da casa nova.
+reset role;
 select is(
   (select house_key from public.house_members where profile_id = pg_temp.person('p_lock3') and left_at is null),
   'casa-y', 'a pessoa passa a estar na casa nova'
@@ -673,6 +676,7 @@ select ok(
    from public.house_members where profile_id = pg_temp.person('p_lock3') and left_at is null),
   'a troca da coordenação mantém a trava original'
 );
+set local role authenticated;
 select pg_temp.login('p_lock3');
 select throws_ok($$ select public.accept_house('casa-x', 'self', null) $$, 'C7603', null,
   'depois da troca pela coordenação a pessoa continua travada (não vira "removida")');
