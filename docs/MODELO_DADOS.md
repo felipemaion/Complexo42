@@ -1,5 +1,8 @@
 # Modelo de dados
 
+> Diagramas por área (pessoas e acesso, unidades, casas e questionário, localidades, auditoria):
+> [DIAGRAMAS.md §5](DIAGRAMAS.md#5-modelo-de-dados).
+
 > **Lista fechada.** Os únicos dados pessoais permitidos estão marcados com 🔒 e são
 > **guardados cifrados** (ADR 0003). Adicionar qualquer outro exige ADR aprovado (regra R4).
 > O script `scripts/check-forbidden-fields.sh` bloqueia no CI colunas proibidas e colunas

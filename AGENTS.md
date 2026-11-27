@@ -208,6 +208,7 @@ Uma tarefa só está pronta quando:
 - [ ] Em regra de domínio, permissão ou bug, o teste entrou num commit anterior ao do código (§2.2).
 - [ ] `npm run check` passa localmente e no CI.
 - [ ] Nenhum dado pessoal novo; se a tarefa cria tabela, há teste de RLS.
+- [ ] Se a mudança altera o schema (tabela, coluna, chave), o diagrama em `docs/DIAGRAMAS.md` §5 foi atualizado (o teste `tests/diagrama-modelo-de-dados.test.ts` confere as tabelas).
 - [ ] O que roda em cada fase (PR, deploy, lançamento) e as lacunas conhecidas estão em
       [`docs/TESTES.md`](docs/TESTES.md); mudança que fecha uma lacuna atualiza a tabela.
 - [ ] Documentação atualizada se a mudança altera comportamento, dados ou o modo de rodar.
