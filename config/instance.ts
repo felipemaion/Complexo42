@@ -308,6 +308,8 @@ export const instance = parseInstanceConfig({
     inviteMessage: "Você ainda não tem uma casa. Responda ao questionário para descobrir a sua.",
     rateLimitedWait: "Você acabou de enviar as suas respostas. Espere {minutes} min antes de tentar de novo, ou escolha a casa direto.",
     consentLockNotice: "Depois que a sua casa for definida, só você poderá trocá-la depois de 4 meses. A coordenação pode trocar antes, se for preciso.",
+    consentStoredNotice:
+      "Suas respostas ficam guardadas de forma cifrada, só para comparar com as casas se você quiser trocar. Você pode baixá-las ou apagá-las junto com a conta.",
     lockedUntilNotice: "Você poderá trocar de casa a partir de {date}.",
     changeHouseLink: "Trocar de casa",
     continueLink: "Continuar",
