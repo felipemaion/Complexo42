@@ -95,6 +95,11 @@ app. Com `DEMO_MODE=1`, `/demo?papel=membro|coordenacao` entra direto (perfil-fi
 - Conserto já incluído: tirar um item do portfólio podia dar "chave repetida" com as linhas guardadas
   fora de ordem (`…20261122000100`, com teste que reproduzia a falha).
 
-- Velocidade no celular (Lighthouse): a entrada nova ficou tão leve quanto `/entrar` (73 × 75 na mesma
-  força de máquina), com o maior texto na primeira pintura. A nota oficial do PageSpeed não foi medida:
-  a cota grátis acabou em 22/11 e o PageSpeed não abre endereços `trycloudflare`. Medir no endereço final.
+- Velocidade no celular (Lighthouse 13.6, 27/11): o CSS deixou de ir embutido (`inlineCss: false`): o
+  Next mandava o mesmo CSS duas vezes e a página inicial caiu de 127 KB para 22 KB; o trabalho de estilo e
+  layout caiu de ~1,1 s para ~0,25 s. Com a CPU calibrada como manda a tabela do Lighthouse
+  (`docs/throttling.md`: esta máquina mede ~650–1150, faixa de celular topo de linha → multiplicador 1,5):
+  93, 98, 77 e 89 (mediana 91; LCP ~1 s, CLS 0). Com o multiplicador padrão 4× a nota oscila 71–93 só pela
+  carga do servidor (2 núcleos, carga 8–12 de outros programas). O que sobra é a partida do React (base de
+  qualquer página Next). A nota oficial do PageSpeed segue sem medir: a cota grátis de quem chama deste
+  servidor acabou (até exemplo.com falha) e ele não abre `trycloudflare`. Medir no endereço final.
