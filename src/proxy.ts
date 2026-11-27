@@ -3,7 +3,7 @@ import { createAuthClient, expiredAuthCookies, hasAuthCookie, type CookieToSet }
 import { getAuthConfig } from "@/server/auth/config";
 import { isExpiredSession } from "@/server/auth/errors";
 import { decideRoute, isPublicPath, LOGIN_PATH, needsNoStore } from "@/server/auth/routes";
-import { buildCsp, cspHeaderName, newNonce, NONCE_HEADER } from "@/server/csp";
+import { buildCsp, CSP_HEADER, CSP_REPORT_ONLY_HEADER, cspHeaderName, newNonce, NONCE_HEADER } from "@/server/csp";
 
 // Proxy (antigo middleware, Next 16) do login (#9): renova a sessão no cookie e manda quem não
 // entrou para /entrar. É a checagem otimista; cada página protegida confere de novo
@@ -57,8 +57,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     isDev: process.env.NODE_ENV === "development",
     isHttps: (process.env.SITE_URL ?? "").startsWith("https:"),
   });
-  // Cópia feita depois do setAll acima: já leva os cookies renovados da sessão.
+  // Cópia feita depois do setAll acima: já leva os cookies renovados da sessão. Sem os cabeçalhos de CSP
+  // que o cliente mandou: o Next lê o nonce do primeiro que achar, e leria o forjado.
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(CSP_HEADER);
+  requestHeaders.delete(CSP_REPORT_ONLY_HEADER);
   requestHeaders.set(NONCE_HEADER, nonce);
   requestHeaders.set(cspName, csp);
   const response =
