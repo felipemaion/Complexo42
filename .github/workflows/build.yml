@@ -137,3 +137,21 @@ jobs:
       # é ponteiro: entre publicar e implantar ela pode passar a apontar para
       # outra imagem (#161). Quando o digest existe, é ele que vai pelo SSH.
       digest: ${{ needs.publicar.outputs.digest }}
+    # OBRIGATÓRIO, e foi o que quebrou o primeiro deploy automático: num
+    # workflow CHAMADO, o contexto `secrets` contém APENAS o que foi passado.
+    # Sem esta linha ele vem vazio -- mesmo com o job do deploy.yml declarando
+    # `environment: staging` e com os quatro secrets existindo nesse
+    # environment. Medido em 2026-11-27: o job rodou como "Implanta em staging"
+    # e ainda assim falhou com "falta o secret de CHAVE".
+    #
+    # Por que `inherit` e não mapear secret por secret: mapear exigiria
+    # `${{ secrets.DEPLOY_SSH_KEY }}` AQUI, no job que chama -- e aqui os
+    # secrets do environment não existem, porque um job com `uses:` não pode
+    # declarar `environment:`. O mapeamento explícito passaria quatro strings
+    # VAZIAS, que é pior: falharia igual, mas parecendo correto na revisão.
+    #
+    # O risco do `inherit` -- entregar todos os secrets do repositório -- é
+    # aceitável aqui porque o destino é um arquivo DESTE repositório
+    # (`./.github/workflows/deploy.yml`), revisado no mesmo PR. Ele seria
+    # inaceitável se o destino fosse workflow de outro repositório.
+    secrets: inherit

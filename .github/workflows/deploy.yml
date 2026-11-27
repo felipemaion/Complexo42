@@ -22,6 +22,11 @@ on:
       tag: { required: true, type: string }
       ambiente: { required: true, type: string }
       digest: { required: false, type: string, default: "" }
+    # Não declaramos `secrets:` aqui de propósito. Declarar tornaria o contexto
+    # EXPLÍCITO -- só os nomes listados existiriam --, e os secrets deste deploy
+    # vivem no ENVIRONMENT, não no repositório: quem os resolve é o
+    # `environment:` do job abaixo, e isso só acontece quando quem chama passa
+    # `secrets: inherit`. Ver o comentário no build.yml.
   workflow_dispatch:
     inputs:
       tag:
