@@ -196,11 +196,12 @@ export const instance = parseInstanceConfig({
     analysisChooseButton: "Escolher a casa direto",
     acceptedTitle: "Sua casa",
     homeLink: "Escolher sua casa",
+    rateLimitedWait: "Você acabou de enviar as suas respostas. Espere {minutes} min antes de tentar de novo, ou escolha a casa direto.",
     errors: {
       unavailable: "Esta casa não está disponível no momento. Fale com a coordenação.",
       already_accepted: "Você já aceitou uma casa. Para trocar, fale com a coordenação.",
       not_active: "Complete o seu cadastro antes de escolher a casa.",
-      stale_consent: "O termo foi atualizado. Recarregue a página para ler a versão nova.",
+      stale_consent: "O termo foi atualizado ou ainda não foi aceito. Recarregue a página e leia o termo de novo.",
       removed_by_coordination: "A coordenação tirou você da sua casa. Para voltar ou trocar de casa, fale com a coordenação.",
       rate_limited: "Você acabou de enviar as suas respostas. Espere um pouco antes de tentar de novo, ou escolha a casa direto.",
       failed: "Não foi possível salvar agora. Tente de novo.",

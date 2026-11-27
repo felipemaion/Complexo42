@@ -127,6 +127,7 @@ const valid = {
     analysisChooseButton: "t",
     acceptedTitle: "t",
     homeLink: "t",
+    rateLimitedWait: "{minutes}",
     errors: {
       unavailable: "t",
       already_accepted: "t",

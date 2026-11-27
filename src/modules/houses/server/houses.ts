@@ -109,7 +109,7 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
       p_issued_at: nowSeconds,
       p_signature: signature,
     });
-    if (error) return { ok: false, error: errorCode(error) };
+    if (error) return refusedSubmit(client, error, ctx);
     // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.
     return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
   }
@@ -122,7 +122,39 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     p_issued_at: nowSeconds,
     p_signature: signature,
   });
-  return error ? { ok: false, error: errorCode(error) } : { ok: true, outcome: "analysis" };
+  return error ? refusedSubmit(client, error, ctx) : { ok: true, outcome: "analysis" };
+}
+
+/** Janela da renovação do pedido aberto: a mesma de `request_house_analysis` no banco (1 hora, #172). */
+const analysisRenewalWindowSeconds = 3600;
+
+/**
+ * Recusa do envio com o motivo para a tela (#199). O banco só confere o termo da pessoa (22023) neste
+ * caminho, e a tela o trata como termo a reler. No limite de renovação, calcula quanto falta a partir
+ * da abertura do pedido aberto da própria pessoa; sem pedido legível, a recusa vai sem tempo.
+ */
+async function refusedSubmit(client: HouseClient, error: unknown, ctx: SubmitContext): Promise<SubmitAnswersResult> {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === "22023") return { ok: false, error: "stale_consent" };
+  const reason = errorCode(error);
+  if (reason !== "rate_limited") return { ok: false, error: reason };
+  const retryAfterSeconds = await secondsUntilRenewal(client, ctx);
+  return retryAfterSeconds === undefined ? { ok: false, error: reason } : { ok: false, error: reason, retryAfterSeconds };
+}
+
+async function secondsUntilRenewal(client: HouseClient, ctx: SubmitContext): Promise<number | undefined> {
+  const { data, error } = await client
+    .from("house_analysis_requests")
+    .select("created_at")
+    .eq("profile_id", ctx.userId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (error) return undefined;
+  const row = z.object({ created_at: z.string() }).nullable().safeParse(data);
+  if (!row.success || row.data === null) return undefined;
+  const openedAtSeconds = Date.parse(row.data.created_at) / 1000;
+  const remaining = Math.ceil(openedAtSeconds + analysisRenewalWindowSeconds - ctx.nowSeconds);
+  return Number.isFinite(remaining) && remaining > 0 ? remaining : undefined;
 }
 
 const acceptedRow = z.object({ house_key: z.string() }).nullable();

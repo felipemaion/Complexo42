@@ -250,6 +250,8 @@ export const instanceConfigSchema = z.strictObject({
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
+    rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,

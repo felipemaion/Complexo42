@@ -1,4 +1,5 @@
 import type { Answer, Answers, ChartAxis } from "@/modules/questionnaire";
+import type { Refusal } from "./refusal";
 
 /*
  * Fluxo da escolha da casa (#76, ADR 0008 §2 e §2.1). Puro: a tela só despacha eventos.
@@ -28,7 +29,8 @@ export type Step =
   /** `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário. */
   | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[] };
 
-export type FlowState = { step: Step; answers: Answers };
+/** `refusal`: por que o último envio das respostas foi recusado; some na próxima ação da pessoa (#199). */
+export type FlowState = { step: Step; answers: Answers; refusal?: Refusal };
 
 export type FlowEvent =
   | { type: "consent_accepted" }
@@ -38,7 +40,8 @@ export type FlowEvent =
   | { type: "next" }
   | { type: "result_recorded"; houseId: string; chart: readonly ChartAxis[] }
   | { type: "analysis_requested" }
-  | { type: "submit_failed" }
+  /** O servidor recusou o envio; `error` (e o tempo restante, no limite) aparece na tela. */
+  | ({ type: "submit_failed" } & Refusal)
   | { type: "activity_chosen"; houseId: string }
   | { type: "choose_other" }
   | { type: "back" };
@@ -107,7 +110,11 @@ function afterSubmit(state: FlowState, event: FlowEvent, lastIndex: number): Flo
     return at({ kind: "presentation", houseId: event.houseId, method: "questionnaire", chart: event.chart }, answers);
   }
   if (event.type === "analysis_requested") return at({ kind: "analysis" }, answers);
-  if (event.type === "submit_failed") return at({ kind: "question", index: lastIndex }, answers);
+  if (event.type === "submit_failed") {
+    const { error, retryAfterSeconds } = event;
+    const refusal: Refusal = retryAfterSeconds === undefined ? { error } : { error, retryAfterSeconds };
+    return { step: { kind: "question", index: lastIndex }, answers, refusal };
+  }
   return state;
 }
 
