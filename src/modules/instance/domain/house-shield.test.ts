@@ -1,7 +1,7 @@
 import { existsSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { instance } from "@config/instance";
-import { academyIcon, shieldAssets } from "./house-shield";
+import { appLogo, shieldAssets } from "./house-shield";
 
 describe("escudos das casas (public/casas)", () => {
   it("cada casa da config tem as quatro imagens (WebP e PNG, 512 e 128), leves", () => {
@@ -17,11 +17,11 @@ describe("escudos das casas (public/casas)", () => {
     }
   });
 
-  it("o ícone da Academia (Incubadora) existe e não é uma casa da config", () => {
-    const icon = academyIcon();
+  it("o logo do app existe e não é uma casa da config", () => {
+    const icon = appLogo();
     expect(existsSync(`public${icon.webp128}`)).toBe(true);
     expect(existsSync(`public${icon.png512}`)).toBe(true);
-    expect(instance.houses.map((house) => house.id)).not.toContain("incubadora");
+    expect(instance.houses.map((house) => house.id)).not.toContain("app-logo");
   });
 
   it("recusa id que não é de casa (nada de caminho montado a partir de texto livre)", () => {

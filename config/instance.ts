@@ -451,7 +451,7 @@ export const instance = parseInstanceConfig({
       id: "alexandria",
       name: "Alexandria",
       // Cor do gráfico (#201): clara e escura. Siracusa é provisória (aguarda o stakeholder).
-      color: { light: "#c99a06", dark: "#f2c94c" },
+      color: { light: "#6b2d8f", dark: "#c9a0ee" },
       description: "A Casa dos intelectuais e criadores, lugar de personalidades brilhantes e reflexivas, que vão na fonte de conhecimento e transmitem aos demais.",
       activities: ["[PREENCHER] Atividade exemplo 3A"],
       firstSteps: {

@@ -258,6 +258,10 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await page.getByRole("button", { name: "Escolher outra casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 3A" }).click();
   await expect(page.getByTestId("house-name")).toHaveText("Alexandria");
+  // O escudo da casa ao lado do nome, com o nome como alt e tamanho fixo (sem salto de layout).
+  await expect(page.getByTestId("house-shield")).toHaveAttribute("alt", "Alexandria");
+  await expect(page.getByTestId("house-shield")).toHaveAttribute("width", "96");
+  await expect(page.getByTestId("app-logo").first()).toHaveAttribute("alt", /\S/);
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   // Casa definida: a pessoa vê a data a partir da qual poderá trocar (4 meses; ADR 0016) e ainda não vê o link de troca.

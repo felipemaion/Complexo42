@@ -1,4 +1,5 @@
 import { instance } from "@config/instance";
+import { AppLogo } from "@/modules/houses/components/house-shield";
 import { AccountNav } from "@/modules/navigation";
 import { signOut } from "@/server/auth/actions";
 import { HOME_PATH } from "@/server/auth/routes";
@@ -13,6 +14,7 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
   return (
     <>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-300 px-6 py-3">
+        <AppLogo name={instance.name} size={40} />
         <AccountNav homePath={HOME_PATH} labels={{ nav: text.navLabel, home: text.navHome, back: text.navBack }} />
         <p className="text-base" data-testid="connected-as">
           {text.connectedAs} <strong>{user.maskedEmail}</strong>

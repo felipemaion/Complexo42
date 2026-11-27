@@ -7,7 +7,7 @@ const lightBackground = "#ffffff";
 const darkBackground = "#111111";
 /**
  * Contraste mínimo da cor da casa contra o fundo. Cores de gráfico podem ficar abaixo dos 3:1 do WCAG 1.4.11
- * (a Alexandria roxa passa de 4,5:1); o que importa nunca depende só da cor: o nome da casa
+ * (a terceira casa, roxa, passa de 4,5:1); o que importa nunca depende só da cor: o nome da casa
  * é texto na cor do tema, dentro de um retângulo com fundo opaco.
  */
 const minGraphicContrast = 2.5;
@@ -56,16 +56,16 @@ describe("cores das casas (#201)", () => {
     }
   });
 
-  it("Alexandria é roxa (tom do escudo), com contraste AA (4,5:1) em texto nos dois temas", () => {
-    const alexandria = instance.houses.find((house) => house.id === "alexandria")!;
+  it("a casa roxa (a terceira da lista) tem o tom do escudo e contraste AA (4,5:1) em texto nos dois temas", () => {
+    const purple = instance.houses[2]!;
     for (const [hex, background, theme] of [
-      [alexandria.color.light, lightBackground, "claro"],
-      [alexandria.color.dark, darkBackground, "escuro"],
+      [purple.color.light, lightBackground, "claro"],
+      [purple.color.dark, darkBackground, "escuro"],
     ] as const) {
       const [red, green, blue] = [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16));
       expect(hue(red!, green!, blue!), `matiz ${theme}`).toBeGreaterThanOrEqual(260);
       expect(hue(red!, green!, blue!), `matiz ${theme}`).toBeLessThanOrEqual(310);
-      expect(contrast(hex, background), `Alexandria ${theme}`).toBeGreaterThanOrEqual(minTextContrast);
+      expect(contrast(hex, background), `casa roxa ${theme}`).toBeGreaterThanOrEqual(minTextContrast);
     }
   });
 

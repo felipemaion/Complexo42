@@ -1,6 +1,8 @@
 // Apresentação de uma casa: descrição e "primeiros passos" com vídeos, tudo de config/ (R17).
 // Só apresentação, sem estado: serve à tela do fluxo e à de quem já aceitou.
 
+import { HouseShield } from "./house-shield";
+
 export type HouseView = {
   id: string;
   name: string;
@@ -22,9 +24,12 @@ export function HousePresentation({ house, title, firstStepsTitle, videosTitle }
   return (
     <section className="flex flex-col gap-4" aria-labelledby="house-name">
       <p className="text-lg font-semibold">{title}</p>
-      <h2 id="house-name" className="text-3xl font-bold" data-testid="house-name">
-        {house.name}
-      </h2>
+      <div className="flex items-center gap-4">
+        <HouseShield houseId={house.id} name={house.name} size={96} />
+        <h2 id="house-name" className="text-3xl font-bold" data-testid="house-name">
+          {house.name}
+        </h2>
+      </div>
       <p className="text-lg">{house.description}</p>
       <h3 className="text-xl font-semibold">{firstStepsTitle}</h3>
       <p className="whitespace-pre-line text-lg">{house.firstSteps.text}</p>
