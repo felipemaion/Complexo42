@@ -164,6 +164,7 @@ begin
         'access_status', p.access_status,
         'consent_version', p.consent_version,
         'consent_at', p.consent_at,
+        'profile_completed_at', p.profile_completed_at,
         'created_at', p.created_at,
         'updated_at', p.updated_at
       )

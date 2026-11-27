@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(21);
+select plan(23);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -89,6 +89,12 @@ reset role;
 select is((select answers_enc from public.questionnaire_results where profile_id = '00000000-0000-0000-0000-0000000000c2'), null,
   '... e apaga as respostas guardadas (só o resultado novo vale; o caminho não acontece em respostas novas desde os pesos 1-3-5)');
 set local role authenticated;
+
+-- "Baixar meus dados": o export traz as respostas cifradas e NÃO perde campos de migrations anteriores (regressão do #257:
+-- o export foi redefinido a partir de uma versão velha e perdeu profile_completed_at).
+select pg_temp.login('00000000-0000-0000-0000-0000000000c2');
+select ok((public.export_own_data() -> 'questionnaire_result') ? 'answers_enc', 'o export traz answers_enc (cifrado) no resultado do questionário');
+select ok((public.export_own_data() -> 'profile') ? 'profile_completed_at', '... e mantém profile_completed_at do perfil (campo de migration anterior)');
 
 -- Um resultado decidido pela coordenação (sem respostas) apaga as antigas: nunca ficam respostas de resultado que já não vale.
 select pg_temp.login('00000000-0000-0000-0000-0000000000c2');
