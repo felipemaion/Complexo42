@@ -10,6 +10,7 @@ import {
   listDelegationCandidates,
   listDelegations,
   listResults,
+  maxResultRows,
   openCase,
   openResult,
   readCoordinationAccess,
@@ -61,6 +62,7 @@ function fake(tables: Record<string, Response> = {}, rpcs: Record<string, Respon
           eq: (...a) => (log.push(["eq", ...a]), query),
           is: (...a) => (log.push(["is", ...a]), query),
           not: (...a) => (log.push(["not", ...a]), query),
+          neq: (...a) => (log.push(["neq", ...a]), query),
           in: (...a) => (log.push(["in", ...a]), query),
           order: (...a) => (log.push(["order", ...a]), query),
           limit: (...a) => (log.push(["limit", ...a]), query),
@@ -96,47 +98,69 @@ describe("readCoordinationAccess e canSeeResults", () => {
 });
 
 describe("listResults", () => {
+  const VIEWER = "99999999-9999-4999-8999-999999999999";
   const resultRows = [
-    { profile_id: U1, house_key: HOUSE_A, totem_enc: encTotem(U1, "XV"), created_at: "2026-11-27T10:00:00Z" },
-    { profile_id: U2, house_key: HOUSE_B, totem_enc: encTotem(U2, "YW"), created_at: "2026-11-26T10:00:00Z" },
+    { profile_id: U1, house_key: HOUSE_A, created_at: "2026-11-27T10:00:00Z" },
+    { profile_id: U2, house_key: HOUSE_B, created_at: "2026-11-26T10:00:00Z" },
   ];
   const profiles = [
     { id: U1, display_name_enc: encName(U1, "Ana Teste") },
     { id: U2, display_name_enc: encName(U2, "Beto Teste") },
   ];
+  const manyRows = (count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      profile_id: `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      house_key: HOUSE_A,
+      created_at: "2026-11-27T10:00:00Z",
+    }));
 
-  it("lista casa, totem decifrado, data e nome, do mais novo ao mais antigo", async () => {
+  it("lista só nome, casa e data (nada de totem nem nota), do mais novo ao mais antigo", async () => {
     const { client, log } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } });
-    const out = await listResults(client, deps, {});
+    const out = await listResults(client, deps, VIEWER, {});
     expect(out).toEqual({
       rows: [
-        { profileId: U1, name: "Ana Teste", houseId: HOUSE_A, totem: "XV", createdAt: "2026-11-27T10:00:00Z" },
-        { profileId: U2, name: "Beto Teste", houseId: HOUSE_B, totem: "YW", createdAt: "2026-11-26T10:00:00Z" },
+        { profileId: U1, name: "Ana Teste", houseId: HOUSE_A, createdAt: "2026-11-27T10:00:00Z" },
+        { profileId: U2, name: "Beto Teste", houseId: HOUSE_B, createdAt: "2026-11-26T10:00:00Z" },
       ],
-      unreadable: 0,
+      truncated: false,
     });
     expect(log).toContainEqual(["order", "created_at", { ascending: false }]);
-    expect(log).toContainEqual(["in", "id", [U1, U2]]);
+    // O totem e as notas nem são pedidos ao banco: só o detalhe (que registra o acesso) os lê.
+    const columns = log.filter((e) => e[0] === "from" && e[1] === "questionnaire_results").map((e) => String(e[2]));
+    expect(columns).toEqual(["profile_id,house_key,created_at"]);
+  });
+
+  it("não lista a própria pessoa (quem vê não abre o próprio resultado por aqui)", async () => {
+    const { client, log } = fake({ questionnaire_results: { data: [] } });
+    await listResults(client, deps, VIEWER, {});
+    expect(log).toContainEqual(["neq", "profile_id", VIEWER]);
   });
 
   it("filtra pela casa no banco", async () => {
     const { client, log } = fake({ questionnaire_results: { data: [resultRows[1]] }, profiles: { data: profiles } });
-    await listResults(client, deps, { houseId: HOUSE_B });
+    await listResults(client, deps, VIEWER, { houseId: HOUSE_B });
     expect(log).toContainEqual(["eq", "house_key", HOUSE_B]);
   });
 
   it("ignora filtro de casa que não é da config (não vai ao banco)", async () => {
     const { client, log } = fake({ questionnaire_results: { data: [] }, profiles: { data: [] } });
-    await listResults(client, deps, { houseId: "casa-inventada" });
+    await listResults(client, deps, VIEWER, { houseId: "casa-inventada" });
     expect(log.some((entry) => entry[0] === "eq" && entry[1] === "house_key")).toBe(false);
   });
 
-  it("totem que não decifra: a linha sai da lista e é contada, sem derrubar as outras nem vazar", async () => {
-    const rows = [{ ...resultRows[0], totem_enc: encTotem(U2, "XV") }, resultRows[1]];
-    const { client } = fake({ questionnaire_results: { data: rows }, profiles: { data: profiles } });
-    const out = await listResults(client, deps, {});
-    expect(out.rows.map((r) => r.profileId)).toEqual([U2]);
-    expect(out.unreadable).toBe(1);
+  it("mais linhas que a página: mostra só a página e avisa que truncou (filtre por casa)", async () => {
+    const { client, log } = fake({ questionnaire_results: { data: manyRows(maxResultRows + 1) }, profiles: { data: [] } });
+    const out = await listResults(client, deps, VIEWER, {});
+    expect(out.rows).toHaveLength(maxResultRows);
+    expect(out.truncated).toBe(true);
+    expect(log).toContainEqual(["limit", maxResultRows + 1]);
+  });
+
+  it("os nomes são buscados em lotes pequenos (a URL não estoura com centenas de ids)", async () => {
+    const { client, log } = fake({ questionnaire_results: { data: manyRows(120) }, profiles: { data: [] } });
+    await listResults(client, deps, VIEWER, {});
+    const sizes = log.filter((e) => e[0] === "in" && e[1] === "id").map((e) => (e[2] as string[]).length);
+    expect(sizes).toEqual([50, 50, 20]);
   });
 
   it("nome que não decifra vira null (a pessoa continua na lista)", async () => {
@@ -144,18 +168,23 @@ describe("listResults", () => {
       questionnaire_results: { data: [resultRows[0]] },
       profiles: { data: [{ id: U1, display_name_enc: encName(U2, "Outra") }] },
     });
-    expect((await listResults(client, deps, {})).rows[0]?.name).toBeNull();
+    expect((await listResults(client, deps, VIEWER, {})).rows[0]?.name).toBeNull();
+  });
+
+  it("erro ao buscar os nomes: a tela falha (erro visível), em vez de mostrar todo mundo sem nome", async () => {
+    const { client } = fake({ questionnaire_results: { data: [resultRows[0]] }, profiles: { error: { code: "XX", message: "segredo" } } });
+    await expect(listResults(client, deps, VIEWER, {})).rejects.toThrow("names_read_failed:failed");
   });
 
   it("sem resultados visíveis (RLS): lista vazia, sem consultar nomes", async () => {
     const { client, log } = fake({ questionnaire_results: { data: [] } });
-    expect(await listResults(client, deps, {})).toEqual({ rows: [], unreadable: 0 });
+    expect(await listResults(client, deps, VIEWER, {})).toEqual({ rows: [], truncated: false });
     expect(log.some((entry) => entry[0] === "from" && entry[1] === "profiles")).toBe(false);
   });
 
   it("erro do banco: falha sem vazar mensagem", async () => {
     const { client } = fake({ questionnaire_results: { error: { code: "XX", message: "segredo" } } });
-    await expect(listResults(client, deps, {})).rejects.toThrow("results_read_failed:failed");
+    await expect(listResults(client, deps, VIEWER, {})).rejects.toThrow("results_read_failed:failed");
   });
 });
 
@@ -224,11 +253,20 @@ describe("listCases e openCase (fila de análise)", () => {
     const out = await listCases(client, deps);
     expect(out.rows).toEqual([{ requestId: REQ, profileId: U1, name: "Ana", tiedAxes: ["house2", "totem1"], createdAt: "2026-11-27T09:00:00Z" }]);
     expect(out.unreadable).toBe(1);
+    expect(out.truncated).toBe(false);
+  });
+
+  it("abrir o caso busca SÓ esse pedido aberto (não decifra a fila inteira)", async () => {
+    const { client, log } = fake({ house_analysis_requests: { data: requestRow(U1) }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } });
+    await openCase(client, REQ, deps);
+    expect(log).toContainEqual(["eq", "id", REQ]);
+    expect(log).toContainEqual(["eq", "status", "open"]);
+    expect(log.filter((e) => e[0] === "from" && e[1] === "house_analysis_requests")).toHaveLength(1);
   });
 
   it("abrir o caso devolve as respostas, as notas e o gráfico completo, e registra o acesso à pessoa", async () => {
     const { client, rpcCalls } = fake(
-      { house_analysis_requests: { data: [requestRow(U1)] }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } },
+      { house_analysis_requests: { data: requestRow(U1) }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } },
       {},
     );
     const out = await openCase(client, REQ, deps);
@@ -242,14 +280,14 @@ describe("listCases e openCase (fila de análise)", () => {
   });
 
   it("caso que não está na fila visível, id inválido ou acesso recusado: not_found", async () => {
-    expect(await openCase(fake({ house_analysis_requests: { data: [] } }).client, REQ, deps)).toEqual({ status: "not_found" });
+    expect(await openCase(fake({ house_analysis_requests: { data: null } }).client, REQ, deps)).toEqual({ status: "not_found" });
     expect(await openCase(fake().client, "x", deps)).toEqual({ status: "not_found" });
-    const refused = fake({ house_analysis_requests: { data: [requestRow(U1)] } }, { log_questionnaire_view: { error: { code: "42501" } } });
+    const refused = fake({ house_analysis_requests: { data: requestRow(U1) } }, { log_questionnaire_view: { error: { code: "42501" } } });
     expect(await openCase(refused.client, REQ, deps)).toEqual({ status: "not_found" });
   });
 
   it("respostas que não pontuam (escala antiga ou incompletas): unreadable", async () => {
-    const old = fake({ house_analysis_requests: { data: [requestRow(U1, { answers_enc: encAnswers(U1, { q01: -3 }) })] } });
+    const old = fake({ house_analysis_requests: { data: requestRow(U1, { answers_enc: encAnswers(U1, { q01: -3 }) }) } });
     expect(await openCase(old.client, REQ, deps)).toEqual({ status: "unreadable" });
   });
 });

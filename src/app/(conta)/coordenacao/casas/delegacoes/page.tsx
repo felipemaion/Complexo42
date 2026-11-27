@@ -3,7 +3,7 @@ import Link from "next/link";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
 import { listDelegationCandidates, listDelegations, requireCoordinationScreen } from "@/modules/houses";
-import { shortDate } from "../format";
+import { errorText as lookupErrorText, shortDate } from "../format";
 import { grantDelegationAction, revokeDelegationAction } from "./actions";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.delegations.title };
@@ -19,7 +19,7 @@ export default async function DelegationsPage({
   const query = await searchParams;
   const [grants, candidates] = await Promise.all([listDelegations(client, deps), listDelegationCandidates(client, deps)]);
   const text = instance.questionnaireCoordination;
-  const errorText = query.erro && query.erro in text.errors ? text.errors[query.erro as keyof typeof text.errors] : null;
+  const errorText = lookupErrorText(text.errors, query.erro);
   const notice = query.concedida === "1" ? text.delegations.grantedNotice : query.revogada === "1" ? text.delegations.revokedNotice : null;
   const alreadyGranted = new Set(grants.map((grant) => `${grant.granteeId}:${grant.unitId}`));
   const open = candidates.filter((candidate) => !alreadyGranted.has(`${candidate.granteeId}:${candidate.unitId}`));

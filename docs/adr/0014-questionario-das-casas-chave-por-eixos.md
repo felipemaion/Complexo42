@@ -143,10 +143,12 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
 casa; abrir mostra o gráfico completo de 4 eixos e o totem), **analise** (fila de casos inconclusivos: nome,
 data e eixos empatados; abrir mostra as respostas como frases da escala e o gráfico; formulário para
 escolher casa e totem e resolver; linhas ilegíveis são contadas e avisadas) e **delegacoes** (só a
-nacional: conceder, revogar e listar). Quem não tem permissão recebe **404**, nunca 403. O link no menu da
+nacional: conceder, revogar e listar). A lista de resultados mostra **só nome, casa e data**, sem a
+própria pessoa e com no máximo 200 por página (avisa quando trunca; filtre por casa); **totem, notas e
+gráfico só no detalhe**, que registra o acesso. A fila mostra nome, data e eixos empatados, sem respostas. Quem não tem permissão recebe **404**, nunca 403. O link no menu da
 coordenação só aparece para quem pode (`questionnaire_coordination_access()`, que só alimenta menu e 404:
 quem lê e quem resolve segue sendo o banco). **Abrir o resultado ou o caso de alguém gera o evento
-`questionnaire_result_viewed`** (ator e alvo, sem conteúdo; função `log_questionnaire_view`, só para quem
+`questionnaire_result_viewed`** (ator e alvo, sem conteúdo; o mesmo ator e alvo em 10 minutos valem um só; função `log_questionnaire_view`, só para quem
 pode ler os dados do alvo e nunca sobre si), que só a coordenação nacional lê no log; a pessoa vista o
 encontra no "Baixar meus dados".
 

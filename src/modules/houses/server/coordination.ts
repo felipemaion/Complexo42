@@ -125,13 +125,39 @@ export type AnalysisRequestList = {
   requests: AnalysisRequestView[];
   /** Quantas linhas não deram para ler (valor que não decifra, formato inesperado): a fila segue sem elas. */
   unreadable: number;
+  /** Havia mais pedidos que a página: só os mais recentes vieram. */
+  truncated: boolean;
 };
 
+/** Pedidos por página da fila (decifrar é por linha); o resto vem como "truncado". */
+export const maxAnalysisRows = 200;
+
+/** Uma linha do banco como pedido legível; falha só com o NOME da coluna (nunca valor nem mensagem). */
+async function decryptRequest(raw: unknown, crypto: CoordinationCrypto): Promise<AnalysisRequestView> {
+  const row = requestRow.safeParse(raw);
+  if (!row.success) throw new UnreadableRow("row");
+  let plain: string;
+  try {
+    plain = await crypto.decrypt(row.data.answers_enc, answersContext(row.data.profile_id));
+  } catch {
+    throw new UnreadableRow("answers_enc");
+  }
+  let answers: Record<string, number>;
+  try {
+    answers = answersJson.parse(JSON.parse(plain));
+  } catch {
+    throw new UnreadableRow("answers_enc");
+  }
+  return { requestId: row.data.id, profileId: row.data.profile_id, tiedAxes: row.data.tied_axes, answers, createdAt: row.data.created_at };
+}
+
+const requestColumns = "id,profile_id,tied_axes,answers_enc,created_at";
+
 /**
- * Pedidos abertos que a RLS deixa ver a quem chama (nacional: todos; delegado: os do escopo), com as
- * respostas decifradas. Linha a linha: uma linha ilegível NÃO derruba a fila; ela é contada em
- * `unreadable` e `onUnreadable` recebe só o NOME da coluna (como o export), nunca valor nem a
- * mensagem do erro (que poderia trazer trecho de texto claro).
+ * Pedidos abertos que a RLS deixa ver a quem chama (nacional: todos; delegado: os do escopo), dos mais
+ * novos, com as respostas decifradas, até `maxAnalysisRows` (`truncated` avisa que há mais). Linha a
+ * linha: uma linha ilegível NÃO derruba a fila; é contada em `unreadable` e `onUnreadable` recebe só o
+ * NOME da coluna (como o export), nunca valor nem a mensagem do erro.
  */
 export async function listOpenAnalysisRequests(
   client: HouseClient,
@@ -140,29 +166,14 @@ export async function listOpenAnalysisRequests(
 ): Promise<AnalysisRequestList> {
   const { data, error } = await client
     .from("house_analysis_requests")
-    .select("id,profile_id,tied_axes,answers_enc,created_at")
-    .eq("status", "open");
+    .select(requestColumns)
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(maxAnalysisRows + 1);
   if (error) throw new Error(`analysis_read_failed:${errorOf(error)}`);
-  const rawRows: unknown[] = Array.isArray(data) ? data : [];
-  const settled = await Promise.allSettled(
-    rawRows.map(async (raw): Promise<AnalysisRequestView> => {
-      const row = requestRow.safeParse(raw);
-      if (!row.success) throw new UnreadableRow("row");
-      let plain: string;
-      try {
-        plain = await crypto.decrypt(row.data.answers_enc, answersContext(row.data.profile_id));
-      } catch {
-        throw new UnreadableRow("answers_enc");
-      }
-      let answers: Record<string, number>;
-      try {
-        answers = answersJson.parse(JSON.parse(plain));
-      } catch {
-        throw new UnreadableRow("answers_enc");
-      }
-      return { requestId: row.data.id, profileId: row.data.profile_id, tiedAxes: row.data.tied_axes, answers, createdAt: row.data.created_at };
-    }),
-  );
+  const all: unknown[] = Array.isArray(data) ? data : [];
+  const rawRows = all.slice(0, maxAnalysisRows);
+  const settled = await Promise.allSettled(rawRows.map((raw) => decryptRequest(raw, crypto)));
   const requests: AnalysisRequestView[] = [];
   let unreadable = 0;
   for (const outcome of settled) {
@@ -172,7 +183,29 @@ export async function listOpenAnalysisRequests(
       onUnreadable?.(outcome.reason instanceof UnreadableRow ? outcome.reason.column : "row");
     }
   }
-  return { requests, unreadable };
+  return { requests, unreadable, truncated: all.length > maxAnalysisRows };
+}
+
+export type OneAnalysisRequest =
+  | { status: "ok"; request: AnalysisRequestView }
+  | { status: "not_found" }
+  | { status: "unreadable" };
+
+/** Um pedido aberto, só ele (id e status no banco; a RLS decide se quem chama o vê), com as respostas decifradas. */
+export async function readOpenAnalysisRequest(client: HouseClient, requestId: string, crypto: CoordinationCrypto): Promise<OneAnalysisRequest> {
+  const { data, error } = await client
+    .from("house_analysis_requests")
+    .select(requestColumns)
+    .eq("id", requestId)
+    .eq("status", "open")
+    .maybeSingle();
+  if (error) throw new Error(`analysis_read_failed:${errorOf(error)}`);
+  if (data === null || data === undefined) return { status: "not_found" };
+  try {
+    return { status: "ok", request: await decryptRequest(data, crypto) };
+  } catch {
+    return { status: "unreadable" };
+  }
 }
 
 /** Erro interno que carrega só o nome da coluna (sem valor nem mensagem de origem). */

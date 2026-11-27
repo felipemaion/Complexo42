@@ -36,6 +36,7 @@ function fake(responses: { from?: { data?: unknown; error?: unknown }; rpc?: { d
     eq: (...a) => (filters.push(["eq", ...a]), query),
     is: (...a) => (filters.push(["is", ...a]), query),
     not: (...a) => (filters.push(["not", ...a]), query),
+    neq: (...a) => (filters.push(["neq", ...a]), query),
     in: (...a) => (filters.push(["in", ...a]), query),
     order: (...a) => (filters.push(["order", ...a]), query),
     limit: (...a) => (filters.push(["limit", ...a]), query),
@@ -112,12 +113,21 @@ describe("listOpenAnalysisRequests", () => {
     expect(await listOpenAnalysisRequests(client, crypto)).toEqual({
       requests: [{ requestId: REQ, profileId: U1, tiedAxes: ["house1"], answers: { q1: -3, q2: 2 }, createdAt: "t" }],
       unreadable: 0,
+      truncated: false,
     });
     expect(filters).toContainEqual(["eq", "status", "open"]);
+    expect(filters).toContainEqual(["limit", 201]);
   });
 
   it("sem pedidos visíveis: lista vazia", async () => {
-    expect(await listOpenAnalysisRequests(fake().client, crypto)).toEqual({ requests: [], unreadable: 0 });
+    expect(await listOpenAnalysisRequests(fake().client, crypto)).toEqual({ requests: [], unreadable: 0, truncated: false });
+  });
+
+  it("mais pedidos que a página: devolve só a página e avisa que truncou", async () => {
+    const many = Array.from({ length: 201 }, (_, index) => good(`00000000-0000-4000-8000-${String(index).padStart(12, "0")}`, { q1: -3 }));
+    const out = await listOpenAnalysisRequests(fake({ from: { data: many } }).client, crypto);
+    expect(out.requests).toHaveLength(200);
+    expect(out.truncated).toBe(true);
   });
 
   it("uma linha ilegível não derruba a fila: as outras saem e só o nome da coluna é avisado", async () => {

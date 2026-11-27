@@ -6,7 +6,7 @@ import { openCase, requireCoordinationScreen } from "@/modules/houses";
 import { answerSentence } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { resolveCaseAction } from "../actions";
-import { fill, shortDate } from "../../format";
+import { errorText as lookupErrorText, fill, shortDate } from "../../format";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.queue.title };
 
@@ -38,7 +38,7 @@ export default async function CasePage({
     );
   }
   const errorCode = (await searchParams).erro;
-  const errorText = errorCode && errorCode in text.errors ? text.errors[errorCode as keyof typeof text.errors] : null;
+  const errorText = lookupErrorText(text.errors, errorCode);
   const { axes } = deps.questionnaire;
   const axisName = (key: string) => (key in axes ? axes[key as keyof typeof axes].label : key);
   // Os quatro totens possíveis: letra do polo do eixo 3 + letra do polo do eixo 4.

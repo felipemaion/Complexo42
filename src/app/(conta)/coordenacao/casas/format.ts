@@ -16,3 +16,8 @@ export function shortDate(iso: string): string {
 export function houseName(houseId: string): string {
   return instance.houses.find((house) => house.id === houseId)?.name ?? houseId;
 }
+
+/** Texto do erro pelo código da URL: só chave própria do objeto vale (nunca `__proto__`, `constructor` etc.). */
+export function errorText(errors: Readonly<Record<string, string>>, code: string | undefined): string | null {
+  return code !== undefined && Object.hasOwn(errors, code) ? errors[code]! : null;
+}

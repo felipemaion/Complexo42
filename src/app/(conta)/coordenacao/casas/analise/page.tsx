@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: instance.questionnaireCoordination.qu
 export default async function QueuePage({ searchParams }: Readonly<{ searchParams: Promise<{ resolvido?: string }> }>) {
   const { client, deps } = await requireCoordinationScreen("results");
   const resolved = (await searchParams).resolvido === "1";
-  const { rows, unreadable } = await listCases(client, deps);
+  const { rows, unreadable, truncated } = await listCases(client, deps);
   const text = instance.questionnaireCoordination;
   const axisName = (key: string) => (key in deps.questionnaire.axes ? deps.questionnaire.axes[key as keyof typeof deps.questionnaire.axes].label : key);
   return (
@@ -22,6 +22,11 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
       {resolved && (
         <p role="status" className="rounded-xl border-2 border-current p-3 text-lg" data-testid="resolved-notice">
           {text.queue.resolvedNotice}
+        </p>
+      )}
+      {truncated && (
+        <p role="status" className="rounded-xl border-2 border-current p-3 text-lg" data-testid="truncated">
+          {fill(text.queue.truncated, { count: rows.length })}
         </p>
       )}
       {unreadable > 0 && (
@@ -48,7 +53,7 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
                 <td className="py-2">{shortDate(row.createdAt)}</td>
                 <td className="py-2">{row.tiedAxes.map(axisName).join(", ")}</td>
                 <td className="py-2 text-right">
-                  <Link href={`/coordenacao/casas/analise/${row.requestId}`} className="underline">
+                  <Link href={`/coordenacao/casas/analise/${row.requestId}`} prefetch={false} className="underline">
                     {text.queue.openLink}
                   </Link>
                 </td>

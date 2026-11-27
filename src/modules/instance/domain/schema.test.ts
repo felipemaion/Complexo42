@@ -144,13 +144,13 @@ const valid = {
     linkResults: "t", linkQueue: "t", linkDelegations: "t", backLink: "t", noName: "t",
     results: {
       title: "t", intro: "t", houseFilterLabel: "t", houseFilterAll: "t", filterButton: "t", empty: "t",
-      columnPerson: "t", columnHouse: "t", columnTotem: "t", columnDate: "t", openLink: "t",
-      unreadableList: "{count}", detailTitle: "{name}", houseLabel: "t", totemLabel: "t", dateLabel: "t",
+      columnPerson: "t", columnHouse: "t", columnDate: "t", openLink: "t",
+      truncated: "{count}", detailTitle: "{name}", houseLabel: "t", totemLabel: "t", dateLabel: "t",
       chartTitle: "t", noScores: "t", unreadableOne: "t", backLink: "t",
     },
     queue: {
       title: "t", intro: "t", empty: "t", columnPerson: "t", columnDate: "t", columnAxes: "t", openLink: "t",
-      unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t",
+      truncated: "{count}", unreadableList: "{count}", caseTitle: "{name}", tiedAxesLabel: "t", answersTitle: "t", chartTitle: "t",
       resolveTitle: "t", houseLabel: "t", totemLabel: "t", totemOption: "{first}{second}{code}",
       resolveButton: "t", resolvedNotice: "t", unreadableOne: "t", backLink: "t",
     },

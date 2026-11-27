@@ -536,7 +536,7 @@ coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, 
 **Leem a coordenação nacional e quem ela delegou sobre aquela pessoa**: o gestor territorial comum
 que gerencia a pessoa não. `questionnaire_access_granted/revoked` (ator = a nacional, alvo = o
 gestor): só a coordenação nacional os lê; o gestor os vê no próprio arquivo.
-`questionnaire_result_viewed` (ator = quem abriu o resultado ou o caso, alvo = a pessoa vista; sem conteúdo,
+`questionnaire_result_viewed` (ator = quem abriu o resultado ou o caso, alvo = a pessoa vista; sem conteúdo, um por ator e alvo a cada 10 minutos,
 gravado por `log_questionnaire_view`, só para quem pode ler os dados do alvo e nunca sobre si): só a
 coordenação nacional o lê; a pessoa vista o vê no próprio arquivo. `questionnaire_coordination_access()`
 diz ao menu e às telas se quem chama é a nacional e/ou delegado (só para o 404; não concede nada).

@@ -148,6 +148,10 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   await expect(page.locator(`a[href="/coordenacao/casas/resultados/${first.id}"]`)).toHaveCount(1);
   await expect(page.locator(`a[href="/coordenacao/casas/resultados/${second.id}"]`)).toHaveCount(0);
 
+  // A lista não mostra totem nem nota (só nome, casa e data): eles só aparecem ao abrir, que registra o acesso.
+  await expect(page.locator("th", { hasText: "Totem" })).toHaveCount(0);
+  await expect(page.locator(`tr:has(a[href="/coordenacao/casas/resultados/${first.id}"])`)).not.toContainText(/\b[A-Z]{2}\b/);
+
   // Abrir: gráfico completo (4 eixos, 8 raios, com os nomes da config) e totem; o acesso é registrado.
   expect(await viewedEvents(first.id)).toEqual([]);
   await page.locator(`a[href="/coordenacao/casas/resultados/${first.id}"]`).click();

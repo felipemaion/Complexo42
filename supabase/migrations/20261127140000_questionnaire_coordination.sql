@@ -7,7 +7,8 @@
 --    (nada de casa, totem, notas ou respostas). Só a coordenação nacional o lê pelo log; o gestor
 --    territorial, o delegado e a pessoa vista não (esta o encontra no "Baixar meus dados").
 -- 3. `log_questionnaire_view(alvo)`: registra o evento, só para quem pode ler os dados do alvo (a
---    nacional ou o delegado sobre pessoa ativa do escopo) e nunca sobre si mesmo.
+--    nacional ou o delegado sobre pessoa ativa do escopo) e nunca sobre si mesmo; o mesmo ator e
+--    alvo, em 10 minutos, valem um evento só (recarregar a página não repete).
 
 alter table public.audit_log drop constraint audit_log_event_check;
 alter table public.audit_log add constraint audit_log_event_check check (event in (
@@ -94,8 +95,15 @@ begin
   if caller is null or p_target is null or p_target = caller or not app.can_read_questionnaire_data(p_target) then
     raise exception 'sem acesso ao resultado desta pessoa' using errcode = 'insufficient_privilege';
   end if;
-  insert into public.audit_log (actor_id, event, target_id)
-  values (caller, 'questionnaire_result_viewed', p_target);
+  -- Recarregar a página não gera outro evento: o mesmo ator e alvo, em 10 minutos, valem um só.
+  if not exists (
+    select 1 from public.audit_log as a
+    where a.event = 'questionnaire_result_viewed' and a.actor_id = caller and a.target_id = p_target
+      and a.created_at > now() - interval '10 minutes'
+  ) then
+    insert into public.audit_log (actor_id, event, target_id)
+    values (caller, 'questionnaire_result_viewed', p_target);
+  end if;
 end;
 $$;
 

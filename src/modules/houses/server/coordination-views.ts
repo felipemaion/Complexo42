@@ -15,7 +15,13 @@ import {
 } from "@/modules/questionnaire";
 import { instance } from "@config/instance";
 import type { HouseClient } from "../types";
-import { listOpenAnalysisRequests, readQuestionnaireResultOf, type CoordinationCrypto, type QuestionnaireResultView } from "./coordination";
+import {
+  listOpenAnalysisRequests,
+  readOpenAnalysisRequest,
+  readQuestionnaireResultOf,
+  type CoordinationCrypto,
+  type QuestionnaireResultView,
+} from "./coordination";
 
 export type ViewDeps = { crypto: CoordinationCrypto; questionnaire: QuestionnaireConfig };
 
@@ -45,22 +51,31 @@ export function canSeeResults(access: CoordinationAccess): boolean {
 // ---------------------------------------------------------------------------------------
 const nameRows = z.array(z.object({ id: z.string(), display_name_enc: z.string() }));
 
+/** Ids por consulta de nomes: a URL do PostgREST não aguenta centenas de uuids de uma vez. */
+const nameBatchSize = 50;
+
+/**
+ * Nomes decifrados por id, em lotes. Falha ao ler vira erro visível (a tela cai), em vez de mostrar
+ * todo mundo sem nome; nome que só não decifra vira `null`.
+ */
 async function readNames(client: HouseClient, ids: readonly string[], crypto: CoordinationCrypto): Promise<Map<string, string | null>> {
   const names = new Map<string, string | null>();
-  if (ids.length === 0) return names;
-  const { data, error } = await client.from("profiles").select("id,display_name_enc").in("id", [...new Set(ids)]);
-  if (error) return names;
-  const rows = nameRows.safeParse(data);
-  if (!rows.success) return names;
-  await Promise.all(
-    rows.data.map(async (row) => {
-      try {
-        names.set(row.id, await crypto.decrypt(row.display_name_enc, { table: "profiles", column: "display_name_enc", rowId: row.id }));
-      } catch {
-        names.set(row.id, null);
-      }
-    }),
-  );
+  const unique = [...new Set(ids)];
+  for (let start = 0; start < unique.length; start += nameBatchSize) {
+    const { data, error } = await client.from("profiles").select("id,display_name_enc").in("id", unique.slice(start, start + nameBatchSize));
+    if (error) throw new Error(`names_read_failed:${dbErrorCode(error)}`);
+    const rows = nameRows.safeParse(data ?? []);
+    if (!rows.success) throw new Error("names_read_failed:shape");
+    await Promise.all(
+      rows.data.map(async (row) => {
+        try {
+          names.set(row.id, await crypto.decrypt(row.display_name_enc, { table: "profiles", column: "display_name_enc", rowId: row.id }));
+        } catch {
+          names.set(row.id, null);
+        }
+      }),
+    );
+  }
   return names;
 }
 
@@ -73,41 +88,38 @@ const dbErrorCode = (error: unknown): string => {
 // ---------------------------------------------------------------------------------------
 // Resultados
 // ---------------------------------------------------------------------------------------
-const resultListRow = z.object({ profile_id: z.string(), house_key: z.string(), totem_enc: z.string(), created_at: z.string() });
+const resultListRow = z.object({ profile_id: z.string(), house_key: z.string(), created_at: z.string() });
 
-export type ResultRow = { profileId: string; name: string | null; houseId: string; totem: string; createdAt: string };
+/** Uma pessoa na lista: só nome, casa e data. Totem e notas ficam no detalhe, que registra o acesso. */
+export type ResultRow = { profileId: string; name: string | null; houseId: string; createdAt: string };
 
-/** Máximo de linhas por tela, até a paginação (decifrar é por linha). */
-const maxRows = 500;
+/** Pessoas por página da lista; passando disso, mostra as mais recentes e avisa (filtre por casa). */
+export const maxResultRows = 200;
 
 /**
  * Pessoas com resultado que a RLS deixa ver a quem chama (nacional: todas as ativas; delegado: as do
- * escopo), do mais novo ao mais antigo, com o totem decifrado. `houseId` filtra pela casa (só casas
- * da config). Linha ilegível sai da lista e é contada em `unreadable`.
+ * escopo), das mais novas, SEM a própria pessoa. A lista não traz totem nem nota (nem os pede ao banco):
+ * eles só aparecem ao abrir a pessoa, o que registra o acesso. `houseId` filtra pela casa (só casas da
+ * config); `truncated` avisa que havia mais que a página.
  */
 export async function listResults(
   client: HouseClient,
   deps: ViewDeps,
+  viewerId: string,
   filter: { houseId?: string },
-): Promise<{ rows: ResultRow[]; unreadable: number }> {
-  let query = client.from("questionnaire_results").select("profile_id,house_key,totem_enc,created_at");
+): Promise<{ rows: ResultRow[]; truncated: boolean }> {
+  let query = client.from("questionnaire_results").select("profile_id,house_key,created_at").neq("profile_id", viewerId);
   if (filter.houseId !== undefined && instance.houses.some((house) => house.id === filter.houseId)) query = query.eq("house_key", filter.houseId);
-  const { data, error } = await query.order("created_at", { ascending: false }).limit(maxRows);
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(maxResultRows + 1);
   if (error) throw new Error(`results_read_failed:${dbErrorCode(error)}`);
   const parsed = z.array(resultListRow).safeParse(data ?? []);
   if (!parsed.success) throw new Error("results_read_failed:shape");
-  const names = await readNames(client, parsed.data.map((row) => row.profile_id), deps.crypto);
-  const settled = await Promise.allSettled(
-    parsed.data.map(async (row): Promise<ResultRow> => ({
-      profileId: row.profile_id,
-      name: names.get(row.profile_id) ?? null,
-      houseId: row.house_key,
-      totem: await deps.crypto.decrypt(row.totem_enc, { table: "questionnaire_results", column: "totem_enc", rowId: row.profile_id }),
-      createdAt: row.created_at,
-    })),
-  );
-  const rows = settled.flatMap((outcome) => (outcome.status === "fulfilled" ? [outcome.value] : []));
-  return { rows, unreadable: settled.length - rows.length };
+  const page = parsed.data.slice(0, maxResultRows);
+  const names = await readNames(client, page.map((row) => row.profile_id), deps.crypto);
+  return {
+    rows: page.map((row) => ({ profileId: row.profile_id, name: names.get(row.profile_id) ?? null, houseId: row.house_key, createdAt: row.created_at })),
+    truncated: parsed.data.length > maxResultRows,
+  };
 }
 
 export type OpenedResult =
@@ -152,8 +164,8 @@ async function readNamesOne(client: HouseClient, id: string, crypto: Coordinatio
 export type CaseRow = { requestId: string; profileId: string; name: string | null; tiedAxes: string[]; createdAt: string };
 
 /** Casos inconclusivos abertos visíveis a quem chama (nome, data, eixos empatados). Ilegíveis, contados. */
-export async function listCases(client: HouseClient, deps: ViewDeps): Promise<{ rows: CaseRow[]; unreadable: number }> {
-  const { requests, unreadable } = await listOpenAnalysisRequests(client, deps.crypto);
+export async function listCases(client: HouseClient, deps: ViewDeps): Promise<{ rows: CaseRow[]; unreadable: number; truncated: boolean }> {
+  const { requests, unreadable, truncated } = await listOpenAnalysisRequests(client, deps.crypto);
   const names = await readNames(client, requests.map((request) => request.profileId), deps.crypto);
   const rows = requests
     .map((request) => ({
@@ -164,7 +176,7 @@ export async function listCases(client: HouseClient, deps: ViewDeps): Promise<{ 
       createdAt: request.createdAt,
     }))
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  return { rows, unreadable };
+  return { rows, unreadable, truncated };
 }
 
 export type OpenedCase =
@@ -185,12 +197,10 @@ export type OpenedCase =
 /** Abre um caso: as respostas, as notas refeitas e o gráfico completo; registra o acesso à pessoa. */
 export async function openCase(client: HouseClient, requestId: string, deps: ViewDeps): Promise<OpenedCase> {
   if (!uuid.safeParse(requestId).success) return { status: "not_found" };
-  const { requests } = await listOpenAnalysisRequests(client, deps.crypto);
-  const found = requests.find((request) => request.requestId === requestId);
-  if (!found) {
-    // Pode ser inexistente, fechado, fora do escopo ou ilegível: sem como distinguir daqui, e a tela não precisa.
-    return { status: "not_found" };
-  }
+  // Só este pedido (id e status no banco): não decifra a fila inteira para abrir um caso.
+  const one = await readOpenAnalysisRequest(client, requestId, deps.crypto);
+  if (one.status !== "ok") return one;
+  const found = one.request;
   let scores: AxisScores;
   try {
     scores = scoreQuestionnaire(deps.questionnaire, found.answers as never).scores;
