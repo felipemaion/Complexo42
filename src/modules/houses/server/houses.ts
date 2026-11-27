@@ -138,7 +138,13 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     });
     if (error) return { ok: false, error: errorCode(error) };
     // O totem é interno e está pendente: a pessoa vê a casa e o perfil dos eixos da casa, como no caso conclusivo.
-    return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
+    return {
+      ok: true,
+      outcome: "recorded",
+      houseId: result.houseId,
+      chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
+      byPoles: ctx.questionnaire.houseByPoles,
+    };
   }
   const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${answersEnc}|${nowSeconds}`);
   const { error } = await client.rpc("request_house_analysis", {
