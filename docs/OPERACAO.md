@@ -137,6 +137,8 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   -c "insert into app.questionnaire_term_versions (version) values ('<versao>') on conflict do nothing"
 ```
 
+**Config com `expectation` (#240).** O `questionnaire.json` do servidor precisa trazer `expectation: {a, b}` em todos os itens dos eixos da casa; sem isso o app **não sobe** (erro `questionnaire_invalid` citando `items.<id>.expectation`). Instale o arquivo novo antes de subir o app novo.
+
 1. cadastrar a versão do termo (acima); 2. instalar o arquivo em `QUESTIONNAIRE_PATH`; 3. reiniciar
 o app (ele valida o arquivo na subida e recusa subir com um inválido).
 

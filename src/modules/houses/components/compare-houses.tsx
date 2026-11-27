@@ -1,0 +1,159 @@
+"use client";
+// "Escolher outra casa" com comparação (#240): as quatro casas, a sugerida em destaque; ao selecionar uma, o perfil da pessoa
+// ao lado do perfil médio dos membros da casa (só com membros suficientes) e o que se espera nela. Só apresentação: a chave, as
+// frases de expectativa e as notas dos membros ficam no servidor (compareHouseAction devolve só texto e o agregado arredondado).
+// Nada do totem aparece.
+import { useEffect, useState } from "react";
+import type { InstanceConfig } from "@/modules/instance";
+import { answerValues, type Answers, type ChartAxis, type HouseByPoles } from "@/modules/questionnaire";
+import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
+import { compareHouseAction } from "../server/actions";
+import { HouseShield } from "./house-shield";
+import type { HouseView } from "./house-presentation";
+
+type Text = InstanceConfig["houseSelection"];
+
+type Comparison =
+  | { status: "loading" }
+  | { status: "failed" }
+  | {
+      status: "ready";
+      expectations: { text: string; answer: number }[];
+      average: { status: "ok"; n: number; scores: { house1: number; house2: number } } | { status: "few" } | { status: "unavailable" };
+    };
+
+type Props = {
+  houses: readonly HouseView[];
+  suggestedId: string;
+  selectedId: string | undefined;
+  chart: readonly ChartAxis[] | undefined;
+  byPoles: HouseByPoles | undefined;
+  answers: Answers;
+  text: Text;
+  disabled: boolean;
+  onSelect(houseId: string): void;
+  onConfirm(): void;
+  onBack(): void;
+};
+
+const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
+const primary =
+  "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
+const colorOf = (color: HouseView["color"]) => `light-dark(${color.light}, ${color.dark})`;
+
+export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles, answers, text, disabled, onSelect, onConfirm, onBack }: Readonly<Props>) {
+  const t = text.compare;
+  // A comparação da casa selecionada (servidor). Resultado de outra casa não aparece: a chave da casa vai junto.
+  const [loaded, setLoaded] = useState<{ houseId: string; comparison: Comparison } | null>(null);
+  useEffect(() => {
+    if (selectedId === undefined) return;
+    let cancelled = false;
+    void (async () => {
+      const response = await compareHouseAction({ houseId: selectedId, answers });
+      if (cancelled) return;
+      setLoaded({ houseId: selectedId, comparison: response.ok ? { status: "ready", expectations: [...response.expectations], average: response.average } : { status: "failed" } });
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // As respostas não mudam nesta tela: a comparação refaz só ao trocar de casa.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+  const comparison: Comparison = selectedId !== undefined && loaded?.houseId === selectedId ? loaded.comparison : { status: "loading" };
+  const selected = houses.find((house) => house.id === selectedId);
+  const averageChart =
+    comparison.status === "ready" && comparison.average.status === "ok" && chart
+      ? (() => {
+          const scores = comparison.average.scores;
+          return chart.map((axis) => ({ ...axis, score: axis.key === "house1" ? scores.house1 : axis.key === "house2" ? scores.house2 : axis.score }));
+        })()
+      : undefined;
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="compare-houses">
+      <button type="button" className={big} onClick={onBack} disabled={disabled}>
+        {t.backButton}
+      </button>
+      <h2 className="text-2xl font-bold">{t.title}</h2>
+      <p className="text-lg">{t.intro}</p>
+      <ul className="flex flex-col gap-3">
+        {houses.map((house) => {
+          const isSelected = house.id === selectedId;
+          return (
+            <li key={house.id}>
+              <button
+                type="button"
+                className="flex w-full items-start gap-4 rounded-xl border-2 px-4 py-3 text-left"
+                style={{ borderColor: colorOf(house.color), borderWidth: isSelected ? 4 : 2 }}
+                aria-pressed={isSelected}
+                data-testid={`compare-house-${house.id}`}
+                data-suggested={house.id === suggestedId ? "true" : undefined}
+                onClick={() => onSelect(house.id)}
+                disabled={disabled}
+              >
+                <HouseShield houseId={house.id} name={house.name} size={64} />
+                <span className="flex flex-col gap-1">
+                  <span className="text-xl font-bold">{house.name}</span>
+                  {house.id === suggestedId && <span className="text-base font-semibold" data-testid="suggested-badge">{t.suggestedBadge}</span>}
+                  {isSelected && <span className="text-base font-semibold">{t.selectedBadge}</span>}
+                  <span className="text-lg font-normal">{house.description}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {selected && (
+        <section className="flex flex-col gap-4" aria-labelledby="compare-detail-title" data-testid="compare-detail">
+          <h3 id="compare-detail-title" className="text-xl font-bold">
+            {selected.name}
+          </h3>
+          {comparison.status === "loading" && <p role="status" className="text-lg">{t.loading}</p>}
+          {chart && chart.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-lg font-semibold">{t.chartTitle}</p>
+              <SpiderChart
+                chart={chart}
+                title={t.chartTitle}
+                {...(byPoles && { houses: { byPoles, houses, currentHouseId: selected.id, currentLabel: t.selectedBadge } })}
+                {...(averageChart && { compare: { chart: averageChart, label: t.averageLabel } })}
+              />
+              {comparison.status === "ready" && comparison.average.status === "ok" && (
+                <p className="text-base" data-testid="average-note">{t.averageNote.replace("{n}", String(comparison.average.n))}</p>
+              )}
+              {comparison.status === "ready" && comparison.average.status === "few" && (
+                <p className="rounded-xl border-2 border-current p-3 text-lg" data-testid="few-members">{t.fewMembers}</p>
+              )}
+              {comparison.status === "ready" && comparison.average.status === "unavailable" && (
+                <p className="text-lg" role="status">{t.averageUnavailable}</p>
+              )}
+            </div>
+          )}
+          {comparison.status === "ready" && (
+            <div className="flex flex-col gap-2" data-testid="expectations">
+              <h4 className="text-xl font-semibold">{t.expectTitle}</h4>
+              {comparison.expectations.length === 0 ? (
+                <p className="text-lg">{t.expectNone}</p>
+              ) : (
+                <>
+                  <p className="text-lg">{t.expectIntro}</p>
+                  <ul className="flex flex-col gap-3">
+                    {comparison.expectations.map((item) => (
+                      <li key={item.text} className="text-lg" data-testid="expectation">
+                        <strong>{text.scaleIntensities[answerValues.indexOf(item.answer as (typeof answerValues)[number])]}:</strong> {item.text}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
+          {comparison.status === "failed" && <p role="alert" className="text-lg">{t.expectUnavailable}</p>}
+          <button type="button" className={primary} onClick={onConfirm} disabled={disabled}>
+            {t.confirmButton}
+          </button>
+        </section>
+      )}
+    </div>
+  );
+}

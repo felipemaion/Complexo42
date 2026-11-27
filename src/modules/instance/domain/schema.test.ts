@@ -125,6 +125,13 @@ const valid = {
     videosTitle: "t",
     acceptButton: "t",
     chooseOtherButton: "t",
+    minAverageMembers: 10,
+    averageCacheSeconds: 600,
+    compare: {
+      title: "t", intro: "t", suggestedBadge: "t", selectedBadge: "t", yourProfileLabel: "t", chartTitle: "t", averageLabel: "t",
+      averageNote: "t", fewMembers: "t", averageUnavailable: "t", expectTitle: "t", expectIntro: "t", expectNone: "t",
+      expectUnavailable: "t", loading: "t", confirmButton: "t", backButton: "t",
+    },
     submitting: "t",
     inviteMessage: "t",
     acceptedTitle: "t",

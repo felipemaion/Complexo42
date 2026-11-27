@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page, type Request } from "@playwright/test";
+import { instance } from "../config/instance";
 import { scoreQuestionnaire, type Answers } from "../src/modules/questionnaire/domain/score";
 import type { QuestionnaireConfig } from "../src/modules/questionnaire/domain/schema";
 
@@ -244,6 +245,55 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   await page.reload();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Aceito e quero responder" })).toHaveCount(0);
+});
+
+test("escolher outra casa depois do questionário: compara as casas antes de confirmar (#240)", async ({ page }) => {
+  const member = await createMember("cmp");
+  await signIn(page, member.email);
+  await page.goto("/casa");
+  const requests = recordRequests(page);
+  await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+  const answers: Record<string, number> = {};
+  for (const item of questionnaire.items) {
+    answers[item.id] = -5;
+    await page.getByTestId("scale--5").click();
+    await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
+  }
+  await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
+  const suggested = scoreQuestionnaire(questionnaire, answers as Answers).houseId;
+  // Antes de comparar, as frases de expectativa (config) não estão na página: só o servidor as conhece.
+  expect(await page.content()).not.toContain("espera-se");
+
+  await page.getByRole("button", { name: "Escolher outra casa" }).click();
+  await expect(page.getByTestId("compare-houses")).toBeVisible();
+  // As quatro casas (escudo, nome, descrição) e a sugerida em destaque.
+  await expect(page.locator('[data-testid^="compare-house-"]')).toHaveCount(4);
+  await expect(page.getByTestId("suggested-badge")).toHaveCount(1);
+  await expect(page.getByTestId(`compare-house-${suggested}`)).toHaveAttribute("data-suggested", "true");
+
+  // Casa do polo oposto nos dois eixos: todas as respostas "muito a" contradizem o que ela espera.
+  const opposite = questionnaire.houseByPoles.bb;
+  await page.getByTestId(`compare-house-${opposite}`).click();
+  const houseItems = questionnaire.axes.house1.itemIds.length + questionnaire.axes.house2.itemIds.length;
+  await expect(page.getByTestId("expectation")).toHaveCount(houseItems);
+  await expect(page.getByTestId("expectation").first()).toContainText("Totalmente");
+  await expect(page.getByTestId("expectation").first()).toContainText("espera-se");
+  // Poucos membros com resultado: sem o perfil médio, só o aviso; e nada do totem aparece.
+  await expect(page.getByTestId("few-members")).toBeVisible();
+  await expect(page.getByTestId("compare-profile")).toHaveCount(0);
+  for (const hidden of [questionnaire.axes.totem1.poleLabels.a, questionnaire.axes.totem2.poleLabels.b, questionnaire.axes.totem1.label]) {
+    await expect(page.getByText(hidden)).toHaveCount(0);
+  }
+  // O que o navegador recebeu da comparação não tem id de pessoa, nota cifrada nem totem.
+  const bodies = actionBodies(requests);
+  expect(bodies).toContainEqual([{ houseId: opposite, answers }]);
+
+  // Confirmar leva à apresentação da casa (escolha direta); aceitar grava como self.
+  await page.getByRole("button", { name: "Escolher esta casa" }).click();
+  await expect(page.getByTestId("house-name")).toHaveText(instance.houses.find((h) => h.id === opposite)!.name);
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  expect(await houseRows(member.id)).toEqual([expect.objectContaining({ join_method: "self", house_key: opposite })]);
 });
 
 test("sabe → atividade → apresentação → escolher outra → aceitar (self), sem termo", async ({ page }) => {

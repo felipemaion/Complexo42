@@ -229,6 +229,24 @@ meus dados" decifra e entrega o totem, as notas dos eixos e as respostas (format
 - **Usar `service_role` no servidor para gravar:** poderes de sobra se a chave vazar, e o app
   não a tem (R6). A assinatura vale só para este fim.
 
+## Comparar a casa antes de escolher outra (#240)
+
+Em "Escolher outra casa", depois do questionário, a pessoa vê as quatro casas (a sugerida em destaque) e, ao selecionar uma, o
+perfil dela com o **perfil médio dos membros da casa** e **o que se espera nesta casa**. Nada do totem aparece.
+
+- **O que se espera:** só os itens dos eixos da casa em que a resposta da pessoa foi para o outro polo que o da casa, da
+  contradição mais forte (Totalmente) para a mais fraca, com a frase de `expectation: {a, b}` do item na config privada. Sem
+  frase, o item não aparece; a carga **falha fechada** se algum item dos eixos da casa não tem as duas (`items.<id>.expectation`).
+  Calculado no servidor pela chave; as frases e a chave nunca vão ao navegador (`toPublicQuestionnaire` tira o campo).
+- **Perfil médio, calculado no servidor, sem nota em claro no banco** (decisão da coordenação): as notas só existem cifradas
+  (ADR 0003) e o banco não decifra. `house_member_scores_enc(casa, emitido_em, assinatura)` devolve `(profile_id, scores_enc)` dos
+  membros com vínculo aberto e aceito e notas, **só com a assinatura HMAC do servidor** (5 min, ligada a quem chama e à casa; sem
+  `service_role`, que o app não tem, R6). O servidor decifra, tira a média dos eixos da casa (nunca o totem), descarta ids e notas,
+  guarda só o agregado em memória por casa (10 min) e entrega ao navegador `n` e as médias arredondadas de 5 em 5, e **só com n
+  >= mínimo** (`minAverageMembers`, 10); abaixo disso, "a casa ainda tem poucos membros" e a zona da casa. Os ids dos membros só
+  existem na resposta ao servidor do app.
+- Confirmar a casa continua como hoje (escolha direta, `self`; a trava de 4 meses é avisada no termo).
+
 ## Consequências
 
 - (+) A regra é um dado do config: trocar a chave não muda o código.

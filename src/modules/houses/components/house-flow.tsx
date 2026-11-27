@@ -17,6 +17,7 @@ import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent
 import { refusalMessage } from "../domain/refusal";
 import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
+import { CompareHouses } from "./compare-houses";
 import { HousePresentation, type HouseView } from "./house-presentation";
 
 type Props = {
@@ -168,6 +169,23 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
         <p className="text-lg font-semibold" role="status">
           {text.submitting}
         </p>
+      );
+      break;
+    case "compare":
+      body = (
+        <CompareHouses
+          houses={houses}
+          suggestedId={step.suggestedId}
+          selectedId={step.selectedId}
+          chart={step.chart}
+          byPoles={step.byPoles}
+          answers={state.answers}
+          text={text}
+          disabled={pending}
+          onSelect={(houseId) => dispatch({ type: "house_selected", houseId })}
+          onConfirm={() => dispatch({ type: "house_confirmed" })}
+          onBack={() => dispatch({ type: "back" })}
+        />
       );
       break;
     case "presentation": {
