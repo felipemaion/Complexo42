@@ -109,7 +109,9 @@ confere() { # confere <caminho> <descricao> [segredo]
 
 case "${1:-}" in --funcoes) return 0 2> /dev/null || exit 0 ;; esac
 
-[ "${1:-}" = --config ] || { log "uso: deploy.sh --config <arquivo> <tag>"; exit 2; }
+ADOTAR_INFRA=
+if [ "${1:-}" = --adotar-infra ]; then ADOTAR_INFRA=1; shift; fi
+[ "${1:-}" = --config ] || { log "uso: deploy.sh [--adotar-infra] --config <arquivo> <referencia>"; exit 2; }
 CONFIG=${2:?falta o caminho do arquivo de configuracao}
 shift 2
 REFERENCIA=${1:?falta a referencia (sha256:<digest> ou emergencia:<tag>)}
@@ -130,6 +132,10 @@ confere "$CONFIG" "o arquivo de configuracao"
 : "${REDE_PROXY:?falta REDE_PROXY na configuracao}"
 : "${ALVO_SAUDE:?falta ALVO_SAUDE na configuracao}"
 : "${MIGRA:?falta MIGRA na configuracao}"
+# Onde vivem os arquivos de infra no servidor, e o manifesto do que o deploy
+# gravou neles. O manifesto fica FORA do alcance de quem nao e root.
+INFRA_DIR=${INFRA_DIR:-$PROJECT_DIR}
+MANIFESTO=${MANIFESTO:-$PROJECT_DIR/.infra-do-deploy}
 IMAGEM=${IMAGEM:-$IMAGEM_PADRAO}
 ESPERA_SMOKE=${ESPERA_SMOKE:-60}
 SMOKE_IMAGEM=${SMOKE_IMAGEM:?falta SMOKE_IMAGEM na configuracao (fixe por digest)}
@@ -183,6 +189,76 @@ imagem_no_ar() {
 
 sobe() { APP_IMAGEM="$1" dc up -d --no-deps app; }   # sem --remove-orphans: apagaria o banco
 
+# ── sincronia dos arquivos de infra (ADR 0015, #186) ──
+# A imagem é a fonte. O manifesto guarda o que ESTE deploy gravou da última
+# vez; é ele que distingue "atualização legítima" de "alguém mexeu à mão".
+#
+# Falha FECHADO na segunda: sobrescrever apagaria a única pista de que houve
+# edição manual, e foi assim que o servidor ficou semanas com um bootstrap de
+# banco que ninguém revisava (ADR 0015, Contexto).
+sha_de() { sha256sum "$1" 2> /dev/null | cut -d' ' -f1; }
+
+sincroniza_infra() {
+  local tmp criado rel alvo img loc man mudou=0 initdb_mudou=0
+  tmp=$(mktemp -d); criado=infra-$$
+  docker create --name "$criado" "$IMAGEM_ALVO" > /dev/null
+  docker cp "$criado:/app/deploy" "$tmp/deploy" 2> /dev/null || {
+    docker rm -f "$criado" > /dev/null 2>&1; rm -rf "$tmp"
+    log "ERRO: a imagem nao traz /app/deploy"; return 1
+  }
+  docker rm -f "$criado" > /dev/null 2>&1
+
+  while IFS= read -r rel; do
+    alvo="$INFRA_DIR/$rel"
+    img=$(sha_de "$tmp/deploy/$rel")
+    man=$(awk -v r="$rel" '$2 == r { print $1 }' "$MANIFESTO" 2> /dev/null || true)
+    if [ ! -e "$alvo" ]; then
+      install -D -m 644 "$tmp/deploy/$rel" "$alvo"
+      log "infra: $rel NOVO (${img:0:12})"; mudou=1
+    else
+      loc=$(sha_de "$alvo")
+      if [ "$loc" = "$img" ]; then
+        continue
+      elif [ -n "$man" ] && [ "$loc" = "$man" ]; then
+        # era o que o deploy gravou: atualização legítima.
+        cp --preserve=mode,ownership "$alvo" "$tmp/molde"
+        cat "$tmp/deploy/$rel" > "$alvo"
+        log "infra: $rel ${loc:0:12} -> ${img:0:12}"; mudou=1
+      elif [ -n "$ADOTAR_INFRA" ]; then
+        cat "$tmp/deploy/$rel" > "$alvo"
+        log "infra: $rel ADOTADO ${loc:0:12} -> ${img:0:12}"; mudou=1
+      else
+        log "ERRO: $rel no servidor (${loc:0:12}) nao veio deste deploy nem confere"
+        log "      com a imagem (${img:0:12}). Alguem editou a mao."
+        log "      Resolva: leve a mudanca para o repositorio, ou rode uma vez"
+        log "      com --adotar-infra para aceitar a versao da imagem."
+        rm -rf "$tmp"; return 1
+      fi
+      case "$rel" in initdb/*) initdb_mudou=1 ;; esac
+    fi
+  done < <(cd "$tmp/deploy" && find . -type f | sed 's|^\./||' | LC_ALL=C sort)
+
+  # Manifesto novo: o estado que ESTE deploy deixou.
+  : > "$MANIFESTO.novo"
+  (cd "$tmp/deploy" && find . -type f | sed 's|^\./||' | LC_ALL=C sort) | while IFS= read -r rel; do
+    printf '%s  %s\n' "$(sha_de "$INFRA_DIR/$rel")" "$rel" >> "$MANIFESTO.novo"
+  done
+  mv "$MANIFESTO.novo" "$MANIFESTO"; chmod 600 "$MANIFESTO"
+
+  [ "$mudou" = 0 ] && log "infra: tudo igual a imagem"
+  if [ "$initdb_mudou" = 1 ]; then
+    # O initdb so roda em volume VAZIO. Sincronizar o arquivo nao muda um banco
+    # que ja existe -- e quem opera precisa saber disso AGORA, nao quando
+    # alguem recriar o volume por outro motivo (ADR 0015, item 6).
+    log "ATENCAO: o initdb/ mudou. Ele so roda em volume novo, entao o banco"
+    log "         ATUAL continua com o bootstrap antigo. Recriar o volume e"
+    log "         acao MANUAL -- ver docs/OPERACAO.md."
+    registra initdb_mudou_recriacao_pendente "$(decorrido)"
+  fi
+  rm -rf "$tmp"
+  return 0
+}
+
 inicio=$(date +%s)
 decorrido() { echo $(( $(date +%s) - inicio )); }
 
@@ -194,13 +270,21 @@ IMAGEM_ALVO=$(imagem_de "$REFERENCIA")
 ANTERIOR=$(imagem_no_ar)
 log "inicio imagem=$IMAGEM_ALVO modo=$MODO anterior=${ANTERIOR:-nenhuma}"
 
-log "1/4 pull"
+log "1/5 pull"
 if ! docker pull "$IMAGEM_ALVO"; then
   log "ERRO: pull falhou"; registra pull_falhou "$(decorrido)"; exit 1
 fi
 
-# 2/4 ANTES do up: migration quebrada não pode conviver com app novo.
-log "2/4 migrations"
+# A infra vem ANTES das migrations: o compose e o initdb que valem para este
+# deploy sao os desta imagem, e descobrir isso depois seria tarde.
+log "2/5 sincronizando infra"
+if ! sincroniza_infra; then
+  log "ERRO: sincronia da infra falhou -- app NAO foi trocado"
+  registra infra_falhou "$(decorrido)"; exit 1
+fi
+
+# 3/5 ANTES do up: migration quebrada não pode conviver com app novo.
+log "3/5 migrations"
 if ! APP_IMAGEM="$IMAGEM_ALVO" "$MIGRA"; then
   log "ERRO: migrations falharam -- app NAO foi trocado"
   registra migrations_falharam "$(decorrido)"; exit 1
@@ -220,10 +304,10 @@ volta() { # volta <motivo>
   exit 1
 }
 
-log "3/4 up"
+log "4/5 up"
 if ! sobe "$IMAGEM_ALVO"; then log "ERRO: up falhou"; volta up_falhou; fi
 
-log "4/4 smoke"
+log "5/5 smoke"
 if segs=$(smoke); then
   log "saudavel em ${segs}s"; registra ok "$(decorrido)"; exit 0
 fi

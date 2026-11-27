@@ -604,12 +604,65 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 > quem está nele roda `docker run -v /:/host`. Aqui o usuário executa **um**
 > script, de caminho fixo, que ele não pode reescrever.
 
+### A sincronia da infra (ADR 0015)
+
+O compose do Supabase, o `kong.yml` e o `initdb/` **viajam na imagem** e o
+deploy os sincroniza no servidor. A imagem é a fonte; o servidor é cópia.
+
+**O manifesto é o que distingue atualização de edição à mão.** O deploy grava
+em `.infra-do-deploy` (modo 600) o sha256 de cada arquivo que ele deixou.
+Na execução seguinte, para cada arquivo:
+
+| situação | o que acontece |
+|---|---|
+| local **igual** à imagem | nada, e o log diz "tudo igual" |
+| local **igual ao manifesto**, imagem mudou | troca, e registra `<sha antes> → <sha depois>` |
+| local **não bate com nenhum dos dois** | **falha fechado**, sem sobrescrever |
+
+A terceira linha é o ponto. Alguém editou à mão, e sobrescrever apagaria a
+única pista disso — foi exatamente assim que o servidor ficou semanas com um
+bootstrap de banco que ninguém revisava. Saídas: levar a mudança para o
+repositório (o certo), ou rodar **uma vez** com `--adotar-infra` para aceitar
+a versão da imagem.
+
+**O `.env` nunca é tocado.** Ele é do operador e vive fora do `deploy/`.
+
+**Os scripts de deploy não entram na imagem.** `deploy.sh`, `migra.sh`,
+`backup.sh` e os testes rodam no host, como root; não têm o que fazer dentro
+de uma imagem que roda sem privilégio e com disco só leitura.
+
+**O compose do APP também fica fora**, de propósito: é o arquivo que o próprio
+`deploy.sh` usa para subir o container. Sincronizá-lo no meio de um deploy
+seria trocar o chão enquanto se anda nele.
+
+> ⚠️ **Mudança em `initdb/` não chega a banco que já existe.** O `initdb/` só
+> roda em **volume vazio**. O deploy sincroniza o arquivo, **avisa no log** que
+> ele mudou e grava `initdb_mudou_recriacao_pendente` — mas **recriar o volume
+> é ação manual**, porque automatizá-la seria automatizar perda de dados.
+> O procedimento está em "Recriar o volume do Postgres" abaixo.
+
+### Recriar o volume do Postgres (manual)
+
+Três passos, **nesta ordem**. Inverter quebra o `up` com o stack já derrubado:
+
+1. as variáveis novas que o compose exigir, no `secrets/env` (geradas **no
+   servidor**, com cópia de segurança e conferência de contagem de linhas);
+2. os arquivos de infra atualizados — o deploy já faz, ou à mão conferindo
+   sha256 contra `git show origin/main:deploy/<arquivo>`;
+3. `compose down` → `docker volume rm <projeto>_db-dados` → `compose up -d`.
+
+Conferir ao fim: `postgres` com `rolcanlogin=false`, cada papel com senha
+própria (comparando **impressões digitais**, nunca valores) e os serviços
+saudáveis. **Fixe o método da impressão digital** — incluir ou não o newline
+muda o hash, e comparar métodos diferentes produz divergência falsa.
+
 ### As quatro etapas, e por que nesta ordem
 
 1. `pull` da imagem;
-2. **migrations** — falhou, aborta e o app **não** é trocado;
-3. `up -d`;
-4. **smoke** em `/api/healthz`; falhou, volta para a imagem anterior.
+2. **sincronia da infra** (acima) — falhou, aborta antes de qualquer mudança;
+3. **migrations** — falhou, aborta e o app **não** é trocado;
+4. `up -d`;
+5. **smoke** em `/api/healthz`; falhou, volta para a imagem anterior.
 
 A imagem anterior vem do **`RepoDigests`** do container no ar, não do
 `.Config.Image`: aquele é o **nome** com que o container subiu (pode ser uma

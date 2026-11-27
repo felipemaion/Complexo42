@@ -21,6 +21,12 @@ printf 'APP_IMAGEM=%s %s\n' "${APP_IMAGEM:-}" "$*" >> "$STUB_CHAMADAS"
 [ "$1 $2" = "compose -p" ] && case "$*" in *" ps -q app") echo cid123; exit 0 ;; esac
 [ "$1 $2" = "inspect -f" ] && { printf '%s\n' "${STUB_ANTERIOR-$ANTERIOR_PADRAO}"; exit 0; }
 case "$1" in
+  create) exit 0 ;;
+  cp) # entrega o /app/deploy que a "imagem" carrega. `cp -R origem destino`
+      # com destino inexistente ja cria o destino -- nao precisa de mkdir, e
+      # um mkdir mal escrito aqui suja o diretorio de trabalho do teste.
+      cp -R "$STUB_INFRA_IMAGEM" "$3"; exit 0 ;;
+  rm) exit 0 ;;
   pull) exit "${STUB_PULL:-0}" ;;
   run) n=$(( $(cat "$STUB_CONTA" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STUB_CONTA"
        case "${STUB_SMOKE:-ok}" in ok) exit 0 ;; falha_sempre) exit 1 ;;
@@ -111,6 +117,63 @@ verifica "NUNCA passa --remove-orphans (derrubaria o banco)" $r
 grep -q "APP_IMAGEM=ghcr.io/felipemaion/complexo42@$DIG compose.*up -d" "$STUB_CHAMADAS" && r=0 || r=1
 verifica "sobe com APP_IMAGEM = a imagem nova" $r
 tail -1 "$LOG" | grep -q 'resultado=ok' && r=0 || r=1; verifica "registra ok no deploy.log" $r
+
+echo "== sincronia da infra (ADR 0015)"
+IMG="$BASE/naimagem/deploy"; SRV="$BASE/deploy"
+mkdir -p "$IMG/initdb"
+printf 'compose v2\n' > "$IMG/docker-compose.supabase.yml"
+printf 'kong v2\n'    > "$IMG/kong.yml"
+printf 'roles v2\n'   > "$IMG/initdb/02-roles.sh"
+export STUB_INFRA_IMAGEM="$BASE/naimagem/deploy"
+MANIF="$SRV/.infra-do-deploy"
+
+# (a) servidor igual a imagem: nao troca nada e nao reclama
+cp "$IMG/docker-compose.supabase.yml" "$SRV/"; cp "$IMG/kong.yml" "$SRV/"
+mkdir -p "$SRV/initdb"; cp "$IMG/initdb/02-roles.sh" "$SRV/initdb/"
+rm -f "$MANIF"
+roda "$DIG"; verifica "infra igual a imagem: deploy segue" $?
+grep -q 'infra: tudo igual a imagem' "$BASE/saida" && r=0 || r=1
+verifica "e diz que estava tudo igual" $r
+[ -s "$MANIF" ] && r=0 || r=1; verifica "grava o manifesto do que deixou" $r
+
+# (b) imagem mudou e o local e o que o deploy gravou: troca e REGISTRA
+printf 'compose v3\n' > "$IMG/docker-compose.supabase.yml"
+roda "$DIG"; verifica "imagem nova com local conhecido: deploy segue" $?
+grep -q 'infra: docker-compose.supabase.yml' "$BASE/saida" && r=0 || r=1
+verifica "registra o arquivo trocado com os dois sha" $r
+grep -q 'compose v3' "$SRV/docker-compose.supabase.yml" && r=0 || r=1
+verifica "e o arquivo no servidor virou o da imagem" $r
+
+# (c) alguem editou a mao: FALHA FECHADO, sem sobrescrever
+printf 'editado a mao\n' > "$SRV/kong.yml"
+printf 'kong v3\n' > "$IMG/kong.yml"
+roda "$DIG"; [ $? -ne 0 ] && r=0 || r=1
+verifica "divergencia local nao vinda do deploy DERRUBA o deploy" $r
+grep -q 'editado a mao' "$SRV/kong.yml" && r=0 || r=1
+verifica "e NAO sobrescreve o arquivo editado (a pista fica)" $r
+grep -q 'adotar-infra' "$BASE/saida" && r=0 || r=1
+verifica "e diz como resolver" $r
+grep -q 'up -d' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e o app NAO chega a subir" $r
+
+# (d) --adotar-infra aceita a versao da imagem
+: > "$STUB_CHAMADAS"
+PROJECT_DIR="$SRV" bash "$SCRIPT" --adotar-infra --config "$BASE/deploy.conf" "$DIG" > "$BASE/saida" 2>&1
+verifica "--adotar-infra sai 0" $?
+grep -q 'kong v3' "$SRV/kong.yml" && r=0 || r=1
+verifica "e passa a valer a versao da imagem" $r
+grep -q 'ADOTADO' "$BASE/saida" && r=0 || r=1
+verifica "registrando que foi adocao, nao atualizacao normal" $r
+
+# (e) initdb mudou: avisa que a recriacao do volume e manual
+printf 'roles v3\n' > "$IMG/initdb/02-roles.sh"
+roda "$DIG"; verifica "initdb novo: deploy segue" $?
+grep -q 'initdb/ mudou' "$BASE/saida" && r=0 || r=1
+verifica "avisa que o initdb mudou" $r
+grep -q 'recriar o volume\|Recriar o volume' "$BASE/saida" && r=0 || r=1
+verifica "e que recriar o volume e acao MANUAL" $r
+grep -q 'initdb_mudou_recriacao_pendente' "$LOG" && r=0 || r=1
+verifica "e deixa isso no deploy.log, nao so na tela" $r
 
 echo "== falhas, cada uma com seu registro"
 STUB_PULL=1 roda "$DIG"; [ $? -ne 0 ] && r=0 || r=1; verifica "pull falhando derruba o deploy" $r

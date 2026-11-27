@@ -185,3 +185,17 @@ jobs:
           if docker run --rm --entrypoint ls complexo42:ci /app/supabase/config.toml > /dev/null 2>&1; then
             echo "ERRO: config.toml vazou para a imagem"; exit 1
           fi
+      # A infra que o deploy sincroniza (ADR 0015) tambem viaja na imagem, e os
+      # SCRIPTS de deploy nao podem viajar junto: rodam no host, como root.
+      - name: A infra está na imagem, e os scripts de deploy não
+        run: |
+          for f in docker-compose.supabase.yml kong.yml initdb/02-roles.sh; do
+            docker run --rm --entrypoint ls complexo42:ci "/app/deploy/$f" > /dev/null \
+              || { echo "ERRO: /app/deploy/$f falta na imagem"; exit 1; }
+          done
+          for f in deploy.sh migra.sh backup.sh docker-compose.app.yml; do
+            if docker run --rm --entrypoint ls complexo42:ci "/app/deploy/$f" > /dev/null 2>&1; then
+              echo "ERRO: /app/deploy/$f vazou para a imagem"; exit 1
+            fi
+          done
+          echo "ok: infra na imagem, scripts fora"
