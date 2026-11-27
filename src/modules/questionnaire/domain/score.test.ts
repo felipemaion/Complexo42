@@ -143,13 +143,25 @@ describe("scoreQuestionnaire", () => {
       ["eixo 3", { t1a: -2, t1b: 2 }, ["totem1"]],
       ["eixo 4", { t2a: 1, t2b: -1 }, ["totem2"]],
       ["eixos 3 e 4", { t1a: -3, t1b: 3, t2a: 2, t2b: -2 }, ["totem1", "totem2"]],
-    ] as const)("empate no %s é inconclusivo", (_name, override, axes) => {
-      expect(scoreQuestionnaire(config, withAnswers({ ...override }))).toMatchObject({ status: "inconclusive", axes });
+    ] as const)("empate só no %s: a casa sai e o totem fica pendente (#197)", (_name, override, axes) => {
+      const result = scoreQuestionnaire(config, withAnswers({ ...override }));
+      expect(result).toMatchObject({ status: "totem_pending", houseId: "casa-1", axes });
+      expect(result).not.toHaveProperty("totem");
     });
 
-    it("lista todos os eixos empatados", () => {
+    it("totem pendente traz as quatro notas, com a nota 0 do eixo empatado", () => {
+      const result = scoreQuestionnaire(config, withAnswers({ t1a: -2, t1b: 2 }));
+      expect(result).toMatchObject({ scores: { house1: -100, house2: -100, totem1: 0, totem2: -100 } });
+    });
+
+    it("empate no eixo da casa junto com o do totem é inconclusivo e lista todos", () => {
       const answers = withAnswers({ h2a: -2, h2b: -1, h2c: 3, t1a: 3, t1b: -3 });
       expect(scoreQuestionnaire(config, answers)).toMatchObject({ status: "inconclusive", axes: ["house2", "totem1"] });
+    });
+
+    it("só o eixo 4 em zero, com os eixos da casa definidos, também deixa o totem pendente (caso real do gestor)", () => {
+      const result = scoreQuestionnaire(config, withAnswers({ h1a: -2, h1b: -1, h1c: -1, h1d: -1, t2a: 1, t2b: -1 }));
+      expect(result).toMatchObject({ status: "totem_pending", houseId: "casa-1", axes: ["totem2"] });
     });
   });
 

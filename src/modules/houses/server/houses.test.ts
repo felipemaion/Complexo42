@@ -231,6 +231,31 @@ describe("submitQuestionnaire", () => {
     ]);
   });
 
+  it("empate só no totem (#197): a casa sai e o banco recebe, numa chamada só, o resultado sem totem e o pedido de totem, assinados", async () => {
+    const { client, calls } = fakeClient();
+    // Eixos da casa definidos (casa-b) e eixo 3 empatado (-1 e +1), sem desempate.
+    const totemTied = { ...all(-3), h2a: 3, h2b: 3, t1a: -1, t1b: 1 };
+    const outcome = await submitQuestionnaire(client, { answers: totemTied }, ctx);
+    expect(outcome).toMatchObject({ ok: true, outcome: "recorded", houseId: "casa-b" });
+    expect(JSON.stringify(outcome)).not.toMatch(/totem|D3|D4/);
+    const scores = encScores({ house1: -100, house2: 100, totem1: 0, totem2: -100 });
+    const answersEnc = `enc[house_analysis_requests.answers_enc.u-1](${JSON.stringify(totemTied)})`;
+    expect(calls).toEqual([
+      {
+        fn: "record_totem_pending",
+        args: {
+          p_term_version: "termo-1",
+          p_house_key: "casa-b",
+          p_scores_enc: scores,
+          p_tied_axes: ["totem1"],
+          p_answers_enc: answersEnc,
+          p_issued_at: 1000,
+          p_signature: `sig(totem_pending|u-1|termo-1|casa-b|${scores}|totem1|${answersEnc}|1000)`,
+        },
+      },
+    ]);
+  });
+
   it("recusa, sem chamar o banco nem assinar, respostas incompletas, itens inventados, valores fora da escala e campos a mais", async () => {
     const { client, calls } = fakeClient();
     const incomplete: Record<string, number> = all(-3);
