@@ -235,6 +235,52 @@ jobs:
           fi
           echo "ok: nenhum pedido de privilegio no compose do Supabase"
 
+      # Todo plugin usado no kong.yml tem de estar em KONG_PLUGINS. A lista do
+      # compose e RESTRITIVA (o padrao do Kong e `bundled`, com dezenas), e o
+      # Kong RECUSA SUBIR se o declarativo usar um plugin fora dela -- derruba
+      # o /auth/v1 inteiro, login junto. Aconteceu no staging em 2026-11-27,
+      # ~4 minutos de 502, com o `request-termination` do #247.
+      #
+      # Precisa entender o YAML: `- name:` aparece tambem em servicos e rotas,
+      # entao casar texto daria falso positivo. Aqui so entram os nomes que
+      # estao DENTRO de um bloco `plugins:`.
+      - name: Todo plugin do kong.yml está habilitado em KONG_PLUGINS
+        run: |
+          python3 - <<'PY'
+          import re, sys, yaml
+
+          compose = open("deploy/docker-compose.supabase.yml").read()
+          m = re.search(r"^[ \t]*KONG_PLUGINS:[ \t]*(.+)$", compose, re.M)
+          if not m:
+              sys.exit("ERRO: nao achei KONG_PLUGINS no compose")
+          habilitados = {p.strip() for p in m.group(1).strip().strip('"\'').split(",") if p.strip()}
+
+          kong = yaml.safe_load(open("deploy/kong.yml"))
+          usados = set()
+          def colhe(no):
+              if isinstance(no, dict):
+                  for nome, valor in no.items():
+                      if nome == "plugins" and isinstance(valor, list):
+                          for pl in valor:
+                              if isinstance(pl, dict) and pl.get("name"):
+                                  usados.add(pl["name"])
+                      else:
+                          colhe(valor)
+              elif isinstance(no, list):
+                  for item in no:
+                      colhe(item)
+          colhe(kong)
+
+          print("habilitados:", ", ".join(sorted(habilitados)))
+          print("usados no kong.yml:", ", ".join(sorted(usados)) or "(nenhum)")
+          faltando = sorted(usados - habilitados)
+          if faltando:
+              print("ERRO: usados no kong.yml e AUSENTES de KONG_PLUGINS:", ", ".join(faltando))
+              print("      o Kong recusaria subir e o /auth/v1 cairia inteiro.")
+              sys.exit(1)
+          print("ok: todos os plugins usados estao habilitados")
+          PY
+
       # O link do e-mail do GoTrue e API_EXTERNAL_URL.ResolveReference(path),
       # com `path` vindo dos MAILER_URLPATHS_*. Como o default `/verify` e
       # ABSOLUTO, ele descarta o caminho da base: sem os quatro explicitos, o

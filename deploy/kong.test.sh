@@ -6,12 +6,21 @@ cd "$(dirname "$0")/.."
 imagem=$(grep -oE 'image: kong:[^[:space:]]+' deploy/docker-compose.supabase.yml | head -n1 | cut -d' ' -f2)
 # O digest do compose e da imagem ARM64 (servidor); o runner do CI e amd64. Mesma versao, sem digest.
 imagem=${imagem%%@*}
+# E a MESMA lista restrita do compose, nao o padrao do Kong. Sem isto o teste
+# roda com `bundled` (dezenas de plugins) e um plugin ausente da lista de
+# producao passa despercebido -- foi exatamente o que deixou o #247 derrubar o
+# Kong do staging em 2026-11-27.
+plugins=$(grep -oE '^[[:space:]]*KONG_PLUGINS:[[:space:]]*.*' deploy/docker-compose.supabase.yml \
+  | head -n1 | sed 's/.*KONG_PLUGINS:[[:space:]]*//' | tr -d '"'"'"'' )
+[ -n "$plugins" ] || { echo "ERRO: nao achei KONG_PLUGINS no compose"; exit 1; }
+echo "KONG_PLUGINS do compose: $plugins"
 dir=$(mktemp -d); nome="kong-teste-$$"; porta=${KONG_TESTE_PORTA:-18080}
 trap 'docker rm -f "$nome" >/dev/null 2>&1 || true; rm -rf "$dir"' EXIT
 cp deploy/kong.yml "$dir/kong.yml"
 # O Kong roda como usuario sem privilegio: o diretorio do mktemp (0700) precisa ser legivel.
 chmod 755 "$dir"; chmod 644 "$dir/kong.yml"
 docker run -d --name "$nome" -p "$porta:8000" -e KONG_DATABASE=off -e KONG_DECLARATIVE_CONFIG=/k/kong.yml \
+  -e KONG_PLUGINS="$plugins" \
   -e KONG_PROXY_LISTEN=0.0.0.0:8000 -v "$dir:/k:ro" "$imagem" >/dev/null
 pronto=0
 for _ in $(seq 1 45); do
