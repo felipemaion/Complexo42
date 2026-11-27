@@ -102,6 +102,7 @@ export const instanceConfigSchema = z.strictObject({
       legacy_link: text,
       /** Senha errada, e-mail sem conta ou sem senha: a MESMA frase (ADR 0018 §3). */
       bad_credentials: text,
+      session_expired: text,
     }),
   }),
   /** Senha opcional (ADR 0018): página /senha e a seção do perfil. */

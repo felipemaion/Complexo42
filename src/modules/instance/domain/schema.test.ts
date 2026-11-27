@@ -32,7 +32,7 @@ const valid = {
     confirmTitle: "t",
     confirmMessage: "t",
     confirmButton: "t",
-    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t", legacy_link: "t", bad_credentials: "t" },
+    errors: { invalid_email: "t", rate_limited: "t", unavailable: "t", failed: "t", blocked: "t", legacy_link: "t", bad_credentials: "t", session_expired: "t" },
   },
   password: {
     title: "t",
