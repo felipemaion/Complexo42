@@ -8,7 +8,7 @@ const houseIds = instance.houses.map((h) => h.id);
 type Raw = Omit<typeof example, "axes"> & {
   axes: Record<
     "house1" | "house2" | "totem1" | "totem2",
-    { label: string; poleLabels: { a: string; b: string }; itemIds: string[]; tieBreakItems: string[]; letters?: { a: string; b: string } }
+    { label: string; poleLabels: { a: string; b: string }; itemIds: string[]; letters?: { a: string; b: string } }
   >;
 };
 const clone = (): Raw => structuredClone(example) as Raw;
@@ -53,9 +53,8 @@ describe("questionnaireSchema", () => {
 
   it("rejeita item que nenhum eixo lista", () => {
     const raw = clone();
-    raw.axes.house1.itemIds = raw.axes.house1.itemIds.slice(1);
-    raw.axes.house1.tieBreakItems = [];
-    expect(fieldsOf(raw)).toEqual(["items.0.id"]);
+    raw.axes.house1.itemIds = raw.axes.house1.itemIds.slice(2);
+    expect(fieldsOf(raw)).toEqual(["items.0.id", "items.1.id"]);
   });
 
   it("rejeita eixo que cita item inexistente", () => {
@@ -64,19 +63,21 @@ describe("questionnaireSchema", () => {
     expect(fieldsOf(raw)).toContain("axes.totem1.itemIds.0");
   });
 
-  it("rejeita desempate com item de outro eixo, em qualquer eixo", () => {
+  it("rejeita eixo com número par de itens (a soma poderia empatar), em qualquer eixo", () => {
     const raw = clone();
-    raw.axes.house1.tieBreakItems = [raw.axes.house2.itemIds[0]!];
-    expect(fieldsOf(raw)).toEqual(["axes.house1.tieBreakItems.0"]);
-    const other = clone();
-    other.axes.totem2.tieBreakItems = [other.axes.house1.itemIds[0]!];
-    expect(fieldsOf(other)).toEqual(["axes.totem2.tieBreakItems.0"]);
+    const moved = raw.axes.house1.itemIds.pop()!;
+    raw.axes.house2.itemIds.push(moved);
+    expect(fieldsOf(raw)).toEqual(["axes.house1.itemIds", "axes.house2.itemIds"]);
+    const totem = clone();
+    const dropped = totem.axes.totem2.itemIds.pop()!;
+    totem.items = totem.items.filter((item) => item.id !== dropped);
+    expect(fieldsOf(totem)).toEqual(["axes.totem2.itemIds"]);
   });
 
-  it("tieBreakItems é opcional e vale vazio", () => {
-    const raw = clone() as unknown as { axes: Record<string, { tieBreakItems?: string[] }> };
-    delete raw.axes.house1!.tieBreakItems;
-    expect(parseQuestionnaire(raw, houseIds).axes.house1.tieBreakItems).toEqual([]);
+  it("não aceita mais desempate: tieBreakItems é campo desconhecido", () => {
+    const raw = clone() as unknown as { axes: Record<string, Record<string, unknown>> };
+    raw.axes.house1!.tieBreakItems = [];
+    expect(fieldsOf(raw)).toEqual(["axes.house1"]);
   });
 
   it("rejeita id de item repetido", () => {
