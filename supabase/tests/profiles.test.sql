@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(98);
+select plan(104);
 
 -- Valor no formato v1.<iv>.<ct> (o banco não decifra; só confere o formato).
 create function pg_temp.enc(p_tag text) returns text language sql as $$
@@ -89,7 +89,7 @@ select ok(
 -- Estrutura: só as colunas da lista fechada (docs/MODELO_DADOS.md)
 -- ---------------------------------------------------------------------------------------
 select columns_are('public', 'profiles', array[
-  'id', 'display_name_enc', 'municipality_code', 'state_code', 'district_code', 'status',
+  'id', 'display_name_enc', 'municipality_code', 'state_code', 'district_code', 'neighborhood_enc', 'status',
   'access_status', 'consent_version', 'consent_at', 'created_at', 'updated_at'
 ], 'profiles tem exatamente as colunas do modelo de dados');
 select columns_are('public', 'profile_contacts', array[
@@ -145,6 +145,12 @@ select throws_ok(
      values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3550308, 'v1', 330455705) $$,
   '23503', null,
   'distrito de outro município é recusado (chave estrangeira composta)'
+);
+select throws_ok(
+  $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version, neighborhood_enc)
+     values ('00000000-0000-0000-0000-0000000000b2', pg_temp.enc('b2'), 3550308, 'v1', 'Vila Exemplo') $$,
+  '23514', null,
+  'bairro em texto puro é recusado na tabela (só valor cifrado)'
 );
 select throws_ok(
   $$ insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
@@ -205,7 +211,7 @@ select throws_ok(
 create function pg_temp.save(
   p_name text, p_whatsapp_hmac text,
   p_municipality int default 3550308, p_district_code int default null,
-  p_whatsapp text default null, p_links text default null
+  p_whatsapp text default null, p_links text default null, p_neighborhood text default null
 ) returns text language sql as $$
   select public.save_own_profile(
     p_display_name_enc => p_name,
@@ -213,7 +219,8 @@ create function pg_temp.save(
     p_district_code => p_district_code,
     p_whatsapp_enc => coalesce(p_whatsapp, pg_temp.enc('wa')),
     p_whatsapp_hmac => p_whatsapp_hmac,
-    p_social_links_enc => p_links
+    p_social_links_enc => p_links,
+    p_neighborhood_enc => p_neighborhood
   )
 $$;
 set local role authenticated;
@@ -311,6 +318,33 @@ select lives_ok(
   $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 355030878) $$,
   'volta para São Paulo com distrito'
 );
+
+-- Bairro (#179): texto livre = dado pessoal; só cifrado, só pela função, só o dono (ou quem vê o
+-- perfil) o lê.
+select throws_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 355030878, null, null, 'Vila Exemplo') $$,
+  '22023', 'bairro em formato inválido',
+  'a função recusa bairro em texto puro'
+);
+select lives_ok(
+  $$ select pg_temp.save(pg_temp.enc('b1'), repeat('a', 64), 3550308, 355030878, null, null, pg_temp.enc('bairro')) $$,
+  'a função grava o bairro cifrado'
+);
+select is(
+  (select neighborhood_enc from public.profiles), pg_temp.enc('bairro'),
+  'o dono lê o próprio bairro (cifrado)'
+);
+select throws_ok(
+  $$ update public.profiles set neighborhood_enc = pg_temp.enc('outro') $$,
+  '42501', 'permission denied for table profiles',
+  'a pessoa NÃO grava o bairro direto pela API'
+);
+select pg_temp.login('00000000-0000-0000-0000-0000000000b3');
+select is_empty(
+  $$ select 1 from public.profiles where neighborhood_enc is not null $$,
+  'outra pessoa sem escopo NÃO lê o bairro de b1'
+);
+select pg_temp.login('00000000-0000-0000-0000-0000000000b1');
 
 -- WhatsApp de outra pessoa (o HMAC de u2): resposta fixa, sem o HMAC, nada gravado. Desde a
 -- #127 é retorno, e não erro, para o registro da tentativa sobreviver à chamada.
@@ -610,9 +644,9 @@ select is_empty(
 );
 select ok(
   has_function_privilege('authenticated',
-    'public.save_own_profile(text, integer, integer, text, text, text)', 'execute')
+    'public.save_own_profile(text, integer, integer, text, text, text, text)', 'execute')
   and not has_function_privilege('anon',
-    'public.save_own_profile(text, integer, integer, text, text, text)', 'execute'),
+    'public.save_own_profile(text, integer, integer, text, text, text, text)', 'execute'),
   'a função de gravar perfil é de quem está logado; visitante anônimo não executa'
 );
 

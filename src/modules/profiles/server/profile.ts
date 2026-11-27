@@ -81,6 +81,11 @@ export async function saveOwnProfile(
       p_display_name_enc: await deps.encrypt(profile.displayName, { table: "profiles", column: "display_name_enc", rowId }),
       p_municipality_code: profile.municipalityCode,
       p_district_code: profile.districtCode,
+      // Bairro (#179): texto livre = dado pessoal, só cifrado, com AAD `profiles.neighborhood_enc.<id>`.
+      p_neighborhood_enc:
+        profile.neighborhood === null
+          ? null
+          : await deps.encrypt(profile.neighborhood, { table: "profiles", column: "neighborhood_enc", rowId }),
       // Sem versão do termo: o banco grava `none` e só o aceite (#11) a avança (revisão do #125).
       p_whatsapp_enc: await deps.encrypt(contact.whatsapp, { table: "profile_contacts", column: "whatsapp_enc", rowId }),
       p_whatsapp_hmac: await deps.blindIndex(contact.whatsapp),
@@ -126,6 +131,7 @@ const ownRow = z
     municipality_code: z.number().int(),
     state_code: z.string(),
     district_code: z.number().int().nullable(),
+    neighborhood_enc: z.string().nullable(),
     profile_contacts: z.object({ whatsapp_enc: z.string(), social_links_enc: z.string().nullable().optional() }).nullable(),
   })
   .nullable();
@@ -142,7 +148,7 @@ export async function loadOwnProfile(
   const rowId = uuid.parse(userId);
   const { data, error } = await client
     .from("profiles")
-    .select("display_name_enc, municipality_code, state_code, district_code, profile_contacts(whatsapp_enc, social_links_enc)")
+    .select("display_name_enc, municipality_code, state_code, district_code, neighborhood_enc, profile_contacts(whatsapp_enc, social_links_enc)")
     .eq("id", rowId)
     .maybeSingle();
   if (error) throw new Error(`profile_read_failed:${errorCode(error)}`);
@@ -164,6 +170,7 @@ export async function loadOwnProfile(
     municipalityCode: row.municipality_code,
     stateCode: row.state_code,
     districtCode: row.district_code,
+    neighborhood: row.neighborhood_enc === null ? "" : await open(row.neighborhood_enc, "profiles", "neighborhood_enc"),
     ...social,
   };
 }

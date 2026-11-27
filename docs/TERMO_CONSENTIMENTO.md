@@ -34,7 +34,7 @@ missões e o desempenho de cada um. Não vendemos nem cedemos seus dados a ningu
 | Nome | Para a coordenação e sua equipe saberem quem é você |
 | E-mail | Para você entrar na plataforma e para a coordenação falar com você |
 | WhatsApp | Para a coordenação falar com você |
-| Município e bairro | Para organizar as equipes por região |
+| Município, distrito e bairro (opcional) | Para organizar as equipes por região |
 | Redes sociais (opcional) | Para mostrar seu trabalho, se você quiser |
 | Habilidades e formação | Para encontrar quem pode ajudar em cada atividade |
 | Casa sugerida pelo questionário | Para indicar sua casa de formação. **As suas respostas não ficam guardadas** |

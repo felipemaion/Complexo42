@@ -9,7 +9,7 @@ import type { ProfileContactInput, ProfileInput } from "../types";
  * servidor (a máscara do navegador é só conforto) e convertido nos schemas de
  * `./schema.ts`, que são o contrato do que é cifrado e gravado.
  */
-export const profileFormFields = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"] as const;
+export const profileFormFields = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"] as const;
 export type ProfileFormField = (typeof profileFormFields)[number];
 
 /**
@@ -36,6 +36,7 @@ const formSchema = z.object({
   whatsapp: field,
   municipalityCode: field,
   district: field,
+  neighborhood: field,
   /**
    * As caixas de link, na ordem da tela (vazias são ignoradas). `undefined` = o envio não trouxe
    * os links (não veio do formulário atual): o servidor mantém os que já estão guardados.
@@ -76,7 +77,7 @@ function checkSocialLinks(entries: readonly string[]): { links: string[]; bad: n
 export function parseProfileForm(raw: unknown): ParsedProfileForm {
   const form = formSchema.safeParse(raw);
   if (!form.success) return { ok: false, fields: [...profileFormFields] };
-  const { displayName, whatsapp, municipalityCode, district, socialLinks } = form.data;
+  const { displayName, whatsapp, municipalityCode, district, neighborhood, socialLinks } = form.data;
   const invalid = new Set<ProfileFormField>();
 
   const code = /^\d{7}$/.test(municipalityCode?.trim() ?? "") ? Number(municipalityCode) : null;
@@ -91,12 +92,13 @@ export function parseProfileForm(raw: unknown): ParsedProfileForm {
     displayName: displayName ?? "",
     municipalityCode: code ?? 0,
     districtCode: chosen === null ? null : Number(chosen),
+    neighborhood: neighborhood?.trim() || null,
     consentVersion: consentNotYetGiven,
   });
   if (!profile.success) {
     for (const issue of profile.error.issues) {
       const name = issue.path[0];
-      if (name === "displayName" || name === "municipalityCode") invalid.add(name);
+      if (name === "displayName" || name === "municipalityCode" || name === "neighborhood") invalid.add(name);
       else if (name === "districtCode") invalid.add("district");
     }
   }

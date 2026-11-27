@@ -25,6 +25,8 @@ export type ProfileFormValues = {
   municipalityCode: string;
   /** Código IBGE do distrito (9 dígitos) em texto, ou "" (sem escolha). */
   district: string;
+  /** Bairro como digitado (texto livre, opcional), ou "". */
+  neighborhood: string;
   /** As caixas de link de rede (#17), como digitadas, ou os links salvos. */
   socialLinks: string[];
 };
@@ -65,6 +67,8 @@ export type OwnProfile = {
   /** UF do município, derivada pelo banco. */
   stateCode: string;
   districtCode: number | null;
+  /** Bairro decifrado, ou "" se não informou (ou não abriu). */
+  neighborhood: string;
   /** Links de rede (#17), já normalizados (só os que abriram e passam na regra). */
   socialLinks: string[];
   /**

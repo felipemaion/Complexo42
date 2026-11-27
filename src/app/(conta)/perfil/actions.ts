@@ -36,6 +36,7 @@ export async function saveProfileAction(_previous: ProfileFormState, formData: F
     stateCode: text(formData.get("stateCode")),
     municipalityCode: text(formData.get("municipalityCode")),
     district: text(formData.get("district")),
+    neighborhood: text(formData.get("neighborhood")),
     socialLinks: [],
   };
   const socialLinks = socialLinksFrom(formData);

@@ -26,6 +26,7 @@ async function dbRows() {
       state_code: "SP",
       district_code: null,
       district_name: null,
+      neighborhood_enc: null,
       status: "active",
       access_status: "active",
       consent_version: "none",

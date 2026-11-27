@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(30);
+select plan(31);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -23,9 +23,9 @@ insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a1'),
   ('00000000-0000-0000-0000-0000000000a2'),
   ('00000000-0000-0000-0000-0000000000a3');
-insert into public.profiles (id, display_name_enc, municipality_code, district_code, consent_version) values
-  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('NomeA'), 3550308, 355030878, 'v1'),
-  ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('NomeB'), 3550308, null, 'v1');
+insert into public.profiles (id, display_name_enc, municipality_code, district_code, neighborhood_enc, consent_version) values
+  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('NomeA'), 3550308, 355030878, pg_temp.enc('BairroA'), 'v1'),
+  ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('NomeB'), 3550308, null, null, 'v1');
 update public.profiles set access_status = 'active', status = 'active'
 where id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2');
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac) values
@@ -91,6 +91,8 @@ create temporary table out_a as select pg_temp.export() as d;
 
 select is((select d->'profile'->>'display_name_enc' from out_a), pg_temp.enc('NomeA'),
   'nome (ainda cifrado) de A');
+select is((select d->'profile'->>'neighborhood_enc' from out_a), pg_temp.enc('BairroA'),
+  'bairro (ainda cifrado) de A');
 select is(
   (select (d->'profile'->>'municipality_name') || '/' || (d->'profile'->>'state_code') || '/'
           || (d->'profile'->>'district_code') || '/' || (d->'profile'->>'district_name') || '/' || (d->'profile'->>'consent_version')

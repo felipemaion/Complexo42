@@ -17,7 +17,14 @@ const SE_DISTRICT = 355030878;
 const NAME = "Maria Aparecida";
 const PHONE_TYPED = "(11) 98765-4321";
 const PHONE = "+5511987654321";
-const form = { displayName: NAME, whatsapp: PHONE_TYPED, municipalityCode: String(SP), district: String(SE_DISTRICT) };
+const NEIGHBORHOOD = "Vila Exemplo";
+const form = {
+  displayName: NAME,
+  whatsapp: PHONE_TYPED,
+  municipalityCode: String(SP),
+  district: String(SE_DISTRICT),
+  neighborhood: NEIGHBORHOOD,
+};
 
 function deps(): { deps: ProfileDeps; lines: string[] } {
   const lines: string[] = [];
@@ -101,6 +108,18 @@ describe("saveOwnProfile", () => {
     expect(lines).toEqual([]);
   });
 
+  it("cifra o bairro com o AAD da coluna e do id da pessoa; em branco vai nulo", async () => {
+    const { client, calls } = fakeClient();
+    const { deps: d } = deps();
+    await saveOwnProfile(client, USER, { ...form, neighborhood: "  Vila   Exemplo " }, d);
+    const sent = calls[0]!.args.p_neighborhood_enc as string;
+    expect(sent).not.toContain("Vila");
+    expect(await d.decrypt(sent, { table: "profiles", column: "neighborhood_enc", rowId: USER })).toBe(NEIGHBORHOOD);
+    await expect(d.decrypt(sent, { table: "profiles", column: "display_name_enc", rowId: USER })).rejects.toThrow();
+    await saveOwnProfile(client, USER, { ...form, neighborhood: "  " }, d);
+    expect(calls[1]!.args.p_neighborhood_enc).toBeNull();
+  });
+
   it("entrada inválida: não cifra nem chama o banco, e devolve só os nomes dos campos", async () => {
     const { client, calls } = fakeClient();
     const { deps: d, lines } = deps();
@@ -110,6 +129,7 @@ describe("saveOwnProfile", () => {
       [{ ...form, whatsapp: "(11) 3456-7890" }, ["whatsapp"]],
       [{ ...form, municipalityCode: "abc" }, ["municipalityCode"]],
       [{ ...form, district: "Centro" }, ["district"]],
+      [{ ...form, neighborhood: "Rua A, 12" }, ["neighborhood"]],
       [{}, ["displayName", "whatsapp", "municipalityCode"]],
     ] as const) {
       const result = await saveOwnProfile(client, USER, raw, d);
@@ -211,6 +231,7 @@ describe("loadOwnProfile", () => {
       municipality_code: SP,
       state_code: "SP",
       district_code: SE_DISTRICT,
+      neighborhood_enc: await d.encrypt(NEIGHBORHOOD, { table: "profiles", column: "neighborhood_enc", rowId: USER }),
       profile_contacts: { whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }) },
     };
     const { client, reads } = fakeClient({ row });
@@ -220,6 +241,7 @@ describe("loadOwnProfile", () => {
       municipalityCode: SP,
       stateCode: "SP",
       districtCode: SE_DISTRICT,
+      neighborhood: NEIGHBORHOOD,
       socialLinks: [],
       socialLinksUnreadable: false,
     });
@@ -230,13 +252,14 @@ describe("loadOwnProfile", () => {
     const { deps: d, lines } = deps();
     expect(await loadOwnProfile(fakeClient().client, USER, d)).toBeNull();
     const copied = await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: "outra" });
-    const row = { display_name_enc: copied, municipality_code: SP, state_code: "SP", district_code: null, profile_contacts: null };
+    const row = { display_name_enc: copied, municipality_code: SP, state_code: "SP", district_code: null, neighborhood_enc: null, profile_contacts: null };
     expect(await loadOwnProfile(fakeClient({ row }).client, USER, d)).toEqual({
       displayName: "",
       whatsapp: "",
       municipalityCode: SP,
       stateCode: "SP",
       districtCode: null,
+      neighborhood: "",
       socialLinks: [],
       socialLinksUnreadable: false,
     });
@@ -286,6 +309,7 @@ describe("redes sociais (#17)", () => {
       municipality_code: SP,
       state_code: "SP",
       district_code: SE_DISTRICT,
+      neighborhood_enc: null,
       profile_contacts: {
         whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }),
         social_links_enc: stored,
@@ -351,6 +375,7 @@ describe("redes sociais (#17)", () => {
         municipality_code: SP,
         state_code: "SP",
         district_code: SE_DISTRICT,
+        neighborhood_enc: null,
         profile_contacts: {
           whatsapp_enc: await d.encrypt(PHONE, { table: "profile_contacts", column: "whatsapp_enc", rowId: USER }),
           social_links_enc: social,

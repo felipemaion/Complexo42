@@ -64,6 +64,7 @@ test.describe("formulário com o Supabase local", () => {
     const name = page.getByLabel("Seu nome");
     const whatsapp = page.getByLabel("Seu WhatsApp, com DDD");
     const state = page.getByLabel("Seu estado");
+    const neighborhood = page.getByLabel("Seu bairro (se quiser)");
     const city = page.getByLabel("Sua cidade", { exact: true });
     const save = page.getByRole("button", { name: "Salvar meus dados" });
     expect((await save.boundingBox())?.height).toBeGreaterThanOrEqual(56);
@@ -87,6 +88,7 @@ test.describe("formulário com o Supabase local", () => {
     // Cidades por estado, com busca; distrito só onde a cidade tem mais de um.
     const district = page.getByLabel("Seu distrito");
     await expect(city).toBeDisabled();
+    await expect(neighborhood).toBeDisabled();
     await state.selectOption({ label: "São Paulo" });
     await expect(city.getByRole("option", { name: "Osasco" })).toHaveCount(1);
     await expect(city.getByRole("option", { name: "Belo Horizonte" })).toHaveCount(0);
@@ -123,6 +125,13 @@ test.describe("formulário com o Supabase local", () => {
     await whatsapp.fill(phone);
     await city.selectOption({ label: "São Paulo" });
     await district.selectOption({ label: "Sé" });
+    // Bairro: texto livre opcional; rua e número são recusados, o nome do bairro passa.
+    await expect(neighborhood).toBeEnabled();
+    await neighborhood.fill("Rua A, 12");
+    await save.click();
+    await expect(neighborhood).toHaveAttribute("aria-invalid", "true");
+    await expect(neighborhood).toHaveAccessibleDescription(/Não informe rua nem número/);
+    await neighborhood.fill("Vila Exemplo");
     await save.click();
     await expect(page).toHaveURL(`${baseURL}/espera`);
     await expect(page.locator("body")).not.toContainText("Pessoa de Teste");

@@ -13,6 +13,8 @@ import { LocationFields, type LocationText } from "./location-fields";
 // linguagem simples (pedido do stakeholder; o público inclui pessoas mais velhas).
 
 export type ProfileFormText = LocationText & {
+  neighborhoodLabel: string;
+  neighborhoodHint: string;
   intro: string;
   nameLabel: string;
   nameHint: string;
@@ -57,12 +59,13 @@ type Props = {
 
 const inputClass =
   "w-full rounded-xl border-2 border-neutral-500 bg-transparent px-4 py-4 text-xl aria-[invalid=true]:border-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
-const fieldOrder: readonly ProfileFormField[] = ["displayName", "whatsapp", "municipalityCode", "district", "socialLinks"];
+const fieldOrder: readonly ProfileFormField[] = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"];
 const fieldId: Record<ProfileFormField, string> = {
   displayName: "perfil-nome",
   whatsapp: "perfil-whatsapp",
   municipalityCode: "perfil-cidade",
   district: "perfil-distrito",
+  neighborhood: "perfil-bairro",
   socialLinks: "perfil-redes",
 };
 const linkId = (index: number) => `perfil-rede-${index + 1}`;
@@ -236,6 +239,29 @@ export function ProfileForm({
         errorText={errorText}
         isInvalid={(name) => invalid.has(name)}
       />
+
+      <div className="flex flex-col gap-2">
+        <label htmlFor={fieldId.neighborhood} className="text-xl font-semibold">
+          {text.neighborhoodLabel}
+        </label>
+        <p id={`${fieldId.neighborhood}-dica`} className="text-base">
+          {text.neighborhoodHint}
+        </p>
+        <input
+          id={fieldId.neighborhood}
+          name="neighborhood"
+          type="text"
+          autoComplete="off"
+          maxLength={profileLimits.neighborhoodMax}
+          disabled={values.municipalityCode === ""}
+          value={values.neighborhood}
+          onChange={set("neighborhood")}
+          aria-invalid={invalid.has("neighborhood")}
+          aria-describedby={describedBy("neighborhood", true)}
+          className={inputClass}
+        />
+        {errorText("neighborhood")}
+      </div>
 
       <fieldset
         id={fieldId.socialLinks}

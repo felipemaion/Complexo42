@@ -167,6 +167,7 @@ com a lista importada.
 | `municipality_code` | int FK | IBGE |
 | `state_code` | char(2) | derivado do município (trigger); no cadastro, o aluno entra na unidade do seu estado |
 | `district_code` | int null FK | distrito (código IBGE de 9 dígitos, `districts`). Chave estrangeira composta com o município: o banco recusa distrito de outro. Nulo = sem escolha ou município com um distrito só (ver `districts`) |
+| `neighborhood_enc` | text null | 🔒 bairro, **opcional**, texto livre cifrado (`v1.iv.ct`, AAD `profiles.neighborhood_enc.<id>`). Sem busca nem filtro. Ver "Bairro" abaixo |
 | `status` | text | `pending`, `active`, `suspended` |
 | `access_status` | text | `pending`, `active`, `waitlisted`, `blocked` (ADR 0008 §1) |
 | `consent_version`, `consent_at` | text, timestamptz | Espelho do último aceite do termo (#11), para leitura rápida; a prova é `consent_acceptances`. `save_own_profile` cria o perfil já com a versão vigente (e recusa quem não aceitou); `accept_consent` avança a versão de quem já tem perfil, e o trigger grava `consent_at`. Nenhuma outra via muda |
@@ -177,7 +178,7 @@ O papel **não** fica no perfil: fica em `role_assignments`.
 - **O titular** cria e edita só o próprio perfil e o próprio contato, e **só pela função
   `public.save_own_profile`** (#12), que o servidor chama com os valores já cifrados e o HMAC
   calculado no servidor. `profiles` e `profile_contacts` não têm grant de INSERT/UPDATE para a
-  API. A função grava `display_name_enc`, `municipality_code`, `district_code` e o contato. Distrito que não é do município volta como erro `PT422`; município com um distrito só grava distrito nulo. Ela não
+  API. A função grava `display_name_enc`, `municipality_code`, `district_code`, `neighborhood_enc` e o contato. Distrito que não é do município volta como erro `PT422`; município com um distrito só grava distrito nulo. Ela não
   recebe a versão do termo: cria o perfil com `consent_version = 'none'` e nunca a altera (só a
   função do aceite, #11, avança a versão, derivada no servidor). Perfil `blocked` ou com conta `suspended` não edita (mas lê o
   próprio). WhatsApp repetido volta como o retorno `duplicate_whatsapp`, sem dizer de quem é
@@ -266,8 +267,14 @@ espera nem bloqueado; escrita só por migration. Vêm de migrations **geradas** 
 consulta no cabeçalho; para atualizar, rode o script e crie uma migration nova com a diferença.
 O formulário do perfil carrega as cidades **por UF** (o maior estado tem 853), nunca as 5.570.
 
-**Bairro não entra.** Não há base oficial nacional de bairros, e texto livre seria dado pessoal
-sem ganho para a coordenação. A menor divisão que guardamos é o distrito.
+**Bairro** (#179, decisão do gestor em 2026-11-27) é opcional e **texto livre**, porque não há base
+oficial nacional de bairros. Como texto livre pode virar endereço, é **dado pessoal**: só existe
+cifrado (`profiles.neighborhood_enc`, ADR 0003), o banco recusa texto puro, e não há busca nem
+filtro por bairro. O servidor valida antes de cifrar: 2 a 60 caracteres (letras, números, espaço,
+hífen, apóstrofo e ponto), sem espaços nas pontas, espaços internos colapsados; o formulário pede
+"não informe rua nem número". Quem já vê o perfil (`can_view_profile`) o vê pelo servidor, que
+decifra; hoje nenhuma tela de terceiros o mostra. Vai no arquivo de exportação (`bairro`) e some
+com a conta (cascata).
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)

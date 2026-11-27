@@ -30,6 +30,7 @@ export default async function ProfilePage() {
           municipalityCode: own ? String(own.municipalityCode) : "",
           district: own?.districtCode === null || own === null ? "" : String(own.districtCode),
           // Os links salvos voltam para as caixas: salvar sem mexer neles os mantém (#17).
+          neighborhood: own?.neighborhood ?? "",
           socialLinks: own?.socialLinks ?? [],
         }}
         states={states}
