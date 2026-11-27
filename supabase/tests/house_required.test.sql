@@ -1,8 +1,9 @@
--- Casa antes de tudo (ADR 0017): `save_own_profile` recusa quem está liberado (active) e ainda não tem casa. Quem ainda não está liberado (espera, sem linha) segue o caminho de hoje.
+-- Casa antes de tudo (ADR 0017): `is_active_member` exige a casa aceita e `save_own_profile` recusa quem está liberado
+-- (active) e ainda não tem casa. Quem ainda não está liberado (espera, sem linha) segue o caminho de hoje.
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(6);
+select plan(14);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -30,12 +31,16 @@ values ('00000000-0000-0000-0000-0000000000e2', 'casa-t1', 'self', now());
 set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000e1');
 select is(app.is_onboarding_member(), true, 'sem casa: vale como membro de entrada');
+select is(app.is_active_member(), false, '... mas NÃO como membro de verdade (falta a casa aceita)');
+select is((select count(*)::int from public.units), 0, '... e não lê a estrutura (unidades)');
 select throws_ok($$ select public.save_own_profile(pg_temp.enc('e1'), 3550308, null, pg_temp.enc('wa'), repeat('1', 64), null, null) $$, '42501', 'house_required',
   'liberada e sem casa: salvar o perfil é recusado no banco (house_required)');
 select lives_ok($$ select public.export_own_data() $$, '... mas baixa os próprios dados');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000000e2');
-select is(public.save_own_profile(pg_temp.enc('e2'), 3550308, null, pg_temp.enc('wa'), repeat('2', 64), null, null), 'saved', 'com a casa aceita: salva o perfil');
+select is(app.is_active_member(), true, 'com a casa aceita: membro de verdade');
+select ok((select count(*) from public.units) > 0, '... lê a estrutura (unidades)');
+select is(public.save_own_profile(pg_temp.enc('e2'), 3550308, null, pg_temp.enc('wa'), repeat('2', 64), null, null), 'saved', '... e salva o perfil');
 
 select pg_temp.login('00000000-0000-0000-0000-0000000000e3');
 select is(public.save_own_profile(pg_temp.enc('e3'), 3550308, null, pg_temp.enc('wa'), repeat('3', 64), null, null), 'saved',
@@ -43,6 +48,26 @@ select is(public.save_own_profile(pg_temp.enc('e3'), 3550308, null, pg_temp.enc(
 select pg_temp.login('00000000-0000-0000-0000-0000000000e4');
 select is(public.save_own_profile(pg_temp.enc('e4'), 3550308, null, pg_temp.enc('wa'), repeat('4', 64), null, null), 'saved',
   'sem linha ainda (fora da lista): cria o perfil, como hoje');
+
+-- Quem coordena e fica sem casa PERDE a coordenação até ter casa (ADR 0017: ninguém vê nada sem casa).
+reset role;
+insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000e5');
+insert into public.profiles (id, display_name_enc, municipality_code, consent_version, status, access_status)
+values ('00000000-0000-0000-0000-0000000000e5', pg_temp.enc('e5'), 3550308, 'v1', 'active', 'active');
+insert into public.consent_acceptances (user_id, version) values ('00000000-0000-0000-0000-0000000000e5', 'v1');
+insert into public.role_assignments (profile_id, role, unit_id)
+select '00000000-0000-0000-0000-0000000000e5', 'manager', id from public.units where path::text = 'br';
+insert into public.house_members (profile_id, house_key, join_method, accepted_at) values ('00000000-0000-0000-0000-0000000000e5', 'casa-t1', 'self', now());
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000e5');
+select is(app.manages_root(), true, 'o gestor da raiz com casa aceita coordena');
+reset role;
+update public.house_members set left_at = now() where profile_id = '00000000-0000-0000-0000-0000000000e5';
+set local role authenticated;
+select pg_temp.login('00000000-0000-0000-0000-0000000000e5');
+select is(app.manages_root(), false, 'sem casa (vínculo encerrado), o gestor da raiz perde a coordenação');
+select is_empty($$ select 1 from app.my_scopes() $$, '... e não tem escopo de dados (my_scopes vazio)');
+select is((select count(*)::int from public.units), 0, '... nem lê a estrutura');
 
 select * from finish();
 rollback;

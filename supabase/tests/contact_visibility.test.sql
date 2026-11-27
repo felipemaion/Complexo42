@@ -217,6 +217,11 @@ select ok(not exists (select 1 from public.unit_types where key = 'house'),
 -- ---------------------------------------------------------------------------------------
 -- "A mesma equipe": só unidade ativa de tipo marcado como equipe
 -- ---------------------------------------------------------------------------------------
+-- Membro de verdade exige a casa aceita (ADR 0017): cada pessoa do teste ganha uma casa só dela (sem criar colegas de casa).
+insert into public.houses (key, active) select 'g-' || id::text, true from public.profiles on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select p.id, 'g-' || p.id::text, 'self', now() from public.profiles as p
+where not exists (select 1 from public.house_members as h where h.profile_id = p.id and h.left_at is null) on conflict do nothing;
 set local role authenticated;
 select pg_temp.login('s2');
 select is(app.can_view_contact(pg_temp.person('s1'), 'whatsapp'), false,
