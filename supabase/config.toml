@@ -46,7 +46,8 @@ additional_redirect_urls = ["http://127.0.0.1:3000/**"]
 jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
-minimum_password_length = 8
+# Igual ao servidor (GOTRUE_PASSWORD_MIN_LENGTH, ADR 0018).
+minimum_password_length = 12
 
 [auth.email]
 # E-mail confirmado antes do primeiro login (#26): é ele que liga a conta ao e-mail cujo
@@ -74,6 +75,12 @@ token_refresh = 150
 [auth.email.template.magic_link]
 subject = "Seu link para entrar"
 content_path = "./supabase/templates/magic_link.html"
+
+# Recuperação de senha (ADR 0018): o mesmo caminho do link de entrada, com type=recovery; o
+# POST do botão leva à página /senha.
+[auth.email.template.recovery]
+subject = "Criar uma nova senha"
+content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.confirmation]
 subject = "Seu link para entrar"

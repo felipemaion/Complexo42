@@ -5,6 +5,8 @@ export const HOME_PATH = "/inicio";
 /** Formulário do perfil (#12): quem ainda não tem perfil vai para cá a partir da página inicial. */
 export const PROFILE_PATH = "/perfil";
 export const CALLBACK_PATH = "/auth/callback";
+/** Criar, trocar ou remover a senha (ADR 0018). Exige sessão: o link de recuperação termina aqui. */
+export const PASSWORD_PATH = "/senha";
 /** Página intermediária do link mágico: o GET só mostra o botão; o login é um POST. */
 export const CONFIRM_PATH = "/auth/confirmar";
 /** Encerra a sessão quando o acesso foi bloqueado ou a checagem falhou. */

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AppLogoHero } from "@/modules/houses/components/house-shield";
 import { instance } from "@config/instance";
-import { sendMagicLink, signInWithGoogle } from "@/server/auth/actions";
+import { signInWithGoogle, submitLoginForm } from "@/server/auth/actions";
 import { parseAuthErrorCode } from "@/server/auth/errors";
 import { getTurnstileConfig } from "@/server/auth/turnstile";
 import { TurnstileWidget } from "./turnstile-widget";
@@ -20,7 +20,7 @@ export default async function LoginPage({ searchParams }: Props) {
   // Só códigos conhecidos viram mensagem; texto da URL nunca é exibido.
   const error = parseAuthErrorCode(params.erro);
   const next = typeof params.next === "string" ? params.next : "";
-  const notice = error ? text.errors[error] : params.enviado === "1" ? text.emailSent : params.saiu === "1" ? text.signedOut : null;
+  const notice = error ? text.errors[error] : params.enviado === "1" ? text.emailSent : params.enviado === "2" ? text.recoverySent : params.saiu === "1" ? text.signedOut : null;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-8 p-6">
@@ -46,7 +46,11 @@ export default async function LoginPage({ searchParams }: Props) {
         </button>
       </form>
 
-      <form action={sendMagicLink} className="flex flex-col gap-3">
+      {/* Um formulário só, com o Turnstile (#116) uma vez: cada botão manda o seu `intent` (submitLoginForm). A
+          senha é opcional no HTML porque o botão do link não a usa; quem a deixa vazia recebe a
+          mesma resposta genérica de senha errada (ADR 0018 §3). */}
+      <form action={submitLoginForm} className="flex flex-col gap-3">
+        <input type="hidden" name="next" value={next} />
         <label htmlFor="email" className="text-lg font-medium">
           {text.emailLabel}
         </label>
@@ -60,13 +64,29 @@ export default async function LoginPage({ searchParams }: Props) {
           maxLength={254}
           className="w-full rounded-xl border-2 border-neutral-400 bg-transparent px-4 py-4 text-xl"
         />
-        {/* Turnstile (#116): acima do botão, sem cobri-lo. Site key lida no servidor a cada requisição. */}
+        <label htmlFor="password" className="text-lg font-medium">
+          {text.passwordLabel}
+        </label>
+        <input
+          id="password"
+          name="password"
+          type="password"
+          autoComplete="current-password"
+          maxLength={256}
+          className="w-full rounded-xl border-2 border-neutral-400 bg-transparent px-4 py-4 text-xl"
+        />
         <TurnstileWidget siteKey={getTurnstileConfig().siteKey} />
         <noscript>
           <p className="text-lg">{text.emailNeedsScript}</p>
         </noscript>
-        <button type="submit" className={`${bigButton} border-2 border-current`}>
+        <button type="submit" name="intent" value="password" className={`${bigButton} border-2 border-current`}>
+          {text.passwordButton}
+        </button>
+        <button type="submit" name="intent" value="link" className={`${bigButton} border-2 border-current`}>
           {text.emailButton}
+        </button>
+        <button type="submit" name="intent" value="recover" className="px-2 py-3 text-lg underline">
+          {text.recoverButton}
         </button>
       </form>
     </main>

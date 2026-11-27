@@ -274,6 +274,55 @@ jobs:
 
           [ -z "$falhou" ] || exit 1
 
+      # Senha opcional (ADR 0018). Mesma tecnica da trava acima: chave ancorada no comeco da
+      # linha, para um comentario que cite a chave nao enganar. Sem estas chaves o GoTrue cai nos
+      # padroes (minimo de 8, sem checagem de senha vazada, troca de senha sem reautenticar), e
+      # nenhum teste de unidade percebe: o GoTrue de verdade so roda no servidor.
+      - name: A senha do GoTrue tem a política e as travas do ADR 0018
+        run: |
+          arq=deploy/docker-compose.supabase.yml
+          falhou=
+          for par in \
+            GOTRUE_PASSWORD_MIN_LENGTH:12 \
+            GOTRUE_PASSWORD_HIBP_ENABLED:true \
+            GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_REAUTHENTICATION:true \
+            GOTRUE_SECURITY_UPDATE_PASSWORD_REQUIRE_CURRENT_PASSWORD:true; do
+            chave=${par%%:*}; valor=${par##*:}
+            if grep -qE "^[[:space:]]*$chave:[[:space:]]*\"?$valor\"?[[:space:]]*(#.*)?\$" "$arq"; then
+              echo "ok: $chave = $valor"
+            else
+              echo "ERRO: $chave precisa ser $valor. Achei:"
+              grep -nE "^[[:space:]]*$chave:" "$arq" || echo "  (a linha nao existe)"
+              falhou=1
+            fi
+          done
+          # Nao exigir simbolos nem maiusculas (ADR 0018 §2).
+          if grep -qE '^[[:space:]]*GOTRUE_PASSWORD_REQUIRED_CHARACTERS:' "$arq"; then
+            echo "ERRO: GOTRUE_PASSWORD_REQUIRED_CHARACTERS nao deve existir (a politica nao exige simbolos)."
+            falhou=1
+          fi
+          # A rota /auth/v1/signup tem o PROPRIO request-termination 404 (no mesmo servico), nao
+          # qualquer 404 do arquivo; e os endpoints sensiveis so respondem ao app (sem X-Forwarded-For).
+          bloco() { awk -v p="$1" '/^  - name: /{if(f)exit; b=""} {b=b $0 "\n"} $0 ~ "^[[:space:]]*-[[:space:]]+" p "[[:space:]]*$" {f=1} END{if(f)printf "%s", b}' deploy/kong.yml; }
+          for caminho in /auth/v1/signup /auth/v1/token /auth/v1/recover /auth/v1/otp /auth/v1/user; do
+            if bloco "$caminho" | grep -qE '^[[:space:]]*-[[:space:]]*name:[[:space:]]*request-termination[[:space:]]*$' \
+               && bloco "$caminho" | grep -qE '^[[:space:]]*status_code:[[:space:]]*404[[:space:]]*$'; then
+              echo "ok: $caminho tem request-termination 404 no proprio servico"
+            else
+              echo "ERRO: $caminho precisa do request-termination 404 no servico que o declara (deploy/kong.yml)."
+              falhou=1
+            fi
+          done
+          for caminho in /auth/v1/token /auth/v1/recover /auth/v1/otp /auth/v1/user; do
+            bloco "$caminho" | grep -qE '^[[:space:]]*x-forwarded-for:' || { echo "ERRO: $caminho precisa casar o cabecalho x-forwarded-for."; falhou=1; }
+          done
+          [ -z "$falhou" ] || exit 1
+
+      # Mede o kong.yml com o Kong de verdade: de fora (com X-Forwarded-For) o login por senha e
+      # os demais endpoints sensiveis dao 404; a chamada interna do app passa (ADR 0018 §3).
+      - name: O Kong só deixa o app usar o login por senha e a recuperação
+        run: bash deploy/kong.test.sh
+
       # O GoTrue CAI EM SILENCIO no template padrao (em ingles) quando a URL do
       # template nao responde, ou quando a variavel some: o login continua
       # funcionando e ninguem percebe. Esta trava exige as 10 chaves (templates e

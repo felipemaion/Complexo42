@@ -37,10 +37,16 @@ export const instance = parseInstanceConfig({
   },
   auth: {
     title: "Entrar",
-    intro: "Escolha um jeito de entrar. Os dois são gratuitos e não pedem senha.",
+    intro: "Escolha um jeito de entrar. Todos são gratuitos. Com o Google ou com o link por e-mail você não precisa de senha.",
     googleButton: "Entrar com Google",
     emailLabel: "Seu e-mail",
     emailButton: "Receber link por e-mail",
+    // Senha opcional (ADR 0018): quem já criou uma entra sem esperar e-mail.
+    passwordLabel: "Sua senha (se você já criou uma)",
+    passwordButton: "Entrar com senha",
+    recoverButton: "Esqueci a senha",
+    // Mesma resposta para qualquer e-mail (não revela quem tem conta).
+    recoverySent: "Se este e-mail tiver conta, você vai receber um link para criar uma nova senha. Abra a mensagem e toque no botão.",
     // Sem JavaScript, a verificação anti-robô (Turnstile, #116) não roda e o e-mail não sai.
     emailNeedsScript: "Para receber o link por e-mail, ative o JavaScript do navegador. Ou entre com Google.",
     // Mesma resposta para qualquer e-mail (não revela quem tem conta).
@@ -64,7 +70,44 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível entrar. Tente de novo.",
       blocked: "Seu acesso está bloqueado. Fale com a coordenação.",
       legacy_link: "Esse link de entrada é antigo ou já foi usado. Peça um novo link e entre de novo.",
+      // Mesma frase para senha errada, e-mail sem conta ou sem senha criada (ADR 0018 §3).
+      bad_credentials: "E-mail ou senha não conferem. Tente de novo ou receba um link por e-mail.",
       session_expired: "Sua sessão expirou, entre de novo.",
+    },
+  },
+  password: {
+    title: "Sua senha",
+    homeLink: "Senha para entrar",
+    intro: "A senha é opcional. Com ela você entra sem esperar o e-mail. O link por e-mail continua valendo sempre.",
+    rules: "Use 12 letras, números ou símbolos, ou mais. Uma frase longa serve. Não precisa de símbolo.",
+    googleMessage: "Você entra com o Google, então não precisa de senha.",
+    currentLabel: "Sua senha atual (se você já criou uma)",
+    currentHint: "Se você esqueceu, saia e use \"Esqueci a senha\" na tela de entrada.",
+    newLabel: "Nova senha",
+    confirmLabel: "Repita a nova senha",
+    saveButton: "Salvar senha",
+    removeButton: "Remover minha senha",
+    removeHint: "Você continua entrando pelo link por e-mail.",
+    sectionTitle: "Criar senha (opcional)",
+    meterLabel: "Força da senha",
+    strength: { weak: "Fraca", ok: "Boa", strong: "Forte" },
+    status: {
+      saved: "Senha salva. Da próxima vez você pode entrar com ela.",
+      removed: "Senha removida. Você continua entrando pelo link por e-mail.",
+    },
+    errors: {
+      too_short: "A senha precisa ter pelo menos 12 caracteres.",
+      too_long: "A senha é longa demais. Use no máximo 72 bytes (cerca de 70 letras).",
+      common: "Essa senha é muito comum. Escolha outra, de preferência uma frase longa.",
+      pwned: "Essa senha apareceu em vazamentos conhecidos. Escolha outra.",
+      mismatch: "As duas senhas não são iguais.",
+      current_required: "Digite a sua senha atual.",
+      current_wrong: "A senha atual não confere.",
+      reauth_needed: "Faz mais de 24 horas que você entrou. Saia, entre de novo e tente outra vez.",
+      same: "A nova senha precisa ser diferente da atual.",
+      rate_limited: "Muitas tentativas em pouco tempo. Espere alguns minutos.",
+      unavailable: "Não foi possível salvar agora. Tente de novo em alguns minutos.",
+      failed: "Não foi possível salvar a senha. Tente de novo.",
     },
   },
   // E-mails de login em português (#238): o app serve os templates ao GoTrue pela rede interna
