@@ -230,6 +230,7 @@ export const instance = parseInstanceConfig({
       houseLabel: "Casa sugerida",
       totemLabel: "Totem",
       totemPending: "Pendente: a coordenação vai decidir.",
+      totemUndecided: "Não decidido: o pedido venceu ou foi encerrado sem decisão.",
       dateLabel: "Data",
       chartTitle: "Perfil completo",
       noScores: "Este resultado é de antes da escala de intensidade e não tem notas.",

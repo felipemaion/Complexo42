@@ -82,6 +82,8 @@ export const ownDataRowsSchema = z.object({
       house_key: z.string(),
       /** Nulo enquanto o totem está pendente (empate só no totem, #197). */
       totem_enc: z.string().nullable(),
+      /** `decided`, `pending` ou `undecided` (o pedido de totem venceu ou foi encerrado sem decisão). */
+      totem_state: z.enum(["decided", "pending", "undecided"]),
       /** Notas dos 4 eixos (JSON cifrado, ADR 0003); nulo em resultado antigo, de antes da escala. */
       scores_enc: z.string().nullable(),
       term_version: z.string(),
@@ -179,6 +181,8 @@ export type OwnDataExport = {
     casaSugerida: string;
     /** Nulo se o valor cifrado não decifra (o resto do arquivo sai). */
     totem: string | null;
+    /** Situação do totem: decided, pending (a coordenação vai decidir) ou undecided (pedido encerrado sem decisão). */
+    situacaoDoTotem: "decided" | "pending" | "undecided";
     /** Nota de cada eixo, de -100 (muito polo "a") a 100 (muito polo "b"); nula sem notas. */
     notasPorEixo: { eixo1: number; eixo2: number; eixo3: number; eixo4: number } | null;
     versaoDoTermo: string;
@@ -348,6 +352,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     resultadoDoQuestionario: rows.questionnaire_result && {
       casaSugerida: houseName(rows.questionnaire_result.house_key) ?? rows.questionnaire_result.house_key,
       totem: await open(rows.questionnaire_result.totem_enc, "questionnaire_results", "totem_enc"),
+      situacaoDoTotem: rows.questionnaire_result.totem_state,
       notasPorEixo: await openScores(rows.questionnaire_result.scores_enc),
       versaoDoTermo: rows.questionnaire_result.term_version,
       origem: rows.questionnaire_result.source,

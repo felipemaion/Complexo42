@@ -153,6 +153,7 @@ describe("buildOwnDataExport", () => {
       resultadoDoQuestionario: {
         casaSugerida: "Casa Um",
         totem: "AB",
+        situacaoDoTotem: "decided",
         notasPorEixo: { eixo1: -40, eixo2: 75, eixo3: 0, eixo4: -100 },
         versaoDoTermo: "termo-1",
         origem: "questionnaire",

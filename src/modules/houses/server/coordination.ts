@@ -39,6 +39,7 @@ function errorOf(error: unknown): CoordinationError {
 const resultRow = z.object({
   house_key: z.string(),
   totem_enc: z.string().nullable(),
+  totem_state: z.enum(["decided", "pending", "undecided"]),
   scores_enc: z.string().nullable(),
   source: z.string(),
   created_at: z.string(),
@@ -50,10 +51,14 @@ const scoresJson = z.strictObject({
   totem2: z.number().int().min(-100).max(100),
 });
 
+export type TotemState = "decided" | "pending" | "undecided";
+
 export type QuestionnaireResultView = {
   houseId: string;
   /** Nulo enquanto o totem está pendente: o empate nos eixos do totem espera a coordenação (#197). */
   totem: string | null;
+  /** `decided`: totem gravado; `pending`: o pedido de totem está aberto; `undecided`: o pedido venceu ou foi encerrado sem decisão. */
+  totemState: TotemState;
   /** Notas dos 4 eixos; nulo em resultado antigo, de antes da escala de intensidade. */
   scores: AxisScores | null;
   /** O gráfico completo (4 eixos) para a coordenação; nulo sem notas. */
@@ -74,7 +79,7 @@ export async function readQuestionnaireResultOf(
 ): Promise<QuestionnaireResultView | null> {
   const { data, error } = await client
     .from("questionnaire_results")
-    .select("house_key,totem_enc,scores_enc,source,created_at")
+    .select("house_key,totem_enc,totem_state,scores_enc,source,created_at")
     .eq("profile_id", personId)
     .maybeSingle();
   if (error) throw new Error(`questionnaire_read_failed:${errorOf(error)}`);
@@ -100,6 +105,7 @@ export async function readQuestionnaireResultOf(
   return {
     houseId: row.house_key,
     totem,
+    totemState: row.totem_state,
     scores,
     chart: scores && chartAxes(questionnaire, scores, axisKeys),
     source: row.source,

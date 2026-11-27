@@ -292,6 +292,7 @@ export const instanceConfigSchema = z.strictObject({
       houseLabel: text,
       totemLabel: text,
       totemPending: text,
+      totemUndecided: text,
       dateLabel: text,
       chartTitle: text,
       noScores: text,

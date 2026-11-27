@@ -95,8 +95,12 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
   casa e totem) e `totem` (a casa já saiu e foi gravada, com o totem nulo; a coordenação decide só o
   totem, e a casa da resolução tem de ser a do resultado). São os **únicos** casos em que as respostas
   são guardadas; com resultado conclusivo guarda-se só a casa e o totem. A pessoa vê a casa
-  normalmente, e o totem pendente não aparece para ela. O pedido de totem renova sem o limite de 1
-  hora (a casa já é conclusiva); aceitar a casa fecha só o pedido `full`. Só o servidor abre o pedido (assinado);
+  normalmente, e o totem pendente não aparece para ela. Os limites são por tipo: o pedido de totem
+  renova depois de 10 segundos e o completo depois de 1 hora (a casa já é conclusiva; um tipo não segura o
+  outro). O prazo de 30 dias conta da **primeira abertura** (`opened_at`): renovar não estende a guarda das
+  respostas. Se o pedido de totem vence ou a pessoa é bloqueada, o resultado fica com `totem_state =
+  undecided` ("totem não decidido"), explícito na tela da coordenação e no "Baixar meus dados". Aceitar a
+  casa fecha só o pedido `full`. Só o servidor abre o pedido (assinado);
   renovar o pedido aberto só é possível depois de 1 hora.
 - A tela diz que a coordenação nacional vai analisar e deixa a pessoa **escolher a casa direto**.
 - As respostas ficam guardadas **só enquanto o pedido está aberto** e são apagadas quando:

@@ -296,6 +296,7 @@ describe("listCases e openCase (fila de análise)", () => {
         data: {
           house_key: HOUSE_B,
           totem_enc: null,
+          totem_state: "pending",
           scores_enc: `enc[questionnaire_results.scores_enc.${U1}](${JSON.stringify(totemScores)})`,
           source: "questionnaire",
           created_at: "t",

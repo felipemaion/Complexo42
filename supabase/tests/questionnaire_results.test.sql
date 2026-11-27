@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(999);
+select plan(240);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -494,7 +494,7 @@ select throws_ok($$ select pg_temp.resolve((select id from p3_request), 'casa-t1
 select pg_temp.login('p2');
 select lives_ok($$ select pg_temp.analyze('termo-1', array['house2'], 'respB') $$, 'p2 abre um pedido (antes do prazo)');
 reset role;
-update public.house_analysis_requests set created_at = now() - interval '31 days' where profile_id = pg_temp.person('p2') and status = 'open';
+update public.house_analysis_requests set created_at = now() - interval '31 days', opened_at = now() - interval '31 days' where profile_id = pg_temp.person('p2') and status = 'open';
 set local role authenticated;
 select pg_temp.login('p2');
 select is((select count(*)::int from public.house_analysis_requests where status = 'open'), 0, 'pedido vencido não aparece como aberto para a pessoa');
@@ -530,10 +530,10 @@ select ok((public.export_own_data() -> 'profile') ? 'neighborhood_enc',
 
 -- Totem e respostas só existem cifrados: nenhuma coluna em texto puro (ADR 0003).
 select columns_are('public', 'questionnaire_results',
-  array['profile_id', 'term_version', 'house_key', 'totem_enc', 'scores_enc', 'source', 'created_at'],
+  array['profile_id', 'term_version', 'house_key', 'totem_enc', 'totem_state', 'scores_enc', 'source', 'created_at'],
   'questionnaire_results guarda o totem e as notas só cifrados (totem_enc, scores_enc), sem coluna em texto puro');
 select columns_are('public', 'house_analysis_requests',
-  array['id', 'profile_id', 'term_version', 'kind', 'tied_axes', 'answers_enc', 'status', 'resolution', 'created_at', 'resolved_at', 'resolved_by'],
+  array['id', 'profile_id', 'term_version', 'kind', 'tied_axes', 'answers_enc', 'status', 'resolution', 'created_at', 'opened_at', 'resolved_at', 'resolved_by'],
   'house_analysis_requests guarda as respostas só cifradas (answers_enc), sem coluna em texto puro');
 
 -- ---------------------------------------------------------------------------------------
@@ -772,8 +772,8 @@ insert into public.house_analysis_requests (profile_id, term_version, tied_axes,
   (pg_temp.person('abc_mgr'), 'termo-1', array['house1'], pg_temp.enc('X3')),
   (pg_temp.person('root_mgr'), 'termo-1', array['house1'], pg_temp.enc('X4')),
   (pg_temp.person('p2'), 'termo-1', array['house1'], pg_temp.enc('X5'));
-insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc, created_at)
-values (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('X6'), now() - interval '31 days');
+insert into public.house_analysis_requests (profile_id, term_version, tied_axes, answers_enc, created_at, opened_at)
+values (pg_temp.person('p1'), 'termo-1', array['house1'], pg_temp.enc('X6'), now() - interval '31 days', now() - interval '31 days');
 delete from deleg_req;
 insert into deleg_req select p.name, q.id from public.house_analysis_requests q join people p on p.id = q.profile_id where q.status = 'open';
 update public.profiles set status = 'active' where id = pg_temp.person('p2');
@@ -892,6 +892,7 @@ select throws_ok($$ select pg_temp.pending('casa-t2', array['totem1']) $$, '5400
   'reenviar o totem pendente em menos de 10 segundos é recusado (limite curto)');
 reset role;
 select pg_temp.age_request('p4');
+update public.house_analysis_requests set opened_at = now() - interval '5 days' where profile_id = pg_temp.person('p4') and status = 'open';
 set local role authenticated;
 select pg_temp.login('p4');
 select lives_ok($$ select pg_temp.pending('casa-t2', array['totem1', 'totem2']) $$,
@@ -899,7 +900,7 @@ select lives_ok($$ select pg_temp.pending('casa-t2', array['totem1', 'totem2']) 
 select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'), 1,
   '... e continua um pedido aberto só');
 select is((select house_key from public.questionnaire_results), 'casa-t2', '... com a casa nova');
-select ok((select opened_at < created_at from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'),
+select ok((select opened_at <= now() - interval '4 days' from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'),
   'renovar não muda a abertura do pedido: o prazo de 30 dias conta da primeira abertura');
 -- Limites separados por tipo: o pedido de totem não segura um pedido completo logo depois.
 select lives_ok($$ select pg_temp.analyze('termo-1', array['house1'], 'respF') $$,

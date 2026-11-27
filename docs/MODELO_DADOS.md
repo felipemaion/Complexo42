@@ -386,7 +386,7 @@ navegador manda só as respostas. Com resultado conclusivo, o banco recebe só a
 ### `questionnaire_results` e `house_analysis_requests` (ADR 0014, #172)
 `questionnaire_results`: `profile_id` (PK, FK `profiles`, cascata), `term_version` (FK
 `app.questionnaire_term_versions`), `house_key` (FK `houses`), `totem_enc`, `scores_enc` (as notas dos 4 eixos, JSON cifrado; nulo em resultado antigo) (o totem, duas letras
-maiúsculas, cifrado no servidor; o banco só confere o formato `v<n>.<iv>.<ct>`; **nulo enquanto o totem está pendente**, quando só os eixos do totem empataram),
+maiúsculas, cifrado no servidor; o banco só confere o formato `v<n>.<iv>.<ct>`; **nulo enquanto o totem está pendente**, quando só os eixos do totem empataram), `totem_state` (`decided`; `pending`, com o pedido de totem aberto; `undecided`, "totem não decidido": o pedido venceu ou a pessoa foi bloqueada),
 `source` (`questionnaire`, pontuação no servidor do app; `analysis`, decidido pela coordenação
 nacional), `created_at`. Uma linha por pessoa, a mais recente.
 
@@ -394,7 +394,7 @@ nacional), `created_at`. Uma linha por pessoa, a mais recente.
 decide casa e totem; `totem`: a casa já saiu pelos eixos 1 e 2 e falta só o totem), `tied_axes` (eixos
 empatados: `house1`, `house2`, `totem1`, `totem2`; em `kind = totem`, só os do totem), `answers_enc` (JSON item → intensidade
 -3, -2, -1, 1, 2 ou 3, cifrado no servidor; até 8 KB), `status` (`open` ou `resolved`), `resolution` (`coordination` ou `self`),
-`created_at`, `resolved_at`, `resolved_by` (nulo fora de `coordination` e se a conta de quem resolveu
+`created_at` (último envio: base do limite de renovação), `opened_at` (primeira abertura, nunca muda: base do prazo de 30 dias), `resolved_at`, `resolved_by` (nulo fora de `coordination` e se a conta de quem resolveu
 sair). `resolution`: `coordination`, `self`, `inactive` (pessoa bloqueada ou suspensa) ou
 `expired` (passou de 30 dias).
 Um pedido aberto por pessoa. **As respostas existem só com o pedido aberto** (o banco recusa
@@ -420,12 +420,14 @@ política e sem grant: só funções `security definer` leem.
   sessão abre (ou renova) o pedido do resultado inconclusivo e apaga o resultado anterior; também
   só com a assinatura (que cobre os eixos e o valor cifrado das respostas: é ela que garante que
   são as respostas completas e válidas, já que o banco não decifra). Valida os eixos e o formato do
-  valor cifrado (erro 22023). Renovar um pedido aberto antes de 1 hora é recusado (54000). Gera `house_analysis_requested`.
+  valor cifrado (erro 22023). Renovar um pedido completo antes de 1 hora é recusado (54000); renovar não estende o prazo de 30 dias. Gera `house_analysis_requested`.
 - **`record_totem_pending(termo, casa, notas_enc, eixos, respostas_enc, emitido_em, assinatura)`:** quando só os
   eixos do totem empatam, o servidor grava, numa chamada, a casa com `totem_enc` nulo e o pedido `totem` (um
   pedido aberto por pessoa; renova na hora, sem o limite de 1 hora, porque a casa já é conclusiva). Assinatura
   com o prefixo `totem_pending` (cobre o tipo, a casa, as notas, os eixos e as respostas cifradas). Valida
-  eixos só de totem e formato dos valores cifrados (22023). Gera `house_analysis_requested`.
+  eixos só de totem, sem repetição, e formato dos valores cifrados (22023). Limites por tipo: o totem pendente só
+  pode ser reenviado depois de 10 segundos (54000) e o pedido completo, depois de 1 hora; um tipo não segura o
+  outro. Gera `house_analysis_requested`.
 - **`resolve_house_analysis(pedido, casa, totem_enc, notas_enc, emitido_em, assinatura)`** (as notas o servidor refaz das respostas do pedido): a coordenação nacional ou um delegado com concessão sobre a pessoa do pedido (fora do escopo, ou de pessoa inativa, o pedido aparece como inexistente; o delegado também não resolve o de quem é gestor ativo na raiz ou na unidade da concessão ou acima dela), **com a assinatura do servidor** (HMAC sobre quem resolve, pedido, casa, totem e notas cifrados e o **hash das respostas** que o servidor leu; 5 minutos; se o pedido mudou desde a leitura, recusa 40001), nunca sobre o
   próprio pedido e só sobre pessoa ativa (trava o perfil na mesma ordem das outras funções). Em pedido `totem`, a casa tem de ser a do resultado (22023). Grava o resultado
   (`source = analysis`), apaga as respostas e gera `house_analysis_resolved`. A pessoa ainda
