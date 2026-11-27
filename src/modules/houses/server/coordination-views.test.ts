@@ -227,6 +227,13 @@ describe("openResult (abrir o resultado de uma pessoa registra o acesso)", () =>
     expect(await openResult(client, U1, deps)).toEqual({ status: "not_found" });
   });
 
+  it("totem pendente (#197): abre com a casa e o totem nulo", async () => {
+    const { client } = fake({ questionnaire_results: { data: { ...resultRow, totem_enc: null } }, profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } } });
+    const out = await openResult(client, U1, deps);
+    expect(out.status).toBe("ok");
+    if (out.status === "ok") expect(out.result).toMatchObject({ houseId: HOUSE_A, totem: null });
+  });
+
   it("totem ou notas ilegíveis: unreadable, sem registrar acesso nem vazar o motivo", async () => {
     const { client, rpcCalls } = fake({ questionnaire_results: { data: { ...resultRow, totem_enc: encTotem(U2, "XV") } } });
     expect(await openResult(client, U1, deps)).toEqual({ status: "unreadable" });
@@ -238,6 +245,7 @@ describe("listCases e openCase (fila de análise)", () => {
   const requestRow = (id: string, over: object = {}) => ({
     id: REQ,
     profile_id: id,
+    kind: "full",
     tied_axes: ["house2", "totem1"],
     answers_enc: encAnswers(id),
     created_at: "2026-11-27T09:00:00Z",
@@ -251,7 +259,7 @@ describe("listCases e openCase (fila de análise)", () => {
       profiles: { data: [{ id: U1, display_name_enc: encName(U1, "Ana") }] },
     });
     const out = await listCases(client, deps);
-    expect(out.rows).toEqual([{ requestId: REQ, profileId: U1, name: "Ana", tiedAxes: ["house2", "totem1"], createdAt: "2026-11-27T09:00:00Z" }]);
+    expect(out.rows).toEqual([{ requestId: REQ, profileId: U1, name: "Ana", kind: "full", tiedAxes: ["house2", "totem1"], createdAt: "2026-11-27T09:00:00Z" }]);
     expect(out.unreadable).toBe(1);
     expect(out.truncated).toBe(false);
   });
@@ -277,6 +285,30 @@ describe("listCases e openCase (fila de análise)", () => {
     expect(out.scores).toEqual({ house1: -100, house2: -100, totem1: -100, totem2: -100 });
     expect(out.chart).toHaveLength(4);
     expect(rpcCalls).toEqual([{ fn: "log_questionnaire_view", args: { p_target: U1 } }]);
+  });
+
+  it("caso de totem (#197): abrir traz o tipo e a casa já definida do resultado, para a coordenação decidir só o totem", async () => {
+    const totemScores = { house1: -40, house2: 75, totem1: 0, totem2: -100 };
+    const { client } = fake({
+      house_analysis_requests: { data: requestRow(U1, { kind: "totem", tied_axes: ["totem1"] }) },
+      questionnaire_results: {
+        data: {
+          house_key: HOUSE_B,
+          totem_enc: null,
+          scores_enc: `enc[questionnaire_results.scores_enc.${U1}](${JSON.stringify(totemScores)})`,
+          source: "questionnaire",
+          created_at: "t",
+        },
+      },
+      profiles: { data: { id: U1, display_name_enc: encName(U1, "Ana") } },
+    });
+    const out = await openCase(client, REQ, deps);
+    expect(out).toMatchObject({ status: "ok", kind: "totem", tiedAxes: ["totem1"], houseId: HOUSE_B });
+  });
+
+  it("caso de totem sem o resultado da casa: unreadable (a casa precisa estar definida)", async () => {
+    const { client } = fake({ house_analysis_requests: { data: requestRow(U1, { kind: "totem", tied_axes: ["totem1"] }) } });
+    expect(await openCase(client, REQ, deps)).toEqual({ status: "unreadable" });
   });
 
   it("caso que não está na fila visível, id inválido ou acesso recusado: not_found", async () => {

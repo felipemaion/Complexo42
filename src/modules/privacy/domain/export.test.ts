@@ -316,6 +316,16 @@ describe("totem e respostas cifrados", () => {
     expect(onDecryptError.mock.calls.map((c) => c[0])).toEqual(["totem_enc", "answers_enc"]);
   });
 
+  it("totem pendente (nulo no banco, #197): sai nulo, sem decifrar nem registrar erro", async () => {
+    const { decrypt, seen } = fakeDecrypt();
+    const onDecryptError = vi.fn();
+    const pending = { ...rows, questionnaire_result: { ...rows.questionnaire_result!, totem_enc: null } };
+    const out = await build({ rows: pending, decrypt, onDecryptError });
+    expect(out.resultadoDoQuestionario?.totem).toBeNull();
+    expect(seen).not.toContainEqual({ table: "questionnaire_results", column: "totem_enc", rowId: USER });
+    expect(onDecryptError).not.toHaveBeenCalledWith("totem_enc", expect.anything());
+  });
+
   it("pedido resolvido (sem respostas) fica com respostas nulas, sem tentar decifrar", async () => {
     const { decrypt } = fakeDecrypt();
     const out = await build({ decrypt, rows: { ...rows, house_analysis_requests: [{ ...rows.house_analysis_requests[0]!, status: "resolved", answers_enc: null }] } });

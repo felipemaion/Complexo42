@@ -69,6 +69,11 @@ describe("readQuestionnaireResultOf", () => {
     expect(filters).toContainEqual(["eq", "profile_id", U1]);
   });
 
+  it("totem pendente (nulo no banco, #197): a casa e as notas saem, o totem é nulo", async () => {
+    const view = await readQuestionnaireResultOf(fake({ from: { data: row({ totem_enc: null }) } }).client, U1, crypto, questionnaire);
+    expect(view).toMatchObject({ houseId: "casa-a", totem: null, scores });
+  });
+
   it("resultado antigo, de antes da escala de intensidade (sem notas): notas e gráfico nulos", async () => {
     const view = await readQuestionnaireResultOf(fake({ from: { data: row({ scores_enc: null }) } }).client, U1, crypto, questionnaire);
     expect(view).toMatchObject({ totem: "XV", scores: null, chart: null });
@@ -103,6 +108,7 @@ describe("listOpenAnalysisRequests", () => {
   const good = (profile: string, answers: unknown) => ({
     id: REQ,
     profile_id: profile,
+    kind: "full",
     tied_axes: ["house1"],
     answers_enc: `enc[house_analysis_requests.answers_enc.${profile}](${typeof answers === "string" ? answers : JSON.stringify(answers)})`,
     created_at: "t",
@@ -111,12 +117,18 @@ describe("listOpenAnalysisRequests", () => {
   it("decifra as respostas de cada pedido aberto", async () => {
     const { client, filters } = fake({ from: { data: [good(U1, { q1: -3, q2: 2 })] } });
     expect(await listOpenAnalysisRequests(client, crypto)).toEqual({
-      requests: [{ requestId: REQ, profileId: U1, tiedAxes: ["house1"], answers: { q1: -3, q2: 2 }, createdAt: "t" }],
+      requests: [{ requestId: REQ, profileId: U1, kind: "full", tiedAxes: ["house1"], answers: { q1: -3, q2: 2 }, createdAt: "t" }],
       unreadable: 0,
       truncated: false,
     });
     expect(filters).toContainEqual(["eq", "status", "open"]);
     expect(filters).toContainEqual(["limit", 201]);
+  });
+
+  it("pedido de totem (#197) traz o tipo e só os eixos do totem", async () => {
+    const totemRequest = { ...good(U1, { q1: -3 }), kind: "totem", tied_axes: ["totem2"] };
+    const out = await listOpenAnalysisRequests(fake({ from: { data: [totemRequest] } }).client, crypto);
+    expect(out.requests[0]).toMatchObject({ kind: "totem", tiedAxes: ["totem2"] });
   });
 
   it("sem pedidos visíveis: lista vazia", async () => {
