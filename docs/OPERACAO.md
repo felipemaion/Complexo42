@@ -190,13 +190,32 @@ A porta 25 é bloqueada no servidor, então o GoTrue só envia por relay SMTP
 externo. Enquanto o cadastro estiver fechado (`GOTRUE_DISABLE_SIGNUP=true`,
 até #87 e #26), as variáveis `SMTP_*` ficam vazias e nenhum e-mail sai.
 
-**O link do e-mail sai de `API_EXTERNAL_URL`, não de `SITE_URL`.** O GoTrue
-concatena `API_EXTERNAL_URL` com `MAILER_URLPATHS_CONFIRMATION` (default
-`/verify`), e o Auth está publicado sob `/auth/v1`. Por isso o compose põe
-`${SITE_URL}/auth/v1` ali, e **não** a raiz do site: com a raiz, o e-mail sai
-apontando para o app, o middleware redireciona para o login levando o token na
-query string, e o login nunca acontece. É uma falha que nenhum teste pega — só
-aparece com o GoTrue de verdade montando o e-mail —, então o CI trava a linha.
+**O link do e-mail sai dos `MAILER_URLPATHS_*`, não do `API_EXTERNAL_URL`.**
+O GoTrue monta o link com `API_EXTERNAL_URL.ResolveReference(path)`, onde
+`path` é o `MAILER_URLPATHS_*` do fluxo. O default é `/verify`, um caminho
+**absoluto** — e `ResolveReference` com referência absoluta **descarta o
+caminho da base**. Então `{site}/auth/v1` + `/verify` dá `{site}/verify`, que
+cai no app em vez do Auth: o middleware trata como página protegida,
+redireciona para o login **levando o token na query string**, e o token nunca é
+consumido.
+
+Por isso o compose define os **quatro** caminhos como `/auth/v1/verify`. São
+quatro porque o magic link reusa o de **recovery**, não o de confirmation —
+deixar um de fora quebra um fluxo só, em silêncio.
+
+O `API_EXTERNAL_URL` com `/auth/v1` serve a outra coisa: o **callback do
+OAuth**, que o GoTrue monta por concatenação de string. Com a raiz do site, o
+callback sairia `{site}/callback`, fora do que o proxy roteia. Hoje é inerte
+porque nenhum provedor externo está ligado — e é por isso que precisa estar
+certo antes de ligar o Google.
+
+Nada disso aparece em teste: o link só é montado com o GoTrue de verdade
+enviando e-mail. Então o CI trava as cinco linhas.
+
+> **Barra final no `SITE_URL` envenena as duas coisas.** Com
+> `https://site/`, o callback sai `https://site//auth/v1/callback` e o
+> `URI_ALLOW_LIST` sai `https://site//**`. O `gen-secrets.sh` normaliza, mas
+> configuração escrita à mão no servidor não passa por ele — conferir.
 
 ## O que está exposto
 
