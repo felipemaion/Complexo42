@@ -98,6 +98,19 @@ export const instanceConfigSchema = z.strictObject({
     }),
   }),
   /** Formulário do perfil (#12): nome, WhatsApp e localização. Linguagem simples. */
+  emails: z.strictObject({
+    expires: text,
+    fallback: text,
+    footer: text,
+    templates: z.strictObject(
+      Object.fromEntries(
+        ["magic-link", "confirmation", "recovery", "invite", "email-change"].map((kind) => [
+          kind,
+          z.strictObject({ subject: text, heading: text, intro: text, button: text }),
+        ]),
+      ) as Record<"magic-link" | "confirmation" | "recovery" | "invite" | "email-change", z.ZodObject<{ subject: typeof text; heading: typeof text; intro: typeof text; button: typeof text }, z.core.$strict>>,
+    ),
+  }),
   profile: z.strictObject({
     title: text,
     intro: text,

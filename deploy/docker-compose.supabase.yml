@@ -147,6 +147,22 @@ services:
       GOTRUE_SMTP_USER: ${SMTP_USER:-}
       GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-}
+      # E-mails em português: o GoTrue busca cada template NO APP, pela rede interna (alias `app`, sem
+      # container novo), nas rotas públicas /emails/<nome> (src/app/emails). ATENÇÃO: se a URL não responder,
+      # o GoTrue CAI EM SILÊNCIO no template padrão (em inglês) e o login continua funcionando: nada quebra
+      # e ninguém percebe. Por isso: um teste exige estas dez chaves (tests/gotrue-email-templates.test.ts), o
+      # CI trava a presença (ancorada) e o teste de fumaça da OPERACAO.md compara o ASSUNTO recebido com o
+      # configurado. Os assuntos são os de config/instance.ts (o teste confere).
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: ${APP_INTERNAL_URL:-http://app:3000}/emails/magic-link
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: ${APP_INTERNAL_URL:-http://app:3000}/emails/confirmation
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: ${APP_INTERNAL_URL:-http://app:3000}/emails/recovery
+      GOTRUE_MAILER_TEMPLATES_INVITE: ${APP_INTERNAL_URL:-http://app:3000}/emails/invite
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: ${APP_INTERNAL_URL:-http://app:3000}/emails/email-change
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Seu link de entrada"
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Confirme o seu e-mail"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Recupere o seu acesso"
+      GOTRUE_MAILER_SUBJECTS_INVITE: "Você foi convidado(a)"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "Confirme o novo e-mail"
       GOTRUE_LOG_LEVEL: info
       # Limites do login (#9; iguais ao supabase/config.toml). Ajustar o de
       # e-mail à cota do relay em #87.

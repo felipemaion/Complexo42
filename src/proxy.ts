@@ -45,8 +45,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
 export const config = {
   // Fora do proxy: arquivos estáticos, as imagens das casas e o logo do app (`/casas/...`), os ícones do
-  // app e o healthz (monitorado de fora, sem sessão): a página de entrada mostra o logo e o navegador pede
+  // app os templates de e-mail do GoTrue (`/emails/...`, buscados pela rede interna sem sessão) e o healthz (monitorado de fora, sem sessão): a página de entrada mostra o logo e o navegador pede
   // o favicon antes de qualquer login. Ancorado em `/` ou no fim, para `/api/healthz-x`, `/casas-x` ou
   // `/icon.png.x` não escaparem (L1).
-  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|icon\\.png|apple-icon\\.png|api/healthz)(?:/|$))(?!casas/).*)"],
+  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|icon\\.png|apple-icon\\.png|api/healthz)(?:/|$))(?!casas/)(?!emails/).*)"],
 };

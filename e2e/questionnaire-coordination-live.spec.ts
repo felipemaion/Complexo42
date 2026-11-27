@@ -72,7 +72,9 @@ async function signIn(page: Page, email: string): Promise<void> {
   const link = await (await admin("/auth/v1/admin/generate_link", { method: "POST", body: JSON.stringify({ type: "magiclink", email }) })).json();
   await page.goto(`/auth/confirmar?token_hash=${link.hashed_token ?? link.properties?.hashed_token}&type=email`);
   await page.getByRole("button", { name: "Entrar" }).click();
-  await expect(page).toHaveURL(/\/inicio$/);
+  // Quem tem casa cai em /inicio; quem ainda não tem (as pessoas que respondem o questionário aqui) cai em /casa (ADR 0017).
+  // Esperar só /inicio dependia de a página ser vista antes do redirecionamento para /casa: corrida, vermelha na main.
+  await expect(page).toHaveURL(/\/(inicio|casa)$/);
 }
 
 /** A pessoa responde o questionário na tela (o servidor pontua, cifra e assina). */
