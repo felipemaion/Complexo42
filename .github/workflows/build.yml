@@ -103,13 +103,15 @@ jobs:
       # vale e a impressao digital da LISTA ORDENADA de nomes e conteudos.
       - name: As migrations na imagem são exatamente as do repositório
         env:
-          TAG: ${{ steps.tags.outputs.tag }}
+          DIGEST: ${{ steps.publicar.outputs.digest }}
         run: |
           set -euo pipefail
+          # Pelo DIGEST, nao pela tag: entre publicar e conferir, a tag pode
+          # ter sido movida. O que conferimos tem de ser o que sobe.
           repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
           receita='cd "$1" && ls -1 *.sql | LC_ALL=C sort | while read -r f; do printf "%s  %s\n" "$(sha256sum "$f" | cut -d" " -f1)" "$f"; done | sha256sum | cut -d" " -f1'
           no_repo=$(sh -c "$receita" _ supabase/migrations)
-          na_imagem=$(docker run --rm --entrypoint sh "$repo:$TAG" -c "$receita" _ /app/supabase/migrations)
+          na_imagem=$(docker run --rm --entrypoint sh "$repo@$DIGEST" -c "$receita" _ /app/supabase/migrations)
           echo "repositorio=$no_repo"
           echo "imagem______=$na_imagem"
           [ "$no_repo" = "$na_imagem" ] || { echo "ERRO: as migrations da imagem diferem das do repositorio"; exit 1; }
@@ -117,11 +119,12 @@ jobs:
       - name: Mover a tag `main` para a imagem conferida
         if: steps.tags.outputs.mover_main == 'sim'
         env:
-          TAG: ${{ steps.tags.outputs.tag }}
+          DIGEST: ${{ steps.publicar.outputs.digest }}
         run: |
           set -euo pipefail
           repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
-          docker buildx imagetools create -t "$repo:main" "$repo:$TAG"
+          # Aponta `main` para o DIGEST conferido, nao para a tag.
+          docker buildx imagetools create -t "$repo:main" "$repo@$DIGEST"
 
   implantar:
     name: Implanta

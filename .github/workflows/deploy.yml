@@ -59,26 +59,31 @@ jobs:
             *) echo "ERRO: deploy so a partir da main ou de uma tag v* (veio de '$REFERENCIA')"; exit 1 ;;
           esac
 
-      - name: Escolher e validar a referência que vai pelo SSH
+      - name: Resolver a referência para um digest
         id: ref
         env:
           TAG: ${{ inputs.tag }}
           DIGEST: ${{ inputs.digest }}
         run: |
           set -euo pipefail
-          # Digest quando houver: ele identifica a imagem que o build conferiu.
-          # A tag continua no log, para quem lê saber de que commit veio.
-          if [ -n "$DIGEST" ]; then ref=$DIGEST; else ref=$TAG; fi
-          # `[[ =~ ]]`, nao `grep`: grep casa por LINHA, entao uma referencia
-          # com quebra de linha passaria olhando so a primeira.
-          if [[ $ref =~ ^sha-[0-9a-f]{7,40}$ ]] \
-            || [[ $ref =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] \
-            || [[ $ref =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "referencia aceita: $ref (tag $TAG)"
-            echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          repo=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/complexo42
+          if [ -n "$DIGEST" ]; then
+            ref=$DIGEST
           else
-            echo "ERRO: referencia '$ref' fora do padrao"; exit 1
+            # workflow_dispatch manual: a pessoa digita uma TAG. Resolvemos
+            # aqui, no runner, para o servidor receber sempre digest -- se a
+            # resolução acontecesse lá, o servidor voltaria a confiar num
+            # ponteiro, que é o que a #161 fecha.
+            [[ $TAG =~ ^sha-[0-9a-f]{7,40}$ ]] || [[ $TAG =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] \
+              || { echo "ERRO: tag '$TAG' fora do padrao"; exit 1; }
+            ref=$(docker buildx imagetools inspect "$repo:$TAG" --format '{{.Manifest.Digest}}')
+            echo "tag $TAG resolvida para $ref"
           fi
+          # `[[ =~ ]]`, nao `grep`: grep casa por LINHA, entao um digest com
+          # quebra de linha passaria olhando so a primeira.
+          [[ $ref =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "ERRO: digest '$ref' invalido"; exit 1; }
+          echo "referencia aceita: $ref (tag $TAG)"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
 
       - name: Implantar por SSH
         env:

@@ -18,7 +18,8 @@
 # As conferências de dono só valem quando o processo é root — fora disso não
 # há privilégio para escalar, e é assim que o teste roda sem ser root.
 #
-# Uso: deploy.sh --config <arquivo> <tag|sha256:digest>
+# Uso: deploy.sh --config <arquivo> sha256:<digest>
+#      deploy.sh --config <arquivo> emergencia:<tag>   (break-glass)
 set -euo pipefail
 umask 077
 SOU_ROOT=0; [ "$(id -u)" -eq 0 ] && SOU_ROOT=1
@@ -38,17 +39,29 @@ agora() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 log() { printf '%s %s\n' "$(agora)" "$*" >&2; }
 
 # ── a referência, única entrada vinda de fora ──
-# Uma TAG (`sha-<hex>`, `vAAAA.MM.DD`, `main`) ou um DIGEST (`sha256:<64hex>`).
-# Digest é o que o build publicou de fato; tag é um ponteiro que pode passar a
-# apontar para outra imagem entre o build e o deploy (#161).
+# CAMINHO NORMAL: só DIGEST (`sha256:<64hex>`). Tag é ponteiro; aceitar tag
+# aqui esvaziaria a #161, porque o destino não imporia nada.
+#
+# BREAK-GLASS: `emergencia:<tag>` implanta por tag. Existe para o caso de o
+# registro estar indisponível para resolver digest, ou de alguém precisar
+# voltar à mão com o Actions fora do ar. Fica REGISTRADO no log como tal.
+# Um token só, porque o forced-command entrega um argumento só -- separar em
+# dois alargaria a interface do SSH sem necessidade.
+#
+# `main` não é aceita em nenhum dos dois: é móvel, e implantar um ponteiro
+# móvel é exatamente o que esta issue fecha.
 #
 # `[[ =~ ]]` e NÃO `grep`: grep casa por LINHA, então "sha-abc1234\nrm -rf /"
 # passaria pelo ^...$ olhando só a primeira linha. Medido.
-referencia_valida() {
+tag_de_emergencia_valida() {
   [[ $1 =~ ^sha-[0-9a-f]{7,40}$ ]] && return 0
   [[ $1 =~ ^v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] && return 0
-  [[ $1 == main ]] && return 0
+  return 1
+}
+
+referencia_valida() {
   [[ $1 =~ ^sha256:[0-9a-f]{64}$ ]] && return 0
+  [[ $1 == emergencia:* ]] && tag_de_emergencia_valida "${1#emergencia:}" && return 0
   return 1
 }
 
@@ -56,24 +69,19 @@ referencia_valida() {
 imagem_de() {
   local repo=${IMAGEM:-$IMAGEM_PADRAO}
   case "$1" in
-    sha256:*) printf '%s@%s' "$repo" "$1" ;;
-    *)        printf '%s:%s' "$repo" "$1" ;;
+    emergencia:*) printf '%s:%s' "$repo" "${1#emergencia:}" ;;
+    *)            printf '%s@%s' "$repo" "$1" ;;
   esac
 }
 
-# Imagem para a qual FAZ SENTIDO voltar. Não basta ser não-vazia: um container
-# sem imagem registrada devolve algo como `repo:` (dois-pontos sem tag), e
-# subir isso falharia de um jeito confuso. `:main` é móvel -- voltar para ela
-# devolveria sabe-se lá qual build. `repo` sem nada vira `:latest` implícito.
+# Imagem para a qual FAZ SENTIDO voltar: um digest DO NOSSO repositório, e
+# nada mais. Regex ancorada: `repo:latest`, `outro.registro/x@sha256:...`,
+# `host:5000/repo` e digest truncado são todos recusados. O destino do
+# rollback é a única coisa que o script escolhe sozinho, sem ninguém revisar
+# no momento -- então é onde a checagem precisa ser mais estreita, não menos.
 imagem_reversivel() {
-  case "$1" in
-    "")          return 1 ;;
-    *@sha256:*)  return 0 ;;   # digest: imutável, o melhor destino
-    *:main)      return 1 ;;   # móvel
-    *:)          return 1 ;;   # truncada, sem tag
-    *:*)         return 0 ;;   # tag qualquer, imutável por convenção nossa
-    *)           return 1 ;;   # sem tag nem digest
-  esac
+  local repo=${IMAGEM:-$IMAGEM_PADRAO}
+  [[ $1 =~ ^"$repo"@sha256:[0-9a-f]{64}$ ]]
 }
 
 modo_e_dono() { stat -c '%u %a' "$1" 2> /dev/null || stat -f '%u %Lp' "$1"; }
@@ -104,9 +112,10 @@ case "${1:-}" in --funcoes) return 0 2> /dev/null || exit 0 ;; esac
 [ "${1:-}" = --config ] || { log "uso: deploy.sh --config <arquivo> <tag>"; exit 2; }
 CONFIG=${2:?falta o caminho do arquivo de configuracao}
 shift 2
-REFERENCIA=${1:?falta a referencia (tag ou digest)}
+REFERENCIA=${1:?falta a referencia (sha256:<digest> ou emergencia:<tag>)}
 [ $# -eq 1 ] || { log "ERRO: argumentos a mais"; exit 2; }
 referencia_valida "$REFERENCIA" || { log "ERRO: referencia recusada"; exit 2; }
+case "$REFERENCIA" in emergencia:*) MODO=emergencia ;; *) MODO=normal ;; esac
 
 confere "$CONFIG" "o arquivo de configuracao"
 # shellcheck source=/dev/null
@@ -139,7 +148,9 @@ dc() {
 }
 # Grava a IMAGEM completa, não só a tag: com digest, o que identifica o que
 # subiu é o digest. A linha fica mais longa e continua greppável.
-registra() { printf '%s imagem=%s resultado=%s segundos=%s\n' "$(agora)" "$IMAGEM_ALVO" "$1" "$2" >> "$REGISTRO"; }
+# `modo=emergencia` fica no log: implantar por tag é exceção, e exceção que
+# não deixa rastro vira regra sem ninguém decidir.
+registra() { printf '%s imagem=%s modo=%s resultado=%s segundos=%s\n' "$(agora)" "$IMAGEM_ALVO" "$MODO" "$1" "$2" >> "$REGISTRO"; }
 
 smoke() {
   local i
@@ -158,11 +169,16 @@ smoke() {
 # como o Docker a guarda. Antes recortávamos a tag com `${img##*:}` e
 # desistíamos quando havia `@`; agora digest é cidadão de primeira classe e o
 # rollback não precisa remontar string nenhuma.
+# Pelo RepoDigests, não pelo `.Config.Image`: aquele é o NOME com que o
+# container subiu (pode ser uma tag, que já se moveu), este é o digest que o
+# Docker realmente tem. Sem RepoDigests -- imagem só local, nunca vinda de
+# registro -- devolve vazio, e o deploy segue sem rollback em vez de voltar
+# para algo que não sabemos o que é.
 imagem_no_ar() {
   local id
   id=$(dc ps -q app 2> /dev/null) || return 0
   [ -n "$id" ] || return 0
-  docker inspect -f '{{.Config.Image}}' "$id" 2> /dev/null || return 0
+  docker inspect -f '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$id" 2> /dev/null || return 0
 }
 
 sobe() { APP_IMAGEM="$1" dc up -d --no-deps app; }   # sem --remove-orphans: apagaria o banco
@@ -176,7 +192,7 @@ flock -n 9 || { log "ERRO: outro deploy em andamento"; exit 3; }
 
 IMAGEM_ALVO=$(imagem_de "$REFERENCIA")
 ANTERIOR=$(imagem_no_ar)
-log "inicio imagem=$IMAGEM_ALVO anterior=${ANTERIOR:-nenhuma}"
+log "inicio imagem=$IMAGEM_ALVO modo=$MODO anterior=${ANTERIOR:-nenhuma}"
 
 log "1/4 pull"
 if ! docker pull "$IMAGEM_ALVO"; then
