@@ -72,6 +72,7 @@ export const instance = parseInstanceConfig({
       legacy_link: "Esse link de entrada é antigo ou já foi usado. Peça um novo link e entre de novo.",
       // Mesma frase para senha errada, e-mail sem conta ou sem senha criada (ADR 0018 §3).
       bad_credentials: "E-mail ou senha não conferem. Tente de novo ou receba um link por e-mail.",
+      session_expired: "Sua sessão expirou, entre de novo.",
     },
   },
   password: {

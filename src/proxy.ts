@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createAuthClient, hasAuthCookie, type CookieToSet } from "@/server/auth/client";
+import { createAuthClient, expiredAuthCookies, hasAuthCookie, type CookieToSet } from "@/server/auth/client";
 import { getAuthConfig } from "@/server/auth/config";
-import { decideRoute, needsNoStore } from "@/server/auth/routes";
+import { isExpiredSession } from "@/server/auth/errors";
+import { decideRoute, isPublicPath, LOGIN_PATH, needsNoStore } from "@/server/auth/routes";
 
 // Proxy (antigo middleware, Next 16) do login (#9): renova a sessão no cookie e manda quem não
 // entrou para /entrar. É a checagem otimista; cada página protegida confere de novo
@@ -11,6 +12,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const pending: CookieToSet[] = [];
   const extraHeaders: Record<string, string> = {};
   let authenticated = false;
+  let sessionExpired = false;
 
   // Sem cookie de sessão, nem chama o GoTrue.
   if (config && hasAuthCookie(request.cookies.getAll().map((c) => c.name))) {
@@ -28,12 +30,23 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         },
       },
     });
-    const { data } = await supabase.auth.getUser();
+    const { data, error } = await supabase.auth.getUser();
     authenticated = Boolean(data.user);
+    if (!authenticated && isExpiredSession(error)) {
+      // Sessão vencida (timebox de 30 dias): expira os cookies de sessão em vez de deixá-los apodrecer.
+      sessionExpired = true;
+      pending.length = 0;
+      pending.push(...expiredAuthCookies(request.cookies.getAll().map((c) => c.name), config.siteUrl.startsWith("https:")));
+    }
   }
 
   const path = request.nextUrl.pathname;
-  const decision = decideRoute(path, request.nextUrl.search, authenticated);
+  let decision = decideRoute(path, request.nextUrl.search, authenticated);
+  // Quem tinha sessão e ela venceu: em página protegida, /entrar com o aviso (e o caminho, para voltar) em vez
+  // de um /entrar mudo. Em /entrar e nas outras públicas só segue, já sem os cookies (nada de laço).
+  if (sessionExpired && decision.action === "redirect" && !isPublicPath(path) && path !== LOGIN_PATH) {
+    decision = { action: "redirect", to: `${LOGIN_PATH}?erro=session_expired&next=${encodeURIComponent(path)}` };
+  }
   const response =
     decision.action === "redirect" ? NextResponse.redirect(new URL(decision.to, request.url)) : NextResponse.next({ request });
   for (const { name, value, options } of pending) response.cookies.set(name, value, options);
