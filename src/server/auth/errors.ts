@@ -1,6 +1,6 @@
 // Códigos de erro do login (#9). A tela mostra o texto do config/ para um código conhecido;
 // nada que venha da URL é exibido como texto (evita injeção de mensagem).
-export const authErrorCodes = ["invalid_email", "rate_limited", "unavailable", "failed", "blocked"] as const;
+export const authErrorCodes = ["invalid_email", "rate_limited", "unavailable", "failed", "blocked", "legacy_link"] as const;
 export type AuthErrorCode = (typeof authErrorCodes)[number];
 
 export function parseAuthErrorCode(raw: unknown): AuthErrorCode | null {

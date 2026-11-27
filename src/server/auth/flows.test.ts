@@ -38,7 +38,7 @@ describe("startGoogleSignIn (#9)", () => {
     expect(result).toEqual({ ok: true, url: expect.stringContaining("/auth/v1/authorize") });
     expect(auth.signInWithOAuth).toHaveBeenCalledWith({
       provider: "google",
-      options: { redirectTo: `${SITE}/auth/callback?next=%2Finicio%3Fx%3D1`, skipBrowserRedirect: true },
+      options: { redirectTo: `${SITE}/auth/callback?next=%2Finicio`, skipBrowserRedirect: true },
     });
   });
 
@@ -118,7 +118,7 @@ describe("exchangeCode (#9): retorno do Google", () => {
 
   it("troca o code e segue para o destino", async () => {
     const auth = fakeAuth();
-    expect(await exchangeCode(auth, params("code=abc&next=%2Finicio%3Fa%3D1"))).toEqual({ ok: true, next: "/inicio?a=1", userId: user.id });
+    expect(await exchangeCode(auth, params("code=abc&next=%2Finicio%3Fa%3D1"))).toEqual({ ok: true, next: "/inicio", userId: user.id });
     expect(auth.exchangeCodeForSession).toHaveBeenCalledWith("abc");
   });
 

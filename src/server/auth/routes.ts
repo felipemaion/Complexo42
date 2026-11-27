@@ -20,12 +20,52 @@ export const ACCOUNT_DELETED_PATH = "/conta-excluida";
 // proxy (veja o matcher em src/proxy.ts).
 const PUBLIC_PATHS: ReadonlySet<string> = new Set(["/", LOGIN_PATH, CALLBACK_PATH, CONFIRM_PATH, SIGNOUT_PATH, WAITLIST_PATH, ACCOUNT_DELETED_PATH]);
 
+/**
+ * Caminhos de link de e-mail de versões antigas (e do Supabase Auth direto): carregam token de uso único na
+ * query. Nunca viram `next` nem são repassados: respondem com um redirect para /entrar sem query e o aviso
+ * "link antigo, peça outro" (`erro=legacy_link`).
+ */
+const LEGACY_AUTH_PATHS: ReadonlySet<string> = new Set(["/verify", "/callback", "/auth/v1/verify", "/auth/verify", "/auth/confirm"]);
+
+function stripTrailingSlash(path: string): string {
+  return path.length > 1 ? path.replace(/\/+$/, "") : path;
+}
+
+export function isLegacyAuthPath(path: string): boolean {
+  return LEGACY_AUTH_PATHS.has(stripTrailingSlash(path));
+}
+
+/** Lista central de parâmetros de query que carregam credencial (token de uso único, code, sessão). */
+const CREDENTIAL_PARAMS: ReadonlySet<string> = new Set([
+  "token",
+  "token_hash",
+  "code",
+  "access_token",
+  "refresh_token",
+  "id_token",
+  "provider_token",
+  "provider_refresh_token",
+]);
+/** `type=` dos links de e-mail do Supabase Auth: com eles o `token_hash` é de uso único. */
+const CREDENTIAL_TYPES: ReadonlySet<string> = new Set(["magiclink", "recovery", "signup", "invite", "email_change", "email"]);
+
+/** A query (`?a=b&...`) leva alguma credencial? Chaves e valores sem diferenciar maiúsculas. */
+export function hasCredentialQuery(search: string): boolean {
+  for (const [key, value] of new URLSearchParams(search)) {
+    const name = key.toLowerCase();
+    if (CREDENTIAL_PARAMS.has(name)) return true;
+    if (name === "type" && CREDENTIAL_TYPES.has(value.toLowerCase())) return true;
+  }
+  return false;
+}
+
 export function isPublicPath(path: string): boolean {
-  return PUBLIC_PATHS.has(path.length > 1 ? path.replace(/\/+$/, "") : path);
+  return PUBLIC_PATHS.has(stripTrailingSlash(path));
 }
 
 /**
- * Destino depois do login, vindo do parâmetro `next`. Só caminho interno: o pathname já
+ * Destino depois do login, vindo do parâmetro `next`. Só caminho interno, SEM query nem fragmento (a query
+ * pode carregar token de uso único; nada dela vira destino): o pathname já
  * NORMALIZADO (sem `.`/`..`) precisa começar com uma barra só. Sem isso, `/.//mal.example`
  * viraria `//mal.example`, que o navegador lê como outro site. Idempotente: aplicar de novo
  * devolve o mesmo valor.
@@ -44,15 +84,21 @@ export function safeNextPath(raw: unknown): string {
   const path = url.pathname;
   if (url.origin !== base || !/^\/(?!\/)/.test(path) || path.includes("\\")) return HOME_PATH;
   if (path === LOGIN_PATH || path.startsWith("/auth/")) return HOME_PATH;
-  return path + url.search;
+  return path;
 }
 
 export type RouteDecision = { action: "next" } | { action: "redirect"; to: string };
 
 /** Decide, no proxy, se a requisição segue ou é redirecionada. */
 export function decideRoute(path: string, search: string, authenticated: boolean): RouteDecision {
+  const legacyLink = `${LOGIN_PATH}?erro=legacy_link`;
+  // Link antigo ou /entrar com credencial na URL: nunca ecoa a query (log de acesso, histórico, Location).
+  if (isLegacyAuthPath(path) || (stripTrailingSlash(path) === LOGIN_PATH && hasCredentialQuery(search))) {
+    return { action: "redirect", to: legacyLink };
+  }
   if (!authenticated && !isPublicPath(path)) {
-    return { action: "redirect", to: `${LOGIN_PATH}?next=${encodeURIComponent(path + search)}` };
+    // Só o caminho: a query de quem não entrou pode ter token de uso único e nunca vai para o /entrar.
+    return { action: "redirect", to: `${LOGIN_PATH}?next=${encodeURIComponent(path)}` };
   }
   if (authenticated && path === LOGIN_PATH) return { action: "redirect", to: HOME_PATH };
   return { action: "next" };
@@ -70,5 +116,5 @@ export function waitlistPageTarget(accessTarget: string | null): string | null {
 
 /** Respostas de login e as que gravam cookie não podem ficar em cache compartilhado (L3). */
 export function needsNoStore(path: string, setsCookie: boolean): boolean {
-  return setsCookie || path === LOGIN_PATH || path.startsWith("/auth/");
+  return setsCookie || path === LOGIN_PATH || path.startsWith("/auth/") || isLegacyAuthPath(path);
 }

@@ -63,6 +63,7 @@ export const instance = parseInstanceConfig({
       unavailable: "O login está indisponível agora. Tente de novo em alguns minutos.",
       failed: "Não foi possível entrar. Tente de novo.",
       blocked: "Seu acesso está bloqueado. Fale com a coordenação.",
+      legacy_link: "Esse link de entrada é antigo ou já foi usado. Peça um novo link e entre de novo.",
     },
   },
   profile: {
