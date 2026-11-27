@@ -13,7 +13,7 @@ export type ContactVisibilityText = ContactViewText & {
 };
 
 const button =
-  "block w-full rounded-xl border-2 border-current px-5 py-4 text-left text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+  "block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-5 py-4 text-left text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 type ChoicesProps = {
   visibility: ContactVisibility;
@@ -38,7 +38,7 @@ export function ContactVisibilityChoices({ visibility, action, text }: ChoicesPr
                   name="scope"
                   value={scope}
                   aria-pressed={current}
-                  className={`${button} ${current ? "bg-neutral-900 text-white" : ""}`}
+                  className={`${button} ${current ? "bg-primary text-on-primary" : ""}`}
                 >
                   <span aria-hidden="true">{current ? "● " : "○ "}</span>
                   {text.scopes[scope]}

@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
-// Cabeçalhos de segurança que não dependem do conteúdo da página (#68). A CSP fica de fora de
-// propósito: exige nonce e liberar Turnstile e Supabase, e tem issue própria.
+// Cabeçalhos de segurança que não dependem do conteúdo da página (#68). A CSP não fica aqui: ela
+// leva um nonce novo a cada requisição e é montada no proxy (src/server/csp.ts, #152).
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Anti-clickjacking: nenhuma tela do app precisa ser embutida em outro site.
@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
     // login: por isso o mínimo que cabe a lista, não mais. O proxy de borda pode limitar o
     // tamanho por rota (docs/OPERACAO.md, #86).
     serverActions: { bodySizeLimit: "2mb" },
+    // CSS em arquivo, não embutido (27/11, medido): embutido, o Next mandava o mesmo CSS duas vezes (no
+    // <style> e nos dados do React): página inicial de 22 KB virava 127 KB e o trabalho de estilo/layout no
+    // celular subia de ~0,25 s para ~1,1 s. Guarda em tests/no-inline-css.test.ts.
+    inlineCss: false,
   },
 };
 

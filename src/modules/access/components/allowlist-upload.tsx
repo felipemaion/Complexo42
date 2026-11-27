@@ -35,7 +35,7 @@ type Props = {
   text: AllowlistUploadText;
 };
 
-const big = "rounded-xl border-2 border-current px-6 py-5 text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const big = "rounded-xl border-2 border-primary bg-surface text-primary no-underline px-6 py-5 text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 export function AllowlistUploadForm({ action, text }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" });
@@ -43,12 +43,12 @@ export function AllowlistUploadForm({ action, text }: Props) {
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {state.status === "error" && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="alert" className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {text.errors[state.error]}
         </p>
       )}
       {state.status === "done" && lines && (
-        <div role="status" className="flex flex-col gap-2 rounded-lg border-2 border-current p-4 text-lg" data-testid="allowlist-result">
+        <div role="status" className="flex flex-col gap-2 rounded-xl border border-line bg-surface p-4 text-lg" data-testid="allowlist-result">
           <p className="font-bold">{text.doneTitle}</p>
           <p data-testid="allowlist-received">{fillText(text.received, { count: state.received })}</p>
           <p data-testid="allowlist-promoted">{fillText(text.promoted, { count: state.promoted })}</p>
@@ -74,7 +74,7 @@ export function AllowlistUploadForm({ action, text }: Props) {
           required
           accept=".csv,.txt,text/csv,text/plain"
           aria-describedby="allowlist-file-hint"
-          className="rounded-xl border-2 border-current p-4 text-lg"
+          className="rounded-xl border-2 border-line bg-surface p-4 text-lg"
         />
         <p id="allowlist-file-hint" className="text-base">
           {text.fileHint}
@@ -83,7 +83,7 @@ export function AllowlistUploadForm({ action, text }: Props) {
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 text-xl font-bold">{text.sourceLabel}</legend>
         {allowlistSources.map((source, index) => (
-          <label key={source} className="flex items-center gap-3 rounded-xl border-2 border-current p-4 text-lg">
+          <label key={source} className="flex items-center gap-3 rounded-xl border-2 border-line bg-surface p-4 text-lg">
             <input type="radio" name={ALLOWLIST_SOURCE_FIELD} value={source} defaultChecked={index === 0} className="size-6" />
             {text.sources[source]}
           </label>

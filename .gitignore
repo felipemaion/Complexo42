@@ -13,7 +13,9 @@ supabase/.temp
 *.dump
 *.sql.gz
 backups/
-data/
+# Só a pasta de logs da raiz (LOG_DIR=data/logs). Sem a barra, a regra escondia qualquer pasta "data",
+# inclusive src/modules/map/data (o contorno das cidades do mapa), e o CI não compilava (PR #167).
+/data/
 .DS_Store
 .vercel
 .wrangler

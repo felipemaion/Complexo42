@@ -5,6 +5,7 @@ import "server-only";
 import { instance } from "@config/instance";
 import { decryptField } from "@/server/crypto";
 import { log as appLog, type Logger } from "@/server/log";
+import { activityRowsSchema, buildActivityExport } from "../domain/activity";
 import { buildOwnDataExport, exportFilename, ownDataRowsSchema, serializeExport, type DecryptFn } from "../domain/export";
 import type { ExportOwnDataResult, PrivacyDbClient } from "../types";
 
@@ -54,6 +55,22 @@ export async function exportOwnData(
     decrypt: deps.decrypt,
     onDecryptError: (column) => deps.log.warn("data_export_decrypt_failed", { column }),
   });
+  // Atividade (medalhas, portfólio, pontos, entregas, mensagens): função irmã, mesmo JWT. Se falhar,
+  // a exportação toda falha: o arquivo nunca sai incompleto sem aviso.
+  const activityResponse = await client.rpc("export_own_activity", {});
+  if (activityResponse.error) {
+    deps.log.error("data_export_failed", { reason: `activity_${errorCode(activityResponse.error)}` });
+    return { status: "failed" };
+  }
+  const activityRows = activityRowsSchema.safeParse(activityResponse.data);
+  if (!activityRows.success) {
+    deps.log.error("data_export_failed", { reason: "unexpected_activity_shape", fields: activityRows.error.issues.map((i) => i.path.join(".")) });
+    return { status: "failed" };
+  }
+  const atividade = await buildActivityExport(activityRows.data, user.id, deps.decrypt, (column) =>
+    deps.log.warn("data_export_decrypt_failed", { column }),
+  );
+  const complete = { ...file, atividade };
   deps.log.info("data_exported");
-  return { status: "ok", body: serializeExport(file), filename: exportFilename(at) };
+  return { status: "ok", body: serializeExport(complete), filename: exportFilename(at) };
 }

@@ -2,105 +2,367 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
-import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
+import { NewBadgeCelebration, readMyBadges, sessionBadgesClient } from "@/modules/badges";
+import { MY_TEAM_PATH, readDashboard, readMyTeam, readTeamIdentity, readTeamMates, sessionCollabClient, TeamFlag } from "@/modules/collab";
+import {
+  listMissions,
+  MISSION_PUBLISH_PATH,
+  MISSION_REVIEW_PATH,
+  missionPath,
+  MISSIONS_PATH,
+  readMyRuns,
+  readPendingReviews,
+  readPoints,
+  readPublishableUnits,
+  sessionMissionClient,
+} from "@/modules/missions";
 import { coordinationViewDeps, OwnHouse, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
-import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
-import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
+import { MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
+import { loadOwnProfile, SocialLinkList } from "@/modules/profiles";
+import { buttonClass, CountUp, Notice, Tag } from "@/modules/ui";
 import { PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
+import { decryptField } from "@/server/crypto";
+import { log } from "@/server/log";
 
 export const metadata: Metadata = { title: instance.auth.signedInTitle };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-// Página inicial de quem entrou (#9). Sem perfil ainda, vai direto para o formulário (#12). O
-// e-mail aparece só mascarado (cabeçalho e aqui), nunca inteiro.
+const cardClass = "flex flex-col gap-4 rounded-2xl border border-line bg-surface p-6";
+const statClass = "flex h-full flex-col gap-2 rounded-2xl border border-line bg-surface p-5 no-underline hover:border-primary";
+
+// Cartão secundário (equipe, painel, pendências) que falha não derruba a página inteira: o erro
+// vai para o log (só o nome do cartão, sem dado pessoal) e o cartão aparece vazio.
+async function orFallback<T>(read: Promise<T>, fallback: T, card: string): Promise<T> {
+  try {
+    return await read;
+  } catch (error: unknown) {
+    log.warn("home_card_failed", { card, error: error instanceof Error ? error.message : "unknown" });
+    return fallback;
+  }
+}
+
+function initials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((word) => word.charAt(0)).join("").toUpperCase();
+}
+
+// Página inicial de quem entrou (#9), em formato de painel de site: faixa de destaque, quatro
+// números, missões ao lado da equipe e das medalhas, e (só coordenação) pontos por equipe e
+// entregas esperando validação. Sem perfil ainda, vai direto para o formulário (#12). Sem ranking
+// de pessoas (ADR 0006 §6). "Minha conta" fica no rodapé da moldura.
 export default async function SignedInHome({ searchParams }: Props) {
-  // A página também confere (o layout e a página renderizam em paralelo); `cache` evita repetir.
   const { user, client } = await requireUserClient();
   const own = await loadOwnProfile(client, user.id);
   if (!own) redirect(PROFILE_PATH);
-  const [params, coordination] = await Promise.all([searchParams, readCoordinationMenu(client, user.id)]);
+  const [missionClient, badgesClient, collabClient] = await Promise.all([
+    sessionMissionClient(),
+    sessionBadgesClient(),
+    sessionCollabClient(),
+  ]);
+  const [params, missions, runs, points, publishable, badges, team] = await Promise.all([
+    searchParams,
+    missionClient ? listMissions(missionClient) : Promise.resolve([]),
+    missionClient ? readMyRuns(missionClient, user.id) : Promise.resolve(new Map()),
+    missionClient ? readPoints(missionClient, user.id) : Promise.resolve({ mine: 0, team: 0 }),
+    missionClient ? readPublishableUnits(missionClient) : Promise.resolve([]),
+    badgesClient
+      ? readMyBadges(badgesClient, user.id, (value, ownerId) =>
+          decryptField(value, { table: "profiles", column: "display_name_enc", rowId: ownerId }),
+        )
+      : Promise.resolve([]),
+    collabClient ? orFallback(readMyTeam(collabClient), null, "team") : Promise.resolve(null),
+  ]);
+  const isCoordinator = publishable.length > 0;
+  const [mates, pending, dashboard, identity] = await Promise.all([
+    collabClient && team
+      ? orFallback(
+          readTeamMates(collabClient, team.teamId, (value, profileId) =>
+            decryptField(value, { table: "profiles", column: "display_name_enc", rowId: profileId }),
+          ),
+          [],
+          "mates",
+        )
+      : Promise.resolve([]),
+    isCoordinator && missionClient ? orFallback(readPendingReviews(missionClient), [], "pending") : Promise.resolve([]),
+    isCoordinator && collabClient ? orFallback(readDashboard(collabClient), [], "dashboard") : Promise.resolve([]),
+    collabClient && team ? orFallback(readTeamIdentity(collabClient, team.teamId), null, "identity") : Promise.resolve(null),
+  ]);
+
+  // A casa e o gráfico da pessoa, só os eixos da casa (#203).
+  const houseDeps = coordinationViewDeps();
+  const houseClient = await sessionHouseClient();
+  const houseCard = houseClient && await readOwnHouseCard(houseClient, user.id, { crypto: houseDeps.crypto, questionnaire: houseDeps.questionnaire, houseIds: instance.houses.map((house) => house.id) });
+  const site = instance.site;
+  const text = instance.missions;
   const saved = params.salvo === "1";
   const myDataStatus = parseMyDataStatus(params[MY_DATA_STATUS_PARAM]);
-  const text = instance.auth;
-  const deps = coordinationViewDeps();
-  const houseClient = await sessionHouseClient();
-  const houseCard = houseClient && await readOwnHouseCard(houseClient, user.id, { crypto: deps.crypto, questionnaire: deps.questionnaire, houseIds: instance.houses.map((house) => house.id) });
+  const firstName = own.displayName.trim().split(/\s+/)[0] ?? "";
+  const activeCount = [...runs.values()].filter((run) => run.status === "active").length;
+  const lead = mates.find((mate) => mate.isLead);
+  const maxTeamPoints = Math.max(1, ...dashboard.map((row) => row.teamPoints));
+  // Coordenação sem equipe própria: o destaque mostra o que espera por ela, não "0 pontos".
+  const highlight = team || !isCoordinator
+    ? { label: text.teamPointsLabel, value: points.team, foot: team ? `${team.teamName} · ${mates.length} ${site.peopleSuffix}` : null }
+    : { label: site.pendingLabel, value: pending.length, foot: null };
+  const stats = [
+    { label: text.myPointsLabel, value: points.mine, href: MISSIONS_PATH },
+    { label: text.runStatus.active, value: activeCount, href: MISSIONS_PATH },
+    isCoordinator
+      ? { label: site.pendingLabel, value: pending.length, href: MISSION_REVIEW_PATH }
+      : { label: site.availableLabel, value: missions.filter((mission) => !runs.has(mission.id)).length, href: MISSIONS_PATH },
+    { label: instance.badges.myTitle, value: badges.length, href: MISSIONS_PATH },
+  ];
+  const actions = isCoordinator
+    ? [
+        { href: MISSION_REVIEW_PATH, label: instance.nav.review, variant: "primary" as const },
+        { href: MISSION_PUBLISH_PATH, label: text.publish.menuLink, variant: "secondary" as const },
+      ]
+    : [
+        { href: MISSIONS_PATH, label: instance.nav.missions, variant: "primary" as const },
+        { href: MY_TEAM_PATH, label: instance.nav.myTeam, variant: "secondary" as const },
+      ];
+
   return (
-    <main className="mx-auto flex max-w-md flex-col justify-center gap-6 p-6 pt-16">
-      <h1 className="text-3xl font-bold">{text.signedInTitle}</h1>
-      {saved && (
-        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg">
-          {instance.profile.saved}
-        </p>
+    <main className="flex w-full flex-col">
+      {/* Avisos no topo: quem clicou em "Baixar meus dados" no rodapé vê o resultado logo de cara. */}
+      {(saved || myDataStatus) && (
+        <div className="mx-auto flex w-full max-w-site flex-col gap-3 px-5 pt-6">
+          {saved && <Notice tone="success">{instance.profile.saved}</Notice>}
+          {myDataStatus && (
+            <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg">
+              {myDataStatus === "limite" ? instance.myData.rateLimited : instance.myData.failed}
+            </p>
+          )}
+        </div>
       )}
-      <p className="text-lg">{text.signedInMessage}</p>
-      <p className="text-lg">
-        {text.connectedAs} <strong>{user.maskedEmail}</strong>
-      </p>
-      {/* A casa e o gráfico da pessoa, só os eixos da casa (#203). */}
-      {houseCard && <OwnHouse card={houseCard} houses={instance.houses} text={instance.houseSelection} />}
-      {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}
-      {own.socialLinks.length > 0 && (
-        <section aria-labelledby="minhas-redes" className="flex flex-col gap-3">
-          <h2 id="minhas-redes" className="text-xl font-semibold">
-            {instance.profile.socialLinksTitle}
-          </h2>
-          <SocialLinkList links={own.socialLinks} label={instance.profile.socialLinksTitle} />
-        </section>
-      )}
-      <Link
-        href={PROFILE_PATH}
-        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-      >
-        {instance.profile.editLink}
-      </Link>
-      {/* Quem vê meu contato (#119, ADR 0010). */}
-      <Link
-        href={CONTACT_VISIBILITY_PATH}
-        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-      >
-        {instance.contactVisibility.homeLink}
-      </Link>
-      {/* "Baixar meus dados" (#20): POST para o servidor montar o arquivo; nada no navegador. */}
-      <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-3">
-        {myDataStatus && (
-          <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
-            {myDataStatus === "limite" ? instance.myData.rateLimited : instance.myData.failed}
-          </p>
+      {/* Faixa de destaque na largura toda. */}
+      <section className="border-b border-line bg-linear-to-br from-surface to-canvas">
+        <div className="mx-auto grid w-full max-w-site gap-8 px-5 py-12 lg:grid-cols-[1fr_380px] lg:items-center">
+          <div className="flex flex-col gap-4">
+            <p className="text-base font-bold uppercase tracking-wider text-primary">{site.kicker}</p>
+            <h1 className="c42-display text-5xl text-ink sm:text-6xl">
+              {site.greeting}, <span className="c42-accent">{firstName}</span>
+            </h1>
+            <p className="max-w-2xl text-xl text-ink-muted">{isCoordinator ? site.coordinatorIntro : site.memberIntro}</p>
+            {/* Celular: os dois atalhos lado a lado (o bloco dourado aparece inteiro na primeira tela). */}
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+              {actions.map((action) => (
+                <Link
+                  key={action.href}
+                  href={action.href}
+                  className={`${buttonClass(action.variant)} no-underline max-sm:px-3 max-sm:text-lg sm:w-auto`}
+                >
+                  {action.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+          {/* Destaque em dourado cheio, como a faixa "Feito ou não feito" da entrada (revisor 22/11).
+              Texto escuro herdado do bloco: contraste perto de 9:1 sobre o dourado. */}
+          <div className="flex flex-col gap-2 rounded-2xl bg-primary p-6 text-on-primary shadow-[0_24px_60px_-20px] shadow-primary/40">
+            <span className="text-base font-semibold uppercase tracking-wider">{highlight.label}</span>
+            <span className="c42-display text-8xl leading-none">
+              <CountUp value={highlight.value} />
+            </span>
+            {highlight.foot && <span className="mt-4 border-t border-current/25 pt-4 text-base font-semibold">{highlight.foot}</span>}
+          </div>
+        </div>
+      </section>
+
+      <div className="mx-auto flex w-full max-w-site flex-col gap-10 px-5 py-10">
+        {/* Quatro números que levam à página certa. */}
+        <ul className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {stats.map((stat) => (
+            <li key={stat.label}>
+              <Link href={stat.href} className={statClass}>
+                <span className="text-base text-ink-muted">{stat.label}</span>
+                <span className="text-4xl font-bold text-ink">{stat.value}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        <div className="grid gap-8 lg:grid-cols-12">
+          <section aria-labelledby="missoes-abertas" className="flex flex-col gap-5 lg:col-span-8">
+            <div className="flex items-center justify-between gap-4">
+              <h2 id="missoes-abertas" className="text-2xl font-bold">
+                {site.openMissionsTitle}
+              </h2>
+              <Link href={MISSIONS_PATH} className="inline-flex min-h-12 shrink-0 items-center text-lg font-semibold">
+                {site.seeAll}
+              </Link>
+            </div>
+            {/* Texto comum (não role=status): o único aviso da página é o de "salvo". */}
+            {missions.length === 0 ? (
+              <p className="text-lg text-ink-muted">{text.empty}</p>
+            ) : (
+              <ul className="flex flex-col gap-4">
+                {missions.slice(0, 4).map((mission) => {
+                  const run = runs.get(mission.id);
+                  return (
+                    <li key={mission.id}>
+                      <Link href={missionPath(mission.id)} className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-5 no-underline hover:border-primary">
+                        <span className="flex items-start justify-between gap-4">
+                          <span className="text-xl font-bold text-ink">{mission.title}</span>
+                          <Tag tone="primary">
+                            {mission.totalPoints} {text.pointsSuffix}
+                          </Tag>
+                        </span>
+                        <span className="flex flex-wrap items-center gap-2">
+                          <Tag>{text.mode[mission.mode]}</Tag>
+                          <Tag>{text.origin[mission.origin]}</Tag>
+                          {run?.status === "active" && <Tag tone="warning">{text.runStatus.active}</Tag>}
+                          {run?.status === "completed" && <Tag tone="success">{text.runStatus.completed}</Tag>}
+                          {!run && <Tag tone="primary">{site.available}</Tag>}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <div className="flex flex-col gap-6 lg:col-span-4">
+            {houseCard && (
+              <section className={cardClass}>
+                <OwnHouse card={houseCard} houses={instance.houses} text={instance.houseSelection} />
+              </section>
+            )}
+            {(team || !isCoordinator) && (
+              <section className={cardClass}>
+                <h2 className="text-2xl font-bold">{instance.myTeam.title}</h2>
+                {team ? (
+                  <>
+                    <div className="flex items-center gap-3">
+                      {identity && <TeamFlag identity={identity} label={`${instance.teamIdentity.flagLabel}: ${team.teamName}`} size="small" />}
+                      <div className="flex flex-col">
+                        <p className="text-xl font-bold text-ink">{team.teamName}</p>
+                        {identity?.motto && <p className="text-base text-primary">{identity.motto}</p>}
+                      </div>
+                    </div>
+                    {lead && (
+                      <p className="text-lg text-ink-muted">
+                        {site.leadLabel}: {lead.displayName}
+                      </p>
+                    )}
+                    <ul className="flex flex-wrap gap-2">
+                      {mates.slice(0, 8).map((mate) => (
+                        <li
+                          key={mate.profileId}
+                          title={mate.displayName}
+                          className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-soft text-base font-bold text-primary"
+                        >
+                          {initials(mate.displayName)}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link href={MY_TEAM_PATH} className={`${buttonClass("secondary")} no-underline`}>
+                      {site.openTeam}
+                    </Link>
+                  </>
+                ) : (
+                  <p className="text-lg text-ink-muted">{instance.myTeam.noTeam}</p>
+                )}
+              </section>
+            )}
+
+            <section className={cardClass}>
+              <h2 className="text-2xl font-bold">{instance.badges.myTitle}</h2>
+              {/* Medalha que este navegador ainda não viu: confete curto + aviso em texto (22/11). */}
+              <NewBadgeCelebration
+                awards={badges.map((badge) => ({ awardId: badge.awardId, name: badge.name, awardedAt: badge.awardedAt }))}
+                message={instance.site.newBadge}
+              />
+              {badges.length === 0 ? (
+                <p className="text-lg text-ink-muted">{instance.badges.empty}</p>
+              ) : (
+                <ul className="flex flex-col gap-3">
+                  {badges.slice(0, 5).map((badge) => (
+                    <li key={badge.awardId} className="flex items-center gap-3">
+                      <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary font-bold text-on-secondary">
+                        {badge.name.trim().charAt(0).toUpperCase()}
+                      </span>
+                      <span className="flex flex-col">
+                        <span className="font-semibold text-ink">{badge.name}</span>
+                        <span className="text-base text-ink-muted">{badge.reason}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}
+            {own.socialLinks.length > 0 && (
+              <section className={cardClass}>
+                <h2 className="text-2xl font-bold">{instance.profile.socialLinksTitle}</h2>
+                <SocialLinkList links={own.socialLinks} label={instance.profile.socialLinksTitle} />
+              </section>
+            )}
+          </div>
+        </div>
+
+        {isCoordinator && (
+          <div className="grid gap-8 lg:grid-cols-2">
+            {/* Números por equipe (#49), na ordem do banco: sem ranking de pessoas. */}
+            <section className={cardClass}>
+              <h2 className="text-2xl font-bold">{site.teamPointsTitle}</h2>
+              {dashboard.length === 0 ? (
+                <p className="text-lg text-ink-muted">{instance.dashboard.empty}</p>
+              ) : (
+                <ul className="flex flex-col gap-5">
+                  {dashboard.map((row) => (
+                    <li key={row.teamId} className="flex flex-col gap-2">
+                      <span className="flex items-center justify-between gap-4">
+                        <span className="font-bold text-ink">{row.teamName}</span>
+                        <span className="font-bold text-primary">
+                          {row.teamPoints} {text.pointsSuffix}
+                        </span>
+                      </span>
+                      <span aria-hidden="true" className="block h-2 w-full rounded-full bg-soft">
+                        <span className="block h-2 rounded-full bg-primary" style={{ width: `${(row.teamPoints / maxTeamPoints) * 100}%` }} />
+                      </span>
+                      <span className="text-base text-ink-muted">
+                        {instance.dashboard.membersLabel}: {row.memberCount} · {instance.dashboard.activeLabel}: {row.activeRuns}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <section className={cardClass}>
+              <h2 className="text-2xl font-bold">{site.pendingTitle}</h2>
+              {pending.length === 0 ? (
+                <p className="text-lg text-ink-muted">{site.pendingEmpty}</p>
+              ) : (
+                <>
+                  <ul className="flex flex-col">
+                    {pending.slice(0, 4).map((item) => (
+                      <li key={item.submissionId} className="flex items-start justify-between gap-4 border-b border-line py-3 last:border-b-0">
+                        <span className="flex flex-col">
+                          <span className="font-bold text-ink">{item.missionTitle}</span>
+                          <span className="text-base text-ink-muted">
+                            {item.stepTitle} · {item.unitName}
+                          </span>
+                        </span>
+                        <span className="shrink-0 font-bold text-primary">
+                          +{item.stepPoints} {text.pointsSuffix}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link href={MISSION_REVIEW_PATH} className={`${buttonClass("primary")} no-underline`}>
+                    {instance.nav.review}
+                  </Link>
+                </>
+              )}
+            </section>
+          </div>
         )}
-        <button
-          type="submit"
-          aria-describedby="my-data-hint"
-          className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-        >
-          {instance.myData.downloadButton}
-        </button>
-        <p id="my-data-hint" className="text-base">
-          {instance.myData.downloadHint}
-        </p>
-      </form>
-      {/* Escolha da casa de formação (#76). */}
-      <Link
-        href="/casa"
-        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-      >
-        {instance.houseSelection.homeLink}
-      </Link>
-      {/* Coordenação (#26): só para quem tem papel de gestor. Conforto, não segurança (R15). */}
-      {coordination.waitlist && (
-        <Link
-          href={COORDINATION_PATH}
-          className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-        >
-          {instance.coordination.homeLink}
-        </Link>
-      )}
-      {/* "Excluir minha conta" (#18): a página tem o aviso e a confirmação; nada é apagado aqui. */}
-      <Link href={DELETE_ACCOUNT_PATH} className="text-center text-lg underline">
-        {instance.deleteAccount.homeLink}
-      </Link>
+      </div>
     </main>
   );
 }

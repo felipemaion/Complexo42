@@ -33,7 +33,7 @@ export default async function DelegationsPage({
         </p>
       )}
       {errorText && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+        <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg">
           {errorText}
         </p>
       )}
@@ -92,7 +92,7 @@ export default async function DelegationsPage({
                 ))}
               </select>
             </label>
-            <button type="submit" className="min-h-14 rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white">
+            <button type="submit" className="min-h-14 rounded-xl bg-primary px-5 py-3 text-lg font-bold text-on-primary">
               {text.delegations.grantButton}
             </button>
           </form>

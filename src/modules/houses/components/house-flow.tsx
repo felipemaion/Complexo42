@@ -25,9 +25,9 @@ type Props = {
   text: InstanceConfig["houseSelection"];
 };
 
-const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
+const big = "min-h-14 w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-5 py-3 text-left text-lg font-semibold";
 const primary =
-  "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
+  "min-h-14 w-full rounded-xl bg-primary px-5 py-3 text-lg font-bold text-on-primary disabled:cursor-not-allowed disabled:opacity-40";
 
 export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
   const router = useRouter();
@@ -228,7 +228,7 @@ export function HouseFlow({ houses, questionnaire, text }: Readonly<Props>) {
     <div className="flex flex-col gap-4">
       {body}
       {(state.refusal || error) && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg" data-testid="refusal-message">
+        <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg" data-testid="refusal-message">
           {state.refusal ? refusalMessage(text, state.refusal) : text.errors[error!]}
         </p>
       )}

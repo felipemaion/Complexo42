@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAuthClient, hasAuthCookie, type CookieToSet } from "@/server/auth/client";
 import { getAuthConfig } from "@/server/auth/config";
 import { decideRoute, needsNoStore } from "@/server/auth/routes";
+import { buildCsp, cspHeaderName, newNonce, NONCE_HEADER } from "@/server/csp";
 
 // Proxy (antigo middleware, Next 16) do login (#9): renova a sessão no cookie e manda quem não
 // entrou para /entrar. É a checagem otimista; cada página protegida confere de novo
@@ -34,8 +35,26 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   const path = request.nextUrl.pathname;
   const decision = decideRoute(path, request.nextUrl.search, authenticated);
+
+  // CSP com nonce novo por requisição (#152). Vai no cabeçalho da requisição (o Next lê o nonce dali
+  // e o põe nos próprios scripts) e no da resposta. CSP_REPORT_ONLY=1 só avisa, sem bloquear.
+  const nonce = newNonce();
+  const cspName = cspHeaderName(process.env.CSP_REPORT_ONLY === "1");
+  const csp = buildCsp({
+    nonce,
+    path,
+    isDev: process.env.NODE_ENV === "development",
+    isHttps: (process.env.SITE_URL ?? "").startsWith("https:"),
+  });
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(NONCE_HEADER, nonce);
+  requestHeaders.set(cspName, csp);
+
   const response =
-    decision.action === "redirect" ? NextResponse.redirect(new URL(decision.to, request.url)) : NextResponse.next({ request });
+    decision.action === "redirect"
+      ? NextResponse.redirect(new URL(decision.to, request.url))
+      : NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set(cspName, csp);
   for (const { name, value, options } of pending) response.cookies.set(name, value, options);
   for (const [name, value] of Object.entries(extraHeaders)) response.headers.set(name, value);
   // L3: login e respostas que gravam cookie nunca em cache compartilhado.
@@ -46,5 +65,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 export const config = {
   // Fora do proxy: arquivos estáticos e o healthz (monitorado de fora, sem sessão). Ancorado em
   // `/` ou no fim, para `/api/healthz-x` ou `/favicon.ico.x` não escaparem (L1).
-  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|api/healthz)(?:/|$)).*)"],
+  // /demo fica de fora: troca de conta fictícia; com o filtro, a sessão antiga seria regravada por cima.
+  matcher: ["/((?!(?:_next/static|_next/image|favicon\\.ico|api/healthz|demo)(?:/|$)).*)"],
 };

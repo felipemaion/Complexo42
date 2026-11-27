@@ -21,7 +21,7 @@ export default async function ResultPage({ params }: Readonly<{ params: Promise<
   if (opened.status === "unreadable") {
     return (
       <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+        <p role="alert" className="rounded-xl border-l-4 border-danger bg-danger-soft p-4 text-lg">
           {text.results.unreadableOne}
         </p>
         <Link href={RESULTS_PATH} className="text-center text-lg underline">

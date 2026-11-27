@@ -52,13 +52,17 @@ async function dbRows() {
   };
 }
 
-function setup(result: { data?: unknown; error?: unknown }) {
+// Atividade (medalhas, portfólio, pontos, entregas, mensagens): função irmã export_own_activity.
+const EMPTY_ACTIVITY = { badges: [], portfolio: [], points_total: 0, points: [], submissions: [], team_messages: [], prior_teams: [], skills: [] };
+
+function setup(result: { data?: unknown; error?: unknown }, activity: { data?: unknown; error?: unknown } = { data: EMPTY_ACTIVITY }) {
   const lines: string[] = [];
   const calls: { fn: string; args: unknown }[] = [];
   const client = {
     rpc: async (fn: string, args: unknown) => {
       calls.push({ fn, args });
-      return { data: result.data ?? null, error: result.error ?? null };
+      const answer = fn === "export_own_activity" ? activity : result;
+      return { data: answer.data ?? null, error: answer.error ?? null };
     },
   } as unknown as PrivacyDbClient;
   const deps: ExportDeps = {
@@ -110,11 +114,15 @@ describe("exportOwnData", () => {
   it("devolve o arquivo decifrado e loga só o código do evento", async () => {
     const { client, deps, lines, calls } = setup({ data: await dbRows() });
     const out = await exportOwnData(client, { id: USER, email: EMAIL }, deps);
-    expect(calls).toEqual([{ fn: "export_own_data", args: {} }]);
+    expect(calls).toEqual([
+      { fn: "export_own_data", args: {} },
+      { fn: "export_own_activity", args: {} },
+    ]);
     expect(out.status).toBe("ok");
     if (out.status !== "ok") return;
     expect(out.filename).toBe("meus-dados-2026-11-19.json");
     const file = JSON.parse(out.body);
+    expect(file.atividade.pontos.total).toBe(0);
     expect(file.perfil.nome).toBe(NAME);
     expect(file.contato.whatsapp).toBe(PHONE);
     expect(file.conta.emailDeLogin).toBe(EMAIL);
@@ -150,6 +158,12 @@ describe("exportOwnData", () => {
     expect(await exportOwnData(client, { id: USER, email: EMAIL }, deps)).toEqual({ status: "failed" });
     expect(JSON.parse(lines[0]!)).toMatchObject({ event: "data_export_failed", reason: "42501" });
     expect(lines.join("")).not.toContain(EMAIL);
+  });
+
+  it("falha na parte da atividade: failed (nunca um arquivo incompleto sem aviso)", async () => {
+    const { client, deps, lines } = setup({ data: await dbRows() }, { error: { code: "42883", message: "x" } });
+    expect(await exportOwnData(client, { id: USER, email: EMAIL }, deps)).toEqual({ status: "failed" });
+    expect(JSON.parse(lines[0]!)).toMatchObject({ event: "data_export_failed", reason: "activity_42883" });
   });
 
   it("formato inesperado do banco: failed, sem valores no log", async () => {

@@ -34,7 +34,7 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
             ))}
           </select>
         </label>
-        <button type="submit" className="min-h-12 rounded-xl bg-[var(--color-primary)] px-5 text-lg font-semibold text-white">
+        <button type="submit" className="min-h-12 rounded-xl bg-primary px-5 text-lg font-bold text-on-primary">
           {text.results.filterButton}
         </button>
       </form>

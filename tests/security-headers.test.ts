@@ -1,6 +1,8 @@
 // #68: o app envia os cabeçalhos de segurança em todas as rotas.
+import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 import nextConfig from "../next.config";
+import { proxy } from "../src/proxy";
 
 async function headersOfAllRoutes(): Promise<Record<string, string>> {
   const rules = (await nextConfig.headers?.()) ?? [];
@@ -30,6 +32,27 @@ describe("cabeçalhos de segurança", () => {
     const headers = await headersOfAllRoutes();
     const maxAgeSeconds = Number(/max-age=(\d+)/.exec(headers["Strict-Transport-Security"] ?? "")?.[1]);
     expect(maxAgeSeconds).toBeGreaterThanOrEqual(15_552_000);
+  });
+
+  it("a CSP não é fixa aqui: vem do proxy, com nonce novo a cada requisição (#152)", async () => {
+    // Arrange
+    const fixed = (await headersOfAllRoutes())["Content-Security-Policy"];
+
+    // Act
+    const first = await proxy(new NextRequest("http://127.0.0.1/entrar"));
+    const second = await proxy(new NextRequest("http://127.0.0.1/entrar"));
+    const redirect = await proxy(new NextRequest("http://127.0.0.1/inicio"));
+    const csp = first.headers.get("Content-Security-Policy") ?? "";
+
+    // Assert
+    expect(fixed).toBeUndefined();
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/_-]+={0,2}' 'strict-dynamic'/);
+    expect(csp).toContain("frame-src https://challenges.cloudflare.com");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(second.headers.get("Content-Security-Policy")).not.toBe(csp);
+    // Até o redirecionamento para o login leva a CSP.
+    expect(redirect.headers.get("location")).toContain("/entrar");
+    expect(redirect.headers.get("Content-Security-Policy")).toContain("'strict-dynamic'");
   });
 
   it("não anunciam o framework", () => {

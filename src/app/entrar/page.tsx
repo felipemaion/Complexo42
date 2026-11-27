@@ -11,7 +11,7 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 
 // Botões grandes e tudo à vista, sem menu nem etapa escondida (pedido do stakeholder).
 const bigButton =
-  "block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+  "block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 export default async function LoginPage({ searchParams }: Props) {
   const params = await searchParams;
@@ -29,14 +29,14 @@ export default async function LoginPage({ searchParams }: Props) {
       </header>
 
       {notice && (
-        <p role={error ? "alert" : "status"} className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role={error ? "alert" : "status"} className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {notice}
         </p>
       )}
 
       <form action={signInWithGoogle}>
         <input type="hidden" name="next" value={next} />
-        <button type="submit" className={`${bigButton} text-white`} style={{ backgroundColor: "var(--color-primary)" }}>
+        <button type="submit" className={`${bigButton} bg-primary text-on-primary`}>
           {text.googleButton}
         </button>
       </form>
@@ -53,14 +53,14 @@ export default async function LoginPage({ searchParams }: Props) {
           autoComplete="email"
           inputMode="email"
           maxLength={254}
-          className="w-full rounded-xl border-2 border-neutral-400 bg-transparent px-4 py-4 text-xl"
+          className="w-full rounded-xl border-2 border-field bg-surface text-ink px-4 py-4 text-xl"
         />
         {/* Turnstile (#116): acima do botão, sem cobri-lo. Site key lida no servidor a cada requisição. */}
         <TurnstileWidget siteKey={getTurnstileConfig().siteKey} />
         <noscript>
           <p className="text-lg">{text.emailNeedsScript}</p>
         </noscript>
-        <button type="submit" className={`${bigButton} border-2 border-current`}>
+        <button type="submit" className={`${bigButton} border-2 border-primary bg-surface text-primary`}>
           {text.emailButton}
         </button>
       </form>

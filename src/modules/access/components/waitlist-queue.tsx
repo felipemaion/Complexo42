@@ -51,13 +51,13 @@ type Props = {
 };
 
 const big =
-  "block w-full rounded-xl border-2 border-current px-5 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+  "block w-full rounded-xl border-2 border-primary bg-surface text-primary no-underline px-5 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-focus focus-visible:ring-offset-2";
 
 export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, action, text }: Props) {
   if (entries.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <p className="rounded-lg border-2 border-current p-4 text-lg">{text.empty}</p>
+        <p className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">{text.empty}</p>
         {cursor && (
           <Link href={waitlistHref()} className={big}>
             {text.firstPage}
@@ -74,12 +74,12 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
           // Liberar exige saber quem é; um pedido de confirmação pela URL também não passa.
           const confirming = requested === "liberar" && !entry.isIdentified ? null : requested;
           return (
-            <li key={entry.profileId} className="flex flex-col gap-3 rounded-xl border-2 border-current p-4" data-testid="waitlist-entry">
+            <li key={entry.profileId} className="flex flex-col gap-3 rounded-xl border-2 border-line bg-surface p-4" data-testid="waitlist-entry">
               <p className="text-2xl font-bold">{entry.displayName}</p>
               <p className="text-lg">{entry.place}</p>
               <p className="text-lg">{fillText(text.since, { date: entry.since })}</p>
               {!entry.isIdentified && (
-                <p className="rounded-lg border-2 border-current p-3 text-lg" data-testid="waitlist-unknown-name">
+                <p className="rounded-xl border border-line bg-surface p-3 text-lg" data-testid="waitlist-unknown-name">
                   {text.unknownNameNote}
                 </p>
               )}
@@ -90,7 +90,7 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
                   </p>
                   <input type="hidden" name={DECISION_PROFILE_FIELD} value={entry.profileId} />
                   <input type="hidden" name={DECISION_FIELD} value={confirming} />
-                  <button type="submit" className={`${big} ${confirming === "liberar" ? "bg-neutral-900 text-white" : ""}`}>
+                  <button type="submit" className={`${big} ${confirming === "liberar" ? "bg-primary text-on-primary" : ""}`}>
                     {confirming === "liberar" ? text.confirmApproveButton : text.confirmBlockButton}
                   </button>
                   <Link href={waitlistHref(cursor)} className={big}>

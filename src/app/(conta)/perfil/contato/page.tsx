@@ -26,7 +26,7 @@ export default async function ContactVisibilityPage({ searchParams }: Props) {
     <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
       <h1 className="text-3xl font-bold">{text.title}</h1>
       {status && (
-        <p role={status === "salva" ? "status" : "alert"} className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role={status === "salva" ? "status" : "alert"} className="rounded-xl border-l-4 border-primary bg-soft p-4 text-lg">
           {status === "salva" ? text.saved : text.failed}
         </p>
       )}
