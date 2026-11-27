@@ -82,14 +82,20 @@ test.describe("login", () => {
 
   test("Google: o botão leva ao /auth/v1/authorize com PKCE e retorno para o callback", async ({ page, baseURL }) => {
     test.skip(LIVE, "usa o endereço fictício do Auth");
+    // Observa o pedido (não o intercepta): o redirect do servidor é uma navegação real do navegador, e é isso
+    // que se mede. O endereço fictício do Auth não responde; o pedido sai do mesmo jeito.
     let authorize: URL | undefined;
-    await page.route("http://127.0.0.1:9/auth/v1/authorize**", (route) => {
-      authorize = new URL(route.request().url());
-      return route.fulfill({ status: 200, body: "ok" });
+    let method = "";
+    page.on("request", (request) => {
+      if (!request.url().startsWith("http://127.0.0.1:9/auth/v1/authorize")) return;
+      authorize = new URL(request.url());
+      method = request.method();
     });
     await page.goto("/entrar?next=%2Finicio");
     await page.getByRole("button", { name: "Entrar com Google" }).click();
     await expect.poll(() => authorize?.searchParams.get("provider")).toBe("google");
+    // Navegação real (GET): o POST do roteador do Next ao /auth/v1/authorize dá 405 no GoTrue.
+    expect(method).toBe("GET");
     expect(authorize?.searchParams.get("code_challenge_method")).toBe("s256");
     expect(authorize?.searchParams.get("redirect_to")).toBe(`${baseURL}/auth/callback?next=%2Finicio`);
   });

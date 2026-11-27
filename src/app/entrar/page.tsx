@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { AppLogoHero } from "@/modules/houses/components/house-shield";
 import { instance } from "@config/instance";
-import { signInWithGoogle, submitLoginForm } from "@/server/auth/actions";
+import { submitLoginForm } from "@/server/auth/actions";
 import { parseAuthErrorCode } from "@/server/auth/errors";
+import { GOOGLE_PATH } from "@/server/auth/routes";
 import { getTurnstileConfig } from "@/server/auth/turnstile";
 import { TurnstileWidget } from "./turnstile-widget";
 
@@ -39,7 +40,8 @@ export default async function LoginPage({ searchParams }: Props) {
         </p>
       )}
 
-      <form action={signInWithGoogle}>
+      {/* GET para o servidor (GOOGLE_PATH): navegação real, não server action (o POST do roteador dá 405 no Auth). */}
+      <form method="get" action={GOOGLE_PATH}>
         <input type="hidden" name="next" value={next} />
         <button type="submit" className={`${bigButton} text-white`} style={{ backgroundColor: "var(--color-primary)" }}>
           {text.googleButton}

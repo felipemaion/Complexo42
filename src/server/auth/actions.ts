@@ -4,23 +4,13 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuthConfig } from "./config";
-import { confirmMagicLink, requestMagicLink, startGoogleSignIn } from "./flows";
+import { confirmMagicLink, requestMagicLink } from "./flows";
 import { requestPasswordRecovery, signInWithPassword } from "./password-flows";
 import { LOGIN_PATH } from "./routes";
 import { accessRedirect, clearAuthCookies, requestAuthClient } from "./session";
 import { getTurnstileConfig, TURNSTILE_FIELD, verifyTurnstile } from "./turnstile";
 
 const loginWith = (query: string) => `${LOGIN_PATH}?${query}`;
-
-export async function signInWithGoogle(formData: FormData): Promise<never> {
-  const config = getAuthConfig();
-  if (!config) redirect(loginWith("erro=unavailable"));
-  // Endereço público: o navegador é mandado para <origem>/auth/v1/authorize.
-  const auth = (await requestAuthClient(config, "public")).auth;
-  const next = formData.get("next");
-  const result = await startGoogleSignIn(auth, { siteUrl: config.siteUrl, ...(typeof next === "string" ? { next } : {}) });
-  redirect(result.ok ? result.url : loginWith(`erro=${result.error}`));
-}
 
 export async function sendMagicLink(formData: FormData): Promise<never> {
   const config = getAuthConfig();
