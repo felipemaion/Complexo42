@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(201);
+select plan(221);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select slug, id from public.units where path::text in ('br', 'br.sp');
@@ -25,7 +25,8 @@ insert into people values
   ('p3',       '00000000-0000-0000-0000-0000000000f6', 'p3@exemplo.org'),       -- ativa
   ('wait',     '00000000-0000-0000-0000-0000000000f7', 'wait@exemplo.org'),     -- na espera
   ('abc_mgr',  '00000000-0000-0000-0000-0000000000f8', 'abc.mgr@exemplo.org'),  -- gestor da incubadora ABC (delegação)
-  ('sp_mgr2',  '00000000-0000-0000-0000-0000000000f9', 'sp.mgr2@exemplo.org');  -- outro gestor de SP (delegado e gestor na unidade da concessão)
+  ('sp_mgr2',  '00000000-0000-0000-0000-0000000000f9', 'sp.mgr2@exemplo.org'),  -- outro gestor de SP (delegado e gestor na unidade da concessão)
+  ('p4',       '00000000-0000-0000-0000-0000000000fa', 'p4@exemplo.org');       -- ativa (totem pendente, #197)
 insert into auth.users (id, email) select id, email from people;
 
 create function pg_temp.person(p_name text) returns uuid language plpgsql stable as $$
@@ -61,7 +62,7 @@ insert into public.role_assignments (profile_id, role, unit_id) values
 
 -- Aceite do termo das pessoas que respondem (a espera também, para provar que é o status que barra).
 insert into public.questionnaire_consents (profile_id, term_version)
-select id, 'termo-1' from people where name in ('p1', 'p2', 'p3', 'wait');
+select id, 'termo-1' from people where name in ('p1', 'p2', 'p3', 'p4', 'wait');
 
 
 -- Assinatura do servidor (ADR 0014): a mesma chave do banco, num temp para o teste assinar como o app.
@@ -108,6 +109,16 @@ create function pg_temp.resolve_raw(p_req uuid, p_house text, p_totem_value text
 $$;
 create function pg_temp.resolve(p_req uuid, p_house text, p_totem text) returns void language sql as $$
   select pg_temp.resolve_raw(p_req, p_house, pg_temp.enc(p_totem))
+$$;
+
+-- Totem pendente (#197): a casa sai e só o totem vai à fila. Assinatura como a do servidor, com o tipo.
+create function pg_temp.pending_raw(p_house text, p_axes text[], p_scores_value text, p_answers_value text, p_axes_signed text default null) returns uuid language sql as $$
+  select public.record_totem_pending('termo-1', p_house, p_scores_value, p_axes, p_answers_value, pg_temp.now_s(),
+    pg_temp.sig(format('totem_pending|%s|termo-1|%s|%s|%s|%s|%s', (select auth.uid()), p_house, p_scores_value,
+      coalesce(p_axes_signed, array_to_string(p_axes, ',')), p_answers_value, pg_temp.now_s())))
+$$;
+create function pg_temp.pending(p_house text, p_axes text[]) returns uuid language sql as $$
+  select pg_temp.pending_raw(p_house, p_axes, pg_temp.enc('SC'), pg_temp.enc('respT'))
 $$;
 
 create function pg_temp.results_seen() returns int language sql stable as $$
@@ -522,7 +533,7 @@ select columns_are('public', 'questionnaire_results',
   array['profile_id', 'term_version', 'house_key', 'totem_enc', 'scores_enc', 'source', 'created_at'],
   'questionnaire_results guarda o totem e as notas só cifrados (totem_enc, scores_enc), sem coluna em texto puro');
 select columns_are('public', 'house_analysis_requests',
-  array['id', 'profile_id', 'term_version', 'tied_axes', 'answers_enc', 'status', 'resolution', 'created_at', 'resolved_at', 'resolved_by'],
+  array['id', 'profile_id', 'term_version', 'kind', 'tied_axes', 'answers_enc', 'status', 'resolution', 'created_at', 'resolved_at', 'resolved_by'],
   'house_analysis_requests guarda as respostas só cifradas (answers_enc), sem coluna em texto puro');
 
 -- ---------------------------------------------------------------------------------------
@@ -843,6 +854,51 @@ select is(jsonb_array_length(public.export_own_data() -> 'questionnaire_access_g
   'o export de quem recebeu traz a concessão (e a revogação)');
 select pg_temp.login('abc_mgr');
 select is(pg_temp.results_seen(), 1, 'a concessão da incubadora segue valendo (outra, não revogada)');
+
+-- ---------------------------------------------------------------------------------------
+-- Empate só no totem (#197): a casa sai, o totem fica pendente e vai à fila (pedido do tipo 'totem')
+-- ---------------------------------------------------------------------------------------
+select pg_temp.login('p4');
+select throws_ok($$ select pg_temp.pending_raw('casa-t1', array['house1'], pg_temp.enc('SC'), pg_temp.enc('respT')) $$, '22023', null,
+  'pedido de totem com eixo da casa é recusado, mesmo assinado');
+select throws_ok($$ select pg_temp.pending_raw('casa-t1', array['totem1'], pg_temp.enc('SC'), 'texto-puro') $$, '22023', null,
+  'respostas em texto puro são recusadas');
+select throws_ok($$ select pg_temp.pending_raw('casa-off', array['totem1'], pg_temp.enc('SC'), pg_temp.enc('respT')) $$, 'P0002', null,
+  'casa inativa é recusada');
+select throws_ok($$ select pg_temp.pending_raw('casa-t1', array['totem1'], pg_temp.enc('SC'), pg_temp.enc('respT'), 'totem1,totem2') $$, '42501', null,
+  'a assinatura cobre os eixos empatados (trocar invalida)');
+select is(pg_temp.results_seen(), 0, 'as recusas não gravaram nada');
+select lives_ok($$ select pg_temp.pending('casa-t1', array['totem1']) $$, 'o servidor registra a casa com o totem pendente');
+select results_eq($$ select house_key, totem_enc, source from public.questionnaire_results $$,
+  $$ values ('casa-t1'::text, null::text, 'questionnaire'::text) $$, 'o resultado tem a casa e o totem nulo');
+select results_eq($$ select kind, status, tied_axes from public.house_analysis_requests where profile_id = pg_temp.person('p4') $$,
+  $$ values ('totem'::text, 'open'::text, array['totem1']::text[]) $$, 'abriu um pedido do tipo totem');
+select lives_ok($$ select pg_temp.pending('casa-t2', array['totem1', 'totem2']) $$,
+  'refazer com o totem ainda pendente renova na hora (a casa já é conclusiva: sem o limite de 1 hora)');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'), 1,
+  '... e continua um pedido aberto só');
+select is((select house_key from public.questionnaire_results), 'casa-t2', '... com a casa nova');
+
+select pg_temp.login('root_mgr');
+select lives_ok($$ select pg_temp.resolve((select pg_temp.open_request_of('p4')), 'casa-t2', 'AB') $$,
+  'a coordenação decide só o totem');
+select results_eq($$ select house_key, totem_enc from public.questionnaire_results where profile_id = pg_temp.person('p4') $$,
+  $$ values ('casa-t2'::text, pg_temp.enc('AB')) $$, 'o totem entra e a casa continua');
+
+select pg_temp.login('p4');
+select lives_ok($$ select pg_temp.pending('casa-t1', array['totem2']) $$, 'novo questionário com totem pendente de novo');
+select pg_temp.login('root_mgr');
+select throws_ok($$ select pg_temp.resolve((select pg_temp.open_request_of('p4')), 'casa-t2', 'AB') $$, '22023', null,
+  'pedido de totem não troca a casa: a casa precisa ser a do resultado');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'), 1,
+  '... e o pedido segue aberto');
+select pg_temp.login('p4');
+select lives_ok($$ select public.accept_house('casa-t1', 'questionnaire', 'termo-1') $$, 'a pessoa aceita a casa sugerida');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'), 1,
+  '... e o pedido de totem segue aberto (aceitar a casa só fecha o pedido da casa)');
+select lives_ok($$ select pg_temp.record('termo-1', 'casa-t1', 'AB') $$, 'resultado conclusivo depois fecha o pedido de totem');
+select is((select count(*)::int from public.house_analysis_requests where profile_id = pg_temp.person('p4') and status = 'open'), 0,
+  '... sem pedido aberto');
 
 select * from finish();
 rollback;
