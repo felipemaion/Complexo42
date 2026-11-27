@@ -35,6 +35,12 @@ const itemSchema = z.strictObject({
   text,
   a: alternativeSchema,
   b: alternativeSchema,
+  /**
+   * Frase do que se espera na casa que tem este polo, nos itens dos eixos da casa (tela "Escolher outra casa"). Texto da
+   * config privada, nunca do código; só o servidor a lê (nunca vai ao navegador). Exigida pela carga nos itens dos eixos
+   * da casa (`missingExpectations`), não aqui, para os testes montarem configs mínimas.
+   */
+  expectation: z.strictObject({ a: text, b: text }).optional(),
 });
 
 const axisShape = {
@@ -167,5 +173,5 @@ export function parseQuestionnaire(raw: unknown, houseIds: readonly string[]): R
 export type PublicQuestionnaire = Pick<QuestionnaireConfig, "version" | "consentTermVersion" | "consentTerm" | "items">;
 
 export function toPublicQuestionnaire(config: QuestionnaireConfig): PublicQuestionnaire {
-  return { version: config.version, consentTermVersion: config.consentTermVersion, consentTerm: config.consentTerm, items: config.items };
+  return { version: config.version, consentTermVersion: config.consentTermVersion, consentTerm: config.consentTerm, items: config.items.map(({ id, text, a, b }) => ({ id, text, a, b })) };
 }

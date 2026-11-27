@@ -1,4 +1,5 @@
 import example from "@config/questionnaire.example.json";
+import { missingExpectations } from "../domain/expectations";
 import { parseQuestionnaire, QuestionnaireConfigError, type QuestionnaireConfig } from "../domain/schema";
 
 /** Lê um arquivo de texto. Injetado para o módulo não fazer I/O próprio (e ser testável). */
@@ -14,7 +15,7 @@ export function loadQuestionnaire(
   readText: ReadText,
   houseIds: readonly string[],
 ): Readonly<QuestionnaireConfig> {
-  if (!path) return parseQuestionnaire(example, houseIds);
+  if (!path) return withExpectations(parseQuestionnaire(example, houseIds));
   let raw: string;
   try {
     raw = readText(path);
@@ -27,5 +28,12 @@ export function loadQuestionnaire(
   } catch {
     throw new QuestionnaireConfigError(["QUESTIONNAIRE_PATH (JSON inválido)"]);
   }
-  return parseQuestionnaire(json, houseIds);
+  return withExpectations(parseQuestionnaire(json, houseIds));
+}
+
+/** Fail closed: todo item dos eixos da casa precisa da frase de expectativa dos dois polos. Cita só os ids. */
+function withExpectations(config: Readonly<QuestionnaireConfig>): Readonly<QuestionnaireConfig> {
+  const missing = missingExpectations(config);
+  if (missing.length > 0) throw new QuestionnaireConfigError(missing.map((id) => `items.${id}.expectation`));
+  return config;
 }
