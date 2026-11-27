@@ -257,6 +257,8 @@ export const instanceConfigSchema = z.strictObject({
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** Na página da pessoa, sem casa nem resultado (#203): convite para fazer o questionário. */
+    inviteMessage: text,
     errors: z.strictObject({
       /** A casa não existe no banco ou está inativa. */
       unavailable: text,

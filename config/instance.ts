@@ -197,6 +197,7 @@ export const instance = parseInstanceConfig({
     analysisChooseButton: "Escolher a casa direto",
     acceptedTitle: "Sua casa",
     homeLink: "Escolher sua casa",
+    inviteMessage: "Você ainda não tem uma casa. Responda ao questionário para descobrir a sua.",
     errors: {
       unavailable: "Esta casa não está disponível no momento. Fale com a coordenação.",
       already_accepted: "Você já aceitou uma casa. Para trocar, fale com a coordenação.",
