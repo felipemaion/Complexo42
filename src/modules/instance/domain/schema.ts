@@ -260,6 +260,8 @@ export const instanceConfigSchema = z.strictObject({
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** Na página da pessoa, sem casa nem resultado (#203): convite para fazer o questionário. */
+    inviteMessage: text,
     /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
     rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
     errors: z.strictObject({

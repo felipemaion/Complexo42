@@ -129,6 +129,7 @@ const valid = {
     analysisTitle: "t",
     analysisMessage: "t",
     analysisChooseButton: "t",
+    inviteMessage: "t",
     acceptedTitle: "t",
     homeLink: "t",
     rateLimitedWait: "{minutes}",

@@ -78,6 +78,10 @@ A pessoa vê a casa ("a casa sugerida para você") e o **gráfico de aranha dos 
 definem a casa. O **totem é interno**, e as notas dos eixos 3 e 4 também: não aparecem na tela da
 casa. Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
 
+**Na página inicial da pessoa** (#203): a casa aceita (ou, sem ela, a sugerida pelo questionário) com nome, cor, descrição
+curta e o gráfico dos eixos 1 e 2 com as zonas; sem casa nem resultado, um convite para o questionário. O servidor
+nunca pede o totem a essa leitura (`readOwnHouseCard`; regra em `domain/home-card.ts`).
+
 **Gráfico de aranha** (SVG próprio, sem biblioteca): os polos "a" de todos os eixos vêm primeiro e
 depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frente (meia volta). Cada
 raio vale a intensidade do polo (0 a 100). **Zonas das casas** (#201, protótipo aprovado): o quadrante entre os
