@@ -17,6 +17,7 @@ import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent
 import { refusalMessage } from "../domain/refusal";
 import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
+import { CompareHouses } from "./compare-houses";
 import { HousePresentation, type HouseView } from "./house-presentation";
 
 type Props = {
@@ -65,7 +66,7 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
       if (cancelled) return;
       // A recusa vai no estado do fluxo (#199): setError e dispatch na mesma hora apagariam o motivo.
       if (!response.ok) dispatch({ type: "submit_failed", error: response.error, retryAfterSeconds: response.retryAfterSeconds });
-      else dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles });
+      else dispatch({ type: "result_recorded", houseId: response.houseId, chart: response.chart, byPoles: response.byPoles, compareToken: response.compareToken });
     })();
     return () => {
       cancelled = true;
@@ -168,6 +169,23 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
         <p className="text-lg font-semibold" role="status">
           {text.submitting}
         </p>
+      );
+      break;
+    case "compare":
+      body = (
+        <CompareHouses
+          houses={houses}
+          suggestedId={step.suggestedId}
+          selectedId={step.selectedId}
+          chart={step.chart}
+          byPoles={step.byPoles}
+          compareToken={step.compareToken}
+          text={text}
+          disabled={pending}
+          onSelect={(houseId) => dispatch({ type: "house_selected", houseId })}
+          onConfirm={() => dispatch({ type: "house_confirmed" })}
+          onBack={() => dispatch({ type: "back" })}
+        />
       );
       break;
     case "presentation": {

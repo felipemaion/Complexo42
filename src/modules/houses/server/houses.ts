@@ -5,6 +5,7 @@
 import "server-only";
 import { z } from "zod";
 import { answerValues, chartAxes, QuestionnaireAnswerError, scoreQuestionnaire, type QuestionnaireConfig, type QuestionnaireResult } from "@/modules/questionnaire";
+import { sealCompareToken } from "./compare-token";
 import type { CipherContext, HouseActionResult, HouseClient, HouseErrorCode, SubmitAnswersResult } from "../types";
 
 /** Código do Postgres/PostgREST → motivo exibido. Qualquer outro vira `failed`. */
@@ -119,6 +120,8 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]),
     // O mapa das casas só vai depois das respostas, para as zonas do gráfico (#201); a chave dos itens segue no servidor.
     byPoles: ctx.questionnaire.houseByPoles,
+    // As respostas não são guardadas; a comparação de casas as recebe de volta por este token, cifrado para a pessoa.
+    compareToken: await sealCompareToken(parsed.data.answers, userId, nowSeconds, ctx.encrypt),
   };
 }
 

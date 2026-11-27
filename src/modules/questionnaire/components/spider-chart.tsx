@@ -24,6 +24,8 @@ type Props = {
   /** Título lido pelo leitor de tela (ex.: "Seu perfil"). */
   title: string;
   houses?: ChartHouses;
+  /** Segundo perfil, tracejado (ex.: a média dos membros da casa que se compara), na mesma ordem de eixos. */
+  compare?: { chart: readonly ChartAxis[]; label: string };
 };
 
 const size = 360;
@@ -45,8 +47,9 @@ const otherZoneOpacity = 0.1;
 const pointsOf = (points: readonly { x: number; y: number }[]) => points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
 const colorOf = (color: ChartHouse["color"]) => `light-dark(${color.light}, ${color.dark})`;
 
-export function SpiderChart({ chart, title, houses }: Readonly<Props>) {
+export function SpiderChart({ chart, title, houses, compare }: Readonly<Props>) {
   const spokes = chartSpokes(chart);
+  const compareSpokes = compare ? chartSpokes(compare.chart) : [];
   const count = spokes.length;
   const zones = houses ? houseZones(spokes, houses.byPoles, { center, radius, labelRadius: zoneLabelRadius }) : [];
   const houseById = new Map(houses?.houses.map((house) => [house.id, house]));
@@ -100,6 +103,16 @@ export function SpiderChart({ chart, title, houses }: Readonly<Props>) {
           stroke="currentColor"
           strokeWidth={2}
         />
+        {compare && (
+          <polygon
+            data-testid="compare-profile"
+            points={pointsOf(compareSpokes.map((spoke, index) => spokePoint(index, count, Math.max(3, (radius * spoke.intensity) / 100), center)))}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            strokeDasharray="7 5"
+          />
+        )}
         {spokes.map((spoke, index) => {
           const point = spokePoint(index, count, Math.max(3, (radius * spoke.intensity) / 100), center);
           return <circle key={`dot-${spoke.side}-${spoke.axis}`} cx={point.x} cy={point.y} r={4} fill={spoke.side === "a" ? "var(--color-primary)" : "var(--color-secondary)"} />;
@@ -127,6 +140,14 @@ export function SpiderChart({ chart, title, houses }: Readonly<Props>) {
           );
         })}
       </svg>
+      {compare && (
+        <p className="flex items-center gap-2 text-base" data-testid="compare-legend">
+          <svg aria-hidden="true" width="32" height="6">
+            <line x1="0" y1="3" x2="32" y2="3" stroke="currentColor" strokeWidth={2} strokeDasharray="7 5" />
+          </svg>
+          {compare.label}
+        </p>
+      )}
       {houses && (
         <ul className="flex flex-wrap justify-center gap-x-4 gap-y-1 text-base" data-testid="house-legend">
           {houses.houses.map((house) => {
@@ -142,6 +163,12 @@ export function SpiderChart({ chart, title, houses }: Readonly<Props>) {
         </ul>
       )}
       <figcaption className="sr-only">
+        {compare && (
+          <p>
+            {compare.label}:{" "}
+            {compare.chart.map((axis) => `${axis.label}: ${axis.score < 0 ? `${axis.poleA} ${-axis.score}` : axis.score > 0 ? `${axis.poleB} ${axis.score}` : `${axis.poleA} 0, ${axis.poleB} 0`}`).join("; ")}
+          </p>
+        )}
         <ul>
           {chart.map((axis) => (
             <li key={axis.key}>

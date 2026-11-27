@@ -209,6 +209,8 @@ describe("submitQuestionnaire", () => {
         { key: "house2", label: "D2", poleA: "a2", poleB: "b2", score: 100 },
       ],
       byPoles: { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" },
+      // Token opaco, cifrado para a pessoa (a comparação de casas o usa no lugar das respostas, que o servidor não guarda).
+      compareToken: expect.stringMatching(/^enc\[compare_tokens\.answers\.u-1\]\(/),
     });
     expect(JSON.stringify(outcome)).not.toMatch(/YV|totem|D3|D4|a3|b4/);
   });
