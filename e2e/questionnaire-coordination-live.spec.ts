@@ -154,7 +154,7 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   // Abrir: gráfico completo (4 eixos, 8 raios, com os nomes da config) e totem; o acesso é registrado.
   expect(await viewedEvents(first.id)).toEqual([]);
   await page.locator(`a[href="/coordenacao/casas/resultados/${first.id}"]`).click();
-  await expect(page.getByTestId("result-totem")).toHaveText(/^[A-Z]{2}$/);
+  await expect(page.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
   await expect(page.getByTestId("spider-chart").locator("svg text")).toHaveCount(8);
   for (const axis of Object.values(questionnaire.axes)) {
     for (const label of [axis.poleLabels.a, axis.poleLabels.b]) await expect(page.getByTestId("spider-chart").locator("svg text", { hasText: label })).toHaveCount(1);

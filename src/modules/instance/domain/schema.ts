@@ -312,7 +312,7 @@ export const instanceConfigSchema = z.strictObject({
       resolveTitle: text,
       houseLabel: text,
       totemLabel: text,
-      totemOption: text.refine((v) => v.includes("{first}") && v.includes("{second}") && v.includes("{code}"), "use {first}, {second} e {code}"),
+      totemOption: text.refine((v) => v.includes("{label}") && v.includes("{description}"), "use {label} e {description}"),
       resolveButton: text,
       resolvedNotice: text,
       unreadableOne: text,

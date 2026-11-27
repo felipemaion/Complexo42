@@ -91,6 +91,8 @@ export const questionnaireSchema = z
      * reais podem ser provisórios até o stakeholder confirmar.
      */
     totemLabels: z.record(z.string(), z.strictObject({ name: text, description: text })),
+    /** Marca que os nomes das dimensões, dos polos e dos totens são provisórios (até o stakeholder confirmar). */
+    provisionalNames: z.boolean().optional(),
   })
   .superRefine((config, ctx) => {
     const issue = (message: string, path: (string | number)[]) => ctx.addIssue({ code: "custom", message, path });

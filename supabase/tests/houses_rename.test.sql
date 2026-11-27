@@ -47,7 +47,7 @@ select is((select house_key from public.house_members where profile_id = '000000
 select is((select house_key from public.role_assignments where profile_id = '00000000-0000-0000-0000-0000000000b2'), 'casa-nova', 'o papel de coordenador foi junto');
 select is((select house_key from public.questionnaire_results where profile_id = '00000000-0000-0000-0000-0000000000b1'), 'casa-nova', 'o resultado foi junto');
 select is((select count(*)::int from public.audit_log where house_key = 'casa-nova'), 1, 'o log de auditoria também (religado de forma explícita)');
-select throws_ok($$ update public.audit_log set reason = 'self' $$, 'P0001', null, 'e o log voltou a ser só de inserção (o trigger foi religado)');
+select throws_ok($$ update public.audit_log set reason = 'self' $$, '42501', null, 'e o log voltou a ser só de inserção (o trigger foi religado)');
 -- Idempotente: repetir, ou renomear o que não existe, não faz nada.
 select lives_ok($$ select app.rename_house_key('casa-velha', 'casa-nova') $$, 'repetir é inofensivo');
 

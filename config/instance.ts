@@ -251,7 +251,7 @@ export const instance = parseInstanceConfig({
       resolveTitle: "Resolver o caso",
       houseLabel: "Casa",
       totemLabel: "Totem",
-      totemOption: "{first} + {second} ({code})",
+      totemOption: "{label} — {description}",
       resolveButton: "Resolver",
       resolvedNotice: "Caso resolvido. A pessoa já pode aceitar a casa.",
       unreadableOne: "As respostas deste caso não puderam ser lidas.",
