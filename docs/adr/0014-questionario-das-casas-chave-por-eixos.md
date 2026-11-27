@@ -45,10 +45,14 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   quatro totens.
 - **Empate no eixo** (nota 0): desempata pelo sinal da média dos `tieBreakItems` do eixo
   (subconjunto dos itens do próprio eixo, indicados pelo stakeholder; vale por eixo e pode ser
-  vazio). Se ainda for 0, ou se o eixo não tem desempate, o resultado é **inconclusivo**.
-- **Resultado** (função pura): `{ status: 'ok', houseId, totem, scores }` ou
-  `{ status: 'inconclusive', axes, scores }`, com a lista dos eixos empatados e as quatro notas.
-  Inconclusivo não atribui casa nem totem.
+  vazio). Se ainda for 0, ou se o eixo não tem desempate, o eixo fica sem polo. **O empate só
+  trava o que depende do eixo** (decisão do gestor, 2026-11-27, #197): os eixos 1 e 2 definem a
+  casa, então a casa sai na hora mesmo com o totem empatado; o totem fica **pendente** e a
+  coordenação decide só ele. Empate num eixo da casa deixa o resultado **inconclusivo**.
+- **Resultado** (função pura): `{ status: 'ok', houseId, totem, scores }`,
+  `{ status: 'totem_pending', houseId, axes, scores }` (só eixos do totem empatados) ou
+  `{ status: 'inconclusive', axes, scores }` (algum eixo da casa empatado; `axes` lista todos os
+  empatados). Inconclusivo não atribui casa nem totem; totem pendente atribui a casa.
 - **A pontuação roda no servidor**, não no navegador (revisão do PR #173). Motivos: o navegador
   que pontua recebe a chave real (o totem deixaria de ser interno) e pode mandar qualquer casa
   e totem direto à API. O navegador manda **só as respostas**; o servidor valida (todas as
@@ -59,7 +63,7 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   em vez dela, assina cada resultado com HMAC-SHA256 (`QUESTIONNAIRE_SIGNING_KEY`, a mesma chave
   em `app.server_secrets`, sem acesso pela API). A assinatura cobre a pessoa da sessão
   (`auth.uid()`, nunca um parâmetro), a versão do termo, a casa e os valores **cifrados** do totem
-  e das notas (ou, no pedido de análise, os eixos e o valor cifrado das respostas) e vale 5 minutos. O navegador, mesmo chamando
+  e das notas (ou, no pedido de análise, os eixos e o valor cifrado das respostas) e vale 5 minutos; o pedido de totem tem prefixo próprio (`totem_pending`), que cobre o tipo. O navegador, mesmo chamando
   a API direto com o próprio login, não consegue impor casa nem totem nem abrir pedido.
 - As respostas **passam pelo servidor** em todo envio (para a pontuação), mas só são **guardadas**
   no pedido de análise. Não vão para o log (R11).
@@ -84,15 +88,19 @@ A sugestão é só o ponto de partida: a pessoa continua podendo **escolher outr
 pelo fluxo de sempre (`accept_house`). Trocar de casa depois de aceitar continua sendo com a
 coordenação [?] (prazo e regra para a pessoa trocar sozinha).
 
-### 3. Resultado inconclusivo: pedido de análise
+### 3. Resultado inconclusivo ou totem pendente: pedido de análise
 
 - O servidor abre um **pedido de análise** para a coordenação nacional, com os eixos empatados
-  e as **respostas completas**. Esse é o **único** caso em que as respostas são guardadas; com
-  resultado conclusivo guarda-se só a casa e o totem. Só o servidor abre o pedido (assinado);
+  e as **respostas completas**. Há dois tipos: `full` (resultado inconclusivo: a coordenação decide
+  casa e totem) e `totem` (a casa já saiu e foi gravada, com o totem nulo; a coordenação decide só o
+  totem, e a casa da resolução tem de ser a do resultado). São os **únicos** casos em que as respostas
+  são guardadas; com resultado conclusivo guarda-se só a casa e o totem. A pessoa vê a casa
+  normalmente, e o totem pendente não aparece para ela. O pedido de totem renova sem o limite de 1
+  hora (a casa já é conclusiva); aceitar a casa fecha só o pedido `full`. Só o servidor abre o pedido (assinado);
   renovar o pedido aberto só é possível depois de 1 hora.
 - A tela diz que a coordenação nacional vai analisar e deixa a pessoa **escolher a casa direto**.
 - As respostas ficam guardadas **só enquanto o pedido está aberto** e são apagadas quando:
-  a coordenação nacional resolve (e define casa e totem); a pessoa aceita uma casa; ela refaz o
+  a coordenação nacional resolve (e define casa e totem); a pessoa aceita uma casa (só no pedido `full`); ela refaz o
   questionário com resultado conclusivo; ela é bloqueada ou suspensa; ou passam **30 dias** (o
   prazo). Depois do prazo as respostas deixam de ser lidas na hora (a política de leitura
   esconde) e são apagadas na chamada seguinte de qualquer uma das funções do pedido. A linha do
@@ -140,9 +148,9 @@ análise e os eventos `house_analysis_*` das **pessoas ativas do escopo dele** (
 
 **Telas da coordenação** (#174), todas com o JWT da pessoa (nada de `service_role`): em
 `/coordenacao/casas/`, **resultados** (lista de pessoas ativas do escopo com casa, totem e data, filtro por
-casa; abrir mostra o gráfico completo de 4 eixos e o totem), **analise** (fila de casos inconclusivos: nome,
+casa; abrir mostra o gráfico completo de 4 eixos e o totem, ou "pendente"), **analise** (fila de casos inconclusivos e de totem pendente, esses marcados "só o totem": nome,
 data e eixos empatados; abrir mostra as respostas como frases da escala e o gráfico; formulário para
-escolher casa e totem e resolver; linhas ilegíveis são contadas e avisadas) e **delegacoes** (só a
+escolher casa e totem e resolver (no pedido de totem, a casa vem fixa e só o totem é escolhido); linhas ilegíveis são contadas e avisadas) e **delegacoes** (só a
 nacional: conceder, revogar e listar). A lista de resultados mostra **só nome, casa e data**, sem a
 própria pessoa e com no máximo 200 por página (avisa quando trunca; filtre por casa); **totem, notas e
 gráfico só no detalhe**, que registra o acesso. A fila mostra nome, data e eixos empatados, sem respostas. Quem não tem permissão recebe **404**, nunca 403. O link no menu da
@@ -156,7 +164,7 @@ encontra no "Baixar meus dados".
 
 O totem, as notas dos eixos e as respostas são dado pessoal e ficam **cifrados** com o esquema existente (R13, ADR
 0003: AES-256-GCM, `v<n>.<iv>.<ct>`), **sem exceção**:
-- `questionnaire_results.totem_enc`, AAD `questionnaire_results.totem_enc.<profile_id>`;
+- `questionnaire_results.totem_enc`, AAD `questionnaire_results.totem_enc.<profile_id>` (nulo enquanto o totem está pendente);
 - `questionnaire_results.scores_enc` (JSON das quatro notas, -100..100), AAD
   `questionnaire_results.scores_enc.<profile_id>`; nulo só em resultado antigo, de antes da escala;
 - `house_analysis_requests.answers_enc` (JSON das respostas), AAD

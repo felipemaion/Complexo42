@@ -1,6 +1,6 @@
 // Escolha e aceite da casa no servidor (#76, ADR 0008 §2 e §2.1). Recebe o id da casa e a forma
 // de entrada, a versão do termo, ou as respostas do questionário, que o servidor pontua (ADR 0014).
-// As respostas só são guardadas no pedido de análise do resultado inconclusivo.
+// As respostas só são guardadas no pedido de análise (resultado inconclusivo ou totem pendente).
 // Toda entrada passa por Zod antes de ir ao banco, que confere de novo (R15).
 import "server-only";
 import { z } from "zod";
@@ -82,7 +82,7 @@ export type SubmitContext = {
  * Pontua as respostas NO SERVIDOR e grava o resultado (ADR 0014 §1). O navegador manda só as
  * respostas; nunca casa, totem, versão do termo nem id. O resultado vai ao banco assinado, e o
  * banco só o aceita para a pessoa da sessão: pela API direta, o navegador não impõe resultado.
- * As respostas só são guardadas no resultado inconclusivo (pedido de análise). Totem, notas e respostas
+ * As respostas só são guardadas no pedido de análise: resultado inconclusivo ou totem pendente (#197). Totem, notas e respostas
  * vão CIFRADOS (ADR 0003; AAD tabela.coluna.id-da-pessoa) e a assinatura cobre o valor cifrado.
  */
 export async function submitQuestionnaire(client: HouseClient, input: unknown, ctx: SubmitContext): Promise<SubmitAnswersResult> {
@@ -114,6 +114,25 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
   }
   const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), answersContext(userId));
+  if (result.status === "totem_pending") {
+    // A casa já saiu pelos eixos 1 e 2 (#197): grava a casa com o totem pendente e abre o pedido só de totem.
+    if (!ctx.houseIds.includes(result.houseId)) return { ok: false, error: "failed" };
+    const scoresEnc = await ctx.encrypt(JSON.stringify(result.scores), scoresContext(userId));
+    const axes = result.axes.join(",");
+    const signature = ctx.sign(`totem_pending|${userId}|${term}|${result.houseId}|${scoresEnc}|${axes}|${answersEnc}|${nowSeconds}`);
+    const { error } = await client.rpc("record_totem_pending", {
+      p_term_version: term,
+      p_house_key: result.houseId,
+      p_scores_enc: scoresEnc,
+      p_tied_axes: result.axes,
+      p_answers_enc: answersEnc,
+      p_issued_at: nowSeconds,
+      p_signature: signature,
+    });
+    if (error) return { ok: false, error: errorCode(error) };
+    // O totem é interno e está pendente: a pessoa vê a casa e o perfil dos eixos da casa, como no caso conclusivo.
+    return { ok: true, outcome: "recorded", houseId: result.houseId, chart: chartAxes(ctx.questionnaire, result.scores, ["house1", "house2"]) };
+  }
   const signature = ctx.sign(`analysis|${userId}|${term}|${result.axes.join(",")}|${answersEnc}|${nowSeconds}`);
   const { error } = await client.rpc("request_house_analysis", {
     p_term_version: term,

@@ -38,7 +38,7 @@ function errorOf(error: unknown): CoordinationError {
 
 const resultRow = z.object({
   house_key: z.string(),
-  totem_enc: z.string(),
+  totem_enc: z.string().nullable(),
   scores_enc: z.string().nullable(),
   source: z.string(),
   created_at: z.string(),
@@ -52,7 +52,8 @@ const scoresJson = z.strictObject({
 
 export type QuestionnaireResultView = {
   houseId: string;
-  totem: string;
+  /** Nulo enquanto o totem está pendente: o empate nos eixos do totem espera a coordenação (#197). */
+  totem: string | null;
   /** Notas dos 4 eixos; nulo em resultado antigo, de antes da escala de intensidade. */
   scores: AxisScores | null;
   /** O gráfico completo (4 eixos) para a coordenação; nulo sem notas. */
@@ -79,12 +80,14 @@ export async function readQuestionnaireResultOf(
   if (error) throw new Error(`questionnaire_read_failed:${errorOf(error)}`);
   const row = z.nullable(resultRow).parse(data);
   if (!row) return null;
-  let totem: string;
-  try {
-    totem = await crypto.decrypt(row.totem_enc, totemContext(personId));
-  } catch {
-    // Só o nome da coluna: nunca a mensagem do erro nem o valor.
-    throw new Error("decrypt_failed:totem_enc");
+  let totem: string | null = null;
+  if (row.totem_enc !== null) {
+    try {
+      totem = await crypto.decrypt(row.totem_enc, totemContext(personId));
+    } catch {
+      // Só o nome da coluna: nunca a mensagem do erro nem o valor.
+      throw new Error("decrypt_failed:totem_enc");
+    }
   }
   let scores: AxisScores | null = null;
   if (row.scores_enc !== null) {
@@ -107,15 +110,20 @@ export async function readQuestionnaireResultOf(
 const requestRow = z.object({
   id: z.string(),
   profile_id: z.string(),
+  kind: z.enum(["full", "totem"]),
   tied_axes: z.array(z.string()),
   answers_enc: z.string(),
   created_at: z.string(),
 });
 const answersJson = z.record(z.string(), z.literal([...answerValues]));
 
+/** `full`: a coordenação decide casa e totem; `totem`: a casa já saiu e falta só o totem (#197). */
+export type AnalysisKind = "full" | "totem";
+
 export type AnalysisRequestView = {
   requestId: string;
   profileId: string;
+  kind: AnalysisKind;
   tiedAxes: string[];
   answers: Record<string, number>;
   createdAt: string;
@@ -148,10 +156,10 @@ async function decryptRequest(raw: unknown, crypto: CoordinationCrypto): Promise
   } catch {
     throw new UnreadableRow("answers_enc");
   }
-  return { requestId: row.data.id, profileId: row.data.profile_id, tiedAxes: row.data.tied_axes, answers, createdAt: row.data.created_at };
+  return { requestId: row.data.id, profileId: row.data.profile_id, kind: row.data.kind, tiedAxes: row.data.tied_axes, answers, createdAt: row.data.created_at };
 }
 
-const requestColumns = "id,profile_id,tied_axes,answers_enc,created_at";
+const requestColumns = "id,profile_id,kind,tied_axes,answers_enc,created_at";
 
 /**
  * Pedidos abertos que a RLS deixa ver a quem chama (nacional: todos; delegado: os do escopo), dos mais
@@ -231,7 +239,8 @@ export type ResolveDeps = {
 /**
  * Resolve o pedido: a coordenação escolhe a casa (da config) e o totem; o servidor refaz as notas
  * dos eixos a partir das respostas do pedido e cifra o totem e as notas para a pessoa do pedido.
- * Resolve a nacional ou o delegado, no escopo dele (o banco decide).
+ * Resolve a nacional ou o delegado, no escopo dele (o banco decide). Em pedido de totem (#197) a casa
+ * é a do resultado da pessoa: o banco recusa outra.
  */
 export async function resolveAnalysis(client: HouseClient, input: unknown, deps: ResolveDeps): Promise<CoordinationResult> {
   const { houseIds, questionnaire, crypto, signing } = deps;

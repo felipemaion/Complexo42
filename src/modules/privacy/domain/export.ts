@@ -80,7 +80,8 @@ export const ownDataRowsSchema = z.object({
   questionnaire_result: z
     .object({
       house_key: z.string(),
-      totem_enc: z.string(),
+      /** Nulo enquanto o totem está pendente (empate só no totem, #197). */
+      totem_enc: z.string().nullable(),
       /** Notas dos 4 eixos (JSON cifrado, ADR 0003); nulo em resultado antigo, de antes da escala. */
       scores_enc: z.string().nullable(),
       term_version: z.string(),
