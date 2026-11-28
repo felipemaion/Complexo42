@@ -134,6 +134,20 @@ describe("parseProfileBackgroundInput (formação e atividade, #304)", () => {
     expect(fieldsOf(() => parseProfileBackgroundInput({ educationLevel: "college_complete", educationDetail: "x" }))).toEqual(["educationDetail"]);
   });
 
+  it("invisíveis (ZWSP U+200B, RTL override U+202E) saem; texto só de invisíveis é recusado", () => {
+    expect(
+      parseProfileBackgroundInput({ educationLevel: "college_complete", educationDetail: "Engen\u200bharia\u202e", occupation: "\u202ePedreiro\u200b" }),
+    ).toEqual({ educationLevel: "college_complete", educationDetail: "Engenharia", occupation: "Pedreiro" });
+    for (const occupation of ["\u200b\u200b\u200b", "\u202e\u202e", "a\u200b"]) {
+      expect(fieldsOf(() => parseProfileBackgroundInput({ occupation }))).toEqual(["occupation"]);
+    }
+  });
+
+  it("o mesmo vale para os outros textos curtos: bairro e nome", () => {
+    expect(parseProfileInput({ ...profile, neighborhood: "Vila\u200b Exemplo\u202e" }).neighborhood).toBe("Vila Exemplo");
+    expect(parseProfileInput({ ...profile, displayName: "Ana\u202e Souza" }).displayName).toBe("Ana Souza");
+  });
+
   it("campo desconhecido é recusado, e o erro cita só o nome do campo (R11)", () => {
     expect(fieldsOf(() => parseProfileBackgroundInput({ occupation: "Dentista", cpf: "1" }))).toEqual(["(raiz)"]);
     try {

@@ -249,10 +249,11 @@ select id, 'v1.AAAAAAAAAAAAAAAA.CCCCCCCCCCCCCCCCCCCCCC', encode(sha256(id::text:
 from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_susp', 'team_a_mon',
                            'stu_ah', 'stu_bh', 'stu_ah2', 'stu_hpend');
 
--- Formação e atividade (#304): quem tem a linha é stu_a e stu_b (ativos) e stu_wait (na espera).
+-- Formação e atividade (#304): quem tem a linha é stu_a e stu_b (ativos), stu_wait (na espera) e os da
+-- casa: stu_ah e stu_bh (casa 1, equipes A e B) e stu_ah2 (casa 2, equipe A).
 insert into public.profile_background (profile_id, education_level_enc, occupation_enc)
 select id, 'v1.AAAAAAAAAAAAAAAA.CCCCCCCCCCCCCCCCCCCCCC', 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD'
-from people where name in ('stu_a', 'stu_b', 'stu_wait');
+from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_ah', 'stu_bh', 'stu_ah2');
 
 -- Quem vê o contato (#119, ADR 0010): a escolha de cada pessoa, contato por contato. Sem linha
 -- é `none` (stu_a e os demais).
@@ -915,7 +916,7 @@ grant select on fixture_houses to authenticated;
 insert into public.house_members (profile_id, house_key, join_method, accepted_at)
 select id, 'casa-t1', 'self', now() from people where name = 'team_a_mon' and not exists (select 1 from public.house_members h where h.profile_id = people.id and h.left_at is null);
 
-select plan((select count(*)::int from matrix) + 163);
+select plan((select count(*)::int from matrix) + 165);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 10 unidades da árvore foram capturadas.
@@ -1825,14 +1826,27 @@ select set_eq(
 select pg_temp.login('team_a_mon');
 select set_eq(
   $$ select profile_id from public.profile_background $$,
-  array[pg_temp.person('stu_a')],
+  array[pg_temp.person('stu_a'), pg_temp.person('stu_ah'), pg_temp.person('stu_ah2')],
   'monitor da equipe A lê a formação de quem é da equipe A (e só dela)'
 );
 select pg_temp.login('sp_mgr');
 select set_eq(
   $$ select profile_id from public.profile_background $$,
-  array[pg_temp.person('stu_a'), pg_temp.person('stu_b')],
+  array[pg_temp.person('stu_a'), pg_temp.person('stu_b'), pg_temp.person('stu_ah'), pg_temp.person('stu_ah2'), pg_temp.person('stu_bh')],
   'gestor de SP lê a de membros ativos de SP; NÃO a de quem está na espera'
+);
+-- Ramo do coordenador da casa (`app.is_house_coordinator_of`): só os membros da casa dele, de qualquer equipe.
+select pg_temp.login('house_mon');
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_ah'), pg_temp.person('stu_bh')],
+  'coordenador da casa 1 lê a formação dos membros da casa 1 (equipes A e B); NÃO a da casa 2 nem de quem não é da casa'
+);
+select pg_temp.login('house2_mon');
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_ah2')],
+  'coordenador da casa 2 lê só a formação dos membros da casa 2'
 );
 select pg_temp.login('mg_mgr');
 select is_empty(

@@ -30,11 +30,14 @@ const CONTROL_CHARS = /\p{Cc}/u;
 
 const codePoints = (value: string) => [...value].length;
 
-/** Texto livre curto: NFC, sem caracteres de controle, espaços internos colapsados. */
+/**
+ * Texto livre curto: NFC, sem caracteres de controle, sem invisíveis (`\p{Cf}`: ZWSP, RTL override...), espaços
+ * internos colapsados. Vale para todos os campos curtos (nome, bairro, formação, atividade).
+ */
 function shortText(min: number, max: number) {
   return z
     .string()
-    .transform((value) => value.normalize("NFC").trim().replace(/\s+/g, " "))
+    .transform((value) => stripInvisible(value.normalize("NFC")).trim().replace(/\s+/g, " "))
     .refine((value) => !CONTROL_CHARS.test(value), "caracteres de controle não são permitidos")
     .refine((value) => codePoints(value) >= min && codePoints(value) <= max, `use de ${min} a ${max} caracteres`);
 }
@@ -69,11 +72,10 @@ const neighborhoodSchema = z
  * caracteres e palavras. Quem foi cadastrado com uma palavra só continua com o perfil válido; a
  * regra vale na próxima gravação.
  */
-const fullNameSchema = z
-  .string()
-  .transform(stripInvisible)
-  .pipe(shortText(profileLimits.displayNameMin, profileLimits.displayNameMax))
-  .refine(isFullName, "informe nome e sobrenome");
+const fullNameSchema = shortText(profileLimits.displayNameMin, profileLimits.displayNameMax).refine(
+  isFullName,
+  "informe nome e sobrenome",
+);
 
 export const profileInputSchema = z.strictObject({
   displayName: fullNameSchema,
