@@ -158,6 +158,7 @@ export const instanceConfigSchema = z.strictObject({
     intro: text,
     nameLabel: text,
     nameHint: text,
+    completeNameNotice: text,
     whatsappLabel: text,
     whatsappHint: text,
     /** Localização em três passos (#175): estado, cidade (com busca) e distrito. */

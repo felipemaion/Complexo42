@@ -154,6 +154,7 @@ export const instance = parseInstanceConfig({
     title: "Seus dados",
     intro: "Preencha os campos abaixo e toque em salvar. Seu nome, seu WhatsApp e suas redes ficam guardados de forma protegida.",
     nameLabel: "Seu nome completo",
+    completeNameNotice: "Complete seu nome com o sobrenome. Toque em \"Ver ou mudar meus dados\" para ajustar; o resto do app continua liberado.",
     nameHint: "Nome e sobrenome, como você é conhecido. Exemplo: Maria Souza. Até 80 letras.",
     whatsappLabel: "Seu WhatsApp, com DDD",
     whatsappHint: "Só números de celular. Exemplo: (11) 91234-5678",
@@ -189,7 +190,7 @@ export const instance = parseInstanceConfig({
     editLink: "Ver ou mudar meus dados",
     errorSummary: "Falta arrumar alguns campos:",
     fieldErrors: {
-      displayName: "Escreva seu nome e sobrenome, com até 80 letras. Exemplo: Maria Souza.",
+      displayName: "Escreva nome e sobrenome, com pelo menos 2 letras cada e no máximo 80 no total. Exemplo: Maria Souza.",
       whatsapp: "Confira o WhatsApp: DDD e celular com 9 dígitos, como (11) 91234-5678.",
       municipalityCode: "Escolha a sua cidade na lista.",
       district: "Escolha o distrito na lista ou deixe em branco.",

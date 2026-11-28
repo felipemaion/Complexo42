@@ -87,6 +87,9 @@ test.describe("formulário com o Supabase local", () => {
     await expect(name).toHaveAttribute("aria-invalid", "true");
     await expect(name).toHaveAccessibleDescription(/nome e sobrenome/);
     await expect(name).toHaveValue("Maria");
+    await name.fill("a b");
+    await save.click();
+    await expect(name).toHaveAttribute("aria-invalid", "true");
     await name.fill("Maria Souza");
 
     // Máscara: digitado só com números, aparece no formato nacional.

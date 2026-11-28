@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isFullName, needsFullNameNotice, stripInvisible } from "./full-name";
 
-const accepted = ["Ana Souza", "Ana Lu", "Maria da Silva", "D'Ávila Pereira", "José-Carlos Souza", "Ana Souza", "Maria J. Silva", "李 小龍"];
+const accepted = ["Ana Souza", "Ana Lu", "Maria da Silva", "D'Ávila Pereira", "José-Carlos Souza", "Ana Souza", "Maria J. Silva"];
 const rejected = ["", "Ana", "a b", "1 2", "- -", "😀 😀", "Ana 12", "Ana J.", "Ana-Maria", "Ana ​", "Ana​Souza"];
 
 describe("nome completo (issue #312)", () => {

@@ -68,6 +68,7 @@ const valid = {
     intro: "t",
     nameLabel: "t",
     nameHint: "t",
+    completeNameNotice: "t",
     whatsappLabel: "t",
     whatsappHint: "t",
     stateLabel: "t",

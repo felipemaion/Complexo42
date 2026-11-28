@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isFullName, stripInvisible } from "./full-name";
 import { normalizeSocialLink, socialLinkInputMaxLength, socialLinkMaxLength } from "./social";
 
 /**
@@ -61,14 +62,15 @@ const neighborhoodSchema = z
   .refine((value) => NEIGHBORHOOD_CHARS.test(value), "só letras, números, espaço, hífen, apóstrofo e ponto");
 
 /**
- * Nome completo (issue #312): ao menos duas palavras. Roda depois de `shortText`, que já colapsou
- * qualquer espaço (inclusive NBSP) em um espaço comum. Quem foi cadastrado com uma palavra só
- * continua com o perfil válido; a regra vale na próxima gravação.
+ * Nome completo (issue #312, regra em `./full-name.ts`). Os invisíveis saem antes de contar
+ * caracteres e palavras. Quem foi cadastrado com uma palavra só continua com o perfil válido; a
+ * regra vale na próxima gravação.
  */
-const fullNameSchema = shortText(profileLimits.displayNameMin, profileLimits.displayNameMax).refine(
-  (value) => value.includes(" "),
-  "informe nome e sobrenome",
-);
+const fullNameSchema = z
+  .string()
+  .transform(stripInvisible)
+  .pipe(shortText(profileLimits.displayNameMin, profileLimits.displayNameMax))
+  .refine(isFullName, "informe nome e sobrenome");
 
 export const profileInputSchema = z.strictObject({
   displayName: fullNameSchema,

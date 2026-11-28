@@ -41,8 +41,9 @@ describe("parseProfileInput", () => {
     expect(fieldsOf(() => parseProfileInput({ ...profile, displayName: "a".repeat(81) }))).toEqual(["displayName"]);
   });
 
-  it("conta caracteres, não unidades UTF-16 (emoji conta 1)", () => {
-    const name = `😀 ${"😀".repeat(profileLimits.displayNameMax - 2)}`;
+  it("conta caracteres, não unidades UTF-16 (letra fora do plano básico conta 1)", () => {
+    // 𝐀 (U+1D400) é letra e ocupa 2 unidades UTF-16: 80 delas passam, 81 não.
+    const name = `𝐀𝐀 ${"𝐀".repeat(profileLimits.displayNameMax - 3)}`;
     expect(parseProfileInput({ ...profile, displayName: name }).displayName).toBe(name);
   });
 
