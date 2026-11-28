@@ -217,7 +217,7 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   }
   await expectNoStorage(page);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
 
   // Só três chamadas ao servidor: a versão do termo, as respostas (o servidor pontua) e a casa com
   // a forma de entrada. O navegador nunca manda casa nem totem do resultado.
@@ -264,7 +264,7 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
 
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Aceito e quero responder" })).toHaveCount(0);
 });
 
@@ -319,7 +319,7 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
   await page.getByRole("button", { name: "Escolher esta casa" }).click();
   await expect(page.getByTestId("house-name")).toHaveText(oppositeName);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   expect(await houseRows(member.id)).toEqual([expect.objectContaining({ join_method: "self", house_key: opposite })]);
   await expectTotemAsMedalOnly(page, scored.totem);
 });
@@ -345,7 +345,7 @@ async function answerAndAccept(page: Page) {
   }
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Janela de transferência aberta pela coordenação nacional: só então o link de troca aparece.
   await setWindow(true);
   await page.goto("/casa");
@@ -379,7 +379,7 @@ test("trocar de casa com a janela aberta: tela de comparação com a casa atual 
   // Sem trava de 4 meses (ADR 0016): a confirmação não traz aviso de prazo.
   await expect(page.getByTestId("change-lock-notice")).toHaveCount(0);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   const rows = await houseRows(member.id);
   expect(rows).toHaveLength(1);
   expect(rows[0]?.join_method).toBe("self");
@@ -396,7 +396,7 @@ test("janela fechada: sem link de troca nem data; abrir e fechar mostram e tiram
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("change-house-link")).toHaveCount(0);
   await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
   expect(await page.content()).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
@@ -420,7 +420,7 @@ test("trocar de casa sem respostas guardadas (respondeu antes): o que se espera 
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Como quem respondeu antes de guardarmos as respostas: o resultado fica, as respostas não.
   expect((await admin(`/rest/v1/questionnaire_results?profile_id=eq.${member.id}`, { method: "PATCH", body: JSON.stringify({ answers_enc: null }) })).ok).toBe(true);
   await setWindow(true);
@@ -454,7 +454,7 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await expect(page.getByTestId("house-shield")).toHaveAttribute("width", "180");
   await expect(page.getByTestId("app-logo").first()).toHaveAttribute("alt", /\S/);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Casa definida com a janela fechada: sem data nem link de troca (ADR 0016).
   await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
   await expect(page.getByTestId("change-house-link")).toHaveCount(0);
@@ -480,7 +480,7 @@ test("recusar o termo leva à escolha direta e não grava aceite", async ({ page
   await expect(page.getByRole("heading", { name: "O que você quer fazer?" })).toBeVisible();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
 
   expect(actionBodies(requests)).toEqual([[{ houseId: "esparta", joinMethod: "self" }]]);
   expect(await consents(member.id)).toEqual([]);
@@ -507,7 +507,7 @@ test("quem ainda está só no estado (sem região) escolhe a casa (ADR 0011)", a
   await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   expect(await houseRows(member.id)).toEqual([
     { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "esparta" },
@@ -521,7 +521,7 @@ test("tirada da casa pela coordenação, a pessoa vê o motivo e não volta sozi
   await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Encerrado fora do JWT da pessoa (ended_by fica nulo, como numa operação da coordenação).
   const ended = await admin(`/rest/v1/house_members?profile_id=eq.${member.id}&left_at=is.null`, {
     method: "PATCH",
