@@ -57,6 +57,9 @@ $$;
 comment on function app.sees_news_unit(uuid) is
   'Membro ativo cujo vínculo aberto é a unidade dada ou uma abaixo dela (o próprio nível e os de cima).';
 
+revoke execute on function app.sees_news_unit(uuid) from public, anon;
+grant execute on function app.sees_news_unit(uuid) to authenticated;
+
 alter table public.news enable row level security;
 
 create policy news_select on public.news

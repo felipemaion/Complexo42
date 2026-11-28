@@ -42,6 +42,8 @@ insert into public.units (id, type_id, parent_id, slug, name, path)
 select '00000000-0000-0000-0000-00000000e002', t.id, pg_temp.root(), 'nta', 'Filha A', 'x' from public.unit_types as t where t.key = 'ntest';
 insert into public.units (id, type_id, parent_id, slug, name, path)
 select '00000000-0000-0000-0000-00000000e003', t.id, pg_temp.root(), 'ntb', 'Filha B', 'x' from public.unit_types as t where t.key = 'ntest';
+-- Ao ativar a pessoa, um gatilho já pode ter aberto um vínculo (a unidade do estado): parte-se do zero.
+delete from public.unit_members where profile_id in (select id from people);
 insert into public.unit_members (profile_id, unit_id) values
   (pg_temp.person('ma'),   pg_temp.ua()),
   (pg_temp.person('reg'),  pg_temp.ua()), -- o gestor da A também é membro da A (precisa ver a novidade para arquivá-la)
