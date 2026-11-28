@@ -160,6 +160,7 @@ describe("saveOwnProfile", () => {
     const encrypt = vi.spyOn(d, "encrypt");
     for (const [raw, fields] of [
       [{ ...form, displayName: "M" }, ["displayName"]],
+      [{ ...form, displayName: "Maria" }, ["displayName"]],
       [{ ...form, whatsapp: "(11) 3456-7890" }, ["whatsapp"]],
       [{ ...form, municipalityCode: "abc" }, ["municipalityCode"]],
       [{ ...form, district: "Centro" }, ["district"]],

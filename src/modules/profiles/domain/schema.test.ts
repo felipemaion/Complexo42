@@ -20,19 +20,30 @@ describe("parseProfileInput", () => {
     expect(parsed).toEqual({ displayName: "Ana Souza", municipalityCode: 3550308, districtCode: 355030878, neighborhood: null, consentVersion: "v1" });
   });
 
+  it("nome completo (issue #312): exige nome e sobrenome", () => {
+    expect(parseProfileInput({ ...profile, displayName: "Ana Souza" }).displayName).toBe("Ana Souza");
+    expect(parseProfileInput({ ...profile, displayName: "Ana Maria de Souza" }).displayName).toBe("Ana Maria de Souza");
+    // Uma palavra só (ou só espaços e hífen colado) não é nome completo.
+    for (const displayName of ["Ana", "  Ana  ", "Ana-Maria", "Ana\u00a0", "Ana\u2003"]) {
+      expect(fieldsOf(() => parseProfileInput({ ...profile, displayName }))).toEqual(["displayName"]);
+    }
+    // Espaço de largura diferente (NBSP, espaço em) separa palavras como o espaço comum.
+    expect(parseProfileInput({ ...profile, displayName: "Ana\u00a0Souza" }).displayName).toBe("Ana Souza");
+  });
+
   it("distrito é opcional", () => {
     expect(parseProfileInput(profile).districtCode).toBeNull();
   });
 
   it("nome com 2 e com 80 caracteres passa; com 1 e com 81 não", () => {
-    expect(parseProfileInput({ ...profile, displayName: "Bo" }).displayName).toBe("Bo");
-    expect(parseProfileInput({ ...profile, displayName: "é".repeat(80) }).displayName).toHaveLength(80);
+    expect(parseProfileInput({ ...profile, displayName: "Bo Li" }).displayName).toBe("Bo Li");
+    expect(parseProfileInput({ ...profile, displayName: `Ana ${"é".repeat(76)}` }).displayName).toHaveLength(80);
     expect(fieldsOf(() => parseProfileInput({ ...profile, displayName: "A" }))).toEqual(["displayName"]);
     expect(fieldsOf(() => parseProfileInput({ ...profile, displayName: "a".repeat(81) }))).toEqual(["displayName"]);
   });
 
   it("conta caracteres, não unidades UTF-16 (emoji conta 1)", () => {
-    const name = "😀".repeat(profileLimits.displayNameMax);
+    const name = `😀 ${"😀".repeat(profileLimits.displayNameMax - 2)}`;
     expect(parseProfileInput({ ...profile, displayName: name }).displayName).toBe(name);
   });
 
