@@ -2,12 +2,15 @@
 // sempre igual, sem depender do e-mail digitado (a resposta do link continua a neutra, M4).
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { log } from "@/server/log";
-import { isSignupClosed } from "./signup-status";
+import { createSignupStatus, signupStatusTtlMs } from "./signup-status";
 
 const config = { internalUrl: "http://kong:8000", anonKey: "chave-anon-de-teste" };
 const settings = (body: unknown, status = 200) => vi.fn(async () => new Response(JSON.stringify(body), { status }));
 
 afterEach(() => vi.restoreAllMocks());
+
+// Sem cache nos casos de comportamento: cada chamada pergunta ao Auth.
+const isSignupClosed = createSignupStatus({ ttlMs: 0 });
 
 describe("isSignupClosed", () => {
   it("cadastro fechado no Auth (disable_signup) → true", async () => {
@@ -43,5 +46,34 @@ describe("isSignupClosed", () => {
     const fetchImpl = settings({ disable_signup: true });
     expect(await isSignupClosed(null, fetchImpl)).toBe(false);
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("guarda a resposta por um tempo: um render não chama o Auth nem loga a cada vez", async () => {
+    let agora = 1_000_000;
+    const check = createSignupStatus({ ttlMs: signupStatusTtlMs, now: () => agora });
+    const fetchImpl = settings({ disable_signup: true });
+    expect(await check(config, fetchImpl)).toBe(true);
+    agora += signupStatusTtlMs - 1;
+    expect(await check(config, fetchImpl)).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    agora += 2;
+    await check(config, fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("a falha também fica guardada: com o Auth fora, um aviso no log por janela, não um por render", async () => {
+    const warn = vi.spyOn(log, "warn").mockImplementation(() => {});
+    const check = createSignupStatus({ ttlMs: signupStatusTtlMs, now: () => 5 });
+    const down = vi.fn(async () => {
+      throw new Error("fora");
+    });
+    for (let i = 0; i < 5; i++) expect(await check(config, down)).toBe(false);
+    expect(down).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("a janela fica entre 30 e 60 s", () => {
+    expect(signupStatusTtlMs).toBeGreaterThanOrEqual(30_000);
+    expect(signupStatusTtlMs).toBeLessThanOrEqual(60_000);
   });
 });
