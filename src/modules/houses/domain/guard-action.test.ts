@@ -15,4 +15,13 @@ describe("guardAction", () => {
     });
     expect(result).toEqual({ ok: false, error: "app_updated" });
   });
+
+  // Sessão expirada no meio do fluxo: `requireUser*BeforeHouse` chama `redirect()` e o Next rejeita a action no
+  // cliente DE PROPÓSITO, para o RedirectBoundary levar ao login. Isso não é "app atualizado".
+  it("redirect e not-found do Next propagam: a navegação é do Next, não vira `app_updated`", async () => {
+    const redirect = Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;push;/entrar;307;" });
+    await expect(guardAction(async () => { throw redirect; })).rejects.toBe(redirect);
+    const notFound = Object.assign(new Error("NEXT_HTTP_ERROR_FALLBACK;404"), { digest: "NEXT_HTTP_ERROR_FALLBACK;404" });
+    await expect(guardAction(async () => { throw notFound; })).rejects.toBe(notFound);
+  });
 });
