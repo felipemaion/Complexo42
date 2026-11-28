@@ -1,13 +1,14 @@
 import type { ReactNode } from "react";
-import { ChosenHouseAndTotem, coordinationViewDeps, readMemberTotems, type HouseClient } from "@/modules/houses";
+import { instance } from "@config/instance";
+import { ChosenHouseAndTotem, coordinationViewDeps, readMemberHouses, readMemberTotems, type HouseClient } from "@/modules/houses";
 import type { BadgeKind } from "@/modules/public-profile";
 import { log } from "@/server/log";
 
 // Como cada medalha vira tela no perfil público (#305). Uma entrada por tipo: lê o que precisa com o cliente de quem
 // olha (a RLS e as funções do banco decidem) e devolve o nó, ou null se a pessoa não tem a medalha.
 // `totem` (#303): `readMemberTotems` decifra no servidor e entrega só o código; a tela recebe código e nome.
-// `house`: a casa de OUTRA pessoa não é legível para um membro comum (RLS de `house_members`), então fica sem entrada
-// até existir uma função própria, como a do totem. Tipo sem entrada não aparece (nada é inventado).
+// `house` (#303): a casa de OUTRA pessoa só sai pela função `member_houses` (a RLS de `house_members` não a abre);
+// `readMemberHouses` devolve só a chave, validada contra as casas da config. Tipo sem entrada não aparece (nada é inventado).
 export type BadgeView = (client: HouseClient, personId: string) => Promise<ReactNode | null>;
 
 const totemView: BadgeView = async (client, personId) => {
@@ -26,7 +27,19 @@ const totemView: BadgeView = async (client, personId) => {
   return <ChosenHouseAndTotem houseId={null} houseName="" totemCode={code} totemName={deps.questionnaire.totemLabels[code]?.name ?? ""} />;
 };
 
-export const badgeViews: Partial<Record<BadgeKind, BadgeView>> = { totem: totemView };
+const houseView: BadgeView = async (client, personId) => {
+  const houses = instance.houses;
+  const keys = await readMemberHouses(client, [personId], houses.map((h) => h.id)).catch((error: unknown) => {
+    // Só o motivo curto: nunca id nem mensagem do banco.
+    log.warn("member_houses_failed", { reason: error instanceof Error ? error.message.slice(0, 40) : "unknown" });
+    return null;
+  });
+  const house = houses.find((h) => h.id === keys?.get(personId));
+  if (!house) return null;
+  return <ChosenHouseAndTotem houseId={house.id} houseName={house.name} totemCode={null} totemName="" />;
+};
+
+export const badgeViews: Partial<Record<BadgeKind, BadgeView>> = { house: houseView, totem: totemView };
 
 /** As medalhas na ordem do dono (a lista já vem filtrada pelo banco); a que não resolve some. */
 export async function resolveBadges(
