@@ -74,7 +74,7 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
    comparação 2×2 ("Compare as casas": média real dos membros com n ≥ 10 e expectativas por
    pergunta; respostas guardadas cifradas). A troca é por **janela de
    transferência** aberta pela coordenação nacional (ADR 0016, revisão de 2026-11-28; substitui a
-   trava de 4 meses, que sai com a #302), feita pela tela de comparação; a coordenação nacional troca a qualquer momento.
+   trava de 4 meses, que saiu com a #302; a janela é só aberta ou fechada, sem datas), feita pela tela de comparação; a coordenação nacional troca a qualquer momento.
 3. **Painel da coordenação**: lista com filtros por habilidade e região, contagem por região.
 4. **Equipes**: criar equipe, adicionar e remover membros, definir líder.
 5. **Missões** (ADR 0006): catálogo de missões com etapas e pontos (ex.: escrever um projeto

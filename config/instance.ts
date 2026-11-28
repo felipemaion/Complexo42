@@ -312,10 +312,9 @@ export const instance = parseInstanceConfig({
     homeLink: "Escolher sua casa",
     inviteMessage: "Você ainda não tem uma casa. Responda ao questionário para descobrir a sua.",
     rateLimitedWait: "Você acabou de enviar as suas respostas. Espere {minutes} min antes de tentar de novo, ou escolha a casa direto.",
-    consentLockNotice: "Depois que a sua casa for definida, só você poderá trocá-la depois de 4 meses. A coordenação pode trocar antes, se for preciso.",
     consentStoredNotice:
       "Suas respostas ficam guardadas de forma cifrada, só para comparar com as casas se você quiser trocar. Você pode baixá-las ou apagá-las junto com a conta.",
-    lockedUntilNotice: "Você poderá trocar de casa a partir de {date}.",
+    transferClosedNotice: "A troca de casa está fechada no momento. A coordenação avisa quando abrir.",
     changeHouseLink: "Trocar de casa",
     continueLink: "Continuar",
     errors: {
@@ -324,7 +323,7 @@ export const instance = parseInstanceConfig({
       not_active: "Complete o seu cadastro antes de escolher a casa.",
       stale_consent: "O termo foi atualizado ou ainda não foi aceito. Recarregue a página e leia o termo de novo.",
       removed_by_coordination: "A coordenação tirou você da sua casa. Para voltar ou trocar de casa, fale com a coordenação.",
-      house_locked: "Você ainda não pode trocar de casa. A troca por conta própria só é possível 4 meses depois do aceite do termo.",
+      window_closed: "A troca de casa está fechada no momento. A coordenação avisa quando abrir.",
       house_conflict: "A sua casa mudou enquanto você escolhia. Recarregue a página e veja a sua casa atual.",
       rate_limited: "Você acabou de enviar as suas respostas. Espere um pouco antes de tentar de novo, ou escolha a casa direto.",
       app_updated: "O app foi atualizado ou a conexão caiu. Recarregue a página e tente de novo.",
@@ -337,6 +336,16 @@ export const instance = parseInstanceConfig({
     linkResults: "Resultados do questionário",
     linkQueue: "Casos para analisar",
     linkDelegations: "Delegar acesso ao questionário",
+    linkWindow: "Janela de transferência de casa",
+    window: {
+      title: "Janela de transferência de casa",
+      intro: "Com a janela aberta, quem quiser troca a própria casa. Fechada, só a coordenação nacional troca. Abrir e fechar ficam registrados.",
+      statusOpen: "A janela está aberta.",
+      statusClosed: "A janela está fechada.",
+      openButton: "Abrir a janela",
+      closeButton: "Fechar a janela",
+      failed: "Não foi possível mudar a janela agora. Tente de novo.",
+    },
     backLink: "Voltar para a coordenação",
     noName: "(sem nome: perfil incompleto ou nome indisponível)",
     results: {

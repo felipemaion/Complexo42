@@ -3,7 +3,6 @@
 // decide o que mostrar é domain/home-card.ts, e o totem nunca chega aqui (ADR 0014 §2).
 import { SpiderChart, type ChartHouse } from "@/modules/questionnaire/components/spider-chart";
 import type { InstanceConfig } from "@/modules/instance";
-import { houseLockNotice } from "../domain/house-lock";
 import { HouseHero } from "./house-shield";
 import type { OwnHouseCard } from "../server/own-house";
 
@@ -11,12 +10,9 @@ type Props = {
   card: OwnHouseCard;
   houses: readonly (ChartHouse & { description: string })[];
   text: InstanceConfig["houseSelection"];
-  /** Até quando a casa está travada (ISO), lido no servidor; vira o aviso com a data (ADR 0016). */
-  lockedUntil?: string | null;
 };
 
-export function OwnHouse({ card, houses, text, lockedUntil = null }: Readonly<Props>) {
-  const lockNotice = card.kind !== "invite" && card.isAccepted ? houseLockNotice(text.lockedUntilNotice, lockedUntil, new Date()) : null;
+export function OwnHouse({ card, houses, text }: Readonly<Props>) {
   if (card.kind === "invite") {
     return (
       <section aria-labelledby="own-house-title" className="flex flex-col gap-3" data-testid="own-house-invite">
@@ -36,11 +32,6 @@ export function OwnHouse({ card, houses, text, lockedUntil = null }: Readonly<Pr
       </h2>
       <HouseHero houseId={house.id} name={house.name} />
       <p className="text-lg">{house.description}</p>
-      {lockNotice && (
-        <p className="text-lg font-semibold" data-testid="house-lock-notice">
-          {lockNotice}
-        </p>
-      )}
       {card.chart && (
         <SpiderChart
           chart={card.chart}

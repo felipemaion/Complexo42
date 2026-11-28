@@ -188,7 +188,7 @@ const valid = {
     },
   },
   questionnaireCoordination: {
-    linkResults: "t", linkQueue: "t", linkDelegations: "t", backLink: "t", noName: "t",
+    linkResults: "t", linkQueue: "t", linkDelegations: "t", linkWindow: "t", window: { title: "t", intro: "t", statusOpen: "t", statusClosed: "t", openButton: "t", closeButton: "t", failed: "t" }, backLink: "t", noName: "t",
     results: {
       title: "t", intro: "t", houseFilterLabel: "t", houseFilterAll: "t", filterButton: "t", empty: "t",
       columnPerson: "t", columnHouse: "t", columnDate: "t", openLink: "t",

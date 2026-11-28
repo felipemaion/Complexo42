@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(41);
+select plan(42);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp');
@@ -63,6 +63,11 @@ select ok(
   and not has_table_privilege('authenticated', 'public.house_transfer_window', 'delete')
   and not has_function_privilege('anon', 'public.set_house_transfer_window(boolean)', 'execute'),
   'o estado só muda pela função; anônimo não a chama'
+);
+
+select ok(
+  pg_get_functiondef('public.set_house_transfer_window(boolean)'::regprocedure) ~* 'update public.house_transfer_window[^;]*where singleton',
+  'o UPDATE da janela tem WHERE (o PostgREST usa pg-safeupdate e recusa UPDATE sem WHERE)'
 );
 
 -- ---------------------------------------------------------------------------------------
