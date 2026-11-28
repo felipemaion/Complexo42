@@ -10,7 +10,7 @@ vi.mock("@/modules/houses", async () => {
   const medal = await vi.importActual<{ ChosenHouseAndTotem: unknown }>("@/modules/houses/components/totem-medal");
   return {
     ChosenHouseAndTotem: medal.ChosenHouseAndTotem,
-    coordinationViewDeps: () => ({ crypto: {}, questionnaire: { totemLabels: { XV: { name: "Totem Teste", description: "d" } } } }),
+    coordinationViewDeps: () => ({ crypto: {}, questionnaire: { totemLabels: { PR: { name: "Totem Teste", description: "d" } } } }),
     readMemberTotems,
   };
 });
@@ -45,12 +45,12 @@ describe("resolveBadges", () => {
 
 describe("medalha do totem", () => {
   it("lê o totem da pessoa e mostra a medalha com o nome", async () => {
-    readMemberTotems.mockResolvedValue(new Map([[PERSON, "XV"]]));
+    readMemberTotems.mockResolvedValue(new Map([[PERSON, "PR"]]));
     const node = await badgeViews.totem!(client, PERSON);
     expect(readMemberTotems).toHaveBeenCalledWith(client, [PERSON], expect.anything());
     const html = renderToStaticMarkup(<>{node}</>);
     expect(html).toContain("Totem Teste");
-    expect(html).toContain("/totens/xv-");
+    expect(html).toContain("/totens/pr-");
   });
 
   it("sem totem ou com falha na leitura, sem medalha (a página não quebra)", async () => {
