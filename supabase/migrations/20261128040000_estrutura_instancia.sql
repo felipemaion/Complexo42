@@ -1,14 +1,41 @@
--- Catálogo de habilidades — PROVISÓRIO, aguardando a aprovação do stakeholder (issue #8; a
--- #15 depende dele). Só desenvolvimento local: roda no `supabase db reset` e nunca em
--- produção, que recebe o catálogo aprovado por migration.
---
--- Para trocar o catálogo, edite SÓ este arquivo (uma linha por habilidade:
--- categoria, nome, sinônimos da busca) e rode `npm run db:reset`. O comando é idempotente:
--- a chave é o nome. Rodar de novo REATIVA as habilidades que estiverem desativadas (`active`
--- volta a true) e restaura categoria e sinônimos; uma habilidade que sair daqui não é apagada,
--- só some com o reset.
--- Testes: supabase/tests/skills.test.sql (quantidade e grupos).
+-- Estrutura e catálogo FIXOS da instância, por migration (issue do staging, follow-up do #295).
+-- O `supabase/seed.sql` só roda no `supabase db reset`/`start` e o `migra.sh` não aplica seed: o
+-- servidor ficou sem tipos de unidade, sem raiz, sem casas e sem habilidades (e o bootstrap da
+-- primeira coordenação não tinha onde criar o papel). Estas quatro coisas são iguais em toda instalação
+-- desta instância e entram sozinhas no deploy, sem script instalado:
+--   1. tipos de unidade (rótulos de `unit_types.label`, R17);
+--   2. a unidade raiz nacional (uma só; só se ainda não houver raiz);
+--   3. as casas nacionais (a chave é o `id` da casa em config/instance.ts; ADR 0011);
+--   4. o catálogo PROVISÓRIO de habilidades (aguarda a aprovação do stakeholder).
+-- Tudo idempotente e SEM sobrescrever o que o operador mudou: casa desativada continua desativada,
+-- habilidade desativada ou renomeada à mão não volta. Nenhuma pessoa, nenhum papel e nenhum vínculo
+-- (o primeiro gestor vem do bootstrap, #295). A árvore ABAIXO da raiz (estados, regiões, equipes) depende
+-- da instalação: no ambiente local vem do seed; no servidor, o operador cria (docs/OPERACAO.md).
 
+-- 1. Tipos de unidade. Só `team` junta colegas de equipe (ADR 0010, #119).
+insert into public.unit_types (key, label, level, is_team) values
+  ('national', 'Nacional', 0, false),
+  ('state', 'Estado', 1, false),
+  ('region', 'Região', 2, false),
+  ('team', 'Equipe', 3, true)
+on conflict (key) do nothing;
+
+-- 2. A raiz nacional (o trigger calcula o `path`). Só se a instância ainda não tem raiz.
+insert into public.units (type_id, parent_id, slug, name, path)
+select t.id, null, 'br', 'Nacional', 'br'::extensions.ltree
+from public.unit_types as t
+where t.key = 'national'
+  and not exists (select 1 from public.units as u where u.parent_id is null);
+
+-- 3. Casas nacionais (ADR 0011). `tests/house-units.test.ts` confere esta lista com config/instance.ts.
+insert into public.houses (key) values
+  ('esparta'),
+  ('atenas'),
+  ('alexandria'),
+  ('siracusa')
+on conflict (key) do nothing;
+
+-- 4. Catálogo PROVISÓRIO de habilidades (47 em 8 grupos; a chave é o nome). Mudança de catálogo = migration nova.
 insert into public.skills (category, name, aliases) values
   -- 1. Comunicação e oratória
   ('Comunicação e oratória', 'Falar em público', array['oratória', 'discurso', 'palestra']),
@@ -65,5 +92,4 @@ insert into public.skills (category, name, aliases) values
   ('Atuação local', 'Abordagem de rua e panfletagem', array['rua', 'abordagem', 'distribuição']),
   ('Atuação local', 'Motorista e transporte', array['carro', 'carona', 'transporte']),
   ('Atuação local', 'Jurídico', array['advogado', 'direito', 'OAB'])
-on conflict (name) do update
-  set category = excluded.category, aliases = excluded.aliases, active = true;
+on conflict (name) do nothing;

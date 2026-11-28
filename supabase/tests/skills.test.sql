@@ -1,4 +1,4 @@
--- Habilidades (issue #8): catálogo provisório do seed local, busca por sinônimo e RLS de
+-- Habilidades (issue #8): catálogo provisório (migration da estrutura), busca por sinônimo e RLS de
 -- `skills` e `profile_skills`. Pessoas fictícias, só dentro desta transação.
 begin;
 create extension if not exists pgtap with schema extensions;
@@ -14,9 +14,9 @@ create function pg_temp.login(p_id uuid) returns void language sql as $$
 $$;
 
 -- ---------------------------------------------------------------------------------------
--- Catálogo (supabase/seeds/skills_catalog.sql): 47 habilidades em 8 grupos
+-- Catálogo (migration ..._estrutura_instancia.sql): 47 habilidades em 8 grupos
 -- ---------------------------------------------------------------------------------------
-select is((select count(*)::int from public.skills), 47, 'o seed traz as 47 habilidades do catálogo');
+select is((select count(*)::int from public.skills), 47, 'a migration traz as 47 habilidades do catálogo');
 select is((select count(distinct category)::int from public.skills), 8, 'em 8 grupos');
 select is(
   (select count(*)::int from public.skills where cardinality(aliases) = 0),
