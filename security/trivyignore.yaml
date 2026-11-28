@@ -1,0 +1,7 @@
+# Exceções do Trivy (#153). UMA por vulnerabilidade, com o motivo (statement) e a validade
+# (expired_at): vencida, o build volta a reprovar. Conferido por scripts/check-trivyignore.py.
+# Exemplo:
+#   - id: CVE-2026-00000
+#     statement: só alcançável no build; a imagem final não leva o pacote
+#     expired_at: 2027-01-31
+vulnerabilities: []
