@@ -5,12 +5,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // refresh_token_not_found, o proxy limpa os cookies de sessão e manda a pessoa para /entrar com o aviso,
 // sem tela de erro. O cliente do GoTrue é simulado; o resto (cookies, rotas) é o real.
 const getUser = vi.fn();
+type CookieWriter = { cookies: { setAll: (list: { name: string; value: string; options: object }[], headers: Record<string, string>) => void } };
+let authOptions: CookieWriter | undefined;
 vi.mock("@/server/auth/config", () => ({
   getAuthConfig: () => ({ internalUrl: "http://auth.interno", anonKey: "chave-anon", siteUrl: "https://app.exemplo.org" }),
 }));
 vi.mock("@/server/auth/client", async (original) => ({
   ...(await original<typeof import("@/server/auth/client")>()),
-  createAuthClient: () => ({ auth: { getUser } }),
+  createAuthClient: (options: CookieWriter) => {
+    authOptions = options;
+    return { auth: { getUser } };
+  },
 }));
 
 import { proxy } from "./proxy";
@@ -64,5 +69,23 @@ describe("proxy(): sessão vencida", () => {
     const response = await proxy(withCookies("/inicio", "sb-app-auth-token=aaa"));
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("sessão renovada: a página recebe o cookie novo junto com a CSP (#152), não o refresh token já gasto", async () => {
+    // Arrange: o GoTrue renova o token durante o getUser e grava o cookie novo (setAll).
+    getUser.mockImplementation(async () => {
+      authOptions?.cookies.setAll([{ name: "sb-app-auth-token", value: "novo", options: {} }], {});
+      return { data: { user: { id: "u1" } }, error: null };
+    });
+
+    // Act
+    const response = await proxy(withCookies("/inicio", "sb-app-auth-token=velho; outro=1"));
+
+    // Assert: o Next repassa à página os cabeçalhos x-middleware-request-*.
+    const forwardedCookie = response.headers.get("x-middleware-request-cookie") ?? "";
+    expect(forwardedCookie).toContain("sb-app-auth-token=novo");
+    expect(forwardedCookie).not.toContain("velho");
+    expect(response.headers.get("x-middleware-request-x-nonce")).toBeTruthy();
+    expect(setCookies(response).some((c) => c.startsWith("sb-app-auth-token=novo"))).toBe(true);
   });
 });

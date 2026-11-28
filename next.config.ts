@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
-// Cabeçalhos de segurança que não dependem do conteúdo da página (#68). A CSP fica de fora de
-// propósito: exige nonce e liberar Turnstile e Supabase, e tem issue própria.
+// Cabeçalhos de segurança que não dependem do conteúdo da página (#68). A CSP não fica aqui: ela
+// leva um nonce novo a cada requisição e é posta pelo proxy (src/proxy.ts, src/server/csp.ts, #152).
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Anti-clickjacking: nenhuma tela do app precisa ser embutida em outro site.

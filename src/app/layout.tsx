@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 import { instance } from "@config/instance";
 import "./globals.css";
 
@@ -11,7 +12,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: instance.colors.primary };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // CSP com nonce (#152): toda página é montada na hora. Página pronta no build não recebe o nonce da
+  // requisição, e a CSP bloquearia os scripts dela (https://nextjs.org/docs/app/guides/content-security-policy).
+  await connection();
   const theme = {
     "--color-primary": instance.colors.primary,
     "--color-secondary": instance.colors.secondary,
