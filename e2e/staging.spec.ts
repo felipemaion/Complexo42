@@ -119,7 +119,8 @@ async function expectInert(page: Page, dialogs: string[]) {
 test("Google pela borda: o botão chega ao accounts.google.com com o callback do site", async ({ page }) => {
   let google: URL | undefined;
   await page.route("https://accounts.google.com/**", (route) => {
-    google = new URL(route.request().url());
+    // Só a primeira navegação: a página de mentira ainda pede o favicon ao mesmo host, sem parâmetros.
+    if (!google && route.request().isNavigationRequest()) google = new URL(route.request().url());
     return route.fulfill({ status: 200, contentType: "text/html", body: "<p>Google de mentira</p>" });
   });
   await page.goto("/entrar");

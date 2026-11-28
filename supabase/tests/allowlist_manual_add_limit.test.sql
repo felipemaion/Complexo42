@@ -24,6 +24,10 @@ insert into public.consent_acceptances (user_id, version) select id, 'v1' from p
 update public.profiles set access_status = 'active', status = 'active' where id in (select id from people);
 insert into public.role_assignments (profile_id, role, unit_id)
 select id, 'manager', current_setting('test.br')::uuid from people;
+-- Membro de verdade exige a casa aceita (ADR 0017): cada gestor ganha uma casa só dele.
+insert into public.houses (key, active) select 'g-' || id::text, true from people on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select id, 'g-' || id::text, 'self', now() from people;
 
 create function pg_temp.login(p_name text) returns void language sql as $$
   select set_config('request.jwt.claims',
