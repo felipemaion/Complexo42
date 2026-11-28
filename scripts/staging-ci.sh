@@ -119,6 +119,11 @@ monta_e_testa() {
   define APP_ALIAS "$PROJ-app"
   define SUPABASE_NETWORK "${PROJ}_interna"
   define QUESTIONNAIRE_PATH /app/questionario/questionnaire.json
+  # Google com credencial de mentira (#86): o teste só segue a navegação até o accounts.google.com,
+  # passando pelo proxy e pelo kong.yml (sem CORS); nada sai para o Google de verdade.
+  define GOOGLE_ENABLED true
+  define GOOGLE_CLIENT_ID ci-de-mentira.apps.googleusercontent.com
+  define GOOGLE_CLIENT_SECRET segredo-de-mentira-do-ci
 
   etapa supabase "compose do Supabase com o deploy/initdb (banco vazio)"
   sb up -d --wait --wait-timeout 300 db auth rest kong
@@ -159,6 +164,8 @@ monta_e_testa() {
   # Vindas de fora (com X-Forwarded-For), as rotas sensíveis do Auth dão 404 pelo kong.yml (ADR 0018 §3).
   # O que o proxy publica é do runbook do servidor; aqui só se mede o kong.yml, que é do repositório.
   [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SITE/auth/v1/otp")" = 404 ] || { echo "o /auth/v1/otp responde de fora"; return 1; }
+  etapa cabecalhos "scripts/check-headers.sh: CSP, cookies, sem CORS e varreduras (#86)"
+  bash "$RAIZ/scripts/check-headers.sh" "$SITE" || return 1
 
   # Cadastro fechado no servidor (GOTRUE_DISABLE_SIGNUP): quem não tem conta não entra. O operador
   # cria as contas pelo deploy/criar-conta.sh (#332), como manda a receita do bootstrap; a chave de

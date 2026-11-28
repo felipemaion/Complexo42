@@ -282,7 +282,7 @@ services:
       # Esta lista e restritiva de proposito (o padrao do Kong e `bundled`,
       # com dezenas de plugins). Todo plugin usado no kong.yml tem de estar
       # aqui, e o CI confere os dois lados.
-      KONG_PLUGINS: request-transformer,cors,key-auth,request-termination
+      KONG_PLUGINS: request-transformer,response-transformer,key-auth,request-termination
       KONG_LOG_LEVEL: notice
     volumes:
       - ./kong.yml:/etc/kong/kong.yml:ro

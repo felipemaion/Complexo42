@@ -20,7 +20,6 @@ import {
 } from "@/modules/access";
 import { requireUserClient } from "@/server/auth/session";
 import { log } from "@/server/log";
-import { takeAddEmail } from "./add-email-limit";
 
 export async function importAllowlistAction(_previous: AllowlistUploadState, formData: FormData): Promise<AllowlistUploadState> {
   const { client } = await requireUserClient();
@@ -61,10 +60,9 @@ export async function importAllowlistAction(_previous: AllowlistUploadState, for
  * resposta não diz se a pessoa já tem conta. Formato validado aqui, no servidor.
  */
 export async function addAllowlistEmailAction(_previous: AddEmailState, formData: FormData): Promise<AddEmailState> {
-  const { user, client } = await requireUserClient();
+  const { client } = await requireUserClient();
   const email = formData.get(ALLOWLIST_EMAIL_FIELD);
   if (typeof email !== "string") return { status: "error", error: "invalid_email" };
-  if (!takeAddEmail(user.id)) return { status: "error", error: "rate_limited" };
   try {
     const { added } = await addAllowlistEmail(client, email);
     log.info("allowlist_email_added", { added });
@@ -72,6 +70,11 @@ export async function addAllowlistEmailAction(_previous: AddEmailState, formData
   } catch (err) {
     if (err instanceof AllowlistImportError) return { status: "error", error: "invalid_email" };
     if (err instanceof AccessError && err.code === "forbidden") return { status: "error", error: "forbidden" };
+    // Teto do banco (30 a cada 10 minutos por gestor, #86): mensagem genérica, sem dizer quantas faltam.
+    if (err instanceof AccessError && err.code === "rate_limited") {
+      log.warn("allowlist_email_add_rate_limited");
+      return { status: "error", error: "rate_limited" };
+    }
     const reason = err instanceof AccessError ? err.code : err instanceof Error ? err.name : "unknown";
     log.error("allowlist_email_add_failed", { reason });
     return { status: "error", error: "failed" };

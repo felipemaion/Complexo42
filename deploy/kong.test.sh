@@ -46,6 +46,17 @@ done
 for caminho in /auth/v1/verify "/auth/v1/authorize?provider=google" /auth/v1/callback; do
   espera "navegador (GET de fora) $caminho" passa "$(curl -s -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 203.0.113.9' "$base$caminho")"
 done
+# Sem CORS (#86): um site qualquer não recebe Access-Control-Allow-Origin, nem no preflight
+# nem na resposta. Com o plugin `cors` padrão, o Kong devolvia `*`. Aqui não há upstream: o que o
+# GoTrue põe (e o kong.yml tira) é medido no staging de mentira, por scripts/check-headers.sh.
+for caminho in /auth/v1/verify /auth/v1/settings /rest/v1/profiles; do
+  for metodo in OPTIONS GET; do
+    acao=$(curl -s -o /dev/null -D - -X "$metodo" -H 'Origin: https://site-qualquer.example' \
+      -H 'Access-Control-Request-Method: POST' -H 'X-Forwarded-For: 203.0.113.9' "$base$caminho" \
+      | tr -d '\r' | grep -i '^access-control-allow-origin:' || true)
+    if [ -z "$acao" ]; then echo "ok: sem CORS em $metodo $caminho"; else echo "ERRO: $metodo $caminho devolveu '$acao'"; falhou=1; fi
+  done
+done
 espera "signup (qualquer origem)" 404 "$(codigo "$base/auth/v1/signup")"
 espera "signup de fora" 404 "$(codigo -H 'X-Forwarded-For: 203.0.113.9' "$base/auth/v1/signup")"
 exit $falhou

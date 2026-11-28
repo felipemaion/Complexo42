@@ -113,6 +113,22 @@ async function expectInert(page: Page, dialogs: string[]) {
   await expect(page.locator("img[src='x']"), "o <img> do payload não pode entrar na página").toHaveCount(0);
 }
 
+// #86: o kong.yml não tem mais CORS. O Google é navegação (GET + 302), não fetch: /entrar → /auth/google →
+// <site>/auth/v1/authorize (proxy → kong → GoTrue) → accounts.google.com, interceptado aqui. O link por e-mail
+// (/auth/v1/verify) passa pelo mesmo caminho no teste do fluxo inteiro, abaixo.
+test("Google pela borda: o botão chega ao accounts.google.com com o callback do site", async ({ page }) => {
+  let google: URL | undefined;
+  await page.route("https://accounts.google.com/**", (route) => {
+    google = new URL(route.request().url());
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<p>Google de mentira</p>" });
+  });
+  await page.goto("/entrar");
+  await page.getByRole("button", { name: "Entrar com Google" }).click();
+  await expect.poll(() => google?.hostname, { timeout: 20_000 }).toBe("accounts.google.com");
+  expect(google!.searchParams.get("client_id")).toBe("ci-de-mentira.apps.googleusercontent.com");
+  expect(google!.searchParams.get("redirect_uri")).toBe(`${SITE}/auth/v1/callback`);
+});
+
 test("banco novo: bootstrap → login → termo → questionário → casa → a coordenação autoriza e vê o resultado", async ({ browser, request, baseURL }) => {
   test.setTimeout(300_000);
   // Banco novo, ninguém pode autorizar ninguém: o operador põe o e-mail da coordenação na lista.
