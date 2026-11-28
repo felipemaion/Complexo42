@@ -54,8 +54,9 @@
 - #87 Infra: provedores de login no Auth auto-hospedado (Google OAuth + relay SMTP) — `bloqueada, seguranca, backend, infra`
 - #302 Janela de transferência de casa (substitui a trava de 4 meses) — `backend, frontend, seguranca`
 - #303 Medalha da casa e do totem no perfil, visível aos membros — `backend, frontend, seguranca`
+- #312 Perfil: exigir nome completo (nome e sobrenome) — `backend, frontend`
 - #304 Perfil: formação acadêmica e atividade profissional — `backend, frontend`
-- #308 Foto do perfil: miniatura guardada (~256 px WebP, ~20 KB), moderada pela coordenação — `backend, frontend, seguranca`
+- #308 Foto do perfil: miniatura guardada (~256 px WebP, ~20 KB), opcional — `backend, frontend, seguranca`
 - #130 Baixar e excluir meus dados também para quem está em espera ou bloqueado (decisão do jurídico) — `precisa-decisao, frontend`
 - #222 Checar no boot/healthz que a versão do termo da config existe no banco (`public.term_version_exists`)
 - #288 Deploy: compose do servidor repassa `FIELD_ENCRYPTION_KEY` e `BLIND_INDEX_KEY` (destrava o login no staging)

@@ -12,7 +12,10 @@
 
 | Dado | Coluna | Proteção | Quem vê (ADR 0002) |
 |---|---|---|---|
-| Nome | `profiles.display_name_enc` | AES-256-GCM | Escopo do monitor/gestor; colegas de equipe |
+| Nome completo (**obrigatório**; o esquema ainda aceita uma palavra só, o sobrenome vem na #312) | `profiles.display_name_enc` | AES-256-GCM | Escopo do monitor/gestor; colegas de equipe; todo membro logado no perfil público (#305) |
+| Foto do rosto (**opcional**, #308; ADR 0006, revisão de 2026-11-28). **Finalidade:** a coordenação e os colegas reconhecerem a pessoa pessoalmente. Só a miniatura (~256 px, WebP, ~20 KB, sem EXIF; original descartado); coluna e armazenamento definidos na #308 | a definir na #308 | AES-256-GCM ou armazenamento sem URL pública | Só membros logados; some com a conta e entra em "Baixar meus dados" |
+| Formação acadêmica (nível mais alto; "qual?" opcional, texto livre) (#304). **Finalidade:** encaixar a pessoa num eixo da casa e achar quem pode ajudar | a definir na #304 | AES-256-GCM | Coordenação do escopo; o dono escolhe se aparece no perfil público (#305) |
+| Atividade profissional (texto livre, separada da formação) (#304). **Finalidade:** idem | a definir na #304 | AES-256-GCM | Coordenação do escopo; o dono escolhe se aparece no perfil público (#305) |
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Redes sociais (máx. 5 URLs https) | `profile_contacts.social_links_enc` | AES-256-GCM | Coordenação do escopo (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Portfólio (máx. 3 links https) | `portfolio_items.url_enc` | AES-256-GCM | Escopo, porta-voz da equipe (ADR 0007 §5) |
@@ -166,7 +169,7 @@ com a lista importada.
 | Coluna | Tipo | Observação |
 |---|---|---|
 | `id` | uuid PK | = `auth.users.id` |
-| `display_name_enc` | text null | 🔒 `v1.iv.ct` (ADR 0003 §3); nulo só em perfil incompleto |
+| `display_name_enc` | text null | 🔒 `v1.iv.ct` (ADR 0003 §3); nulo só em perfil incompleto. O nome completo é obrigatório; a exigência de sobrenome é a #312 |
 | `municipality_code` | int FK null | IBGE; nulo só em perfil incompleto |
 | `profile_completed_at` | timestamptz null | nulo = perfil **incompleto** (ADR 0017): a linha nasce no primeiro login de quem está na lista de autorizados, sem nome, município, UF nem versão do termo; `save_own_profile` completa e marca; CHECK: nome, município, UF e termo não nulos quando completo; uma linha gravada já com nome, município e termo nasce completa (trigger); `consent_at` também só é nulo enquanto incompleto (a linha incompleta não grava data de termo que não houve); trigger: nunca volta a nulo. Quem não está na lista não ganha linha até salvar o perfil |
 | `state_code` | char(2) null | derivado do município (trigger; nulo em perfil incompleto); no cadastro, o aluno entra na unidade do seu estado |
@@ -329,8 +332,8 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   `coordination_other_house_results(casa, limite)`: no banco, sobre todas as pessoas do alcance (até 201,
   das mais novas), com o mesmo alcance. Ver ADR 0016.
 - **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a qualquer
-  momento, com alcance de gestão sobre a pessoa (`can_manage_house_member`; a delegação de leitura
-  não basta), mantendo a trava (até a #302); gera `house_changed` (`coordination`). Ver ADR 0016.
+  momento, hoje com alcance de gestão sobre a pessoa (`can_manage_house_member`; a delegação de leitura
+  não basta), mantendo a trava; **a #302 restringe à coordenação nacional e tira a trava** (ADR 0016); gera `house_changed` (`coordination`). Ver ADR 0016.
 - **Quem lê e encerra** (RLS): a pessoa lê os próprios vínculos; a coordenação territorial
   (monitor ou manager acima do vínculo de território da pessoa) e o coordenador da casa aberta
   da pessoa, dentro do seu território, leem os vínculos aceitos de perfis ativos e podem
@@ -389,7 +392,7 @@ questionário, JSON item → intensidade (-5, -3, -1, 1, 3, 5), cifrado no servi
 banco só confere o formato `v<n>.<iv>.<ct>`, até 4 KB). Gravado só por `record_questionnaire_result` (parâmetro novo, coberto pela
 assinatura do servidor). **Sem grant de leitura** para `authenticated`: a própria pessoa o lê por `own_questionnaire_answers_enc()`
 (definer; só o servidor decifra). Apaga com a conta (cascata) e entra em "Baixar meus dados" (formato 10). Um resultado reescrito sem respostas novas (decidido pela coordenação, ou o caminho legado `record_totem_pending`, que com os pesos 1-3-5 não roda em respostas novas) as apaga (trigger). Tamanho real: 26 respostas cifradas ocupam menos de 1 KB (teto 4 KB).
-Na tela "Trocar de casa" (#268) o servidor lê o resultado e `own_questionnaire_answers_enc()`, decifra e sela o token da comparação; sem respostas guardadas o token leva só as notas dos eixos da casa (frases gerais por eixo, `axes.<eixo>.expectation` da config privada, opcional).
+Na tela "Trocar de casa" (#268) o servidor lê o resultado e `own_questionnaire_answers_enc()`, decifra e sela o token da comparação; sem respostas guardadas a tela mostra só o gráfico, sem expectativas (as frases gerais por eixo foram canceladas em 2026-11-28; `axes.<eixo>.expectation` é opcional e sem uso).
 
 ### `questionnaire_consents` (ADR 0008 §2.1)
 `profile_id` (FK `profiles`, `on delete cascade`), `term_version` (FK

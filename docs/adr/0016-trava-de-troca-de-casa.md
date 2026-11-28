@@ -13,9 +13,9 @@
 2. A troca **não depende** da data do aceite do termo, do questionário nem da casa.
 3. A **trava individual de 4 meses deixa de existir** (a #302 remove do código). Antes de definir a
    casa (tela de sugestão), "Escolher outra casa" continua livre.
-4. A **coordenação** com alcance de **gestão** sobre a pessoa (`can_manage_house_member`) continua
-   trocando a casa a qualquer momento. A delegação de **leitura** não vira poder de escrita.
-   [?] A ata de 28/11 não confirma este ponto; mantido até o Cortez dizer o contrário.
+4. A **coordenação nacional** troca a casa de qualquer pessoa a qualquer momento (decisão do Felipe,
+   2026-11-28: **só a nacional**, não mais a coordenação com alcance de gestão sobre a pessoa;
+   a #302 ajusta `coordination_set_house`). A delegação de **leitura** não vira poder de escrita.
 5. Toda troca vai para o `audit_log` (`house_changed`, motivo `self` ou `coordination`); abrir e
    fechar a janela também.
 6. Na lista e no resultado da coordenação aparecem a casa **sugerida** e a **escolhida** (vínculo
@@ -23,7 +23,7 @@
    foi da coordenação; filtro "escolheu outra casa" no banco (`coordination_other_house_results`),
    sobre todas as pessoas do alcance. Abrir o resultado continua auditado.
 
-**Em aberto:** quanto tempo a janela fica aberta e se só a nacional a abre.
+A **coordenação nacional abre e fecha a janela quando quiser, sem prazo fixo**.
 
 ## Estado do código até a #302
 

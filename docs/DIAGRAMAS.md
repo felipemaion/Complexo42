@@ -314,7 +314,7 @@ erDiagram
         timestamptz accepted_at
         timestamptz left_at
         uuid ended_by FK
-        timestamptz locked_until "trava de 4 meses (ADR 0016)"
+        timestamptz locked_until "trava individual; sai com a janela de transferência (#302, ADR 0016)"
         boolean moved "encerrado por troca"
     }
     questionnaire_term_versions {

@@ -59,11 +59,11 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 ## 3. Escopo
 
 ### Dentro do POC (MVP)
-1. **Cadastro e perfil**: nome, WhatsApp, município/bairro, **formação acadêmica** (nível mais
+1. **Cadastro e perfil**: **nome completo** (obrigatório; o sobrenome ainda não é exigido pelo esquema, #312), WhatsApp, município/bairro, **formação acadêmica** (nível mais
    alto; "qual?" opcional) e **atividade profissional** (campos separados), habilidades (sem
    nível, até 10, do catálogo; a pessoa sugere uma nova e a coordenação aprova; o formulário
-   pergunta o que ela faz no dia a dia), **miniatura do rosto** (ADR 0006, revisão de 2026-11-28),
-   links de redes sociais e "feitos". Todo membro logado vê o **perfil público** dos outros; o
+   pergunta o que ela faz no dia a dia), **miniatura do rosto**, opcional (ADR 0006, revisão de 2026-11-28),
+   links de redes sociais e "feitos". Todo membro logado vê o **perfil público** dos outros (foto, nome e medalhas; o dono escolhe quais medalhas aparecem e em que ordem); o
    contato segue por consentimento (ADR 0010). Consentimento LGPD, edição e exclusão da própria conta. Acesso só
    pela **lista de autorizados**, com lista de espera (ADR 0008 §1).
 2. **Casa de formação** (ADR 0008 §2, ADR 0014): ordem de entrada termo → questionário →
@@ -74,7 +74,7 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
    comparação 2×2 ("Compare as casas": média real dos membros com n ≥ 10 e expectativas por
    pergunta; respostas guardadas cifradas). A troca é por **janela de
    transferência** aberta pela coordenação nacional (ADR 0016, revisão de 2026-11-28; substitui a
-   trava de 4 meses), feita pela tela de comparação; a coordenação troca a qualquer momento.
+   trava de 4 meses, que sai com a #302), feita pela tela de comparação; a coordenação nacional troca a qualquer momento.
 3. **Painel da coordenação**: lista com filtros por habilidade e região, contagem por região.
 4. **Equipes**: criar equipe, adicionar e remover membros, definir líder.
 5. **Missões** (ADR 0006): catálogo de missões com etapas e pontos (ex.: escrever um projeto
@@ -84,7 +84,7 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 6. **Identidade e placar**: turma com nome, lema, cores e emblema; placar de turmas por
    escopo e período.
 7. **Medalhas** (ADR 0006 §8 e ADR 0007 §3): a medalha leva o nome do **feito**, com a lista de
-   quem a recebeu e a história de cada um; só **coordenadores** (de qualquer nível) as criam; a
+   quem a recebeu e a história de cada um; qualquer **coordenador** cria, e a medalha pertence ao nível dele (nacional, estadual, municipal, clã, equipe...), sem caminho obrigatório; a
    descrição é pública e a nota da avaliação fica oculta; a pessoa escolhe quais mostra e em que
    ordem. Manual, de evento, "trabalhou com", de marco, de presença, por missão ou por pontos;
    revogáveis.

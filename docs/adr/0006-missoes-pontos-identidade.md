@@ -161,12 +161,11 @@ Continuam sem upload as fotos de missão, de documento e de comprovante.
 - **Miniatura, não original:** o servidor redimensiona para ~256 px, converte para WebP (~20 KB),
   **remove EXIF e metadados** e **descarta o original**; nada de arquivo bruto no disco.
 - **Regras do Cortez:** foto **da própria pessoa, real, estilo 3x4**; **sem anime e sem imagem
-  gerada por IA**. A coordenação **modera** (pode recusar e pedir outra).
+  gerada por IA**. A coordenação confere conversando com a pessoa; **sem fluxo de moderação no código por ora**.
 - **Quem vê:** só **membros logados**; nunca pública, nunca indexável. Cifrada como os outros dados
   pessoais do perfil.
 - **Consentimento e exclusão:** a pessoa envia por ato próprio, com aviso do uso; troca ou remove
   quando quiser; some junto da conta (cascata) e entra em "Baixar meus dados". Detalhes em
   `docs/LGPD_E_SEGURANCA.md`.
-- **Em aberto:** se a foto é obrigatória (o Cortez disse que "não precisa ter se for complicado")
-  e o critério de moderação (como a coordenação confere que é real).
+- **Opcional** por ora (decisão do Felipe, 2026-11-28).
 - Implementação: #308; o termo e `MODELO_DADOS.md` mudam antes do código.
