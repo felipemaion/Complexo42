@@ -49,11 +49,14 @@ test.describe("quem está em espera baixa os próprios dados (#130)", () => {
 
     // Se o servidor recusar (limite ou erro), a tela volta para /espera?dados=...: falha com o motivo, sem esperar o tempo todo.
     const download = page.waitForEvent("download", { timeout: 20_000 }).catch(() => null);
+    const response = page.waitForResponse((r) => r.url().endsWith("/meus-dados"), { timeout: 20_000 }).catch(() => null);
     await page.getByRole("button", { name: "Baixar meus dados" }).click();
     const file = await download;
     if (!file) {
       const probe = await page.request.post("/meus-dados", { headers: { Origin: new URL(page.url()).origin }, maxRedirects: 0 });
-      throw new Error(`sem download; página em ${page.url()}; POST direto: ${probe.status()} ${JSON.stringify(probe.headers()["content-disposition"])} ${(await probe.text()).slice(0, 200)}`);
+      const seen = await response;
+      const seenText = seen ? `${seen.status()} ${JSON.stringify(seen.headers()["content-type"])} ${(await seen.text().catch(() => "")).slice(0, 200)}` : "sem resposta";
+      throw new Error(`sem download; resposta do navegador: ${seenText}; página em ${page.url()}; POST direto: ${probe.status()} ${JSON.stringify(probe.headers()["content-disposition"])} ${(await probe.text()).slice(0, 200)}`);
     }
     const chunks: Buffer[] = [];
     for await (const chunk of await file!.createReadStream()) chunks.push(chunk as Buffer);
