@@ -50,9 +50,9 @@ const envSchema = z.object({
   LOG_DIR: z.string().default("data/logs"),
   GIT_SHA: z.string().regex(/^[0-9a-f]{7,40}$/, { error: "precisa ser um hash de commit" }).optional(),
   APP_VERSION: z.string().regex(/^[\w.+-]{1,64}$/, { error: "formato de tag inválido" }).optional(),
-  // OBRIGATÓRIAS em produção (ver REQUIRED_IN_PRODUCTION) desde 2026-11-28: sem elas a
-  // checagem de acesso falha com "missing_key" e NINGUÉM entra. Fora de produção seguem
-  // opcionais. Quem cifra ou decifra sem elas recebe erro claro (src/server/crypto).
+  // Opcionais na subida POR ORA (ver REQUIRED_IN_PRODUCTION): sem elas ninguém entra,
+  // mas exigi-las antes de o compose do SERVIDOR repassá-las derruba o ambiente --
+  // aconteceu em 2026-11-28. Quem cifra sem elas recebe "missing_key".
   FIELD_ENCRYPTION_KEY: key32.optional(),
   FIELD_ENCRYPTION_KEY_VERSION: z.coerce
     .number({ error: "precisa ser um número" })
@@ -96,15 +96,18 @@ const envSchema = z.object({
 
 // Obrigatórias só em produção. Checadas fora do schema para aparecerem junto com os
 // demais erros (o Zod pula refinamentos quando algum campo já falhou).
-// As chaves de cifra entram aqui para o app RECUSAR SUBIR sem elas, em vez de
-// subir e falhar no primeiro uso -- que e o login. Em 2026-11-28 o staging
-// passou a recusar entrada com `missing_key` porque elas nao chegavam ao
-// container, e nada acusou: o processo estava vivo e saudavel.
+// FIELD_ENCRYPTION_KEY e BLIND_INDEX_KEY estiveram aqui por ~20 minutos em
+// 2026-11-28 e DERRUBARAM o staging: a imagem exigente chegou pelo deploy, e o
+// `docker-compose.app.yml` do SERVIDOR -- que e copia instalada, nao
+// sincronizada -- nao as repassava. Laco de reinicio com `env_invalid`, 502.
 //
-// QUESTIONNAIRE_SIGNING_KEY NAO entra, de proposito: ela nao esta no
-// secrets/env do staging (conferido em 2026-11-28), e exigi-la aqui faria o
-// app recusar subir -- trocar uma falha no questionario por uma queda do
-// ambiente inteiro. Entra quando a chave existir nos ambientes.
+// Voltam quando o compose do servidor as repassar. Nao e desistencia da ideia:
+// exigir na subida continua certo, porque sem chave ninguem entra. E ordem de
+// operacoes -- a exigencia so pode nascer DEPOIS de o ambiente ter o que ela
+// exige. Enquanto isso, quem cifra sem chave recebe `missing_key`.
+//
+// QUESTIONNAIRE_SIGNING_KEY segue fora pelo mesmo motivo, e mais um: ela nem
+// existe no secrets/env do staging.
 const REQUIRED_IN_PRODUCTION = [
   "DB_HEALTH_URL",
   "SUPABASE_URL",
@@ -112,8 +115,6 @@ const REQUIRED_IN_PRODUCTION = [
   "SITE_URL",
   "TURNSTILE_SITE_KEY",
   "TURNSTILE_SECRET_KEY",
-  "FIELD_ENCRYPTION_KEY",
-  "BLIND_INDEX_KEY",
 ] as const;
 
 export type ServerEnv = z.infer<typeof envSchema>;
