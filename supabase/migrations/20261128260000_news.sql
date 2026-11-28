@@ -91,6 +91,7 @@ alter table public.audit_log add constraint audit_log_event_check check (event i
   'house_window_opened', 'house_window_closed',
   'skill_suggestion_decided', 'skill_reactivated',
   'skills_searched',
+  'skill_created', 'skill_renamed', 'skill_moved', 'skill_deactivated', 'skill_merged', 'skill_group_renamed',
   'news_published', 'news_archived'
 ));
 

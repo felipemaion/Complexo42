@@ -779,4 +779,5 @@ Toda tabela que cita uma pessoa precisa sobreviver à exclusão da conta sem gua
 A matriz completa está em [`adr/0002-permissoes-hierarquicas.md`](adr/0002-permissoes-hierarquicas.md).
 Toda política RLS usa as funções `app.can_*`, e toda mudança atualiza
 `supabase/tests/permissions_matrix.test.sql`.
+
 - **Novidades da página inicial (#307):** `public.news` (unidade, título até 80, texto até 280, link https opcional, validade e arquivamento). Só `publish_news` e `archive_news` escrevem, e só gestor com escopo sobre a unidade. O membro ativo lê a da própria unidade e as de cima (RLS `app.sees_news_unit`); sem HTML, o texto é puro. O audit (`news_published`, `news_archived`) guarda quem e quando, nunca o texto. O cartão "troca de casa aberta" não é linha desta tabela: vem do estado de `house_transfer_window`.
