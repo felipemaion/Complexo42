@@ -122,7 +122,7 @@ test.describe("páginas logadas com o Supabase local", () => {
   test("painel da coordenação, autorizados, bloqueio, espera e habilidades passam no axe nos dois temas, sem rolagem horizontal", async ({ browser }) => {
     test.setTimeout(240_000);
     const page = await signedInManager(browser, { hasAcceptedTerm: true });
-    for (const path of ["/coordenacao", "/coordenacao/autorizados", "/coordenacao/bloqueio", "/coordenacao/espera", "/coordenacao/habilidades"]) {
+    for (const path of ["/coordenacao", "/coordenacao/autorizados", "/coordenacao/bloqueio", "/coordenacao/espera", "/coordenacao/habilidades", "/coordenacao/pessoas"]) {
       await page.goto(path);
       await expect(page).toHaveURL(new RegExp(`${path}$`));
       await expectAccessible(page, path);
