@@ -10,7 +10,7 @@
 --    `app.can_view_background`. Porta-voz, admin técnico e colegas não leem. Nada é apagado pela API: a
 --    linha some com a conta (cascata).
 -- 3. `export_own_data()` passa a trazer `background` (ainda cifrado; o servidor decifra). Definição
---    igual à de `..._house_transfer_window.sql`, mais a chave nova.
+--    igual à de `..._profile_skills.sql`, mais a chave nova.
 
 create table public.profile_background (
   profile_id uuid primary key references public.profiles (id) on delete cascade,
@@ -266,6 +266,22 @@ begin
       join public.units as u on u.id = g.unit_id
       join public.unit_types as t on t.id = u.type_id
       where g.grantee_id = caller
+    ), '[]'::jsonb),
+    'skills', coalesce((
+      select jsonb_agg(jsonb_build_object('name', s.name, 'category', s.category) order by s.name)
+      from public.profile_skills as ps
+      join public.skills as s on s.id = ps.skill_id
+      where ps.profile_id = caller
+    ), '[]'::jsonb),
+    'skill_suggestions', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'name', q.name,
+        'status', q.status,
+        'created_at', q.created_at,
+        'decided_at', q.decided_at
+      ) order by q.created_at, q.id)
+      from public.skill_suggestions as q
+      where q.profile_id = caller
     ), '[]'::jsonb),
     'audit_events', coalesce((
       select jsonb_agg(jsonb_build_object(
