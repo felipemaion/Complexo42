@@ -26,6 +26,7 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 | **Auth** | Vitest de sessão, rotas, Turnstile e erros; E2E do link mágico e da senha (definir, entrar, senha errada genérica, recuperar, remover); política da senha; travas do compose e do Kong (`tests/senha-gotrue.test.ts` e `ci.yml`); allowlist | E2E de toda rota protegida sem sessão → login (#156); expiração e reuso do link (passo 3 do §4); reautenticação por código de e-mail para sessão com mais de 24 h (ADR 0018, fora da v1) |
 | **Deploy** | Testes bash de deploy, backup e segredos; `ci-hardening` (actions por SHA); `check-image.sh` | Scan de dependências e imagem (`npm audit`, Trivy) e de código (Semgrep) no CI (#153) |
 | **Cabeçalhos HTTP** | `tests/security-headers.test.ts` (#68): nosniff, frame, referrer, permissions, HSTS; CSP do proxy com nonce novo por requisição, até no redirecionamento (#152) | Conferir no staging que o proxy de borda não remove os cabeçalhos |
+| **Acessibilidade e visual** (#324) | `e2e/a11y.spec.ts`: axe (WCAG 2.2 AA) nos temas claro e escuro, em 390 e 1440 px, sem rolagem horizontal, nas páginas públicas e no cabeçalho logado; `tests/design-tokens.test.ts`: cor e fonte só pelos tokens de `globals.css` | As demais páginas logadas, que entram no axe junto com os PRs de cada grupo da #324 |
 | **Desempenho** | Nada | §5 inteiro (#74, #75) |
 
 ## 3. Ferramentas
@@ -35,6 +36,7 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 | Vitest | Unidade e contratos | Já no projeto; rápido, sem servidor |
 | pgTAP | RLS, permissões, funções SQL | Testa a regra onde ela mora (R15) |
 | Playwright | Ponta a ponta, XSS, rotas protegidas | Já no projeto; só Chromium |
+| axe-core (`@axe-core/playwright`) | WCAG 2.2 AA nos E2E | Gratuita (MPL-2.0), roda dentro do Playwright |
 | gitleaks | Segredo no histórico | Já no CI |
 | `npm audit`, Trivy | Dependências e imagem | Sem conta, saída própria para CI |
 | Semgrep (`p/typescript`, `p/nextjs`) | Padrão inseguro no código | Regras públicas, roda local e no CI |
