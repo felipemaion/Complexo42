@@ -48,6 +48,11 @@ case "$1" in
        case "${STUB_SMOKE:-ok}" in ok) exit 0 ;; falha_sempre) exit 1 ;;
          falha_primeiro) [ "$n" -le "${STUB_FALHAS:-3}" ] && exit 1; exit 0 ;; esac ;;
 esac
+# Preflight da configuracao do app: `config -q`.
+case "$*" in *"config -q"*)
+  [ -n "${STUB_CONFIG_SAIDA:-}" ] && printf '%s\n' "$STUB_CONFIG_SAIDA"
+  exit "${STUB_CONFIG:-0}" ;;
+esac
 # O ensaio ANTES do `up -d` generico: ele tambem casa com *"up -d"*.
 case "$*" in
   *"up -d --dry-run"*)
@@ -526,6 +531,79 @@ escreve_config
 cp "$IMG/docker-compose.supabase.yml" "$SRV/"; cp "$IMG/kong.yml" "$SRV/"
 cp "$IMG/initdb/01-extensions.sql" "$IMG/initdb/02-roles.sh" "$SRV/initdb/"
 rm -f "$MANIF"; roda "$DIG" > /dev/null 2>&1
+
+echo "== preflight da configuracao do app (antes das migrations)"
+: > "$STUB_MIGRA"
+roda "$DIG"; verifica "caminho feliz: deploy segue" $?
+grep -q -- 'config -q' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "o preflight RODA no caminho feliz" $r
+grep -q 'preflight ok' "$BASE/saida" && r=0 || r=1
+verifica "e diz que resolveu" $r
+o_pre=$(grep -n -- 'config -q' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+o_up=$(grep -nE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+[ -n "$o_pre" ] && { [ -z "$o_up" ] || [ "$o_pre" -lt "$o_up" ]; } && r=0 || r=1
+verifica "e vem ANTES do up do app" $r
+
+: > "$STUB_MIGRA"
+STUB_CONFIG=1 roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "configuracao que nao resolve DERRUBA o deploy" $r
+grep -q 'nada migrado' "$BASE/saida" && r=0 || r=1
+verifica "e diz que nada foi migrado" $r
+[ ! -s "$STUB_MIGRA" ] && r=0 || r=1
+verifica "e as migrations NAO rodam (era isso que o preflight existe para evitar)" $r
+grep -q 'preflight_falhou' "$LOG" && r=0 || r=1
+verifica "e registra preflight_falhou, nao rollback_falhou" $r
+grep -q 'rollback' "$BASE/saida" && r=1 || r=0
+verifica "e NAO fala de rollback: nao houve troca para desfazer" $r
+grep -qE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e o app NAO e trocado" $r
+
+echo "== nem o ENSAIO do Supabase leva valor do env para o log"
+# Mesmo --env-file, mesma forma de erro: apontado na revisao do #284.
+export STUB_SUPA_PROJ=stgsupa
+printf 'SUPABASE_PROJETO=stgsupa\n' >> "$BASE/deploy.conf"
+printf 'compose v9\n' > "$IMG/docker-compose.supabase.yml"
+: > "$STUB_MIGRA"
+STUB_ENSAIO_SAIDA=1 \
+STUB_ENSAIO='unexpected character "x" in variable name near "SEGREDO=zzz-do-ensaio"' \
+  roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "ensaio ilegivel derruba o deploy" $r
+grep -q 'zzz-do-ensaio' "$BASE/saida" && r=1 || r=0
+verifica "e o VALOR nao aparece na saida" $r
+grep -q 'zzz-do-ensaio' "$LOG" && r=1 || r=0
+verifica "nem no deploy.log" $r
+unset STUB_SUPA_PROJ
+escreve_config
+cp "$IMG/docker-compose.supabase.yml" "$SRV/"; rm -f "$MANIF"
+roda "$DIG" > /dev/null 2>&1
+
+echo "== o preflight nao leva valor do env para o log do root"
+# Erro de dotenv tem a forma `... in variable name near "CHAVE=valor"`: filtrar
+# por linha casaria "variable" e levaria o VALOR. Apontado em revisao do #284.
+: > "$STUB_MIGRA"
+STUB_CONFIG=1 \
+STUB_CONFIG_SAIDA='unexpected character "x" in variable name near "SEGREDO=xyz-super-secreto"' \
+  roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "saida ilegivel do compose ainda derruba o deploy" $r
+grep -q 'SEGREDO=xyz-super-secreto' "$BASE/saida" && r=1 || r=0
+verifica "e o VALOR nao aparece na saida" $r
+grep -q 'xyz-super-secreto' "$LOG" && r=1 || r=0
+verifica "nem no deploy.log" $r
+grep -q 'omitidas de proposito' "$BASE/saida" && r=0 || r=1
+verifica "e diz que omitiu de proposito" $r
+
+# E quando o compose fala a lingua esperada, o NOME aparece -- so ele.
+: > "$STUB_MIGRA"
+STUB_CONFIG=1 \
+STUB_CONFIG_SAIDA='required variable FIELD_ENCRYPTION_KEY is missing a value: obrigatorio' \
+  roda "$DIG"
+grep -q 'variavel sem valor: FIELD_ENCRYPTION_KEY' "$BASE/saida" && r=0 || r=1
+verifica "nome da variavel ausente aparece no log" $r
+grep -q 'is missing a value' "$BASE/saida" && r=1 || r=0
+verifica "e o resto da linha do compose nao" $r
 
 echo "== falhas, cada uma com seu registro"
 STUB_PULL=1 roda "$DIG"; [ $? -ne 0 ] && r=0 || r=1; verifica "pull falhando derruba o deploy" $r
