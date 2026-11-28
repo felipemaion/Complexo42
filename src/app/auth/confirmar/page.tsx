@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import { confirmMagicLinkAction } from "@/server/auth/actions";
 import { magicLinkParamsSchema } from "@/server/auth/flows";
+import { buttonClass, cardClass, noticeClass, PageShell } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.auth.confirmTitle, referrer: "no-referrer" };
 
@@ -14,26 +15,24 @@ export default async function ConfirmPage({ searchParams }: Props) {
   const text = instance.auth;
   const params = magicLinkParamsSchema.safeParse(await searchParams);
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-6">
-      <h1 className="text-3xl font-bold">{text.confirmTitle}</h1>
-      {params.success ? (
-        <form action={confirmMagicLinkAction} className="flex flex-col gap-6">
-          <p className="text-lg">{text.confirmMessage}</p>
-          <input type="hidden" name="token_hash" value={params.data.token_hash} />
-          <input type="hidden" name="type" value={params.data.type} />
-          <button
-            type="submit"
-            className="block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
-            style={{ backgroundColor: "var(--color-primary)" }}
-          >
-            {text.confirmButton}
-          </button>
-        </form>
-      ) : (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
-          {text.errors.failed}
-        </p>
-      )}
-    </main>
+    <PageShell width="form" isCentered>
+      <div className={cardClass()}>
+        <h1 className="text-3xl font-bold sm:text-4xl">{text.confirmTitle}</h1>
+        {params.success ? (
+          <form action={confirmMagicLinkAction} className="flex flex-col gap-6">
+            <p className="text-lg text-ink-muted">{text.confirmMessage}</p>
+            <input type="hidden" name="token_hash" value={params.data.token_hash} />
+            <input type="hidden" name="type" value={params.data.type} />
+            <button type="submit" className={buttonClass("primary", "lg")}>
+              {text.confirmButton}
+            </button>
+          </form>
+        ) : (
+          <p role="alert" className={noticeClass("error")}>
+            {text.errors.failed}
+          </p>
+        )}
+      </div>
+    </PageShell>
   );
 }

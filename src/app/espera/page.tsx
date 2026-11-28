@@ -5,6 +5,7 @@ import { instance } from "@config/instance";
 import { DELETE_ACCOUNT_PATH } from "@/modules/privacy";
 import { signOut } from "@/server/auth/actions";
 import { waitlistPageRedirect } from "@/server/auth/session";
+import { buttonClass, cardClass, PageShell, textLinkClass } from "@/modules/ui";
 
 // Tela de quem está na lista de espera (ADR 0008 §1, #26). Não lê dado de ninguém: quem está em
 // `waitlisted` só tem o próprio perfil. O fluxo de login (#9) redireciona para cá quando o acesso é
@@ -17,19 +18,21 @@ export default async function WaitlistPage() {
   const target = await waitlistPageRedirect();
   if (target) redirect(target);
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-4 p-6">
-      <h1 className="text-3xl font-bold">{instance.waitlist.title}</h1>
-      <p className="text-lg">{instance.waitlist.message}</p>
-      <form action={signOut}>
-        <button type="submit" className="min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-lg font-semibold">
-          {instance.waitlist.signOutButton}
-        </button>
-      </form>
-      {/* Quem espera também pode excluir a conta (#18, LGPD art. 18, VI). Sem sessão, o link
-          leva ao login. */}
-      <Link href={DELETE_ACCOUNT_PATH} className="text-lg underline">
-        {instance.deleteAccount.homeLink}
-      </Link>
-    </main>
+    <PageShell width="form" isCentered>
+      <div className={cardClass()}>
+        <h1 className="text-3xl font-bold sm:text-4xl">{instance.waitlist.title}</h1>
+        <p className="max-w-prose text-lg text-ink-muted">{instance.waitlist.message}</p>
+        <form action={signOut}>
+          <button type="submit" className={buttonClass("secondary", "lg")}>
+            {instance.waitlist.signOutButton}
+          </button>
+        </form>
+        {/* Quem espera também pode excluir a conta (#18, LGPD art. 18, VI). Sem sessão, o link
+            leva ao login. */}
+        <Link href={DELETE_ACCOUNT_PATH} className={textLinkClass()}>
+          {instance.deleteAccount.homeLink}
+        </Link>
+      </div>
+    </PageShell>
   );
 }
