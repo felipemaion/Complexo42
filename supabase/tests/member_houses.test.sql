@@ -32,12 +32,12 @@ update public.profiles set status = 'suspended' where id = pg_temp.person('susp'
 
 insert into public.houses (key, active) values ('casa-x', true), ('casa-y', true) on conflict do nothing;
 -- Membro de verdade exige a casa aceita (ADR 0017). `onb` tem vínculo sem aceite; `none` não tem; `gone` saiu.
-insert into public.house_members (profile_id, house_key, join_method, accepted_at, left_at)
-select id, 'casa-x', 'self', now() - interval '10 days', case when name = 'left' then now() - interval '5 days' end
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at, left_at)
+select id, 'casa-x', 'self', now() - interval '11 days', now() - interval '10 days', case when name = 'left' then now() - interval '5 days' end
 from people where name in ('a', 'left', 'gone', 'wl', 'susp');
 update public.house_members set left_at = now() - interval '1 day' where profile_id = pg_temp.person('gone');
-insert into public.house_members (profile_id, house_key, join_method, accepted_at)
-select id, 'casa-y', 'self', now() - interval '4 days' from people where name in ('b', 'left');
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at)
+select id, 'casa-y', 'self', now() - interval '5 days', now() - interval '4 days' from people where name in ('b', 'left');
 insert into public.house_members (profile_id, house_key, join_method, accepted_at)
 select id, 'casa-x', 'self', null from people where name = 'onb';
 
