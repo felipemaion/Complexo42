@@ -76,6 +76,22 @@ grep -qi 'ana.teste\|exemplo\.org' "$STUB_CHAMADAS"; r=$?; [ "$r" != 0 ]; verifi
 printf '%s' "$SAIDA" | grep -qF "$CHAVE"; r=$?; [ "$r" != 0 ]; verifica "a saída não imprime a chave" $?
 printf '%s' "$SAIDA" | grep -q '@'; r=$?; [ "$r" != 0 ]; verifica "a saída não repete o e-mail" $?
 
+# --- a chave não aparece no ambiente de processo nenhum, nem no rastro do `bash -x` ------------
+# Um python3 dublê grava o próprio ambiente (o que /proc/<pid>/environ mostraria) e roda o real.
+cat > "$BASE/bin/python3" << DUBLE
+#!/usr/bin/env bash
+env >> "$BASE/env-python"
+exec $(command -v python3) "\$@"
+DUBLE
+chmod +x "$BASE/bin/python3"; : > "$BASE/env-python"
+roda "ana@exemplo.org" "$BASE/segredos"
+{ [ "$RC" = 0 ] && [ -s "$BASE/env-python" ]; }; verifica "o python3 roda (e o dublê o vê)" $?
+grep -qF "$CHAVE" "$BASE/env-python"; r=$?; [ "$r" != 0 ]; verifica "a chave não vai no ambiente do python3 (/proc/<pid>/environ)" $?
+rm -f "$BASE/bin/python3"
+: > "$STUB_CHAMADAS"
+RASTRO=$(printf '%s\n' "ana@exemplo.org" | bash -x "$SCRIPT" "$BASE/segredos" 2>&1)
+printf '%s' "$RASTRO" | grep -qF "$CHAVE"; r=$?; [ "$r" != 0 ]; verifica "rodado com bash -x, o rastro não mostra a chave" $?
+
 # --- conta já existe: idempotente -----------------------------------------------------------
 echo '422 {"code":422,"error_code":"email_exists","msg":"A user with this email address has already been registered"}' > "$BASE/resposta"
 roda "ana@exemplo.org" "$BASE/segredos"
