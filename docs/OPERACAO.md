@@ -90,6 +90,36 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   -c "update public.houses set active = false where key = '<id-da-casa>'"
 ```
 
+## Primeira coordenação (banco novo, #295)
+
+Num banco novo ninguém pode autorizar ninguém: a lista e o papel de gestor da raiz só mudam pela
+mão de um gestor da raiz. Quem abre esse ciclo é o **operador**, com `deploy/bootstrap-coordenacao.sh`
+(função `app.bootstrap_root_manager`, sem grant para a API). Como o `migra.sh`, é **script de operador, instalado à mão como root** (ver a tabela de
+instalação, abaixo) e **fora da imagem** do app; o `email-hmac.mjs` fica ao lado dele e vai ao container
+do app por `node -e` para calcular o HMAC com a `BLIND_INDEX_KEY` dele (a chave não sai do app).
+
+```bash
+# uma vez, e a cada mudança dos dois arquivos: cópia à mão, como root
+sudo install -m 0755 deploy/bootstrap-coordenacao.sh /opt/complexo42/bootstrap-coordenacao.sh
+sudo install -m 0644 deploy/email-hmac.mjs /opt/complexo42/email-hmac.mjs
+# o e-mail entra por stdin (digite e Enter); nunca por argumento
+sudo APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
+  /opt/complexo42/bootstrap-coordenacao.sh
+```
+
+- A pessoa **ainda não entrou**: o e-mail vai para a lista e o comando diz para ela entrar; depois de
+  ela entrar uma vez (login e perfil), rode **de novo**. Quem já estava na espera (`waitlisted`) é
+  liberado na hora, como na importação, e ganha o papel.
+- É **idempotente** (repetir não duplica lista, papel nem auditoria) e **recusa** se a raiz já tem gestor
+  ativo. Para acrescentar outro: `--adicionar-outro` (acrescenta, nunca substitui).
+- O papel nasce com `granted_by` nulo e só **vale** depois de termo, perfil completo e casa aceita
+  (`app.is_active_member`): a pessoa segue pelo termo, questionário e casa no próximo acesso.
+- **Conferência** (no container do banco; nada de e-mail aparece):
+  `select role, revoked_at, granted_by from public.role_assignments where role = 'manager'`
+  deve trazer uma linha com `revoked_at` e `granted_by` nulos, e `select event, reason from public.audit_log
+  where event in ('allowlist_imported','role_granted') order by id desc limit 5` mostra o rastro.
+- Saídas: `0` ok, `1` falha (nada concedido), `2` uso errado, `3` perfil bloqueado ou suspenso.
+
 ## Questionário das casas (ADR 0014)
 
 O app pontua o questionário e assina o resultado; o banco só aceita resultado assinado. A chave
@@ -933,6 +963,7 @@ deploy de reescrever o que ele mesmo executa.
 |---|---|---|
 | `/opt/complexo42/deploy.sh` | `deploy/deploy.sh` | **cópia à mão, como root** |
 | `/opt/complexo42/migra.sh` | `deploy/migra.sh` | **cópia à mão, como root** |
+| `/opt/complexo42/bootstrap-coordenacao.sh` e `email-hmac.mjs` | `deploy/` (mesmos nomes) | **cópia à mão, como root** (só no bootstrap, #295) |
 
 E estes **só existem no servidor** — não têm origem no repositório, então para
 eles a pergunta "está igual à `main`?" não faz sentido:
