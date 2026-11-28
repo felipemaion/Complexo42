@@ -79,6 +79,7 @@ export const instanceConfigSchema = z.strictObject({
     recoverySent: text,
     emailNeedsScript: text,
     emailSent: text,
+    signupClosed: text,
     signedOut: text,
     signOutButton: text,
     signedInTitle: text,

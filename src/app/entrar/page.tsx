@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { AppLogoHero } from "@/modules/houses/components/house-shield";
 import { instance } from "@config/instance";
 import { submitLoginForm } from "@/server/auth/actions";
+import { getAuthConfig } from "@/server/auth/config";
 import { parseAuthErrorCode } from "@/server/auth/errors";
 import { GOOGLE_PATH } from "@/server/auth/routes";
+import { isSignupClosed } from "@/server/auth/signup-status";
 import { getTurnstileConfig } from "@/server/auth/turnstile";
 import { TurnstileWidget } from "./turnstile-widget";
 
@@ -21,6 +23,8 @@ export default async function LoginPage({ searchParams }: Props) {
   // Só códigos conhecidos viram mensagem; texto da URL nunca é exibido.
   const error = parseAuthErrorCode(params.erro);
   const next = typeof params.next === "string" ? params.next : "";
+  // Estado global do cadastro (#332): o mesmo aviso para todos, nunca por e-mail (M4).
+  const signupClosed = await isSignupClosed(getAuthConfig());
   const notice = error ? text.errors[error] : params.enviado === "1" ? text.emailSent : params.enviado === "2" ? text.recoverySent : params.saiu === "1" ? text.signedOut : null;
 
   return (
@@ -33,6 +37,12 @@ export default async function LoginPage({ searchParams }: Props) {
         <h1 className="text-3xl font-bold">{text.title}</h1>
         <p className="text-lg">{text.intro}</p>
       </header>
+
+      {signupClosed && (
+        <p className="text-lg" data-testid="signup-closed">
+          {text.signupClosed}
+        </p>
+      )}
 
       {notice && (
         <p role={error ? "alert" : "status"} className="rounded-lg border-2 border-current p-4 text-lg">
