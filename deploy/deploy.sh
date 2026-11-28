@@ -477,20 +477,54 @@ dc_supabase() {
 # cita o NOME da variavel, nao o valor -- mas saida de terceiro no log do root
 # merece teto, e `head` aqui nao esconde decisao nenhuma: a decisao sai das
 # funcoes abaixo, nao do que foi impresso. Serve ao ensaio e ao preflight.
-ecoa_compose() { # ecoa_compose <texto> [prefixo] [--so-config]
-  local texto=$1 pre=${2:-ensaio} filtra=${3:-} l n=0
+ecoa_compose() { # ecoa_compose <texto> [prefixo]
+  local texto=$1 pre=${2:-ensaio} l n=0
   while IFS= read -r l; do
-    # Com --so-config, so passam linhas que falam de variavel/interpolacao: erro
-    # de parse do --env-file costuma ECOAR A LINHA `CHAVE=valor` do arquivo de
-    # segredos, e isso nao entra no log do root.
-    if [ -n "$filtra" ] && ! printf '%s' "$l" | grep -Eqi 'variable|required|missing|interpolation|not set|obrigat'; then
-      continue
-    fi
     n=$((n + 1))
     [ "$n" -gt 20 ] && { log "  $pre: (... saida truncada em 20 linhas)"; return 0; }
     log "  $pre: $l"
   done <<< "$texto"
-  [ "$n" = 0 ] && log "  $pre: (nada que mencione variavel; saida omitida de proposito)"
+  return 0
+}
+
+# Saida do compose que passou pelo --env-file: ECOAR A LINHA NAO SERVE, nem
+# filtrada. Apontado em revisao: erro de dotenv tem a forma
+#   unexpected character "x" in variable name near "CHAVE=valor-secreto"
+# e um filtro por linha casa "variable" e leva o VALOR para o log do root.
+# Aqui nao se filtra linha: EXTRAI-SE o nome da variavel, e so ele e impresso.
+# Lista de permissao, como a guarda do CI -- o que nao casa padrao conhecido
+# nao aparece, nem truncado.
+#
+# Um grep so, com o resultado capturado e a falha tratada: pipeline de greps
+# aqui morria com `pipefail` quando um deles nao casava, e o `set -e` derrubava
+# a funcao -- o deploy saia ANTES do `registra`. Mesma familia da armadilha 63
+# do SERVER.md, e foi um teste que pegou.
+nomes_de_variavel() { # nomes_de_variavel <texto>
+  local texto=$1 bruto=""
+  bruto=$(printf '%s' "$texto" | grep -oE \
+    'required variable [A-Za-z_][A-Za-z0-9_]*|"[A-Za-z_][A-Za-z0-9_]*" variable is not set|variable [A-Za-z_][A-Za-z0-9_]* is (missing|required)' \
+    2> /dev/null) || bruto=""
+  [ -z "$bruto" ] && return 0
+  printf '%s\n' "$bruto" | sed -E \
+    -e 's/^required variable //' \
+    -e 's/^"([^"]*)".*/\1/' \
+    -e 's/^variable ([A-Za-z_][A-Za-z0-9_]*) .*/\1/' | sort -u
+  return 0
+}
+
+ecoa_variaveis() { # ecoa_variaveis <texto> <prefixo>
+  local texto=$1 pre=$2 nomes="" v total=0
+  nomes=$(nomes_de_variavel "$texto") || nomes=""
+  total=$(printf '%s\n' "$texto" | grep -c . 2> /dev/null) || total=0
+  if [ -z "$nomes" ]; then
+    log "  $pre: nenhum nome de variavel reconhecido na saida do compose"
+    log "  $pre: ($total linhas omitidas de proposito -- podem conter valor do env)"
+    return 0
+  fi
+  while IFS= read -r v; do
+    [ -n "$v" ] && log "  $pre: variavel sem valor: $v"
+  done <<< "$nomes"
+  log "  $pre: ($total linhas da saida omitidas de proposito -- so os nomes acima)"
   return 0
 }
 
@@ -836,7 +870,7 @@ fi
 log "preflight da configuracao do app"
 if ! saida_preflight=$(APP_IMAGEM="$IMAGEM_ALVO" dc config -q 2>&1); then
   log "ERRO: a configuracao do app nao resolve -- app NAO foi trocado, nada migrado"
-  ecoa_compose "$saida_preflight" preflight --so-config
+  ecoa_variaveis "$saida_preflight" preflight
   log "      Em geral e variavel ausente no env do ambiente. O nome dela esta acima."
   registra preflight_falhou "$(decorrido)"
   exit 1

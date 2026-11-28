@@ -49,7 +49,10 @@ case "$1" in
          falha_primeiro) [ "$n" -le "${STUB_FALHAS:-3}" ] && exit 1; exit 0 ;; esac ;;
 esac
 # Preflight da configuracao do app: `config -q`.
-case "$*" in *"config -q"*) exit "${STUB_CONFIG:-0}" ;; esac
+case "$*" in *"config -q"*)
+  [ -n "${STUB_CONFIG_SAIDA:-}" ] && printf '%s\n' "$STUB_CONFIG_SAIDA"
+  exit "${STUB_CONFIG:-0}" ;;
+esac
 # O ensaio ANTES do `up -d` generico: ele tambem casa com *"up -d"*.
 case "$*" in
   *"up -d --dry-run"*)
@@ -555,6 +558,32 @@ grep -q 'rollback' "$BASE/saida" && r=1 || r=0
 verifica "e NAO fala de rollback: nao houve troca para desfazer" $r
 grep -qE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" && r=1 || r=0
 verifica "e o app NAO e trocado" $r
+
+echo "== o preflight nao leva valor do env para o log do root"
+# Erro de dotenv tem a forma `... in variable name near "CHAVE=valor"`: filtrar
+# por linha casaria "variable" e levaria o VALOR. Apontado em revisao do #284.
+: > "$STUB_MIGRA"
+STUB_CONFIG=1 \
+STUB_CONFIG_SAIDA='unexpected character "x" in variable name near "SEGREDO=xyz-super-secreto"' \
+  roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "saida ilegivel do compose ainda derruba o deploy" $r
+grep -q 'SEGREDO=xyz-super-secreto' "$BASE/saida" && r=1 || r=0
+verifica "e o VALOR nao aparece na saida" $r
+grep -q 'xyz-super-secreto' "$LOG" && r=1 || r=0
+verifica "nem no deploy.log" $r
+grep -q 'omitidas de proposito' "$BASE/saida" && r=0 || r=1
+verifica "e diz que omitiu de proposito" $r
+
+# E quando o compose fala a lingua esperada, o NOME aparece -- so ele.
+: > "$STUB_MIGRA"
+STUB_CONFIG=1 \
+STUB_CONFIG_SAIDA='required variable FIELD_ENCRYPTION_KEY is missing a value: obrigatorio' \
+  roda "$DIG"
+grep -q 'variavel sem valor: FIELD_ENCRYPTION_KEY' "$BASE/saida" && r=0 || r=1
+verifica "nome da variavel ausente aparece no log" $r
+grep -q 'is missing a value' "$BASE/saida" && r=1 || r=0
+verifica "e o resto da linha do compose nao" $r
 
 echo "== falhas, cada uma com seu registro"
 STUB_PULL=1 roda "$DIG"; [ $? -ne 0 ] && r=0 || r=1; verifica "pull falhando derruba o deploy" $r
