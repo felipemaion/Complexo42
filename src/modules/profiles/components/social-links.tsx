@@ -26,7 +26,7 @@ export function SocialLinkList({ links, label, newTab = false }: Props) {
             rel={socialLinkRel}
             title={view.href}
             target={newTab ? "_blank" : undefined}
-            className="text-lg break-all underline focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+            className="text-lg break-all text-link underline"
           >
             {view.text}
           </a>

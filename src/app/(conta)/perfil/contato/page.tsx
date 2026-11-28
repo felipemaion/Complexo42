@@ -10,6 +10,7 @@ import {
 } from "@/modules/profiles";
 import { requireUserClient } from "@/server/auth/session";
 import { setContactVisibilityAction } from "./actions";
+import { cardClass, noticeClass, PageShell } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.contactVisibility.title };
 
@@ -23,17 +24,21 @@ export default async function ContactVisibilityPage({ searchParams }: Props) {
   const status = parseContactVisibilityStatus((await searchParams)[CONTACT_VISIBILITY_STATUS_PARAM]);
   const text = instance.contactVisibility;
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.title}</h1>
+    <PageShell width="form">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.title}</h1>
       {status && (
-        <p role={status === "salva" ? "status" : "alert"} className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role={status === "salva" ? "status" : "alert"} className={noticeClass(status === "salva" ? "success" : "error")}>
           {status === "salva" ? text.saved : text.failed}
         </p>
       )}
-      <p className="text-lg">{text.intro}</p>
-      <ContactVisibilityChoices visibility={visibility} action={setContactVisibilityAction} text={text} />
-      <p className="text-lg">{text.leaveNote}</p>
-      <ContactViewsList views={views} text={text} />
-    </main>
+      <p className="max-w-prose text-lg text-ink-muted">{text.intro}</p>
+      <div className={cardClass()}>
+        <ContactVisibilityChoices visibility={visibility} action={setContactVisibilityAction} text={text} />
+      </div>
+      <p className="max-w-prose text-lg text-ink-muted">{text.leaveNote}</p>
+      <div className={cardClass()}>
+        <ContactViewsList views={views} text={text} />
+      </div>
+    </PageShell>
   );
 }

@@ -7,6 +7,7 @@ import { educationLevels, profileLimits, type EducationLevel } from "../domain/s
 import { formatBrazilianWhatsapp, whatsappInputMaxLength } from "../domain/whatsapp";
 import type { DistrictOption, MunicipalityOption, ProfileFormState, ProfileFormValues } from "../types";
 import { LocationFields, type LocationText } from "./location-fields";
+import { buttonClass, fieldClass, noticeClass } from "@/modules/ui";
 
 // Formulário do perfil (issue #12). Só apresentação e eventos: quem valida, cifra e grava é a
 // server action (no servidor). Mobile-first, botões e letras grandes, tudo à vista e em
@@ -72,8 +73,8 @@ type Props = {
   text: ProfileFormText;
 };
 
-const inputClass =
-  "w-full rounded-xl border-2 border-neutral-500 bg-transparent px-4 py-4 text-xl aria-[invalid=true]:border-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+// Campos e botões pelos tokens (#324); campo inválido com a borda de perigo.
+const inputClass = `${fieldClass()} aria-[invalid=true]:border-danger`;
 const fieldOrder: readonly ProfileFormField[] = [
   "displayName",
   "whatsapp",
@@ -97,8 +98,7 @@ const fieldId: Record<ProfileFormField, string> = {
   occupation: "perfil-atividade",
 };
 const linkId = (index: number) => `perfil-rede-${index + 1}`;
-const buttonClass =
-  "block w-full rounded-xl border-2 border-current px-6 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const secondaryButton = buttonClass("secondary", "lg");
 
 export function ProfileForm({
   action,
@@ -164,7 +164,7 @@ export function ProfileForm({
     undefined;
   const errorText = (name: ProfileFormField) =>
     invalid.has(name) ? (
-      <p id={`${fieldId[name]}-erro`} className="text-lg font-semibold text-red-800 dark:text-red-300">
+      <p id={`${fieldId[name]}-erro`} className="text-lg font-semibold text-danger">
         {name === "whatsapp" && state.status === "duplicate_whatsapp" ? text.duplicateWhatsapp : text.fieldErrors[name]}
       </p>
     ) : null;
@@ -182,10 +182,10 @@ export function ProfileForm({
       noValidate
       className="flex flex-col gap-8"
     >
-      <p className="text-lg">{text.intro}</p>
+      <p className="max-w-prose text-lg text-ink-muted">{text.intro}</p>
 
       {state.status !== "idle" && (
-        <div ref={summaryRef} tabIndex={-1} role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg focus:outline-none focus-visible:ring-4">
+        <div ref={summaryRef} tabIndex={-1} role="alert" className={noticeClass("error")}>
           {state.status === "failed" || state.status === "too_many_attempts" ? (
             <p>{state.status === "failed" ? text.failed : text.tooManyAttempts}</p>
           ) : (
@@ -196,7 +196,7 @@ export function ProfileForm({
                   .filter((name) => invalid.has(name))
                   .map((name) => (
                     <li key={name}>
-                      <a href={`#${name === "socialLinks" ? linkId(badLinks.size > 0 ? Math.min(...badLinks) : 0) : fieldId[name]}`} className="underline">
+                      <a href={`#${name === "socialLinks" ? linkId(badLinks.size > 0 ? Math.min(...badLinks) : 0) : fieldId[name]}`} className="text-link underline">
                         {name === "whatsapp" && state.status === "duplicate_whatsapp" ? text.duplicateWhatsapp : text.fieldErrors[name]}
                       </a>
                     </li>
@@ -208,10 +208,10 @@ export function ProfileForm({
       )}
 
       <div className="flex flex-col gap-2">
-        <label htmlFor={fieldId.displayName} className="text-xl font-semibold">
+        <label htmlFor={fieldId.displayName} className="text-lg font-semibold">
           {text.nameLabel}
         </label>
-        <p id={`${fieldId.displayName}-dica`} className="text-base">
+        <p id={`${fieldId.displayName}-dica`} className="text-base text-ink-muted">
           {text.nameHint}
         </p>
         <input
@@ -231,10 +231,10 @@ export function ProfileForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor={fieldId.whatsapp} className="text-xl font-semibold">
+        <label htmlFor={fieldId.whatsapp} className="text-lg font-semibold">
           {text.whatsappLabel}
         </label>
-        <p id={`${fieldId.whatsapp}-dica`} className="text-base">
+        <p id={`${fieldId.whatsapp}-dica`} className="text-base text-ink-muted">
           {text.whatsappHint}
         </p>
         <input
@@ -275,21 +275,21 @@ export function ProfileForm({
       />
 
       <div className="flex flex-col gap-2">
-        <label htmlFor={fieldId.neighborhood} className="text-xl font-semibold">
+        <label htmlFor={fieldId.neighborhood} className="text-lg font-semibold">
           {text.neighborhoodLabel}
         </label>
-        <p id={`${fieldId.neighborhood}-dica`} className="text-base">
+        <p id={`${fieldId.neighborhood}-dica`} className="text-base text-ink-muted">
           {text.neighborhoodHint}
         </p>
         {!editingNeighborhood && (
           <>
-            <p role="status" className="rounded-xl border-2 border-current p-4 text-lg">
+            <p role="status" className={noticeClass("info")}>
               {text.neighborhoodUnreadable}
             </p>
             <button
               type="button"
               onClick={() => setEditingNeighborhood(true)}
-              className={buttonClass}
+              className={secondaryButton}
             >
               {text.replaceNeighborhood}
             </button>
@@ -319,14 +319,14 @@ export function ProfileForm({
         aria-describedby={describedBy("socialLinks", true)}
         className="flex flex-col gap-4"
       >
-        <legend className="text-xl font-semibold">{text.socialLinksLabel}</legend>
-        <p id={`${fieldId.socialLinks}-dica`} className="text-base">
+        <legend className="text-lg font-semibold">{text.socialLinksLabel}</legend>
+        <p id={`${fieldId.socialLinks}-dica`} className="text-base text-ink-muted">
           {text.socialLinksHint}
         </p>
         {errorText("socialLinks")}
         {!editingLinks && (
           <>
-            <p role="status" className="rounded-xl border-2 border-current p-4 text-lg">
+            <p role="status" className={noticeClass("info")}>
               {text.socialLinksUnreadable}
             </p>
             <button
@@ -336,7 +336,7 @@ export function ProfileForm({
                 setValues((current) => ({ ...current, socialLinks: [] }));
                 setLinkFocus({ target: 0 });
               }}
-              className={buttonClass}
+              className={secondaryButton}
             >
               {text.replaceSocialLinks}
             </button>
@@ -365,14 +365,14 @@ export function ProfileForm({
               className={inputClass}
             />
             {values.socialLinks.length > 0 && (
-              <button type="button" onClick={() => removeLink(index)} className={buttonClass}>
+              <button type="button" onClick={() => removeLink(index)} className={secondaryButton}>
                 {text.removeSocialLink} {index + 1}
               </button>
             )}
           </div>
         ))}
         {editingLinks && linkRows.length < profileLimits.socialLinksMax && (
-          <button ref={addLinkRef} type="button" onClick={addLink} className={buttonClass}>
+          <button ref={addLinkRef} type="button" onClick={addLink} className={secondaryButton}>
             {text.addSocialLink}
           </button>
         )}
@@ -380,11 +380,11 @@ export function ProfileForm({
 
       {/* Formação e atividade (#304): opcionais; o campo escondido diz ao servidor que vieram no envio. */}
       <fieldset className="flex flex-col gap-6">
-        <legend className="text-xl font-semibold">{text.backgroundTitle}</legend>
-        <p className="text-base">{text.backgroundHint}</p>
+        <legend className="text-xl font-bold">{text.backgroundTitle}</legend>
+        <p className="text-base text-ink-muted">{text.backgroundHint}</p>
         <input type="hidden" name={backgroundSentField} value="1" />
         <div className="flex flex-col gap-2">
-          <label htmlFor={fieldId.educationLevel} className="text-xl font-semibold">
+          <label htmlFor={fieldId.educationLevel} className="text-lg font-semibold">
             {text.educationLevelLabel}
           </label>
           <select
@@ -406,10 +406,10 @@ export function ProfileForm({
           {errorText("educationLevel")}
         </div>
         <div className="flex flex-col gap-2">
-          <label htmlFor={fieldId.educationDetail} className="text-xl font-semibold">
+          <label htmlFor={fieldId.educationDetail} className="text-lg font-semibold">
             {text.educationDetailLabel}
           </label>
-          <p id={`${fieldId.educationDetail}-dica`} className="text-base">
+          <p id={`${fieldId.educationDetail}-dica`} className="text-base text-ink-muted">
             {text.educationDetailHint}
           </p>
           <input
@@ -427,10 +427,10 @@ export function ProfileForm({
           {errorText("educationDetail")}
         </div>
         <div className="flex flex-col gap-2">
-          <label htmlFor={fieldId.occupation} className="text-xl font-semibold">
+          <label htmlFor={fieldId.occupation} className="text-lg font-semibold">
             {text.occupationLabel}
           </label>
-          <p id={`${fieldId.occupation}-dica`} className="text-base">
+          <p id={`${fieldId.occupation}-dica`} className="text-base text-ink-muted">
             {text.occupationHint}
           </p>
           <input
@@ -452,8 +452,7 @@ export function ProfileForm({
       <button
         type="submit"
         disabled={pending}
-        className="block w-full rounded-xl px-6 py-5 text-center text-xl font-semibold text-white focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 disabled:opacity-70"
-        style={{ backgroundColor: "var(--color-primary)" }}
+        className={buttonClass("primary", "lg")}
       >
         {pending ? text.saving : text.saveButton}
       </button>
