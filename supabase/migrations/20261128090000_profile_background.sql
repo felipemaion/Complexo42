@@ -79,7 +79,10 @@ revoke all on public.profile_background from anon, authenticated;
 grant select on public.profile_background to authenticated;
 grant insert (profile_id, education_level_enc, education_detail_enc, occupation_enc)
   on public.profile_background to authenticated;
-grant update (education_level_enc, education_detail_enc, occupation_enc)
+-- `profile_id` entra no UPDATE porque o `upsert` do PostgREST faz `ON CONFLICT DO UPDATE SET profile_id = ...`.
+-- Não abre nada: a política exige `app.can_edit_profile(profile_id)` antes e depois, então a linha nunca
+-- aponta para outra pessoa.
+grant update (profile_id, education_level_enc, education_detail_enc, occupation_enc)
   on public.profile_background to authenticated;
 
 create policy profile_background_select on public.profile_background

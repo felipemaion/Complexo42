@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(17);
+select plan(18);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -63,9 +63,18 @@ select throws_ok(
   $$ update public.profile_background set education_detail_enc = 'v1.AAAAAAAAAAAAAAAA.' || repeat('x', 700) $$,
   '23514', null, 'valor cifrado acima do teto é recusado'
 );
+-- O `upsert` do servidor (PostgREST): INSERT ... ON CONFLICT DO UPDATE SET profile_id = excluded.profile_id, ...
+select lives_ok(
+  $$ insert into public.profile_background (profile_id, education_level_enc, education_detail_enc, occupation_enc)
+     values ('00000000-0000-0000-0000-0000000000c1', null, null, pg_temp.enc('upsert'))
+     on conflict (profile_id) do update set profile_id = excluded.profile_id,
+       education_level_enc = excluded.education_level_enc, education_detail_enc = excluded.education_detail_enc,
+       occupation_enc = excluded.occupation_enc $$,
+  'o upsert do servidor funciona para o dono'
+);
 select throws_ok(
   $$ update public.profile_background set profile_id = '00000000-0000-0000-0000-0000000000c2' $$,
-  '42501', null, 'a chave da linha não pode ser trocada'
+  '42501', null, 'a linha não pode ser apontada para outra pessoa (RLS)'
 );
 select throws_ok(
   $$ delete from public.profile_background $$,
