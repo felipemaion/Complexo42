@@ -4,6 +4,7 @@
 // diz se a pessoa tem conta) e limpa o campo depois de adicionar.
 import { useActionState, useEffect, useRef } from "react";
 import { ALLOWLIST_EMAIL_FIELD, type AddEmailError, type AddEmailState } from "../domain/coordination";
+import { buttonClass, fieldClass, noticeClass } from "@/modules/ui";
 
 export type AllowlistAddEmailText = {
   title: string;
@@ -29,17 +30,17 @@ export function AllowlistAddEmailForm({ action, text }: Props) {
     <form ref={formRef} action={formAction} className="flex flex-col gap-4" data-testid="allowlist-add-email">
       <h2 className="text-2xl font-bold">{text.title}</h2>
       {state.status === "error" && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg" data-testid="allowlist-add-error">
+        <p role="alert" className={noticeClass("error")} data-testid="allowlist-add-error">
           {text.errors[state.error]}
         </p>
       )}
       {(state.status === "added" || state.status === "already") && (
-        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg font-bold" data-testid="allowlist-add-done">
+        <p role="status" className={`${noticeClass("success")} font-bold`} data-testid="allowlist-add-done">
           {state.status === "added" ? text.added : text.already}
         </p>
       )}
       <div className="flex flex-col gap-2">
-        <label htmlFor="allowlist-email" className="text-xl font-bold">
+        <label htmlFor="allowlist-email" className="text-lg font-bold">
           {text.label}
         </label>
         <input
@@ -50,16 +51,16 @@ export function AllowlistAddEmailForm({ action, text }: Props) {
           autoComplete="off"
           maxLength={254}
           aria-describedby="allowlist-email-hint"
-          className="rounded-xl border-2 border-current px-4 py-4 text-xl focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+          className={fieldClass()}
         />
-        <p id="allowlist-email-hint" className="text-base">
+        <p id="allowlist-email-hint" className="text-base text-ink-muted">
           {text.hint}
         </p>
       </div>
       <button
         type="submit"
         disabled={pending}
-        className="rounded-xl border-2 border-current px-6 py-5 text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 disabled:opacity-60"
+        className={buttonClass("primary", "lg")}
       >
         {pending ? text.adding : text.button}
       </button>

@@ -6,11 +6,11 @@ import { ALLOWLIST_UPLOAD_PATH, MEMBER_BLOCK_PATH, WAITLIST_QUEUE_PATH, readCoor
 import { readCoordinationLinks } from "@/modules/houses";
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
+import { buttonClass, cardClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.coordination.title };
 
-const big =
-  "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const big = buttonClass("secondary", "lg");
 
 // Entrada da coordenação (#26). Os atalhos seguem os papéis de quem está logado, só por
 // conforto: cada tela pede ao banco, com o JWT da pessoa, e o banco recusa quem não pode (R15).
@@ -23,9 +23,11 @@ export default async function CoordinationHome() {
   const questionnaire = await readCoordinationLinks();
   const links = instance.questionnaireCoordination;
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.title}</h1>
-      <p className="text-lg">{text.intro}</p>
+    <PageShell width="content">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.title}</h1>
+      <p className="max-w-prose text-lg text-ink-muted">{text.intro}</p>
+      {/* Atalhos em grade no computador (#324). */}
+      <div className={`${cardClass()} sm:grid sm:grid-cols-2`}>
       <Link href={WAITLIST_QUEUE_PATH} className={big}>
         {text.waitlist.menuLink}
       </Link>
@@ -60,9 +62,10 @@ export default async function CoordinationHome() {
           </Link>
         </>
       )}
-      <Link href={HOME_PATH} className="text-center text-lg underline">
+      </div>
+      <Link href={HOME_PATH} className={`${textLinkClass()} self-center`}>
         {text.homeBackLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }
