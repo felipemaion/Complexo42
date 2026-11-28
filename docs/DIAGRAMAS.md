@@ -219,6 +219,11 @@ erDiagram
         text occupation_enc "cifrado"
         timestamptz updated_at
     }
+    profile_photos {
+        uuid profile_id PK, FK
+        text photo_enc "cifrado"
+        timestamptz updated_at
+    }
     contact_visibility {
         uuid profile_id PK, FK
         text kind PK
@@ -248,6 +253,7 @@ erDiagram
     profiles ||--o| access_waitlist_hmac : "espera"
     profiles |o--o{ access_allowlist : "adicionou"
     profiles ||--o| profile_contacts : "contato"
+    profiles ||--o| profile_photos : "foto"
     profiles ||--o| profile_background : "formação e atividade"
     profiles ||--o{ contact_visibility : "quem vê"
     profiles ||--o{ consent_acceptances : "aceitou o termo"

@@ -13,7 +13,7 @@
 | Dado | Coluna | Proteção | Quem vê (ADR 0002) |
 |---|---|---|---|
 | Nome completo (**obrigatório**; o esquema ainda aceita uma palavra só, o sobrenome vem na #312) | `profiles.display_name_enc` | AES-256-GCM | Escopo do monitor/gestor; colegas de equipe; todo membro logado no perfil público (#305) |
-| Foto do rosto (**opcional**, #308; ADR 0006, revisão de 2026-11-28). **Finalidade:** a coordenação e os colegas reconhecerem a pessoa pessoalmente. Só a miniatura (~256 px, WebP, ~20 KB, sem EXIF; original descartado); coluna e armazenamento definidos na #308 | a definir na #308 | AES-256-GCM ou armazenamento sem URL pública | Só membros logados; some com a conta e entra em "Baixar meus dados" |
+| Foto do rosto (**opcional**, #308; ADR 0006, revisão de 2026-11-28). **Finalidade:** a coordenação e os colegas reconhecerem a pessoa pessoalmente. Só a miniatura (192 x 256 px, WebP, ~20 KB, sem EXIF; original descartado). **Desligada por padrão** (`profile.photoEnabled`, `config/instance.ts`) até o termo v2 (#311) | `profile_photos.photo_enc` | AES-256-GCM | A própria pessoa e todo membro ativo logado, só por `/foto/<id>` (nunca URL pública); some com a conta e entra em "Baixar meus dados" |
 | Formação acadêmica (#304): nível mais alto, em **lista fechada** (fundamental, médio, superior incompleto, superior completo, pós-graduação), e "qual?" opcional em texto livre (só em superior e pós). **Opcional.** **Finalidade:** encaixar a pessoa num eixo da casa e achar quem pode ajudar | `profile_background.education_level_enc`, `education_detail_enc` | AES-256-GCM | O dono; a coordenação do escopo (monitor/gestor, `app.can_view_background`). Fora do perfil público: o dono escolher mostrar é a #305 |
 | Atividade profissional (#304): texto livre de 2 a 80 caracteres, separado da formação. **Opcional.** **Finalidade:** idem | `profile_background.occupation_enc` | AES-256-GCM | Idem |
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
@@ -300,6 +300,25 @@ lê e grava a própria linha (`app.can_edit_profile`); monitor e gestor do escop
 Sem busca nem filtro por formação ou atividade: se a busca de membros (#23) precisar filtrar por nível, será
 preciso rever a cifra de `education_level` (lista fechada, onde um índice cego bastaria). Vai no arquivo de
 exportação (`formacaoEAtividade`) e some com a conta (cascata).
+
+### `profile_photos` (#308)
+1:1 com `profiles` (`profile_id` PK, FK `on delete cascade`). O servidor de produção **não roda o serviço `storage`** (ADR 0009), então a miniatura mora cifrada no banco, e não num bucket.
+
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `photo_enc` | text | 🔒 a miniatura (WebP, 192 x 256 px, até ~30 KB) em base64, cifrada (`v1.iv.ct`, AAD `profile_photos.photo_enc.<profile_id>`); ~40 mil caracteres no máximo. CHECK de formato e de tamanho |
+| `updated_at` | timestamptz | gravado pelo trigger |
+
+O servidor recebe JPEG, PNG ou WebP (confere pelos bytes, até 2 MB e um teto de pixels contra bomba de
+descompressão), aplica a orientação, recorta em 3:4, reduz, converte para WebP **sem metadados** e descarta o
+original (nunca vai ao banco, ao disco nem ao log). Só a função `save_own_photo(p_photo_enc)` grava (o dono não
+tem INSERT/UPDATE direto): ela confere `app.can_edit_profile` e limita a **10 envios por hora** por pessoa
+(`PT429`, contador em `app.photo_upload_attempts`, sem dado da imagem). RLS: o dono lê e **apaga** a própria
+linha; todo membro ativo lê a de perfil ativo (`app.can_view_photo`); ninguém mais. A leitura é só pela rota
+`/foto/<id>` do servidor, com o JWT de quem pede (R14): decifra e devolve `image/webp` com
+`Cache-Control: private, no-store` e `X-Robots-Tag: noindex`; sem permissão responde 404, igual a "sem foto".
+Os envios (`/perfil/foto`) respondem 404 enquanto `profile.photoEnabled` for `false`. Vai no arquivo de
+exportação (`foto`, base64) e some com a conta (cascata).
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)
