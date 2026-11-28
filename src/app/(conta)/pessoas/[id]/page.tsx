@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { instance } from "@config/instance";
 import { sessionHouseClient } from "@/modules/houses";
-import { photoUrl } from "@/modules/profiles";
+import { ContactButtons, photoUrl, readContactAccess } from "@/modules/profiles";
 import { readPublicProfile } from "@/modules/public-profile";
 import { requireUserClient } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
 import { cardClass, PageShell } from "@/modules/ui";
+import { viewContactAction } from "./actions";
 import { badgeViews } from "./badge-views";
 
 export const metadata: Metadata = { title: instance.publicProfile.title, robots: { index: false, follow: false } };
@@ -16,7 +17,7 @@ export const metadata: Metadata = { title: instance.publicProfile.title, robots:
 // Contato, formação, atividade e respostas nunca passam por aqui.
 export default async function PublicProfilePage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
   const { id } = await params;
-  await requireUserClient();
+  const { user, client: authClient } = await requireUserClient();
   const client = await sessionHouseClient();
   if (!client) notFound();
   const withPhoto = instance.profile.photoEnabled;
@@ -30,6 +31,8 @@ export default async function PublicProfilePage({ params }: Readonly<{ params: P
     }),
   );
   const shown = views.filter((v) => v.node !== null);
+  // Só mostra "ver contato" de OUTRA pessoa e só dos contatos que a regra libera (sem auditar nem ler o valor).
+  const access = person.id === user.id ? null : await readContactAccess(authClient, person.id);
   return (
     <PageShell width="form">
       <section className={cardClass()} aria-labelledby="perfil-publico-nome">
@@ -58,6 +61,11 @@ export default async function PublicProfilePage({ params }: Readonly<{ params: P
           </ul>
         )}
       </section>
+      {access && (access.whatsapp || access.social || access.email) && (
+        <div className={cardClass()}>
+          <ContactButtons targetId={person.id} access={access} action={viewContactAction} text={instance.contactView} />
+        </div>
+      )}
     </PageShell>
   );
 }

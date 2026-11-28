@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { decryptWith, encryptWith, type FieldContext } from "@/server/crypto/field";
 import { importKeyring } from "@/server/crypto/keys";
 import { createLogger } from "@/server/log";
-import { listContactViews, loadContactVisibility, setContactVisibility, viewMemberContact, type ContactDeps } from "./contact";
+import { listContactViews, loadContactVisibility, readContactAccess, setContactVisibility, viewMemberContact, type ContactDeps } from "./contact";
 import type { ProfileDbClient } from "../types";
 
 const key = () => crypto.getRandomValues(new Uint8Array(32));
@@ -185,5 +185,22 @@ describe("listContactViews", () => {
     ]);
     expect(lines.join("")).toContain("contact_views_decrypt_failed");
     expect(leaks(lines.join(""))).toEqual([]);
+  });
+});
+
+describe("readContactAccess", () => {
+  it("chama contact_access com o alvo e devolve só as permissões", async () => {
+    const { client, calls } = fakeClient(() => ({ data: [{ whatsapp_ok: true, social_ok: false, login_ok: true }], error: null }));
+    expect(await readContactAccess(client, TARGET)).toEqual({ whatsapp: true, social: false, email: true });
+    expect(calls).toEqual([{ fn: "contact_access", args: { p_target: TARGET } }]);
+  });
+
+  it("erro, resposta estranha ou id inválido: nenhum botão, e id inválido nem chama o banco", async () => {
+    const none = { whatsapp: false, social: false, email: false };
+    expect(await readContactAccess(fakeClient(() => denied).client, TARGET)).toEqual(none);
+    expect(await readContactAccess(fakeClient(() => ({ data: [{ whatsapp_ok: "sim" }], error: null })).client, TARGET)).toEqual(none);
+    const spy = fakeClient(() => ({ data: [], error: null }));
+    expect(await readContactAccess(spy.client, "nao-e-uuid")).toEqual(none);
+    expect(spy.calls).toEqual([]);
   });
 });

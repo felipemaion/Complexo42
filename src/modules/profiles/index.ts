@@ -34,7 +34,7 @@ export {
   type SocialLinkView,
 } from "./domain/social";
 export { firstName, isFullName, needsFullNameNotice } from "./domain/full-name";
-export { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./domain/whatsapp";
+export { brazilianWhatsappToE164, formatBrazilianWhatsapp, whatsappLink } from "./domain/whatsapp";
 export { filterMunicipalities, hasDistrictChoice } from "./domain/localities";
 export {
   listDistricts,
@@ -53,7 +53,9 @@ export {
   describeContactView,
   parseContactVisibilityChoice,
   parseContactVisibilityStatus,
+  viewStateFromContact,
   visibilityFromRows,
+  type ContactAccess,
   type ContactKind,
   type ContactScope,
   type ContactView,
@@ -62,10 +64,12 @@ export {
   type ContactVisibilityChoice,
   type ContactVisibilityStatus,
   type MemberContact,
+  type ViewContactState,
 } from "./domain/contact";
 export {
   listContactViews,
   loadContactVisibility,
+  readContactAccess,
   setContactVisibility,
   viewMemberContact,
   type ContactDeps,
@@ -73,6 +77,7 @@ export {
   type ViewMemberContactResult,
 } from "./server/contact";
 export { ProfileForm } from "./components/profile-form";
+export { ContactButtons, type ContactButtonsText } from "./components/contact-buttons";
 export { SocialLinkList } from "./components/social-links";
 export { ContactViewsList, ContactVisibilityChoices, type ContactVisibilityText } from "./components/contact-visibility";
 export type {

@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(88);
+select plan(93);
 
 truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 
@@ -248,9 +248,18 @@ select is(app.can_view_contact(pg_temp.person('b'), 'telefone'), false,
 select is(app.can_view_contact(pg_temp.person('a'), null), false,
   'tipo nulo é negado (false, não nulo), até para o próprio');
 select is(app.can_view_contact(null, 'whatsapp'), false, 'alvo nulo é negado (false, não nulo)');
+-- `contact_access` (#48): os mesmos booleanos, para decidir o botão, sem ler o valor nem auditar.
+select is((select format('%s/%s/%s', c.whatsapp_ok::text, c.social_ok::text, c.login_ok::text) from public.contact_access(pg_temp.person('b')) as c), 'true/false/true',
+  'contact_access: colega da equipe vê WhatsApp e e-mail autorizados, e não as redes');
+select is((select format('%s/%s/%s', c.whatsapp_ok::text, c.social_ok::text, c.login_ok::text) from public.contact_access(pg_temp.person('a')) as c), 'true/true/true',
+  'contact_access: o próprio sempre pode');
+select is((select format('%s/%s/%s', c.whatsapp_ok::text, c.social_ok::text, c.login_ok::text) from public.contact_access(null) as c), 'false/false/false',
+  'contact_access: alvo nulo é tudo falso');
 select pg_temp.login('blk');
 select is(app.can_view_contact(pg_temp.person('b'), 'whatsapp'), false,
   'quem está bloqueado NÃO vê o contato do colega');
+select is((select format('%s/%s/%s', c.whatsapp_ok::text, c.social_ok::text, c.login_ok::text) from public.contact_access(pg_temp.person('b')) as c), 'false/false/false',
+  'contact_access: quem está bloqueado não tem nenhum botão');
 
 -- ---------------------------------------------------------------------------------------
 -- "A mesma casa": a mesma casa nacional, o mesmo território mais próximo, aceita há pelo
@@ -518,6 +527,10 @@ select throws_ok(
 select throws_ok($$ select public.set_contact_visibility('whatsapp', 'team') $$,
   '42501', 'permission denied for function set_contact_visibility',
   'visitante anônimo NÃO chama set_contact_visibility');
+select throws_ok(
+  $$ select * from public.contact_access('00000000-0000-0000-0000-0000000001a0'::uuid) $$,
+  '42501', 'permission denied for function contact_access',
+  'visitante anônimo NÃO chama contact_access');
 
 reset role;
 select * from finish();
