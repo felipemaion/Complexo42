@@ -47,7 +47,7 @@ export function PhotoSection({ enabled, profileId, hasPhoto, status, text }: Pro
         <img src={photoUrl(profileId)} alt={text.photoAlt} width={96} height={128} className="h-32 w-24 rounded-control border border-line object-cover" />
       )}
       <form method="post" action={PHOTO_UPLOAD_PATH} encType="multipart/form-data" className="flex flex-col gap-3">
-        <label htmlFor="perfil-foto-arquivo" className="text-xl font-semibold">
+        <label htmlFor="perfil-foto-arquivo" className="text-lg font-semibold">
           {text.photoChoose}
         </label>
         {hasPhoto && <p className="text-base">{text.photoReplaceHint}</p>}
