@@ -108,6 +108,11 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   const member = await (await browser.newContext()).newPage();
   await joinThroughQuestionnaire(member, request, memberEmail, "Pessoa Staging", baseURL!);
 
+  // DIAGNÓSTICO TEMPORÁRIO (#365): o que o banco guarda sobre as duas pessoas, e o que a coordenação consegue ler.
+  const sql = (query: string) => execFileSync("docker", ["exec", "-i", DB_CONTAINER!, "psql", "-U", "supabase_admin", "-d", "postgres", "-At", "-c", query], { encoding: "utf8" }).trim();
+  console.log(`DIAG#365 perfis: ${sql("select left(id::text,8), access_status, status, profile_completed_at is not null, display_name_enc is not null, left(display_name_enc,12), municipality_code, state_code from public.profiles order by created_at")}`);
+  console.log(`DIAG#365 vinculos: ${sql("select left(m.profile_id::text,8), u.path::text, m.left_at is null from public.unit_members m join public.units u on u.id=m.unit_id")}`);
+  console.log(`DIAG#365 papeis: ${sql("select left(r.profile_id::text,8), r.role, u.path::text from public.role_assignments r join public.units u on u.id=r.unit_id")}`);
   // A coordenação nacional vê os resultados do banco novo: o dela (#318) e o da pessoa.
   await coordinator.goto("/coordenacao/casas/resultados");
   const results = coordinator.locator('a[href^="/coordenacao/casas/resultados/"]');
