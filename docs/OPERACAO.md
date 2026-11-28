@@ -845,6 +845,10 @@ DB_CONTAINER=<nome do container do Postgres do ambiente>
 # O manifesto fica num diretório SÓ DO ROOT -- ver a seção da sincronia.
 INFRA_DIR=<diretório de infra do ambiente>        # padrão: PROJECT_DIR
 MANIFESTO=/etc/complexo42/infra-<projeto>.manifesto
+# OPCIONAL. O projeto Compose do SUPABASE (≠ APP_PROJETO). Com ele, o deploy
+# aplica sozinho a mudança do compose do Supabase e do kong.yml; sem ele,
+# apenas avisa que a mudança ficou no disco sem valer. Ver "Aplicar a infra".
+SUPABASE_PROJETO=<projeto Compose do Supabase>
 ```
 
 O diretório do manifesto (`/etc/complexo42/`) precisa ser **do root e não
@@ -939,13 +943,77 @@ o que nenhum check responde.
 O compose do Supabase, o `kong.yml` e o `initdb/` **viajam na imagem** e o
 deploy os sincroniza no servidor. A imagem é a fonte; o servidor é cópia.
 
-> **Sincronizar o arquivo não reinicia o Supabase.** O deploy faz `up -d` no
-> projeto **do app**; o projeto do Supabase é outro. Mudar
-> `docker-compose.supabase.yml` num PR deixa o arquivo novo no servidor com os
-> containers antigos rodando a configuração antiga — o deploy passa **verde** e
-> o comportamento não muda. Aplicar exige `up -d` no projeto do Supabase, à
-> mão, pelo dono do servidor. Vale para qualquer variável de ambiente do
-> `auth`, `rest` ou `kong`.
+> **Gravar o arquivo não é trocar o que roda.** O deploy faz `up -d` no projeto
+> **do app**; o projeto do Supabase é outro. Sem `SUPABASE_PROJETO` na
+> configuração, mudar `docker-compose.supabase.yml` ou `kong.yml` num PR deixa
+> o arquivo novo no servidor com os containers rodando a configuração antiga —
+> e o deploy passa **verde**. Aconteceu **quatro vezes em 2026-11-27**
+> (`DB_CONTAINER`, os templates em português, o `kong.yml` do #247 e o
+> `migra.sh`). Com `SUPABASE_PROJETO` configurado, o deploy aplica sozinho —
+> ver **Aplicar a infra**, abaixo.
+
+#### Aplicar a infra: o ensaio decide o escopo, a saúde decide se fica
+
+Com `SUPABASE_PROJETO` na configuração, a etapa 2/5 aplica o que gravou:
+
+| Mudou | O que o deploy faz |
+|---|---|
+| `docker-compose.supabase.yml` | `up -d` no projeto do Supabase — **o compose decide** quais serviços recriar |
+| `kong.yml` | `up -d --no-deps --force-recreate kong`, **explícito** |
+| `initdb/*` | **nada** (só roda em volume vazio; segue avisando) |
+| nada | nada: nem ensaio |
+
+**Por que o compose decide, e não uma lista nossa.** Mapa arquivo→serviço
+escrito à mão envelhece em silêncio: no dia em que alguém acrescentar uma
+variável ao `rest`, a lista não saberá. O `up -d` recria exatamente os
+serviços cuja configuração resolvida mudou — medido quatro vezes com
+`--dry-run`. O `kong.yml` é a exceção justamente porque é **bind mount**: o
+compose não vê mudança no conteúdo do arquivo, então a recriação dele é
+explícita.
+
+**O deploy nunca toca o banco por conta própria — e a trava é prova positiva.**
+Antes de qualquer coisa que mude estado, o deploy exige que o banco conhecido
+do ambiente (`DB_CONTAINER`) **pertença ao projeto** `SUPABASE_PROJETO` —
+lendo o label `com.docker.compose.project` do container. Sem conseguir essa
+prova, ele não age.
+
+> **Por que positiva, e não "procurar o banco no ensaio".** Com
+> `SUPABASE_PROJETO` errado — um typo, ou o projeto de outro ambiente — o
+> ensaio fala de containers com **outro nome**: nada casaria com
+> `DB_CONTAINER`, a trava passaria, e o `up -d` subiria uma **segunda pilha**
+> a partir do mesmo compose: banco novo, volume novo, `initdb` rodando.
+> Lista negativa falha aberto exatamente quando a configuração está errada,
+> que é quando ela mais precisa funcionar. Apontado em revisão do #281.
+
+Depois disso, o ensaio (`up -d --dry-run`) é lido: se **não mencionar** o
+banco, ou se o mencionar com `Creat*`, `Recreat*`, `Remov*`, `Stop*`, `Kill`
+ou `Restart`, o deploy **para**, devolve os arquivos e chama um humano.
+`Running` e `Start*` passam: banco parado que volta a subir não perde nada.
+Recriar o Postgres encerra conexão, pode disparar o `initdb` num volume novo,
+e não há rollback que devolva o que se perdeu.
+
+**Volta atrás.** Falha ao aplicar, ou saúde que não volta, devolve cada arquivo
+ao conteúdo anterior, **refaz o manifesto** e recria com ele. Refazer o
+manifesto não é detalhe: sem isso o disco passa a divergir do que o manifesto
+diz e o deploy **seguinte** trava como se alguém tivesse editado à mão.
+
+> **O que a volta atrás não cobre, e é bom saber antes de precisar.** Arquivo
+> que era **novo** nesta sincronia não tem conteúdo anterior: a devolução
+> avisa no log e **não apaga** (apagar infra é pior que deixar). E se o
+> processo morrer entre gravar e aplicar, o disco fica novo com os containers
+> velhos — o deploy seguinte lê "tudo igual à imagem" e não reaplica. Nesse
+> caso, a conferência é a de sempre: comparar o que o container está usando
+> com o que está no disco. Um marcador de "aplicação pendente" resolveria, e
+> está anotado como trabalho próprio.
+
+**A saúde é o `smoke`, com as repetições dele.** O mesmo `/api/healthz` do
+teste de fumaça — que desde a sonda de esquema passa pelo Kong e pelo
+PostgREST, então Kong quebrado aparece ali. E repete até `ESPERA_SMOKE`: o Kong
+levou **9 tentativas** para aceitar conexão em 2026-11-28, e 3 numa recriação
+três horas antes. Conferir uma vez só reverteria mudança boa.
+
+Falhar aqui falha o deploy **na etapa 2/5** — antes das migrations, com o app
+antigo intacto.
 
 **Quais arquivos — e a lista está no `deploy.sh`, não na imagem.** São
 exatamente quatro: `docker-compose.supabase.yml`, `kong.yml`,
