@@ -36,9 +36,15 @@ describe("a pessoa nunca vê o totem nem a medalha", () => {
     }
   });
 
-  it("as telas da coordenação usam a medalha (prova de que a guarda enxerga o que deve)", () => {
-    expect(read("src/app/(conta)/coordenacao/casas/resultados/page.tsx")).toMatch(/TotemMedal|HouseWithTotem/);
-    expect(read("src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx")).toMatch(/TotemMedal|HouseWithTotem/);
+  it("só o detalhe do resultado (que registra o acesso) usa a medalha (prova de que a guarda enxerga o que deve)", () => {
+    expect(read("src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx")).toMatch(/ChosenHouseAndTotem/);
+  });
+
+  it("a lista de resultados NÃO usa a medalha nem pede o totem: ele só aparece ao abrir a pessoa", () => {
+    const list = read("src/app/(conta)/coordenacao/casas/resultados/page.tsx");
+    for (const pattern of MEDAL_SOURCES) expect(pattern.test(list)).toBe(false);
+    expect(list).not.toMatch(/totem-medal|ChosenHouseAndTotem|HouseWithTotem|\.totem\b/);
+    expect(read("src/modules/houses/server/coordination-views.ts")).not.toMatch(/readTotems|profile_id,totem_enc/);
   });
 });
 
