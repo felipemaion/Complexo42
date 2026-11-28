@@ -6,7 +6,7 @@
 | Milestone | Data-alvo | Entrega |
 |---|---|---|
 | M0 · Fundação e decisões | 2026-11-30 | Staging no ar com deploy automático da `main` (ADR 0009); produção, backup e monitoramento pendentes (nova data a definir). |
-| M1 · Cadastro do aluno | 2026-12-20 | Entrada: termo → questionário das casas (26 perguntas, pesos 1-3-5) → casa (sugestão com escolha livre, comparação 2×2 com média real, trava de 4 meses) → perfil. Login por link, Google ou senha opcional, com lista de autorizados; baixar e excluir os próprios dados. |
+| M1 · Cadastro do aluno | 2026-12-20 | Entrada: termo → questionário das casas (26 perguntas, pesos 1-3-5) → casa (sugestão com escolha livre, comparação 2×2 com média real; troca só na janela de transferência) → perfil (com formação, atividade profissional e miniatura do rosto). Login por link, Google ou senha opcional, com lista de autorizados; baixar e excluir os próprios dados. |
 | M2 · Busca e painel da coordenação | 2027-01-05 | Papéis por escopo, busca por habilidade, catálogo de habilidades e seeds em volume. |
 | M6 · Piloto e lançamento | 2027-01-17 | Produção pronta: revisão de segurança, carga, chaves, runbook ensaiado, teste com 10–20 pessoas e go/no-go em 17/01; lançamento no fim de janeiro. |
 | M3 · Equipes e turmas | 2027-01-31 | Equipes rotativas, porta-voz, portfólio, turmas, ver contato e mapa de calor — prontos antes de março. |
@@ -52,19 +52,26 @@
 
 - #15 Habilidades: seleção a partir do catálogo — `bloqueada, frontend, backend`
 - #87 Infra: provedores de login no Auth auto-hospedado (Google OAuth + relay SMTP) — `bloqueada, seguranca, backend, infra`
+- #302 Janela de transferência de casa (substitui a trava de 4 meses) — `backend, frontend, seguranca`
+- #303 Medalha da casa e do totem no perfil, visível aos membros — `backend, frontend, seguranca`
+- #312 Perfil: exigir nome completo (nome e sobrenome) — `backend, frontend`
+- #304 Perfil: formação acadêmica e atividade profissional — `backend, frontend`
+- #308 Foto do perfil: miniatura guardada (~256 px WebP, ~20 KB), opcional — `backend, frontend, seguranca`
 - #130 Baixar e excluir meus dados também para quem está em espera ou bloqueado (decisão do jurídico) — `precisa-decisao, frontend`
 - #222 Checar no boot/healthz que a versão do termo da config existe no banco (`public.term_version_exists`)
 - #288 Deploy: compose do servidor repassa `FIELD_ENCRYPTION_KEY` e `BLIND_INDEX_KEY` (destrava o login no staging)
 - #289 Env: repor a exigência das chaves de cifra em produção (depende da #288; desfaz o #285)
 - #290 Staging: gerar `QUESTIONNAIRE_SIGNING_KEY` e exigi-la na subida
 - #291 Auth: teste negativo do login com Google
-- #292 Conteúdo: pendências do Cortez (Siracusa, "Primeiros passos", catálogo de habilidades)
+- #292 Conteúdo: pendências do Cortez (Siracusa, "Primeiros passos", texto das medalhas de totem, catálogo de habilidades, informações sobre as cortes)
 
 ## M2 · Busca e painel da coordenação
 
 - #22 Delegação de papéis por escopo (nacional → estadual → monitor) + audit_log — `bloqueada, seguranca, backend`
 - #23 Busca de pessoas por habilidade (prioridade do gestor nacional) — `bloqueada, frontend, backend`
 - #25 Gestão do catálogo de habilidades (admin) — `bloqueada, frontend, backend`
+- #305 Perfil público visível a todos os membros logados — `backend, frontend, seguranca`
+- #307 Área de novidades na tela inicial — `frontend, backend`
 - #74 Seeds em volume: 2 mil, 50 mil e 500 mil perfis fictícios para testes de desempenho — `bloqueada, backend`
 - #154 Teste de RLS gerado: matriz papel × tabela × operação — `seguranca, backend`
 - #155 Teste que prova que as colunas `*_enc` não guardam texto legível — `seguranca, backend`
@@ -92,6 +99,7 @@
 - #56 Identidade da turma: nome, lema, cores e emblema — `bloqueada, frontend, backend`
 - #69 Equipes rotativas: histórico de vínculos e porta-voz do ciclo (ADR 0007 §2) — `bloqueada, seguranca, backend`
 - #70 Portfólio por links com prévia incorporada (ADR 0007 §5) — `bloqueada, seguranca, frontend`
+- #306 Clãs: grupos de pessoas com feitos parecidos (tamanho inicial 14, configurável; ADR a escrever) — `precisa-decisao, backend, frontend`
 - #120 Chat da equipe dentro da plataforma (ADR a escrever) — `precisa-decisao, frontend, backend`
 - #136 Ex-aluno: registrar equipes anteriores à plataforma (autodeclarado) — `precisa-decisao, frontend, backend`
 - #137 Papel de veterano/mentor (escopo, permissões e relação com a medalha) — `precisa-decisao, frontend, backend`

@@ -7,7 +7,7 @@
 ## Decisão
 
 1. A ordem de quem tem acesso liberado é: **link mágico, termo geral (LGPD), termo do questionário
-   (com o aviso da trava de 4 meses), questionário (26 perguntas), casa aceita ou escolhida direto, e só
+   (a troca de casa só na janela de transferência, ADR 0016), questionário (26 perguntas), casa aceita ou escolhida direto, e só
    então o perfil** (nome, WhatsApp, localidade) e o resto da plataforma. O termo geral continua primeiro:
    nenhum dado é coletado antes dele.
 2. Até a casa estar definida (vínculo aberto em `house_members`), a pessoa só pode **sair, ver/baixar os

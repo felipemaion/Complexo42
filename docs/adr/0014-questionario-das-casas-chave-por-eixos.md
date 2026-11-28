@@ -15,7 +15,8 @@ Em 2026-11-25 o stakeholder enviou uma versão nova do questionário e da chave 
 Em vez de temperamentos, a chave tem **quatro eixos**, cada um com uma lista própria de itens:
 
 - **Eixos 1 e 2** definem a **casa** (casas 1 a 4);
-- **Eixos 3 e 4** definem o **totem** (quatro totens), um dado interno.
+- **Eixos 3 e 4** definem o **totem** (quatro totens). Desde 2026-11-28 a **medalha do totem é vista
+  por todos os membros** (veja a revisão abaixo); as notas dos eixos 3 e 4 seguem internas.
 
 O texto das perguntas e a chave real são privados e não entram no repositório.
 
@@ -83,14 +84,14 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
 ### 2. O que a pessoa vê
 
 A pessoa vê a casa ("a casa sugerida para você") e o **gráfico de aranha dos eixos 1 e 2**, os que
-definem a casa. O **totem é interno**, e as notas dos eixos 3 e 4 também: não aparecem na tela da
-casa. Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
+definem a casa. As **notas** dos eixos 3 e 4 são internas e não aparecem na tela da casa. O
+**totem** (a medalha) passou a ser público entre membros (revisão de 2026-11-28). Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
 
 **Na página inicial da pessoa** (#203): a casa aceita (ou, sem ela, a sugerida pelo questionário) com nome, cor, descrição
 curta e o gráfico dos eixos 1 e 2 com as zonas; sem casa nem resultado, um convite para o questionário. O servidor
 nunca pede o totem a essa leitura (`readOwnHouseCard`; regra em `domain/home-card.ts`).
 
-**Medalha do totem** (#266, só coordenação): no **detalhe** do resultado de cada pessoa, o brasão da casa **escolhida** e a medalha do totem aparecem em destaque, lado a lado e do mesmo tamanho, com o nome de cada um embaixo (`public/totens/`, WebP e PNG em 512 e 128, gerada por `scripts/otimizar-totens.mjs`; sem casa escolhida, só a medalha; sem medalha para o código, só o brasão). A **lista** de resultados continua sem totem e sem pedi-lo ao banco: o totem só aparece ao abrir a pessoa, o que registra o acesso (`log_questionnaire_view`). A pessoa nunca vê a medalha nem o nome do totem (guarda em `tests/totem-medal-privacy.test.ts` e E2E), e `/totens/` exige login (o proxy não o exclui, ao contrário de `/casas/`).
+**Medalha do totem** (#266, só coordenação): no **detalhe** do resultado de cada pessoa, o brasão da casa **escolhida** e a medalha do totem aparecem em destaque, lado a lado e do mesmo tamanho, com o nome de cada um embaixo (`public/totens/`, WebP e PNG em 512 e 128, gerada por `scripts/otimizar-totens.mjs`; sem casa escolhida, só a medalha; sem medalha para o código, só o brasão). A **lista** de resultados continua sem totem e sem pedi-lo ao banco: o totem só aparece ao abrir a pessoa, o que registra o acesso (`log_questionnaire_view`). Até a #303 a pessoa não vê a própria medalha (guarda em `tests/totem-medal-privacy.test.ts` e E2E); `/totens/` exige login (o proxy não o exclui, ao contrário de `/casas/`).
 
 **Gráfico de aranha** (SVG próprio, sem biblioteca): os polos "a" de todos os eixos vêm primeiro e
 depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frente (meia volta). Cada
@@ -163,7 +164,8 @@ coordenação [?] (prazo e regra para a pessoa trocar sozinha).
 
 | Dado | Quem lê |
 |---|---|
-| Casa sugerida e totem (`questionnaire_results`) | A própria pessoa, a coordenação nacional e quem ela delegou (abaixo) |
+| Casa sugerida e notas dos eixos (`questionnaire_results`) | A própria pessoa, a coordenação nacional e quem ela delegou (abaixo) |
+| **Medalha do totem** (só o código do totem, decifrado pelo servidor) | **Todo membro logado** (revisão de 2026-11-28, #303) |
 | Pedido de análise e respostas (`house_analysis_requests`) | A própria pessoa, a coordenação nacional e quem ela delegou |
 | Eventos `house_analysis_requested/resolved` do `audit_log` | A coordenação nacional e quem ela delegou sobre aquela pessoa (o gestor territorial comum **não**, nem pelo alvo) |
 | Concessões e seus eventos (`questionnaire_access_granted/revoked`) | A coordenação nacional (e cada gestor lê a que recebeu) |
@@ -282,3 +284,21 @@ perfil dela com o **perfil médio dos membros da casa** e **o que se espera nest
   rotação de chaves (ADR 0003 §5) precisa recifrar também `totem_enc` e `answers_enc`.
 - (+) A delegação dá a quem coordena um estado ou município o que precisa ver, sem abrir o
   dado a todos os gestores, e é revogável e auditada.
+
+## Revisão de 2026-11-28: a medalha do totem é vista pelos membros
+
+Na reunião com o Cortez, cada pessoa passou a ter **duas medalhas desde o cadastro**: a da casa e a do
+totem, que dá o "tom" da pessoa dentro da casa. Qualquer casa pode ter qualquer um dos quatro
+totens. O Felipe decidiu que a medalha do totem é **vista por todos os membros** logados.
+
+- O que muda: o **código do totem** deixa de ser dado interno. Um membro vê a medalha de outro (e a
+  própria) no perfil, ao lado do brasão da casa. O servidor decifra `totem_enc` e devolve só o
+  código, por função própria, sem abrir as notas dos eixos nem as respostas.
+- O que **não** muda: as **notas dos eixos** (inclusive os 3 e 4), as **respostas** e o pedido de
+  análise seguem internos (coordenação nacional e delegados). `totem_enc` segue cifrado no banco.
+  Abrir o detalhe de resultado na coordenação continua auditado; ver a medalha no perfil não é
+  uma leitura do resultado e não gera `log_questionnaire_view`.
+- A pessoa não precisa entender o significado do totem, só saber que tem a medalha. O texto curto
+  de cada medalha (Cortez) vai nos "primeiros passos" da casa (#292).
+- Implementação: #303. O termo e `docs/LGPD_E_SEGURANCA.md` mudam junto: o totem passa a ser visível
+  aos membros.
