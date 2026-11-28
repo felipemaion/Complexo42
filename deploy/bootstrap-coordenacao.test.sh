@@ -60,6 +60,8 @@ STUB_JSON='{"allowlisted": false, "promoted": 0, "role": "already"}' roda "ana@e
 { [ "$RC" = 0 ] && printf '%s' "$SAIDA" | grep -q 'já era gestora'; }; verifica "already: neutro, saída 0" $?
 STUB_JSON='{"allowlisted": false, "promoted": 0, "role": "not_active"}' roda "ana@exemplo.org"
 [ "$RC" = 3 ]; verifica "not_active: saída 3" $?
+STUB_JSON='{"allowlisted": false, "promoted": 0, "role": "waitlisted"}' roda "ana@exemplo.org"
+{ [ "$RC" = 3 ] && printf '%s' "$SAIDA" | grep -q 'na espera'; }; verifica "waitlisted: saída 3 e mensagem própria (não diz bloqueada)" $?
 
 # --- recusas antes de tocar em qualquer container -----------------------------------------
 for ruim in "" "sem-arroba" "a b@exemplo.org" "a'b@exemplo.org" 'a";x@exemplo.org' "a@b"; do

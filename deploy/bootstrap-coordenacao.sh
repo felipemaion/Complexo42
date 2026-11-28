@@ -59,6 +59,7 @@ case "$ROLE" in
   granted)         echo "OK: papel de gestor da raiz concedido." ;;
   already)         echo "OK: a pessoa já era gestora da raiz." ;;
   waiting_profile) echo "OK: e-mail na lista. A pessoa ainda precisa entrar uma vez (login e perfil); depois rode o comando de novo." ;;
+  waitlisted)      echo "AVISO: a conta está na espera, mas sem registro deste e-mail na fila (pode ter entrado por outro e-mail); nada concedido." >&2; exit 3 ;;
   not_active)      echo "AVISO: o perfil não está ativo (bloqueado ou suspenso); nada concedido." >&2; exit 3 ;;
   *)               echo "resposta inesperada do banco" >&2; exit 1 ;;
 esac
