@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { createElement, isValidElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { instance } from "@config/instance";
@@ -69,5 +69,80 @@ describe("HouseShield", () => {
     expect(html).toMatch(/width="64"[^>]*height="64"|height="64"[^>]*width="64"/);
     expect(html).toMatch(/<img[^>]*class="[^"]*\bobject-contain\b/);
     expect(html).toMatch(/<picture[^>]*class="[^"]*\bshrink-0\b/);
+  });
+});
+
+const luminance = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)) as [number, number, number];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (x: string, y: string) => {
+  const [hi, lo] = [luminance(x), luminance(y)].sort((m, n) => n - m) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+};
+/** Os elementos `<button>` da árvore devolvida pelo componente (sem renderizar): para clicar sem navegador. */
+function buttons(node: ReactNode, out: ReactElement<{ onClick?: () => void; disabled?: boolean; "data-testid"?: string }>[] = []) {
+  if (Array.isArray(node)) node.forEach((child) => buttons(child, out));
+  else if (isValidElement<{ children?: ReactNode; onClick?: () => void; disabled?: boolean; "data-testid"?: string }>(node)) {
+    if (node.type === "button") out.push(node);
+    buttons(node.props.children, out);
+  }
+  return out;
+}
+
+describe("CompareHouseGrid: casa atual, nome, chips e clique (follow-up do #273)", () => {
+  it("com outra casa selecionada, a atual leva borda leve na cor da casa (2 px, mais fina que a da seleção); os outros seguem neutros", () => {
+    const html = render({ currentId: a.id, selectedId: b.id });
+    const current = card(html, a.id);
+    expect(current).toMatch(/border-width:2px/);
+    expect(current).toMatch(/border-color:color-mix\([^)]*light-dark\(/);
+    expect(current).toContain(a.color.light);
+    expect(current).not.toContain("background-color");
+    expect(card(html, b.id)).toMatch(/border-width:4px/);
+    expect(card(html, c.id)).not.toContain(c.color.light);
+    expect(card(html, c.id)).not.toContain("color-mix");
+  });
+
+  it("quando a própria atual está selecionada, vale a borda de seleção normal (4 px, cor cheia)", () => {
+    const current = card(render({ currentId: a.id, selectedId: a.id }), a.id);
+    expect(current).toMatch(/border-width:4px/);
+    expect(current).not.toMatch(/border-color:color-mix/);
+    expect(current).toContain('data-testid="compare-check"');
+    expect(current).toContain('aria-current="true"');
+  });
+
+  it("o nome quebra sem estourar a coluna (320 px): break-words e hifenização", () => {
+    const name = card(render(), a.id).match(/<span[^>]*uppercase[^>]*>/)?.[0] ?? "";
+    expect(name).toMatch(/\bbreak-words\b/);
+    expect(name).toMatch(/\bhyphens-auto\b/);
+    expect(name).toMatch(/\bmax-w-full\b/);
+  });
+
+  it("chips com texto completo para leitor de tela (sr-only) e a versão curta escondida dele", () => {
+    const both = card(render({ currentId: c.id, suggestedId: c.id }), c.id);
+    expect(t.currentLabel).toBe("Sua casa atual");
+    expect(t.suggestedLabel).toBe("Sua casa sugerida");
+    expect(both).toContain(`<span class="sr-only">${t.currentLabel}</span>`);
+    expect(both).toContain(`<span class="sr-only">${t.suggestedLabel}</span>`);
+    expect(both).toContain(`<span aria-hidden="true">${t.currentBadge}</span>`);
+    expect(both).toContain(`<span aria-hidden="true">${t.suggestedBadge}</span>`);
+  });
+
+  it("clicar no cartão chama onSelect com a casa; desligado, o botão fica desabilitado", () => {
+    const picked: string[] = [];
+    const tree = CompareHouseGrid({ houses, text: t, disabled: false, onSelect: (id) => picked.push(id) });
+    const all = buttons(tree);
+    expect(all).toHaveLength(houses.length);
+    for (const button of all) button.props.onClick?.();
+    expect(picked).toEqual(houses.map((house) => house.id));
+    const off = buttons(CompareHouseGrid({ houses, text: t, disabled: true, onSelect: () => undefined }));
+    expect(off.every((button) => button.props.disabled === true)).toBe(true);
+  });
+
+  it("a marca ✓ tem contraste de pelo menos 3:1 (elemento gráfico) sobre a cor de cada casa, nos dois temas", () => {
+    for (const house of houses) {
+      expect(contrast("#ffffff", house.color.light), `${house.id} claro`).toBeGreaterThanOrEqual(3);
+      expect(contrast("#000000", house.color.dark), `${house.id} escuro`).toBeGreaterThanOrEqual(3);
+    }
   });
 });

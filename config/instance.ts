@@ -288,6 +288,9 @@ export const instance = parseInstanceConfig({
       intro: "Escolha uma casa para ver como o seu perfil se compara e o que se espera dela. Nada é confirmado até você escolher.",
       suggestedBadge: "Sugerida",
       currentBadge: "Atual",
+      // Texto completo dos chips para leitor de tela (a versão curta fica escondida dele).
+      currentLabel: "Sua casa atual",
+      suggestedLabel: "Sua casa sugerida",
       expiredReload: "Esta comparação expirou. Recarregue a página para continuar.",
       selectedBadge: "Comparando",
       yourProfileLabel: "Seu perfil",

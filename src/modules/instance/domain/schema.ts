@@ -315,6 +315,8 @@ export const instanceConfigSchema = z.strictObject({
       suggestedBadge: text,
       /** Troca de casa depois da trava (#268): a casa em que a pessoa está hoje. */
       currentBadge: text,
+      currentLabel: text,
+      suggestedLabel: text,
       /** O token da comparação venceu (30 minutos): pede para recarregar a página. */
       expiredReload: text,
       selectedBadge: text,
