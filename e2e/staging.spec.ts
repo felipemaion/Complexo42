@@ -101,10 +101,10 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   const member = await (await browser.newContext()).newPage();
   await joinThroughQuestionnaire(member, request, memberEmail, "Pessoa Staging", baseURL!);
 
-  // A coordenação nacional vê o resultado dela (a lista não traz o da própria coordenação).
+  // A coordenação nacional vê os resultados do banco novo: o dela (#318) e o da pessoa.
   await coordinator.goto("/coordenacao/casas/resultados");
   const results = coordinator.locator('a[href^="/coordenacao/casas/resultados/"]');
-  await expect(results).toHaveCount(1);
-  await results.click();
+  await expect(results).toHaveCount(2);
+  await results.first().click();
   await expect(coordinator.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
 });

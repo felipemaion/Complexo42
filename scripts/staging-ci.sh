@@ -205,7 +205,8 @@ fi
 # Caso revertido: tem de falhar, na etapa certa e pelo motivo certo. Falhar por outro motivo não
 # prova nada (um timeout qualquer passaria por "pegou a falha").
 case "$REVERTER" in
-  termo)              esperada=e2e; log=$(docker logs "$APP" 2>&1 || true); sinal='questionnaire_consent_refused' ;;
+  # Desde o #325 o healthz confere a versão do termo: o app não fica saudável, antes do navegador.
+  termo)              esperada=app; log=$(docker logs "$APP" 2>&1 || true); sinal='healthz_terms_missing' ;;
   questionnaire-path) esperada=app; log=$(docker logs "$APP" 2>&1 || true); sinal='QUESTIONNAIRE_PATH' ;;
   pgcrypto)           esperada=e2e; log=$(docker logs "$DB" 2>&1 || true);  sinal='extensions\.(digest|hmac).* does not exist' ;;
 esac
