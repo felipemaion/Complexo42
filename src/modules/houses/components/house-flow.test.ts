@@ -12,7 +12,10 @@ const actions = vi.hoisted(() => ({
   acceptHouseAction: vi.fn(),
 }));
 vi.mock("../server/actions", () => actions);
-vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
+}));
 
 import { HouseFlow } from "./house-flow";
 
