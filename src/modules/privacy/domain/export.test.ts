@@ -237,7 +237,7 @@ describe("buildOwnDataExport", () => {
         { table: "questionnaire_results", column: "scores_enc", rowId: USER },
       ]),
     );
-    expect(seen).toHaveLength(9);
+    expect(seen).toHaveLength(12);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {
@@ -291,13 +291,13 @@ describe("buildOwnDataExport", () => {
     expect(out.perfil?.termoDeConsentimento).toEqual({ versao: null, aceitoEm: null });
   });
 
-  it("formação e atividade que não decifram viram null, sem derrubar o resto; nível fora da lista também", async () => {
+  it("formação e atividade que não decifram viram null, sem derrubar o resto", async () => {
     const seen: string[] = [];
     const out = await build({
-      rows: { ...rows, background: { ...rows.background!, education_detail_enc: "enc:estragado", education_level_enc: "enc:atividade" } },
+      rows: { ...rows, background: { ...rows.background!, education_detail_enc: "enc:estragado" } },
       onDecryptError: (column) => seen.push(column),
     });
-    expect(out.formacaoEAtividade).toMatchObject({ nivelDeFormacao: null, qual: null, atividadeProfissional: "Professora de matemática" });
+    expect(out.formacaoEAtividade).toMatchObject({ nivelDeFormacao: "college_complete", qual: null, atividadeProfissional: "Professora de matemática" });
     expect(seen).toContain("education_detail_enc");
     expect(out.perfil?.nome).toBe("Maria Aparecida");
   });

@@ -420,6 +420,9 @@ describe("loadOwnProfile", () => {
       neighborhoodUnreadable: false,
       socialLinks: [],
       socialLinksUnreadable: false,
+      educationLevel: "",
+      educationDetail: "",
+      occupation: "",
     });
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toContain(copied);

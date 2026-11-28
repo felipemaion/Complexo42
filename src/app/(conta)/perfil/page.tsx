@@ -43,6 +43,9 @@ export default async function ProfilePage() {
           // Os links salvos voltam para as caixas: salvar sem mexer neles os mantém (#17).
           neighborhood: own?.neighborhood ?? "",
           socialLinks: own?.socialLinks ?? [],
+          educationLevel: own?.educationLevel ?? "",
+          educationDetail: own?.educationDetail ?? "",
+          occupation: own?.occupation ?? "",
         }}
         states={states}
         initialMunicipalities={initialMunicipalities}

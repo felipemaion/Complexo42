@@ -2,8 +2,8 @@
 
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import type { StateOption } from "@config/states";
-import { neighborhoodSentField, socialLinksSentField, type ProfileFormField } from "../domain/form";
-import { profileLimits } from "../domain/schema";
+import { backgroundSentField, neighborhoodSentField, socialLinksSentField, type ProfileFormField } from "../domain/form";
+import { educationLevels, profileLimits, type EducationLevel } from "../domain/schema";
 import { formatBrazilianWhatsapp, whatsappInputMaxLength } from "../domain/whatsapp";
 import type { DistrictOption, MunicipalityOption, ProfileFormState, ProfileFormValues } from "../types";
 import { LocationFields, type LocationText } from "./location-fields";
@@ -18,6 +18,16 @@ export type ProfileFormText = LocationText & {
   /** Bairro guardado que não abriu: aviso de que continua guardado, e o botão para trocá-lo. */
   neighborhoodUnreadable: string;
   replaceNeighborhood: string;
+  /** Formação e atividade profissional (#304): título e dica do grupo, nível (lista fechada), "qual?" e atividade. */
+  backgroundTitle: string;
+  backgroundHint: string;
+  educationLevelLabel: string;
+  educationLevelNone: string;
+  educationLevels: Record<EducationLevel, string>;
+  educationDetailLabel: string;
+  educationDetailHint: string;
+  occupationLabel: string;
+  occupationHint: string;
   intro: string;
   nameLabel: string;
   nameHint: string;
@@ -64,7 +74,17 @@ type Props = {
 
 const inputClass =
   "w-full rounded-xl border-2 border-neutral-500 bg-transparent px-4 py-4 text-xl aria-[invalid=true]:border-red-700 focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
-const fieldOrder: readonly ProfileFormField[] = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"];
+const fieldOrder: readonly ProfileFormField[] = [
+  "displayName",
+  "whatsapp",
+  "municipalityCode",
+  "district",
+  "neighborhood",
+  "socialLinks",
+  "educationLevel",
+  "educationDetail",
+  "occupation",
+];
 const fieldId: Record<ProfileFormField, string> = {
   displayName: "perfil-nome",
   whatsapp: "perfil-whatsapp",
@@ -72,6 +92,9 @@ const fieldId: Record<ProfileFormField, string> = {
   district: "perfil-distrito",
   neighborhood: "perfil-bairro",
   socialLinks: "perfil-redes",
+  educationLevel: "perfil-formacao",
+  educationDetail: "perfil-formacao-qual",
+  occupation: "perfil-atividade",
 };
 const linkId = (index: number) => `perfil-rede-${index + 1}`;
 const buttonClass =
@@ -353,6 +376,77 @@ export function ProfileForm({
             {text.addSocialLink}
           </button>
         )}
+      </fieldset>
+
+      {/* Formação e atividade (#304): opcionais; o campo escondido diz ao servidor que vieram no envio. */}
+      <fieldset className="flex flex-col gap-6">
+        <legend className="text-xl font-semibold">{text.backgroundTitle}</legend>
+        <p className="text-base">{text.backgroundHint}</p>
+        <input type="hidden" name={backgroundSentField} value="1" />
+        <div className="flex flex-col gap-2">
+          <label htmlFor={fieldId.educationLevel} className="text-xl font-semibold">
+            {text.educationLevelLabel}
+          </label>
+          <select
+            id={fieldId.educationLevel}
+            name="educationLevel"
+            value={values.educationLevel}
+            onChange={set("educationLevel")}
+            aria-invalid={invalid.has("educationLevel")}
+            aria-describedby={describedBy("educationLevel", false)}
+            className={inputClass}
+          >
+            <option value="">{text.educationLevelNone}</option>
+            {educationLevels.map((level) => (
+              <option key={level} value={level}>
+                {text.educationLevels[level]}
+              </option>
+            ))}
+          </select>
+          {errorText("educationLevel")}
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor={fieldId.educationDetail} className="text-xl font-semibold">
+            {text.educationDetailLabel}
+          </label>
+          <p id={`${fieldId.educationDetail}-dica`} className="text-base">
+            {text.educationDetailHint}
+          </p>
+          <input
+            id={fieldId.educationDetail}
+            name="educationDetail"
+            type="text"
+            autoComplete="off"
+            maxLength={profileLimits.backgroundTextMax}
+            value={values.educationDetail}
+            onChange={set("educationDetail")}
+            aria-invalid={invalid.has("educationDetail")}
+            aria-describedby={describedBy("educationDetail", true)}
+            className={inputClass}
+          />
+          {errorText("educationDetail")}
+        </div>
+        <div className="flex flex-col gap-2">
+          <label htmlFor={fieldId.occupation} className="text-xl font-semibold">
+            {text.occupationLabel}
+          </label>
+          <p id={`${fieldId.occupation}-dica`} className="text-base">
+            {text.occupationHint}
+          </p>
+          <input
+            id={fieldId.occupation}
+            name="occupation"
+            type="text"
+            autoComplete="organization-title"
+            maxLength={profileLimits.backgroundTextMax}
+            value={values.occupation}
+            onChange={set("occupation")}
+            aria-invalid={invalid.has("occupation")}
+            aria-describedby={describedBy("occupation", true)}
+            className={inputClass}
+          />
+          {errorText("occupation")}
+        </div>
       </fieldset>
 
       <button

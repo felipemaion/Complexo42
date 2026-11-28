@@ -11,6 +11,9 @@ import { normalizeSocialLink, socialLinkInputMaxLength, socialLinkMaxLength } fr
 export const profileLimits = {
   displayNameMin: 2,
   displayNameMax: 80,
+  /** "Qual?" da formação e atividade profissional (#304). */
+  backgroundTextMin: 2,
+  backgroundTextMax: 80,
   neighborhoodMin: 2,
   neighborhoodMax: 60,
   socialLinksMax: 5,
@@ -83,6 +86,27 @@ export const profileInputSchema = z.strictObject({
   consentVersion: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/, "versão do termo inválida"),
 });
 
+/**
+ * Formação (#304): nível mais alto, em lista fechada. As chaves são genéricas (R17); o rótulo de
+ * cada uma vem de `config/instance.ts`. Em superior e pós a pessoa pode dizer "qual?" (curso ou área).
+ */
+export const educationLevels = ["elementary", "high_school", "college_incomplete", "college_complete", "postgraduate"] as const;
+export type EducationLevel = (typeof educationLevels)[number];
+export const educationLevelsWithDetail: readonly EducationLevel[] = ["college_incomplete", "college_complete", "postgraduate"];
+
+/** Formação e atividade (#304): tudo opcional, e a atividade é independente da formação. */
+export const profileBackgroundInputSchema = z
+  .strictObject({
+    educationLevel: z.enum(educationLevels).nullable().default(null),
+    educationDetail: shortText(profileLimits.backgroundTextMin, profileLimits.backgroundTextMax).nullable().default(null),
+    occupation: shortText(profileLimits.backgroundTextMin, profileLimits.backgroundTextMax).nullable().default(null),
+  })
+  // "Qual?" só vale em superior e pós: nos outros níveis (ou sem nível) é descartado.
+  .transform((value) => ({
+    ...value,
+    educationDetail: value.educationLevel !== null && educationLevelsWithDetail.includes(value.educationLevel) ? value.educationDetail : null,
+  }));
+
 export const profileContactInputSchema = z.strictObject({
   /** Já em E.164 (+5511999998888). Converter o que a pessoa digitou é papel do formulário. */
   whatsapp: z.string().trim().regex(E164, "WhatsApp no formato internacional (+55...)"),
@@ -113,6 +137,10 @@ function parseWith<T extends z.ZodType>(schema: T, raw: unknown): z.output<T> {
 
 export function parseProfileInput(raw: unknown): z.output<typeof profileInputSchema> {
   return parseWith(profileInputSchema, raw);
+}
+
+export function parseProfileBackgroundInput(raw: unknown): z.output<typeof profileBackgroundInputSchema> {
+  return parseWith(profileBackgroundInputSchema, raw);
 }
 
 export function parseProfileContactInput(raw: unknown): z.output<typeof profileContactInputSchema> {

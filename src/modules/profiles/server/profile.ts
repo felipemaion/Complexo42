@@ -8,9 +8,9 @@ import { z } from "zod";
 import { decryptField, encryptField, whatsappBlindIndex } from "@/server/crypto";
 import { log as appLog, type Logger } from "@/server/log";
 import { parseProfileForm } from "../domain/form";
-import { profileLimits, serializeSocialLinks } from "../domain/schema";
+import { educationLevels, profileLimits, serializeSocialLinks } from "../domain/schema";
 import { socialLinkViews } from "../domain/social";
-import type { DistrictOption, MunicipalityOption, OwnProfile, ProfileDbClient, SaveProfileResult } from "../types";
+import type { DistrictOption, MunicipalityOption, OwnProfile, ProfileBackgroundInput, ProfileDbClient, SaveProfileResult } from "../types";
 
 export type ProfileDeps = {
   encrypt: typeof encryptField;
@@ -56,7 +56,7 @@ export async function saveOwnProfile(
   if (!parsed.ok) {
     return parsed.badLinks ? { status: "invalid", fields: parsed.fields, badLinks: parsed.badLinks } : { status: "invalid", fields: parsed.fields };
   }
-  const { profile, contact } = parsed;
+  const { profile, contact, background } = parsed;
 
   // Envio sem os links (#17): repassa o valor cifrado que já está guardado, sem abrir. Ele foi
   // cifrado com o AAD desta mesma linha e coluna, então continua válido.
@@ -119,9 +119,14 @@ export async function saveOwnProfile(
   const { data, error } = await client.rpc("save_own_profile", args);
   if (!error) {
     const outcome = saveOutcome.safeParse(data);
-    if (outcome.success) return { status: outcome.data };
-    deps.log.error("profile_save_failed", { reason: "unexpected_result" });
-    return { status: "failed" };
+    if (!outcome.success) {
+      deps.log.error("profile_save_failed", { reason: "unexpected_result" });
+      return { status: "failed" };
+    }
+    // Formação e atividade (#304) só depois de o perfil existir (a linha aponta para ele) e se o
+    // envio trouxe esses campos. Perfil não salvo (WhatsApp repetido) não grava nada.
+    if (outcome.data === "saved" && !parsed.keepBackground) return saveBackground(client, rowId, background, deps);
+    return { status: outcome.data };
   }
   const code = errorCode(error);
   if (code === "PT429") {
@@ -140,6 +145,45 @@ export async function saveOwnProfile(
   return { status: "failed" };
 }
 
+/**
+ * Grava a linha 1:1 de formação e atividade (#304), cifrada com o AAD de cada coluna e do id da
+ * pessoa, com o JWT dela (a RLS `app.can_edit_profile` vale). Em branco vai nulo: apagar é de
+ * propósito (o envio sem os campos nem chega aqui).
+ */
+async function saveBackground(
+  client: ProfileDbClient,
+  rowId: string,
+  background: ProfileBackgroundInput,
+  deps: ProfileDeps,
+): Promise<SaveProfileResult> {
+  const seal = (value: string | null, column: string) =>
+    value === null ? Promise.resolve(null) : deps.encrypt(value, { table: "profile_background", column, rowId });
+  let row: Record<string, unknown>;
+  try {
+    row = {
+      profile_id: rowId,
+      education_level_enc: await seal(background.educationLevel, "education_level_enc"),
+      education_detail_enc: await seal(background.educationDetail, "education_detail_enc"),
+      occupation_enc: await seal(background.occupation, "occupation_enc"),
+    };
+  } catch (error) {
+    deps.log.error("profile_encrypt_failed", { reason: errorCode(error) });
+    return { status: "failed" };
+  }
+  const { error } = await client.from("profile_background").upsert(row, { onConflict: "profile_id" });
+  if (error) {
+    deps.log.error("profile_save_failed", { reason: errorCode(error) });
+    return { status: "failed" };
+  }
+  return { status: "saved" };
+}
+
+const backgroundRow = z.object({
+  education_level_enc: z.string().nullable(),
+  education_detail_enc: z.string().nullable(),
+  occupation_enc: z.string().nullable(),
+});
+
 const ownRow = z
   .object({
     display_name_enc: z.string().nullable(),
@@ -150,6 +194,7 @@ const ownRow = z
     /** Nulo = perfil incompleto (criado no primeiro login, ADR 0017): para o formulário, é como não ter perfil. */
     profile_completed_at: z.string().nullable().optional(),
     profile_contacts: z.object({ whatsapp_enc: z.string(), social_links_enc: z.string().nullable().optional() }).nullable(),
+    profile_background: backgroundRow.nullable().optional(),
   })
   .nullable();
 
@@ -165,7 +210,7 @@ export async function loadOwnProfile(
   const rowId = uuid.parse(userId);
   const { data, error } = await client
     .from("profiles")
-    .select("display_name_enc, municipality_code, state_code, district_code, neighborhood_enc, profile_completed_at, profile_contacts(whatsapp_enc, social_links_enc)")
+    .select("display_name_enc, municipality_code, state_code, district_code, neighborhood_enc, profile_completed_at, profile_contacts(whatsapp_enc, social_links_enc), profile_background(education_level_enc, education_detail_enc, occupation_enc)")
     .eq("id", rowId)
     .maybeSingle();
   if (error) throw new Error(`profile_read_failed:${errorCode(error)}`);
@@ -190,6 +235,33 @@ export async function loadOwnProfile(
     districtCode: row.district_code,
     ...neighborhood,
     ...social,
+    ...(await readBackground(row.profile_background ?? null, rowId, deps)),
+  };
+}
+
+/**
+ * Formação e atividade guardadas (#304). Cada valor que não abre vira "" (loga só a coluna): a
+ * pessoa preenche de novo. O nível também volta "" se não é mais um da lista fechada.
+ */
+async function readBackground(
+  stored: z.infer<typeof backgroundRow> | null,
+  rowId: string,
+  deps: ProfileDeps,
+): Promise<Pick<OwnProfile, "educationLevel" | "educationDetail" | "occupation">> {
+  const open = async (value: string | null, column: string) => {
+    if (value === null) return "";
+    try {
+      return await deps.decrypt(value, { table: "profile_background", column, rowId });
+    } catch (err) {
+      deps.log.warn("profile_decrypt_failed", { column, reason: errorCode(err) });
+      return "";
+    }
+  };
+  const level = await open(stored?.education_level_enc ?? null, "education_level_enc");
+  return {
+    educationLevel: (educationLevels as readonly string[]).includes(level) ? level : "",
+    educationDetail: await open(stored?.education_detail_enc ?? null, "education_detail_enc"),
+    occupation: await open(stored?.occupation_enc ?? null, "occupation_enc"),
   };
 }
 

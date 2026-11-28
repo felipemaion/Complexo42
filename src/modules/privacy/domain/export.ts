@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 10;
+export const exportFormatVersion = 11;
 
 const timestamp = z.string().min(1);
 
@@ -49,6 +49,15 @@ export const ownDataRowsSchema = z.object({
     .object({
       whatsapp_enc: z.string(),
       social_links_enc: z.string().nullable(),
+      updated_at: timestamp,
+    })
+    .nullable(),
+  /** Formação e atividade profissional (#304), cifradas; nulo se nunca informou. */
+  background: z
+    .object({
+      education_level_enc: z.string().nullable(),
+      education_detail_enc: z.string().nullable(),
+      occupation_enc: z.string().nullable(),
       updated_at: timestamp,
     })
     .nullable(),
@@ -173,6 +182,13 @@ export type OwnDataExport = {
     atualizadoEm: string;
   } | null;
   contato: { whatsapp: string | null; redesSociais: string[] | null; atualizadoEm: string } | null;
+  /** Formação e atividade (#304); nulo se nunca informou. O nível é a chave da lista (ex.: `college_complete`). */
+  formacaoEAtividade: {
+    nivelDeFormacao: string | null;
+    qual: string | null;
+    atividadeProfissional: string | null;
+    atualizadoEm: string;
+  } | null;
   vinculos: { unidade: string; tipo: string; papelNoGrupo: string; entrouEm: string; saiuEm: string | null }[];
   /** Casas (ADR 0011): o nome vem da config; casa que saiu da config aparece pela chave. */
   casas: {
@@ -313,6 +329,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
 
   const p = rows.profile;
   const c = rows.contact;
+  const b = rows.background;
   const houseName = (key: string | null) => (key === null ? null : (input.houseNames[key] ?? key));
   let links: string[] | null = null;
   if (c?.social_links_enc) {
@@ -351,6 +368,12 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       whatsapp: await open(c.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
       redesSociais: links,
       atualizadoEm: c.updated_at,
+    },
+    formacaoEAtividade: b && {
+      nivelDeFormacao: await open(b.education_level_enc, "profile_background", "education_level_enc"),
+      qual: await open(b.education_detail_enc, "profile_background", "education_detail_enc"),
+      atividadeProfissional: await open(b.occupation_enc, "profile_background", "occupation_enc"),
+      atualizadoEm: b.updated_at,
     },
     vinculos: rows.memberships.map((m) => ({
       unidade: m.unit_name,

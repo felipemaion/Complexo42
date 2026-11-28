@@ -181,6 +181,21 @@ export const instanceConfigSchema = z.strictObject({
     /** Bairro (#179): texto livre, opcional. */
     neighborhoodLabel: text,
     neighborhoodHint: text,
+    backgroundTitle: text,
+    backgroundHint: text,
+    educationLevelLabel: text,
+    educationLevelNone: text,
+    educationLevels: z.strictObject({
+      elementary: text,
+      high_school: text,
+      college_incomplete: text,
+      college_complete: text,
+      postgraduate: text,
+    }),
+    educationDetailLabel: text,
+    educationDetailHint: text,
+    occupationLabel: text,
+    occupationHint: text,
     /** Bairro guardado que não abriu: aviso de que continua guardado e o botão para trocá-lo. */
     neighborhoodUnreadable: text,
     replaceNeighborhood: text,
@@ -210,6 +225,9 @@ export const instanceConfigSchema = z.strictObject({
       municipalityCode: text,
       district: text,
       neighborhood: text,
+      educationLevel: text,
+      educationDetail: text,
+      occupation: text,
       socialLinks: text,
     }),
     /** WhatsApp já usado em outro cadastro (não diz de quem). */

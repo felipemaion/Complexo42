@@ -7,6 +7,7 @@ import {
   saveOwnProfile,
   socialLinkFormEntriesMax,
   socialLinkInputMaxLength,
+  backgroundSentField,
   neighborhoodSentField,
   socialLinksSentField,
   type ProfileFormState,
@@ -39,12 +40,19 @@ export async function saveProfileAction(_previous: ProfileFormState, formData: F
     district: text(formData.get("district")),
     neighborhood: text(formData.get("neighborhood")),
     socialLinks: [],
+    educationLevel: text(formData.get("educationLevel")),
+    educationDetail: text(formData.get("educationDetail")),
+    occupation: text(formData.get("occupation")),
   };
   const socialLinks = socialLinksFrom(formData);
   if (socialLinks) values.socialLinks = socialLinks;
   // Sem o campo escondido, o servidor mantém o bairro guardado (#179).
   const neighborhood = formData.has(neighborhoodSentField) ? values.neighborhood : undefined;
-  const result = await saveOwnProfile(client, user.id, { ...values, socialLinks, neighborhood });
+  // Sem o campo escondido, o servidor não mexe em formação e atividade guardadas (#304).
+  const background = formData.has(backgroundSentField)
+    ? { educationLevel: values.educationLevel, educationDetail: values.educationDetail, occupation: values.occupation }
+    : { educationLevel: undefined, educationDetail: undefined, occupation: undefined };
+  const result = await saveOwnProfile(client, user.id, { ...values, ...background, socialLinks, neighborhood });
   switch (result.status) {
     case "saved":
       // A página inicial passa de novo pelo portão de acesso (perfil novo nasce `pending`).
