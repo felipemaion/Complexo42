@@ -503,9 +503,8 @@ Sem `level`: o nível (só "tenho" ou três graus) segue em aberto com o stakeho
 limite por pessoa nem opção "outra" até a #15, que também grava e inclui as habilidades no
 arquivo de exportação dos dados da pessoa.
 
-**Catálogo PROVISÓRIO** (47 habilidades em 8 grupos, até o stakeholder aprovar): só no seed
-local, em `supabase/seeds/skills_catalog.sql` (nunca em produção). Para trocar, edite só esse
-arquivo e rode `npm run db:reset`. Aprovado, o catálogo entra em produção por migration.
+**Catálogo PROVISÓRIO** (47 habilidades em 8 grupos, até o stakeholder aprovar): vai por migration
+(`..._estrutura_instancia.sql`), no local e no servidor. Para trocar, crie uma migration nova (upsert pelo nome).
 
 **Perfis fictícios (~50):** `npm run db:seed-profiles` (depois do `db:reset`) cria, só no
 Supabase local, 50 contas `perfil-ficticio-NN@example.com` com nome e WhatsApp
