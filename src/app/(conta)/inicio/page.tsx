@@ -5,7 +5,7 @@ import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { coordinationViewDeps, OwnHouse, readHouseLock, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
-import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
+import { CONTACT_VISIBILITY_PATH, loadOwnProfile, needsFullNameNotice, SocialLinkList } from "@/modules/profiles";
 import { PASSWORD_PATH, PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -34,6 +34,11 @@ export default async function SignedInHome({ searchParams }: Props) {
       {saved && (
         <p role="status" className="rounded-lg border-2 border-current p-4 text-lg">
           {instance.profile.saved}
+        </p>
+      )}
+      {needsFullNameNotice(own.displayName) && (
+        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg">
+          {instance.profile.completeNameNotice}
         </p>
       )}
       <p className="text-lg">{text.signedInMessage}</p>

@@ -169,7 +169,7 @@ com a lista importada.
 | Coluna | Tipo | Observação |
 |---|---|---|
 | `id` | uuid PK | = `auth.users.id` |
-| `display_name_enc` | text null | 🔒 `v1.iv.ct` (ADR 0003 §3); nulo só em perfil incompleto. O nome completo é obrigatório; a exigência de sobrenome é a #312 |
+| `display_name_enc` | text null | 🔒 `v1.iv.ct` (ADR 0003 §3); nulo só em perfil incompleto. O nome completo (nome e sobrenome) é obrigatório ao gravar; nomes antigos de uma palavra seguem válidos e ganham um aviso no perfil e no /inicio (#312). O banco só vê o texto cifrado e não confere |
 | `municipality_code` | int FK null | IBGE; nulo só em perfil incompleto |
 | `profile_completed_at` | timestamptz null | nulo = perfil **incompleto** (ADR 0017): a linha nasce no primeiro login de quem está na lista de autorizados, sem nome, município, UF nem versão do termo; `save_own_profile` completa e marca; CHECK: nome, município, UF e termo não nulos quando completo; uma linha gravada já com nome, município e termo nasce completa (trigger); `consent_at` também só é nulo enquanto incompleto (a linha incompleta não grava data de termo que não houve); trigger: nunca volta a nulo. Quem não está na lista não ganha linha até salvar o perfil |
 | `state_code` | char(2) null | derivado do município (trigger; nulo em perfil incompleto); no cadastro, o aluno entra na unidade do seu estado |
@@ -201,7 +201,7 @@ O papel **não** fica no perfil: fica em `role_assignments`.
   vale (sem escopo, não concede nem revoga) e a pessoa não lê `unit_types`, `units`,
   `unit_members` nem `role_assignments`. Em `waitlisted` ou `blocked`, lê só o próprio perfil;
   em `pending` (ou ainda sem perfil), lê também `municipalities`, para se cadastrar.
-- **Validação do texto** (nome de 2 a 80 caracteres, WhatsApp em E.164, até 5 URLs https) fica
+- **Validação do texto** (nome com ao menos duas palavras de 2 letras e até 80 caracteres, WhatsApp em E.164, até 5 URLs https) fica
   no schema Zod de `src/modules/profiles/`, aplicado no servidor antes de cifrar. O banco só
   confere o formato `v<n>.<iv>.<ct>` e um teto de tamanho.
 

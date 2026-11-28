@@ -57,6 +57,9 @@ describe("parseProfileForm", () => {
 
   it("cada campo inválido aparece pelo nome, sem o valor (R11)", () => {
     expect(fieldsOf({ ...valid, displayName: "A" })).toEqual(["displayName"]);
+    // #312: quem já está cadastrado com uma palavra só vê o formulário com ela e precisa completar.
+    expect(fieldsOf({ ...valid, displayName: "Maria" })).toEqual(["displayName"]);
+    expect(fieldsOf({ ...valid, displayName: "a b" })).toEqual(["displayName"]);
     expect(fieldsOf({ ...valid, displayName: "a\u0007b" })).toEqual(["displayName"]);
     expect(fieldsOf({ ...valid, whatsapp: "(11) 1234-5678" })).toEqual(["whatsapp"]);
     expect(fieldsOf({ ...valid, municipalityCode: "" })).toEqual(["municipalityCode"]);
