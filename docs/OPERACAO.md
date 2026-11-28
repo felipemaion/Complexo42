@@ -402,7 +402,7 @@ processo com o **nome** da variável no log, nunca o valor.
 | Campo | Sonda | O que prova |
 |---|---|---|
 | `db` | `DB_HEALTH_URL` (`rest:3001/ready`) | o processo do PostgREST está de pé |
-| `schema` | `SUPABASE_URL` + `/rest/v1/municipalities?select=code&limit=1`, com a chave anon | a **API de dados conhece o esquema de hoje** |
+| `schema` | `SUPABASE_URL` + `/rest/v1/profiles?select=id&limit=1`, com a chave anon | a **API de dados conhece o esquema de hoje** |
 
 Qualquer estado diferente de `ok` nas duas dá 503 (`degraded`). O motivo da
 falha (`timeout`, `network`, `http_error`) vai só para o log.
@@ -423,10 +423,18 @@ falha (`timeout`, `network`, `http_error`) vai só para o log.
 >
 > A sonda considera **saudável** a resposta `401` com código `42501`
 > (`insufficient_privilege`): ela prova que o PostgREST resolveu a tabela e o
-> Postgres recusou o papel `anon` — que é o estado normal, porque
-> `municipalities` tem grant só para `authenticated`. Depender disso em vez de
-> exigir `200` é deliberado: a sonda não precisa de grant nenhum para o
-> `anon`, então não abre leitura de dado para ninguém.
+> Postgres recusou o papel `anon` — que é o estado normal, porque `profiles`
+> tem grant só para `authenticated`. Depender disso em vez de exigir `200` é
+> deliberado: a sonda não precisa de grant nenhum para o `anon`, então não
+> abre leitura de dado para ninguém.
+>
+> **E a tabela sondada é `profiles`, não uma de referência.** O cache é um
+> retrato do esquema no instante da carga, e o `migra.sh` aplica uma migration
+> por transação: um retrato tirado no meio da sequência pega as tabelas já
+> criadas e não as seguintes. `municipalities` (`20261119140000`) vem antes de
+> `profiles` (`20261119140100`) — sondar a primeira daria "ok" num cache que
+> não conhece a segunda. `profiles` é a última do caminho do login a entrar, e
+> foi o `404` dela que derrubou a entrada.
 
 **O health check do deploy não mudou, e não precisava.** O `smoke()` do
 `deploy.sh` já bate no `/api/healthz` com `curl -fsS`, repetindo até

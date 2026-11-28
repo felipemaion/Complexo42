@@ -3,10 +3,20 @@ import type { SchemaProbe } from "../types";
 type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 
 /**
- * Tabela de referência: existe desde a primeira migration, nunca sai, e a
- * leitura é barata (uma coluna, uma linha).
+ * `profiles`, e não uma tabela de referência: é a tabela que o **login** lê, e
+ * foi o 404 dela que quebrou a entrada em 2026-11-27.
+ *
+ * O motivo é mais fino do que "sondar o que importa". O cache do PostgREST é
+ * um retrato do esquema no instante da carga, e o `migra.sh` aplica cada
+ * migration em sua própria transação -- então um retrato tirado NO MEIO da
+ * sequência pega as tabelas já criadas e não as seguintes. `municipalities`
+ * (`20261119140000`) vem antes de `profiles` (`20261119140100`): sondar a
+ * primeira daria "ok" num cache que não conhece a segunda. Sondar a última a
+ * entrar no caminho do login é o que fecha essa brecha.
+ *
+ * Uma coluna, uma linha: a leitura é barata.
  */
-const SONDA = "/rest/v1/municipalities?select=code&limit=1";
+const SONDA = "/rest/v1/profiles?select=id&limit=1";
 
 /** Código de erro que o PostgREST/Postgres devolve no corpo, quando devolve. */
 function codigoDoCorpo(corpo: string): string | undefined {
@@ -35,7 +45,7 @@ function codigoDoCorpo(corpo: string): string | undefined {
  *   o cache não conhece a tabela. É a falha que isto existe para pegar.
  * - `401` + `42501` (`insufficient_privilege`): o PostgREST RESOLVEU a tabela
  *   e o Postgres recusou o papel `anon` -- que é o estado normal, porque
- *   `municipalities` tem grant só para `authenticated`. Logo: esquema **ok**.
+ *   `profiles` tem grant só para `authenticated`. Logo: esquema **ok**.
  *
  * Depender de `42501` em vez de exigir 200 é deliberado: não precisa de grant
  * nenhum para o `anon`, então a sonda não abre leitura de dado para ninguém.

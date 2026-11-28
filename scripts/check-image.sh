@@ -4,9 +4,13 @@
 # PostgREST: um dublê de 20 linhas, rodando na MESMA pilha de rede do container
 # do app (`--network container:`), responde pelos dois. Duas portas, porque o
 # healthz tem duas sondas e elas falham por motivos diferentes:
-#   9990 -> saudável (200 "[]" em qualquer caminho)
+#   9990 -> 200 "[]" em qualquer caminho
 #   9991 -> esquema velho (404 PGRST205 em /rest/v1/*), o estado que deixou o
 #           staging 19 horas servindo 404 com o healthz em 200 (2026-11-27)
+#   9992 -> 401 com 42501 em /rest/v1/*: privilégio recusado ao papel `anon`.
+#           É o ramo que roda EM PRODUÇÃO -- `profiles` tem grant só para
+#           `authenticated` --, e ele tem de contar como esquema saudável,
+#           porque o erro só existe depois de o PostgREST resolver a tabela.
 set -euo pipefail
 img="${1:?uso: $0 <imagem>}"
 name="healthz-check-$$"
@@ -42,8 +46,10 @@ grep -q "DB_HEALTH_URL" <<<"$out" || fail "mensagem não cita a variável"
 # app, entao o app o alcança em 127.0.0.1 -- sem rede nova e sem rota do host.
 DUBLE_JS='const h=require("http");
 const vazio=(q,s)=>{s.writeHead(200,{"content-type":"application/json"});s.end("[]")};
+const erro=(cod,corpo)=>(q,s)=>{if(q.url.startsWith("/rest/v1/")){s.writeHead(cod,{"content-type":"application/json"});s.end(JSON.stringify(corpo))}else{vazio(q,s)}};
 h.createServer(vazio).listen(9990,"0.0.0.0");
-h.createServer((q,s)=>{if(q.url.startsWith("/rest/v1/")){s.writeHead(404,{"content-type":"application/json"});s.end(JSON.stringify({code:"PGRST205",message:"Could not find the table in the schema cache"}))}else{vazio(q,s)}}).listen(9991,"0.0.0.0");'
+h.createServer(erro(404,{code:"PGRST205",message:"Could not find the table in the schema cache"})).listen(9991,"0.0.0.0");
+h.createServer(erro(401,{code:"42501",message:"permission denied for table profiles"})).listen(9992,"0.0.0.0");'
 
 # Sobe só leitura, com /tmp em memória, e consulta o healthz de dentro do container.
 # $1 = DB_HEALTH_URL   $2 = SUPABASE_URL
@@ -86,5 +92,14 @@ grep -q "^503 no-store " <<<"$body" || fail "esperava 503: $body"
 grep -q '"db":"ok"' <<<"$body" || fail "esperava db ok: $body"
 grep -q '"schema":"stale"' <<<"$body" || fail "esperava schema stale: $body"
 ! grep -qiE "PGRST205|schema cache|stack" <<<"$body" || fail "detalhe do PostgREST vazou"
+
+# O ramo que roda em produção: `profiles` só tem grant para `authenticated`,
+# então a sonda SEMPRE leva 401/42501. Se este caso der 503, o healthz passa a
+# acusar esquema velho em toda requisição de um ambiente saudável.
+echo "8) 401 com 42501 (privilegio recusado ao anon): esquema saudavel, 200"
+body=$(healthz "http://127.0.0.1:9990/ready" "http://127.0.0.1:9992")
+grep -q "^200 no-store " <<<"$body" || fail "esperava 200: $body"
+grep -q '"schema":"ok"' <<<"$body" || fail "esperava schema ok: $body"
+! grep -qiE "42501|permission denied|stack" <<<"$body" || fail "detalhe do Postgres vazou"
 
 echo "OK: imagem aprovada"

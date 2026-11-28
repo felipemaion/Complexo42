@@ -22,10 +22,13 @@ function setup(fetchImpl: (url: string) => Promise<Response>) {
   vi.stubGlobal("fetch", vi.fn(fetchImpl));
 }
 
-/** Corpo real do PostgREST com o cache de esquema velho (medido em 2026-11-28). */
+/**
+ * Corpo real do PostgREST com o cache de esquema velho, copiado da resposta
+ * que o staging devolveu em 2026-11-28 -- a mesma que quebrou o login.
+ */
 const PGRST205 = JSON.stringify({
   code: "PGRST205",
-  message: "Could not find the table 'public.municipalities' in the schema cache",
+  message: "Could not find the table 'public.profiles' in the schema cache",
 });
 
 describe("GET /api/healthz", () => {

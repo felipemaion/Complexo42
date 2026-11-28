@@ -9,7 +9,7 @@ const PGRST205 = JSON.stringify({
   code: "PGRST205",
   details: null,
   hint: null,
-  message: "Could not find the table 'public.municipalities' in the schema cache",
+  message: "Could not find the table 'public.profiles' in the schema cache",
 });
 const SEM_PRIVILEGIO = JSON.stringify({ code: "42501", details: null, hint: null, message: "permission denied" });
 
@@ -60,7 +60,7 @@ describe("probeSchema", () => {
     expect(await probeSchema(BASE, undefined, 1000, explode)).toEqual({ status: "unconfigured" });
   });
 
-  it("vai pelo caminho real: tabela de referencia, uma linha, com a chave anon", async () => {
+  it("vai pelo caminho real: a tabela que o login le, uma linha, com a chave anon", async () => {
     const espiao = vi.fn<(url: string, init: RequestInit) => Promise<Response>>(() =>
       Promise.resolve(new Response("[]")),
     );
@@ -70,7 +70,7 @@ describe("probeSchema", () => {
     const chamada = espiao.mock.calls[0];
     expect(chamada).toBeDefined();
     const [url, init] = chamada!;
-    expect(url).toBe("http://kong:8000/rest/v1/municipalities?select=code&limit=1");
+    expect(url).toBe("http://kong:8000/rest/v1/profiles?select=id&limit=1");
     const headers = init.headers as Record<string, string>;
     expect(headers.apikey).toBe(CHAVE);
     expect(headers.Authorization).toBe(`Bearer ${CHAVE}`);
