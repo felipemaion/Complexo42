@@ -114,21 +114,24 @@ async function expectInert(page: Page, dialogs: string[]) {
 }
 
 // #86: o kong.yml não tem mais CORS. O Google é navegação (GET + 302), não fetch: /entrar → /auth/google →
-// <site>/auth/v1/authorize (proxy → kong → GoTrue) → accounts.google.com, interceptado aqui. O link por e-mail
+// <site>/auth/v1/authorize (proxy → kong → GoTrue) → accounts.google.com, sem sair para o Google. O link por e-mail
 // (/auth/v1/verify) passa pelo mesmo caminho no teste do fluxo inteiro, abaixo.
-test("Google pela borda: o botão chega ao accounts.google.com com o callback do site", async ({ page }) => {
-  let google: URL | undefined;
-  await page.route("https://accounts.google.com/**", (route) => {
-    // Só o pedido de login (o que leva client_id): a página de mentira ainda pede o favicon ao mesmo host.
-    const url = new URL(route.request().url());
-    if (!google && url.searchParams.has("client_id")) google = url;
-    return route.fulfill({ status: 200, contentType: "text/html", body: "<p>Google de mentira</p>" });
-  });
+test("Google pela borda: /auth/google → /auth/v1/authorize → accounts.google.com com o callback do site", async ({ page, request }) => {
   await page.goto("/entrar");
-  await page.getByRole("button", { name: "Entrar com Google" }).click();
-  await expect.poll(() => google?.hostname, { timeout: 20_000 }).toBe("accounts.google.com");
-  expect(google!.searchParams.get("client_id")).toBe("ci-de-mentira.apps.googleusercontent.com");
-  expect(google!.searchParams.get("redirect_uri")).toBe(`${SITE}/auth/v1/callback`);
+  await expect(page.getByRole("button", { name: "Entrar com Google" })).toBeVisible();
+  // A cadeia de redirecionamentos que o navegador segue, passo a passo (o Playwright não intercepta o salto para
+  // outro domínio). Nenhum passo pode dar 404 (kong.yml) e o último tem de ir ao Google, sem sair daqui.
+  let url = `${SITE}/auth/google`;
+  for (let i = 0; i < 5 && new URL(url).hostname !== "accounts.google.com"; i++) {
+    const res = await request.get(url, { maxRedirects: 0 });
+    expect(res.status(), `${url} redireciona`).toBeGreaterThanOrEqual(300);
+    expect(res.status(), `${url} redireciona`).toBeLessThan(400);
+    url = new URL(res.headers()["location"] ?? "", url).toString();
+  }
+  const google = new URL(url);
+  expect(google.hostname).toBe("accounts.google.com");
+  expect(google.searchParams.get("client_id")).toBe("ci-de-mentira.apps.googleusercontent.com");
+  expect(google.searchParams.get("redirect_uri")).toBe(`${SITE}/auth/v1/callback`);
 });
 
 test("banco novo: bootstrap → login → termo → questionário → casa → a coordenação autoriza e vê o resultado", async ({ browser, request, baseURL }) => {
