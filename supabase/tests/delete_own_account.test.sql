@@ -114,6 +114,10 @@ insert into public.access_waitlist_hmac (profile_id, email_hmac) values
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac) values
   ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('ZapA'), repeat('a', 64)),
   ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('ZapB'), repeat('b', 64));
+-- Foto (#308): idem.
+insert into public.profile_photos (profile_id, photo_enc) values
+  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('FotoA')),
+  ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('FotoB'));
 -- Formação e atividade (#304): o rastreio de "nenhuma linha com o id" pega se a cascata falhar.
 insert into public.profile_background (profile_id, occupation_enc) values
   ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('AtividadeA')),

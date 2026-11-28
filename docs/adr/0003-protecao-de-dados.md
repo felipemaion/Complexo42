@@ -29,6 +29,7 @@ O monitor precisa **ler** o WhatsApp, portanto só hash não basta: guardamos **
 | Redes sociais | `social_links_enc` (AES-256-GCM, JSON) | Identificam a pessoa |
 | Bairro (opcional, texto livre) | `profiles.neighborhood_enc` (AES-256-GCM) | Texto livre pode virar endereço (#179) |
 | Formação e atividade profissional (opcionais) | `profile_background.education_level_enc`, `education_detail_enc`, `occupation_enc` (AES-256-GCM) | Dizem quem a pessoa é e onde trabalha (#304) |
+| Foto do rosto (opcional; miniatura WebP em base64) | `profile_photos.photo_enc` (AES-256-GCM) | É a imagem do rosto; sem Storage no servidor (ADR 0009), fica cifrada no banco (#308) |
 | Totem e respostas do questionário (ADR 0014) | `questionnaire_results.totem_enc`, `house_analysis_requests.answers_enc` (AES-256-GCM; AAD `tabela.coluna.<profile_id>`) | Perfil da pessoa; só o servidor decifra |
 | Município, UF, habilidades, tarefas, badges | Texto puro | Precisam de filtro e agregação. **Sem nome ou contato, não identificam ninguém** |
 | Senha | **Não existe** | Login por Google ou link mágico: não há senha para vazar |

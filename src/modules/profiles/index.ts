@@ -89,3 +89,16 @@ export type {
   ProfileStatus,
   SaveProfileResult,
 } from "./types";
+export {
+  PHOTO_REMOVE_PATH,
+  PHOTO_STATUS_PARAM,
+  PHOTO_UPLOAD_PATH,
+  detectPhotoType,
+  parsePhotoStatus,
+  photoLimits,
+  photoStatuses,
+  photoUrl,
+  type PhotoStatus,
+} from "./domain/photo";
+export { hasOwnPhoto, loadPhoto, readBodyCapped, removeOwnPhoto, savePhoto, type PhotoDeps, type SavePhotoResult } from "./server/photo";
+export { PhotoSection } from "./components/photo-section";

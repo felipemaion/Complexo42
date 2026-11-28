@@ -38,6 +38,7 @@ const rows: OwnDataRows = {
     social_links_enc: "enc:redes",
     updated_at: "2026-11-19T12:00:00+00:00",
   },
+  profile_photo: { photo_enc: "enc:foto", updated_at: "2026-11-19T12:40:00+00:00" },
   background: {
     education_level_enc: "enc:nivel",
     education_detail_enc: "enc:qual",
@@ -111,6 +112,7 @@ const plain: Record<string, string> = {
   "enc:nivel": "college_complete",
   "enc:qual": "Engenharia Civil",
   "enc:atividade": "Professora de matemática",
+  "enc:foto": "UklGRgAAAABXRUJQ",
   "enc:respostasguardadas": JSON.stringify({ q01: -5, q02: 3, q03: 1 }),
 };
 
@@ -140,7 +142,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 11, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 12, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -155,6 +157,7 @@ describe("buildOwnDataExport", () => {
         atualizadoEm: "2026-11-19T12:00:00+00:00",
       },
       contato: { whatsapp: "+5511987654321", redesSociais: ["https://exemplo.org/maria"], atualizadoEm: "2026-11-19T12:00:00+00:00" },
+      foto: { formato: "image/webp", dadosBase64: "UklGRgAAAABXRUJQ", atualizadoEm: "2026-11-19T12:40:00+00:00" },
       formacaoEAtividade: {
         nivelDeFormacao: "college_complete",
         qual: "Engenharia Civil",
@@ -228,6 +231,8 @@ describe("buildOwnDataExport", () => {
         { table: "profile_background", column: "education_level_enc", rowId: USER },
         { table: "profile_background", column: "education_detail_enc", rowId: USER },
         { table: "profile_background", column: "occupation_enc", rowId: USER },
+        // A miniatura da foto (#308), em base64, cifrada na linha da própria pessoa.
+        { table: "profile_photos", column: "photo_enc", rowId: USER },
         // O nome de quem viu o contato é da linha dela (#119).
         { table: "profiles", column: "display_name_enc", rowId: VIEWER },
         // Totem e respostas do questionário (ADR 0014): cifrados na linha da própria pessoa.
@@ -237,7 +242,7 @@ describe("buildOwnDataExport", () => {
         { table: "questionnaire_results", column: "scores_enc", rowId: USER },
       ]),
     );
-    expect(seen).toHaveLength(12);
+    expect(seen).toHaveLength(13);
   });
 
   it("não leva HMAC, valor cifrado nem o id interno, mesmo se o banco mandar a mais", async () => {
@@ -302,11 +307,20 @@ describe("buildOwnDataExport", () => {
     expect(out.perfil?.nome).toBe("Maria Aparecida");
   });
 
+  it("foto que não decifra vira null, sem derrubar o resto, e o servidor registra só a coluna (#308)", async () => {
+    const seen: string[] = [];
+    const out = await build({ rows: { ...rows, profile_photo: { photo_enc: "enc:estragado", updated_at: "2026-11-19T12:40:00+00:00" } }, onDecryptError: (column) => seen.push(column) });
+    expect(out.foto).toEqual({ formato: "image/webp", dadosBase64: null, atualizadoEm: "2026-11-19T12:40:00+00:00" });
+    expect(seen).toContain("photo_enc");
+    expect(out.perfil?.nome).toBe("Maria Aparecida");
+  });
+
   it("quem ainda não tem perfil recebe perfil e contato nulos e listas vazias", async () => {
     const out = await build({
       rows: {
         profile: null,
         contact: null,
+        profile_photo: null,
         background: null,
         memberships: [],
         house_memberships: [],
@@ -327,6 +341,7 @@ describe("buildOwnDataExport", () => {
       conta: { emailDeLogin: null },
       perfil: null,
       contato: null,
+      foto: null,
       formacaoEAtividade: null,
       vinculos: [],
       casas: [],
@@ -419,6 +434,7 @@ describe("ownDataRowsSchema", () => {
       ...rows,
       profile: { ...rows.profile!, display_name_enc: null, municipality_code: null, municipality_name: null, state_code: null, district_code: null, district_name: null, neighborhood_enc: null, consent_version: null, consent_at: null, profile_completed_at: null },
       contact: null,
+      profile_photo: null,
       background: null,
     };
     const out = await build({ rows: incomplete });

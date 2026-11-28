@@ -90,11 +90,32 @@ async function joinThroughQuestionnaire(page: Page, request: APIRequestContext, 
   await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
 }
 
+// #156: o nome da segunda pessoa é um payload de XSS (o nome aceita qualquer texto de 2 a 80 caracteres). Nas telas
+// da coordenação ele tem de aparecer como TEXTO: nenhum diálogo, nenhum script e nenhum elemento do payload.
+const XSS_NAME = 'Pessoa <img src=x onerror="window.__xss=1">';
+
+/** Registra os diálogos que abrirem na página, para o teste conferir que nenhum abriu. */
+function watchDialogs(page: Page): string[] {
+  const opened: string[] = [];
+  page.on("dialog", (dialog) => {
+    opened.push(dialog.message());
+    void dialog.dismiss();
+  });
+  return opened;
+}
+
+async function expectInert(page: Page, dialogs: string[]) {
+  expect(dialogs, "nenhum diálogo pode abrir").toEqual([]);
+  expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss), "o script do payload não pode rodar").toBeUndefined();
+  await expect(page.locator("img[src='x']"), "o <img> do payload não pode entrar na página").toHaveCount(0);
+}
+
 test("banco novo: bootstrap → login → termo → questionário → casa → a coordenação autoriza e vê o resultado", async ({ browser, request, baseURL }) => {
   test.setTimeout(300_000);
   // Banco novo, ninguém pode autorizar ninguém: o operador põe o e-mail da coordenação na lista.
   expect(bootstrapCoordination()).toContain("ainda precisa entrar");
   const coordinator = await (await browser.newContext()).newPage();
+  const coordinatorDialogs = watchDialogs(coordinator);
   await joinThroughQuestionnaire(coordinator, request, coordinatorEmail, "Coordenação Staging", baseURL!);
   // Com perfil e casa, o mesmo comando do operador dá o papel de gestora da raiz.
   expect(bootstrapCoordination()).toContain("concedido");
@@ -106,7 +127,9 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   await expect(coordinator.getByTestId("allowlist-add-done")).toHaveText("Adicionado");
 
   const member = await (await browser.newContext()).newPage();
-  await joinThroughQuestionnaire(member, request, memberEmail, "Pessoa Staging", baseURL!);
+  const memberDialogs = watchDialogs(member);
+  await joinThroughQuestionnaire(member, request, memberEmail, XSS_NAME, baseURL!);
+  await expectInert(member, memberDialogs);
 
   // DIAGNÓSTICO TEMPORÁRIO (#365): o que o banco guarda sobre as duas pessoas, e o que a coordenação consegue ler.
   const sql = (query: string) => execFileSync("docker", ["exec", "-i", DB_CONTAINER!, "psql", "-U", "supabase_admin", "-d", "postgres", "-At", "-c", query], { encoding: "utf8" }).trim();
@@ -117,6 +140,17 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   await coordinator.goto("/coordenacao/casas/resultados");
   const results = coordinator.locator('a[href^="/coordenacao/casas/resultados/"]');
   await expect(results).toHaveCount(2);
+  // A lista mostra a linha da 2ª pessoa (o nome dela é o payload, ou "sem nome" quando a coordenação não o decifra, ver #365):
+  // de qualquer modo nada pode executar nem entrar como elemento. Se o nome aparecer, aparece como texto.
+  await expectInert(coordinator, coordinatorDialogs);
+  const rowTexts = await coordinator.getByTestId("result-row").allInnerTexts();
+  if (rowTexts.some((text) => text.includes("Pessoa"))) expect(rowTexts.join("\n")).toContain(XSS_NAME);
   await results.first().click();
   await expect(coordinator.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
+  await expectInert(coordinator, coordinatorDialogs);
+  // E nas outras telas da coordenação que listam pessoas.
+  for (const path of ["/coordenacao/pessoas", "/coordenacao/espera"]) {
+    await coordinator.goto(path);
+    await expectInert(coordinator, coordinatorDialogs);
+  }
 });

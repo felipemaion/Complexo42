@@ -111,10 +111,9 @@ const envSchema = z.object({
 // 2026-11-28 o compose do servidor passou a repassar as duas, conferido dentro
 // do container, e por isso ela volta aqui.
 //
-// QUESTIONNAIRE_SIGNING_KEY segue FORA, de proposito: ela existe no staging
-// desde 2026-11-28, mas producao e outro ambiente, com o seu proprio
-// `secrets/env` e a sua propria copia do compose. Exigi-la aqui repetiria o
-// #283 em producao. Entra quando os ambientes que importam a tiverem.
+// QUESTIONNAIRE_SIGNING_KEY entrou em 2026-11-28 (#290): o staging a tem no `secrets/env` e no compose, o
+// `gen-secrets.sh` a gera para todo ambiente novo, e a producao ainda nao existe. Sem ela o resultado do
+// questionario nao grava, entao recusar a subida troca uma tela quebrada por um erro claro na subida.
 const REQUIRED_IN_PRODUCTION = [
   "DB_HEALTH_URL",
   "SUPABASE_URL",
@@ -125,6 +124,7 @@ const REQUIRED_IN_PRODUCTION = [
   "FIELD_ENCRYPTION_KEY",
   "BLIND_INDEX_KEY",
   "QUESTIONNAIRE_PATH",
+  "QUESTIONNAIRE_SIGNING_KEY",
 ] as const;
 
 export type ServerEnv = z.infer<typeof envSchema>;

@@ -16,6 +16,11 @@ test("/perfil sem sessão manda para o login, voltando ao formulário depois", a
   await expect(page).toHaveURL(/\/entrar\?next=%2Fperfil$/);
 });
 
+test("/foto/<id> sem sessão manda para o login (a foto nunca é pública, #308)", async ({ page }) => {
+  await page.goto("/foto/1c7a3e5f-4d2b-4a9f-8e3c-8b6d7f2a1b04");
+  await expect(page).toHaveURL(/\/entrar\?next=/);
+});
+
 test.describe("formulário com o Supabase local", () => {
   test.skip(!LIVE, "precisa do Supabase local e do Mailpit (ver o topo do arquivo)");
   test.describe.configure({ mode: "serial" });
@@ -59,6 +64,14 @@ test.describe("formulário com o Supabase local", () => {
     await acceptTermIfAsked(page);
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Seus dados");
+
+    // Foto (#308) vem DESLIGADA (profile.photoEnabled): sem seção na tela, e o envio responde 404.
+    await expect(page.getByRole("heading", { name: /foto/i })).toHaveCount(0);
+    const photoOff = await page.request.post("/perfil/foto", {
+      headers: { origin: baseURL! },
+      multipart: { photo: { name: "eu.jpg", mimeType: "image/jpeg", buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0]) } },
+    });
+    expect(photoOff.status()).toBe(404);
 
     // Tudo com rótulo; botão grande e sem rolagem lateral no celular.
     const name = page.getByLabel("Seu nome");
