@@ -29,6 +29,7 @@ insert into declared values
   ('houses', '', 'S'),
   ('municipalities', '', 'S'),
   ('profile_background', '', 'Siu'),
+  ('profile_badge_prefs', '', 'S'),
   ('profile_contacts', '', 'S'),
   ('profile_photos', '', 'SD'),
   ('profile_skills', '', 'S'),
