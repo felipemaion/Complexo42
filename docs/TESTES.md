@@ -53,6 +53,15 @@ como staging.
 cabeçalhos. **Fora:** produção, o servidor (SSH, painel do provedor), Cloudflare, GitHub,
 engenharia social e negação de serviço. Contas: só as fictícias do seed.
 
+> **404 não é ausência de rota.** Teste que roda contra a **URL pública** do
+> staging recebe `404` em `/auth/v1/signup`, em `/rest/v1/*` e em
+> `/auth/v1/admin/*` — é o Kong terminando o pedido de propósito, pelo
+> `X-Forwarded-For` que o proxy acrescenta (ADR 0018 §3). Pela rede interna os
+> mesmos caminhos respondem normalmente. Quem automatizar conferência de fora
+> deve **esperar** esses 404 em vez de tratá-los como regressão; e quem
+> precisar do `admin/generate_link` numa medição tem de chamá-lo de dentro do
+> servidor.
+
 **Regras**
 
 1. Janela combinada com o gestor; avisar a equipe antes de começar.

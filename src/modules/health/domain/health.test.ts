@@ -4,12 +4,27 @@ import { appVersion, evaluateHealth } from "./health";
 const version = { tag: "v2026.11.19", commit: "abc1234def56" };
 
 describe("evaluateHealth", () => {
-  it("200 com status ok quando o banco responde", () => {
-    expect(evaluateHealth("ok", version)).toEqual({ httpStatus: 200, body: { status: "ok", version, db: "ok" } });
+  it("200 com status ok quando banco e esquema respondem", () => {
+    expect(evaluateHealth("ok", "ok", version)).toEqual({
+      httpStatus: 200,
+      body: { status: "ok", version, db: "ok", schema: "ok" },
+    });
   });
 
   it.each(["unavailable", "unconfigured"] as const)("503 degradado quando o banco está %s", (db) => {
-    expect(evaluateHealth(db, version)).toEqual({ httpStatus: 503, body: { status: "degraded", version, db } });
+    expect(evaluateHealth(db, "ok", version)).toEqual({
+      httpStatus: 503,
+      body: { status: "degraded", version, db, schema: "ok" },
+    });
+  });
+
+  // O caso das 19 horas: banco de pé, API de dados inútil. Antes disto o
+  // healthz respondia 200 enquanto toda leitura dava 404.
+  it.each(["stale", "unavailable", "unconfigured"] as const)("503 degradado com banco ok e esquema %s", (schema) => {
+    expect(evaluateHealth("ok", schema, version)).toEqual({
+      httpStatus: 503,
+      body: { status: "degraded", version, db: "ok", schema },
+    });
   });
 });
 

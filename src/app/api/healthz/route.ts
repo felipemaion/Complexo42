@@ -1,7 +1,7 @@
 // Saúde do app + banco (ADR 0009 §3 e §6). Usado pelo teste de fumaça do deploy e pelo
 // monitoramento externo. A resposta não leva dado pessoal nem detalhe de erro.
 import { NextResponse } from "next/server";
-import { appVersion, evaluateHealth, probeDb } from "@/modules/health";
+import { appVersion, evaluateHealth, probeDb, probeSchema } from "@/modules/health";
 import { getEnv } from "@/server/env";
 import { log } from "@/server/log";
 
@@ -10,8 +10,18 @@ export const runtime = "nodejs";
 
 export async function GET(): Promise<NextResponse> {
   const env = getEnv();
-  const db = await probeDb(env.DB_HEALTH_URL, env.HEALTH_TIMEOUT_MS);
+  // As duas sondas em paralelo: uma pergunta se o banco responde, a outra se a
+  // API de dados conhece o esquema de hoje. Sequenciais, somariam os timeouts.
+  const [db, schema] = await Promise.all([
+    probeDb(env.DB_HEALTH_URL, env.HEALTH_TIMEOUT_MS),
+    probeSchema(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, env.HEALTH_TIMEOUT_MS),
+  ]);
   if (db.reason) log.warn("healthz_db_unavailable", { reason: db.reason });
-  const { httpStatus, body } = evaluateHealth(db.status, appVersion(env.APP_VERSION, env.GIT_SHA));
+  // Evento PRÓPRIO, e em nível de erro: cache velho não melhora sozinho e o
+  // conserto é um comando (`notify pgrst, 'reload schema'`). Misturado com
+  // "banco indisponível" mandaria quem está de plantão olhar o lugar errado.
+  if (schema.status === "stale") log.error("healthz_schema_stale", {});
+  else if (schema.reason) log.warn("healthz_schema_unavailable", { reason: schema.reason });
+  const { httpStatus, body } = evaluateHealth(db.status, schema.status, appVersion(env.APP_VERSION, env.GIT_SHA));
   return NextResponse.json(body, { status: httpStatus, headers: { "Cache-Control": "no-store" } });
 }
