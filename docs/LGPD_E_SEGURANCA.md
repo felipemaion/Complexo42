@@ -40,6 +40,11 @@ Na prática, isso vira quatro camadas:
 | Incidente | Plano em `SECURITY.md`; comunicação à ANPD em prazo razoável (art. 48) |
 | Operadores | Supabase e a hospedagem: verificar a região dos dados e os termos (transferência internacional, art. 33) [jurídico] |
 
+### Provas de que o dado pessoal só existe cifrado (#155)
+- **pgTAP `colunas_cifradas`:** toda coluna `*_enc` de `public` e `app` tem um CHECK com `app.is_encrypted_value`, e nenhuma coluna de dado pessoal (nome, WhatsApp, redes, bairro, formação, atividade, foto, e-mail) existe sem `_enc` ou `_hmac`. Coluna nova sem o CHECK reprova no CI.
+- **Varredura no "Staging de mentira"** (`scripts/staging-ci/varredura.sh`): depois do E2E, o nome, o WhatsApp e o e-mail digitados não podem estar em nenhuma coluna de nenhuma tabela (o e-mail só em `auth.*`), e todo valor `*_enc` tem a forma cifrada. Só SQL no container, sem dump; a saída traz `esquema.tabela.coluna`, nunca o valor.
+- **Exceção conhecida:** o perfil do Google em `auth.*` (ADR 0003, tabela de riscos residuais).
+
 ## 3. Modelo de ameaças (resumo)
 
 | Ameaça | Controle |
