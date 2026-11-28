@@ -19,13 +19,19 @@ test.skip(!API || !SERVICE, "precisa do Supabase local e da chave service_role")
 // O exemplo de config/ (sem QUESTIONNAIRE_PATH, é o que o app carrega).
 const questionnaire = JSON.parse(readFileSync("config/questionnaire.example.json", "utf8")) as QuestionnaireConfig;
 
-/** REGRA DURA: o totem nunca aparece para a pessoa. Nem a medalha (/totens/) nem o nome, nas telas dela. */
-async function expectNoTotem(page: Page) {
-  const names = Object.values(questionnaire.totemLabels).map((label) => label.name);
+/**
+ * O totem é do membro (#303, ADR 0014 revisão de 28/11): na /inicio aparece a medalha com o nome do totem, lido e decifrado no
+ * servidor. As notas dos eixos, as respostas e o texto cifrado nunca vão à tela (nem ao HTML das telas da pessoa).
+ */
+async function expectTotemAsMedalOnly(page: Page, totemCode: string) {
+  const name = questionnaire.totemLabels[totemCode]!.name;
+  await page.goto("/inicio");
+  const medal = page.getByTestId("totem-medal");
+  await expect(medal).toBeVisible();
+  await expect(medal).toHaveAttribute("alt", name);
   const sources = [await page.content(), ...(await Promise.all(["/casa", "/inicio"].map(async (path) => (await page.request.get(path)).text())))];
   for (const source of sources) {
-    expect(source).not.toContain("/totens/");
-    for (const name of names) expect(source).not.toContain(name);
+    for (const internal of ["totem_enc", "scores_enc", "answers_enc"]) expect(source).not.toContain(internal);
   }
 }
 const SAO_PAULO = 3550308;
@@ -253,10 +259,8 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   expect(stored!.answers_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
   expect(stored!.answers_enc).not.toContain(questionnaire.items[0]!.id);
   expect(await analysisRows(member.id)).toEqual([]);
-  // O totem é interno: não aparece na tela da casa.
-  await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);
-
-  await expectNoTotem(page);
+  // O totem é visível ao membro (#303): a medalha aparece na página inicial, com o nome; o resto segue interno.
+  await expectTotemAsMedalOnly(page, result.totem);
 
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
@@ -277,7 +281,8 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
-  const suggested = scoreQuestionnaire(questionnaire, answers as Answers).houseId;
+  const scored = scoreQuestionnaire(questionnaire, answers as Answers);
+  const suggested = scored.houseId;
   // Antes de comparar, as frases de expectativa (config) não estão na página: só o servidor as conhece.
   expect(await page.content()).not.toContain("espera-se");
 
@@ -316,7 +321,7 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   expect(await houseRows(member.id)).toEqual([expect.objectContaining({ join_method: "self", house_key: opposite })]);
-  await expectNoTotem(page);
+  await expectTotemAsMedalOnly(page, scored.totem);
 });
 
 // Troca de casa depois da trava (#268): a MESMA tela de comparação do "Escolher outra casa", montada no servidor a partir do que

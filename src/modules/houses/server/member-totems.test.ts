@@ -59,7 +59,7 @@ describe("readMemberTotems", () => {
     const out = await readMemberTotems(client, [A, B], { crypto: crypto({ "enc-b": "ZZ", "enc-a": "XV" }), questionnaire, onUnreadable });
     expect(out).toEqual(new Map());
     expect(onUnreadable).toHaveBeenCalledTimes(1);
-    expect(onUnreadable).toHaveBeenCalledWith(2);
+    expect(onUnreadable).toHaveBeenCalledWith(3); // decifra falhou, código fora da config e linha que ninguém pediu
     expect(JSON.stringify(onUnreadable.mock.calls)).not.toMatch(/enc-|0000000000/);
   });
 

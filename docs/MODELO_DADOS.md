@@ -434,6 +434,10 @@ apagadas na chamada seguinte das funções abaixo). A linha resolvida fica, sem 
 `questionnaire_signing_key` (ADR 0014 §1), instalada por quem opera (`docs/OPERACAO.md`). RLS sem
 política e sem grant: só funções `security definer` leem.
 
+- **Totem para os membros (#303):** `public.member_totems(pessoas)` (security definer, até 200) devolve a quem é membro
+  ativo só `(profile_id, totem_enc)` de pessoas ativas com totem definido; nunca notas, respostas nem assinatura. Quem
+  decifra é o servidor do app (AAD `questionnaire_results.totem_enc.<id>`), e o navegador recebe só o código. A RLS da
+  tabela não muda. Ver ADR 0014 (revisão de 28/11).
 - **Quem lê** (RLS, `app.can_read_questionnaire_data`): a própria pessoa; a coordenação nacional
   (gestor da raiz ativo) sobre pessoa ativa; e um gestor com concessão ativa (abaixo) sobre pessoa
   ativa do escopo dele. Ninguém escreve pela API: só as funções abaixo.

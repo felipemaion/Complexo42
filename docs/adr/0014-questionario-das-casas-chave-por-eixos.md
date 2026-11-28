@@ -300,5 +300,15 @@ totens. O Felipe decidiu que a medalha do totem é **vista por todos os membros*
   uma leitura do resultado e não gera `log_questionnaire_view`.
 - A pessoa não precisa entender o significado do totem, só saber que tem a medalha. O texto curto
   de cada medalha (Cortez) vai nos "primeiros passos" da casa (#292).
-- Implementação: #303. O termo e `docs/LGPD_E_SEGURANCA.md` mudam junto: o totem passa a ser visível
-  aos membros.
+- Implementação (#303): `public.member_totems(uuid[])` (security definer) devolve a quem é **membro
+  ativo** só `(profile_id, totem_enc)` de pessoas ativas com totem definido (até 200 por chamada), nunca
+  notas, respostas, assinatura nem casa sugerida. O servidor do app decifra com a chave dele (AAD da linha da
+  pessoa) e entrega ao navegador só o **código**, validado contra a config; sem `service_role`; a RLS de
+  `questionnaire_results` não muda. Falha ao decifrar mostra a casa sem medalha e registra só a contagem,
+  nunca a pessoa.
+- **Troca aceita:** como a função é chamável pela API, um membro ativo pode obter o totem **cifrado** dos
+  outros por fora do app. É aceitável porque o totem é visível a todos os membros por decisão de 28/11 e o
+  texto cifrado não se decifra sem a chave do servidor (ADR 0003). Notas, respostas e o pedido de análise não
+  passam por essa função. A exibição nos cartões de outros membros entra com o perfil público (#305); por ora
+  a medalha aparece na página da própria pessoa.
+- O termo e `docs/LGPD_E_SEGURANCA.md` mudam junto: o totem passa a ser visível aos membros.

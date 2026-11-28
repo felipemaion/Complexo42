@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(16);
 
 create temp table people (name text primary key, id uuid not null unique, email text not null);
 insert into people values
@@ -37,12 +37,12 @@ insert into public.house_members (profile_id, house_key, join_method, accepted_a
 select id, 'casa-x', 'self', now() from people where name in ('a', 'b', 'pend', 'none', 'wl', 'susp');
 
 insert into app.questionnaire_term_versions (version) values ('termo-1') on conflict do nothing;
-insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, source) values
-  (pg_temp.person('a'), 'termo-1', 'casa-x', pg_temp.enc('TA'), 'questionnaire'),
-  (pg_temp.person('b'), 'termo-1', 'casa-x', pg_temp.enc('TB'), 'questionnaire'),
-  (pg_temp.person('pend'), 'termo-1', 'casa-x', null, 'questionnaire'),
-  (pg_temp.person('wl'), 'termo-1', 'casa-x', pg_temp.enc('TW'), 'questionnaire'),
-  (pg_temp.person('susp'), 'termo-1', 'casa-x', pg_temp.enc('TS'), 'questionnaire');
+insert into public.questionnaire_results (profile_id, term_version, house_key, totem_enc, source, totem_state) values
+  (pg_temp.person('a'), 'termo-1', 'casa-x', pg_temp.enc('TA'), 'questionnaire', 'decided'),
+  (pg_temp.person('b'), 'termo-1', 'casa-x', pg_temp.enc('TB'), 'questionnaire', 'decided'),
+  (pg_temp.person('pend'), 'termo-1', 'casa-x', null, 'questionnaire', 'pending'),
+  (pg_temp.person('wl'), 'termo-1', 'casa-x', pg_temp.enc('TW'), 'questionnaire', 'decided'),
+  (pg_temp.person('susp'), 'termo-1', 'casa-x', pg_temp.enc('TS'), 'questionnaire', 'decided');
 
 -- ---------------------------------------------------------------------------------------
 -- Forma e privilégios

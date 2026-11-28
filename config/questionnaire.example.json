@@ -193,8 +193,8 @@
         "q11"
       ],
       "letters": {
-        "a": "X",
-        "b": "Y"
+        "a": "P",
+        "b": "A"
       }
     },
     "totem2": {
@@ -209,8 +209,8 @@
         "q12"
       ],
       "letters": {
-        "a": "V",
-        "b": "W"
+        "a": "R",
+        "b": "A"
       }
     }
   },
@@ -221,19 +221,19 @@
     "bb": "siracusa"
   },
   "totemLabels": {
-    "XV": {
+    "PR": {
       "name": "Totem Um",
       "description": "Descrição curta fictícia do primeiro totem."
     },
-    "XW": {
+    "PA": {
       "name": "Totem Dois",
       "description": "Descrição curta fictícia do segundo totem."
     },
-    "YV": {
+    "AR": {
       "name": "Totem Três",
       "description": "Descrição curta fictícia do terceiro totem."
     },
-    "YW": {
+    "AA": {
       "name": "Totem Quatro",
       "description": "Descrição curta fictícia do quarto totem."
     }
