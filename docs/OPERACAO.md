@@ -34,35 +34,49 @@ com senha compartilhada vazar o ambiente de um deles entregava o superusuário
 do banco. O papel `postgres` existe (as migrations do GoTrue fazem `grant … to
 postgres`), mas **deve ser NOLOGIN**: ninguém se conecta com ele.
 
-> **Atenção:** o `02-roles.sh` só roda no **primeiro start de um volume vazio**. Um volume
-> criado antes da #95 continua com o `postgres` com login e senha, e é preciso corrigir à mão
-> (abaixo). Confira sempre no banco real, e não neste documento:
->
-> ```sql
-> select rolname, rolcanlogin, rolpassword is not null as tem_senha
->   from pg_authid where rolname = 'postgres';   -- esperado: f, f
-> ```
+> **Atenção:** o `02-roles.sh` só roda no **primeiro start de um volume vazio**. Um volume criado
+> antes da #95 continua com o `postgres` com login e senha. Confira sempre no banco real, com o
+> `--conferir` abaixo, e não neste documento.
 
-O `02-roles.sh` aplica as senhas **na criação do volume**. Em volume que já
-existe, a troca é por `ALTER ROLE`, de dentro do container do banco:
+O `02-roles.sh` aplica as senhas **na criação do volume**. Num volume que já existe, quem confere,
+aplica e rotaciona é o `deploy/senhas-papeis.sh` (fora da imagem; copiar para `/opt/complexo42/` como os
+outros scripts de operador). Nenhuma senha vai para argumento de processo nem para a tela.
 
 ```bash
-# le a senha do arquivo de segredos, sem ecoar no terminal nem no histórico
-docker compose -f docker-compose.supabase.yml --env-file <segredos> \
-  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
-  -v senha="$(grep -m1 '^AUTHENTICATOR_PASSWORD=' <segredos> | cut -d= -f2-)" \
-  -c "ALTER ROLE authenticator WITH LOGIN PASSWORD :'senha'"
-# idem para supabase_auth_admin, com AUTH_ADMIN_PASSWORD
-
-# postgres sem login e sem senha (as migrations do GoTrue só precisam que o papel exista)
-docker compose -f docker-compose.supabase.yml --env-file <segredos> \
-  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
-  -c "ALTER ROLE postgres WITH NOLOGIN PASSWORD NULL"
+export COMPOSE_FILE=<dir do deploy>/docker-compose.supabase.yml ENV_FILE=<dir do deploy>/secrets/env \
+       SUPABASE_PROJETO=<projeto Compose do Supabase>
+sudo -E /opt/complexo42/senhas-papeis.sh --conferir     # só lê: "ok" ou "FALHA" por item, sai 1 se falhar
+sudo -E /opt/complexo42/senhas-papeis.sh --aplicar      # se o --conferir acusar: aplica, reinicia rest e auth, confere
 ```
 
-Depois do `ALTER ROLE`, reinicie quem usa aquela senha (`restart rest` ou
-`restart auth`): a conexão antiga continua válida até o processo reconectar, e
-sem o restart o erro só aparece horas depois.
+O `--conferir` olha: as três senhas distintas no arquivo; `postgres` sem login e sem senha;
+`authenticator` e `supabase_auth_admin` entrando por TCP com a própria senha e **não** com a do
+superusuário; e o ambiente dos containers `rest` e `auth` sem a senha do superusuário.
+
+**Rotação** (vazou, ou troca periódica):
+
+```bash
+sudo -E SAUDE_CMD="curl -fsS https://<domínio>/api/healthz" \
+  /opt/complexo42/senhas-papeis.sh --rotacionar AUTHENTICATOR_PASSWORD   # ou AUTH_ADMIN_PASSWORD
+```
+
+Gera a senha nova, reescreve **só aquela linha** do `secrets/env` (backup ao lado, conferência do
+arquivo inteiro antes e depois), aplica no banco, recria **só** o serviço dela (`rest` ou `auth`) e
+espera o serviço, o login novo e o `SAUDE_CMD`. Se a saúde não voltar em 2 min, devolve o arquivo **e** a
+senha antiga no banco, recria de novo e sai 1. No fim, a senha antiga não entra mais e o backup é apagado.
+
+**A do superusuário (`POSTGRES_PASSWORD`) é manual**, com janela: ela está no ambiente do container
+`db` (healthcheck) e do `studio`/`meta`, e trocá-la recria o banco. Passos: `ALTER ROLE supabase_admin
+WITH PASSWORD` por `psql` com a senha no stdin (`\set`), trocar a linha no `secrets/env`, `up -d db`
+fora do horário de uso e conferir o `--conferir` e o `/api/healthz`.
+
+### Passos do Oracle (#95, nada aplicado ainda)
+
+1. Staging: instalar o script e rodar o `--conferir`. Se acusar `postgres` com login (volume de antes
+   da #95), rodar o `--aplicar` e o `--conferir` de novo.
+2. Produção, antes de abrir: o mesmo `--conferir`, que tem de passar sem o `--aplicar` (o volume de
+   produção nasce com o `02-roles.sh` atual).
+3. A demo não entra nisto.
 
 ## Estrutura da instância e casas (ADR 0011)
 
