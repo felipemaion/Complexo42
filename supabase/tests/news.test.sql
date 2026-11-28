@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(27);
+select plan(31);
 
 create temp table people (name text primary key, id uuid not null unique, email text not null);
 insert into people values
@@ -86,6 +86,8 @@ select throws_ok($$ select public.publish_news(pg_temp.root(), 'T', repeat('x', 
 select throws_ok($$ select public.publish_news(pg_temp.root(), 'T', '<b>oi</b>', null, null) $$, '22023', null, 'HTML no texto é recusado');
 select throws_ok($$ select public.publish_news(pg_temp.root(), 'T', 'Texto', 'http://exemplo.org', null) $$, '22023', null, 'link http (sem s) é recusado');
 select throws_ok($$ select public.publish_news(pg_temp.root(), 'T', 'Texto', 'https://localhost/x', null) $$, '22023', null, 'link sem domínio válido é recusado');
+select throws_ok($$ select public.publish_news(pg_temp.root(), 'T', 'Texto', 'javascript:alert(1)', null) $$, '22023', null, 'link javascript: é recusado');
+select throws_ok($$ select public.publish_news(pg_temp.root(), 'T', 'Texto', 'data:text/html,oi', null) $$, '22023', null, 'link data: é recusado');
 select throws_ok($$ select public.publish_news(pg_temp.root(), 'T', 'Texto', null, now() - interval '1 day') $$, '22023', null, 'validade no passado é recusada');
 
 -- ---------------------------------------------------------------------------------------
@@ -109,6 +111,17 @@ select pg_temp.login('reg');
 select lives_ok($$ select public.archive_news((select id from public.news where title = 'Encontro da A')) $$, 'gestor da A arquiva a da A');
 select pg_temp.login('ma');
 select is((select count(*)::int from public.news where title = 'Encontro da A'), 0, 'arquivada some para o membro');
+
+-- Fora do escopo e vencida
+reset role;
+create temp table bnews as select id from public.news where title = 'Só da B';
+grant select on bnews to authenticated;
+update public.news set expires_at = now() - interval '1 hour' where title = 'Aviso nacional';
+set local role authenticated;
+select pg_temp.login('reg');
+select throws_ok($$ select public.archive_news((select id from bnews)) $$, '42501', null, 'gestor da A NÃO arquiva a novidade da B (irmã)');
+select pg_temp.login('ma');
+select is((select count(*)::int from public.news where title = 'Aviso nacional'), 0, 'novidade vencida (expires_at) some');
 
 reset role;
 select is((select count(*)::int from public.audit_log where event = 'news_published'), 3, 'cada publicação grava news_published');
