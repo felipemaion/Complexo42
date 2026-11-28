@@ -19,13 +19,19 @@ test.skip(!API || !SERVICE, "precisa do Supabase local e da chave service_role")
 // O exemplo de config/ (sem QUESTIONNAIRE_PATH, é o que o app carrega).
 const questionnaire = JSON.parse(readFileSync("config/questionnaire.example.json", "utf8")) as QuestionnaireConfig;
 
-/** REGRA DURA: o totem nunca aparece para a pessoa. Nem a medalha (/totens/) nem o nome, nas telas dela. */
-async function expectNoTotem(page: Page) {
-  const names = Object.values(questionnaire.totemLabels).map((label) => label.name);
+/**
+ * O totem é do membro (#303, ADR 0014 revisão de 28/11): na /inicio aparece a medalha com o nome do totem, lido e decifrado no
+ * servidor. As notas dos eixos, as respostas e o texto cifrado nunca vão à tela (nem ao HTML das telas da pessoa).
+ */
+async function expectTotemAsMedalOnly(page: Page, totemCode: string) {
+  const name = questionnaire.totemLabels[totemCode]!.name;
+  await page.goto("/inicio");
+  const medal = page.getByTestId("totem-medal");
+  await expect(medal).toBeVisible();
+  await expect(medal).toHaveAttribute("alt", name);
   const sources = [await page.content(), ...(await Promise.all(["/casa", "/inicio"].map(async (path) => (await page.request.get(path)).text())))];
   for (const source of sources) {
-    expect(source).not.toContain("/totens/");
-    for (const name of names) expect(source).not.toContain(name);
+    for (const internal of ["totem_enc", "scores_enc", "answers_enc"]) expect(source).not.toContain(internal);
   }
 }
 const SAO_PAULO = 3550308;
@@ -211,7 +217,7 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   }
   await expectNoStorage(page);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
 
   // Só três chamadas ao servidor: a versão do termo, as respostas (o servidor pontua) e a casa com
   // a forma de entrada. O navegador nunca manda casa nem totem do resultado.
@@ -253,14 +259,12 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   expect(stored!.answers_enc).toMatch(/^v[1-9][0-9]{0,2}\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]{22,}$/);
   expect(stored!.answers_enc).not.toContain(questionnaire.items[0]!.id);
   expect(await analysisRows(member.id)).toEqual([]);
-  // O totem é interno: não aparece na tela da casa.
-  await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);
-
-  await expectNoTotem(page);
+  // O totem é visível ao membro (#303): a medalha aparece na página inicial, com o nome; o resto segue interno.
+  await expectTotemAsMedalOnly(page, result.totem);
 
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Aceito e quero responder" })).toHaveCount(0);
 });
 
@@ -277,7 +281,8 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
-  const suggested = scoreQuestionnaire(questionnaire, answers as Answers).houseId;
+  const scored = scoreQuestionnaire(questionnaire, answers as Answers);
+  const suggested = scored.houseId;
   // Antes de comparar, as frases de expectativa (config) não estão na página: só o servidor as conhece.
   expect(await page.content()).not.toContain("espera-se");
 
@@ -314,9 +319,9 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
   await page.getByRole("button", { name: "Escolher esta casa" }).click();
   await expect(page.getByTestId("house-name")).toHaveText(oppositeName);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   expect(await houseRows(member.id)).toEqual([expect.objectContaining({ join_method: "self", house_key: opposite })]);
-  await expectNoTotem(page);
+  await expectTotemAsMedalOnly(page, scored.totem);
 });
 
 // Troca de casa depois da trava (#268): a MESMA tela de comparação do "Escolher outra casa", montada no servidor a partir do que
@@ -340,7 +345,7 @@ async function answerAndAccept(page: Page) {
   }
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Janela de transferência aberta pela coordenação nacional: só então o link de troca aparece.
   await setWindow(true);
   await page.goto("/casa");
@@ -374,7 +379,7 @@ test("trocar de casa com a janela aberta: tela de comparação com a casa atual 
   // Sem trava de 4 meses (ADR 0016): a confirmação não traz aviso de prazo.
   await expect(page.getByTestId("change-lock-notice")).toHaveCount(0);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   const rows = await houseRows(member.id);
   expect(rows).toHaveLength(1);
   expect(rows[0]?.join_method).toBe("self");
@@ -391,7 +396,7 @@ test("janela fechada: sem link de troca nem data; abrir e fechar mostram e tiram
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("change-house-link")).toHaveCount(0);
   await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
   expect(await page.content()).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
@@ -415,7 +420,7 @@ test("trocar de casa sem respostas guardadas (respondeu antes): o que se espera 
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Como quem respondeu antes de guardarmos as respostas: o resultado fica, as respostas não.
   expect((await admin(`/rest/v1/questionnaire_results?profile_id=eq.${member.id}`, { method: "PATCH", body: JSON.stringify({ answers_enc: null }) })).ok).toBe(true);
   await setWindow(true);
@@ -449,7 +454,7 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await expect(page.getByTestId("house-shield")).toHaveAttribute("width", "180");
   await expect(page.getByTestId("app-logo").first()).toHaveAttribute("alt", /\S/);
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Casa definida com a janela fechada: sem data nem link de troca (ADR 0016).
   await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
   await expect(page.getByTestId("change-house-link")).toHaveCount(0);
@@ -475,7 +480,7 @@ test("recusar o termo leva à escolha direta e não grava aceite", async ({ page
   await expect(page.getByRole("heading", { name: "O que você quer fazer?" })).toBeVisible();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
 
   expect(actionBodies(requests)).toEqual([[{ houseId: "esparta", joinMethod: "self" }]]);
   expect(await consents(member.id)).toEqual([]);
@@ -502,7 +507,7 @@ test("quem ainda está só no estado (sem região) escolhe a casa (ADR 0011)", a
   await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   expect(await houseRows(member.id)).toEqual([
     { join_method: "self", accepted_at: expect.any(String), consent_version: null, house_key: "esparta" },
@@ -516,7 +521,7 @@ test("tirada da casa pela coordenação, a pessoa vê o motivo e não volta sozi
   await page.getByRole("button", { name: "Não aceito, prefiro escolher a casa" }).click();
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 1A" }).click();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true }).first()).toBeVisible();
   // Encerrado fora do JWT da pessoa (ended_by fica nulo, como numa operação da coordenação).
   const ended = await admin(`/rest/v1/house_members?profile_id=eq.${member.id}&left_at=is.null`, {
     method: "PATCH",

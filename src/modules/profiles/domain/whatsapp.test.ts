@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./whatsapp";
+import { brazilianWhatsappToE164, formatBrazilianWhatsapp, whatsappLink } from "./whatsapp";
 
 describe("brazilianWhatsappToE164", () => {
   it("aceita o celular do jeito que as pessoas escrevem e devolve E.164", () => {
@@ -67,4 +67,17 @@ describe("formatBrazilianWhatsapp (máscara)", () => {
   it("o que a máscara mostra continua válido para o servidor", () => {
     expect(brazilianWhatsappToE164(formatBrazilianWhatsapp("+5511912345678"))).toBe("+5511912345678");
   });
+});
+
+describe("whatsappLink", () => {
+  it("monta o wa.me só com dígitos de um celular válido", () => {
+    expect(whatsappLink("+5511912345678")).toBe("https://wa.me/5511912345678");
+  });
+
+  it.each(["", "abc", "+5511812345678", "+55 11 9123 4567 8 9", "javascript:alert(1)", "+5511912345678/../x", null, 5511912345678])(
+    "não gera link para %j",
+    (value) => {
+      expect(whatsappLink(value)).toBeNull();
+    },
+  );
 });

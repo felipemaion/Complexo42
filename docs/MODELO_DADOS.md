@@ -780,6 +780,15 @@ A matriz completa está em [`adr/0002-permissoes-hierarquicas.md`](adr/0002-perm
 Toda política RLS usa as funções `app.can_*`, e toda mudança atualiza
 `supabase/tests/permissions_matrix.test.sql`.
 
+- **Totem para os membros (#303):** `public.member_totems(pessoas)` (security definer, até 200) devolve a quem é membro
+  ativo só `(profile_id, totem_enc)` de pessoas ativas com totem definido; nunca notas, respostas nem assinatura. Quem
+  decifra é o servidor do app (AAD `questionnaire_results.totem_enc.<id>`), e o navegador recebe só o código. A RLS da
+  tabela não muda. Ver ADR 0014 (revisão de 28/11).
+- **Casa para os membros (#303):** `public.member_houses(pessoas)` (security definer, até 200) devolve a quem é membro
+  ativo só `(profile_id, house_key)` da casa **aceita e vigente** de pessoas ativas; nunca vínculo, datas, forma de entrada,
+  resultado nem totem. A RLS de `house_members` não muda (só a própria pessoa e a coordenação leem a tabela). O servidor
+  valida a chave contra as casas da config. É a medalha da casa do perfil público (#305).
+
   **A própria linha (#318):** a RLS (`app.can_read_questionnaire_data`) deixa a pessoa ler o próprio resultado só
   enquanto ela está em onboarding (`app.is_onboarding_member()`: liberada pela lista), não "qualquer membro". As
   funções `coordination_chosen_houses`, `coordination_other_house_results` e `log_questionnaire_view` incluem quem

@@ -1,50 +1,56 @@
-// REGRA DURA: o totem nunca aparece para a pessoa (ADR 0014 §2). As medalhas (/totens/) só entram nas telas da
-// coordenação; o E2E (e2e/house-live.spec.ts) confere as páginas da pessoa renderizadas.
+// O totem é visto por todo membro logado (ADR 0014, revisão de 28/11; issue #303), mas só o CÓDIGO do totem: as notas dos
+// eixos e as respostas seguem internas. O totem fica cifrado no banco (ADR 0003): o servidor o lê pela função
+// `member_totems` (só id e valor cifrado, só para membro ativo) e o decifra com a chave do app; o navegador só recebe o
+// código validado. As medalhas (/totens/) só carregam com sessão. Estas guardas leem o código-fonte.
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import example from "@config/questionnaire.example.json";
 import { config as proxyConfig } from "@/proxy";
 import { decideRoute } from "@/server/auth/routes";
 
 const read = (path: string) => readFileSync(path, "utf8");
-const tsxIn = (dir: string) => readdirSync(dir).filter((file) => /\.tsx?$/.test(file) && !/\.test\./.test(file)).map((file) => join(dir, file));
+const migration = () => {
+  const file = readdirSync("supabase/migrations").find((f) => f.endsWith("_member_totems.sql"));
+  expect(file, "migration da função member_totems").toBeDefined();
+  return read(join("supabase/migrations", file!));
+};
 
-// O que a pessoa vê: início, casa, escolher/trocar de casa, resultado dela, comparação de casas e o escudo comum.
-const PERSON_FILES = [
-  ...tsxIn("src/app/(conta)/casa"),
-  ...tsxIn("src/app/(conta)/inicio"),
-  "src/modules/houses/components/house-flow.tsx",
-  "src/modules/houses/components/own-house-card.tsx",
-  "src/modules/houses/components/compare-houses.tsx",
-  "src/modules/houses/components/house-shield.tsx",
-  "src/modules/houses/domain/home-card.ts",
-];
-const MEDAL_SOURCES = [/\/totens\//, /totem-medal/i, /TotemMedal/, /totemMedalAssets/];
-const totemNames = Object.values(example.totemLabels).map((label) => label.name);
-
-describe("a pessoa nunca vê o totem nem a medalha", () => {
-  it("as telas da pessoa existem na lista (a guarda não está vazia)", () => {
-    expect(PERSON_FILES.length).toBeGreaterThan(6);
+describe("o totem é do membro, as notas e as respostas não", () => {
+  it("a página da própria pessoa lê o totem pelo leitor do servidor e o entrega ao card", () => {
+    const home = read("src/app/(conta)/inicio/page.tsx");
+    expect(home).toMatch(/readMemberTotems/);
+    expect(home).toMatch(/totem=/);
   });
 
-  it("nenhuma tela da pessoa referencia /totens/, o módulo da medalha ou o nome de um totem", () => {
-    for (const file of PERSON_FILES) {
+  it("o leitor só usa a função `member_totems`: nunca a tabela, as notas nem as respostas", () => {
+    const reader = read("src/modules/houses/server/member-totems.ts");
+    expect(reader).toMatch(/rpc\("member_totems"/);
+    expect(reader).not.toMatch(/\.from\(/);
+    expect(reader).not.toMatch(/scores_enc|answers_enc|signature|house_key/);
+  });
+
+  it("a função do banco devolve só o id e o totem cifrado, só a membro ativo, e não abre a tabela", () => {
+    const sql = migration();
+    expect(sql).toMatch(/returns table \(profile_id uuid, totem_enc text\)/i);
+    expect(sql).toMatch(/app\.is_active_member\(\)/);
+    expect(sql).toMatch(/app\.is_active_profile\(/);
+    expect(sql).not.toMatch(/scores_enc|answers_enc|signature/);
+    expect(sql).not.toMatch(/create policy|alter table|grant select on public\.questionnaire_results/i);
+    expect(sql).toMatch(/revoke execute on function public\.member_totems\(uuid\[\]\) from public, anon/i);
+  });
+
+  it("os componentes que o navegador renderiza não têm acesso a cifra, ao banco nem à tabela", () => {
+    for (const file of ["src/modules/houses/components/own-house-card.tsx", "src/modules/houses/components/totem-medal.tsx"]) {
       const source = read(file);
-      for (const pattern of MEDAL_SOURCES) expect([file, pattern.test(source)]).toEqual([file, false]);
-      for (const name of totemNames) expect([file, source.includes(name)]).toEqual([file, false]);
+      expect(source, file).not.toMatch(/@\/server\/crypto|totem_enc|member_totems|\.rpc\(/);
     }
   });
 
-  it("só o detalhe do resultado (que registra o acesso) usa a medalha (prova de que a guarda enxerga o que deve)", () => {
-    expect(read("src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx")).toMatch(/ChosenHouseAndTotem/);
-  });
-
-  it("a lista de resultados NÃO usa a medalha nem pede o totem: ele só aparece ao abrir a pessoa", () => {
+  it("a lista de resultados da coordenação segue sem medalha: o totem lá só aparece ao abrir a pessoa (que registra o acesso)", () => {
     const list = read("src/app/(conta)/coordenacao/casas/resultados/page.tsx");
-    for (const pattern of MEDAL_SOURCES) expect(pattern.test(list)).toBe(false);
     expect(list).not.toMatch(/totem-medal|ChosenHouseAndTotem|HouseWithTotem|\.totem\b/);
     expect(read("src/modules/houses/server/coordination-views.ts")).not.toMatch(/readTotems|profile_id,totem_enc/);
+    expect(read("src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx")).toMatch(/ChosenHouseAndTotem/);
   });
 });
 

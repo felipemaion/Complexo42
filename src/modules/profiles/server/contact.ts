@@ -10,6 +10,7 @@ import {
   contactKinds,
   parseContactVisibilityChoice,
   visibilityFromRows,
+  type ContactAccess,
   type ContactKind,
   type ContactView,
   type ContactVisibility,
@@ -59,6 +60,22 @@ export async function setContactVisibility(
   if (code === "22023") return { status: "invalid" };
   deps.log.error("contact_visibility_failed", { reason: code });
   return { status: "failed" };
+}
+
+const accessRow = z.object({ whatsapp_ok: z.boolean(), social_ok: z.boolean(), login_ok: z.boolean() });
+
+/**
+ * Quais contatos de `targetId` quem olha pode ver, só para decidir se mostra o botão. Não lê o valor, não audita e
+ * não gasta a cota (`contact_access`). Qualquer falha vira "nenhum": o botão simplesmente não aparece.
+ */
+export async function readContactAccess(client: ProfileDbClient, targetId: string): Promise<ContactAccess> {
+  const none: ContactAccess = { whatsapp: false, social: false, email: false };
+  const target = uuid.safeParse(targetId);
+  if (!target.success) return none;
+  const { data, error } = await client.rpc("contact_access", { p_target: target.data });
+  if (error) return none;
+  const row = accessRow.safeParse(Array.isArray(data) ? data[0] : data);
+  return row.success ? { whatsapp: row.data.whatsapp_ok, social: row.data.social_ok, email: row.data.login_ok } : none;
 }
 
 export type ViewMemberContactResult =

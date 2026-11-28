@@ -59,3 +59,12 @@ export function formatBrazilianWhatsapp(raw: string): string {
   if (rest.length <= 5) return `(${ddd}) ${rest}`;
   return `(${ddd}) ${rest.slice(0, 5)}-${rest.slice(5)}`;
 }
+
+/**
+ * Link `wa.me` para um WhatsApp já guardado (E.164). Só dígitos, e só se o número passa na mesma regra do cadastro
+ * (celular brasileiro): qualquer outra coisa vira `null`, nunca um link montado com texto livre.
+ */
+export function whatsappLink(stored: unknown): string | null {
+  const e164 = brazilianWhatsappToE164(stored);
+  return e164 === null ? null : `https://wa.me/${e164.slice(1)}`;
+}
