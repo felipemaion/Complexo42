@@ -11,6 +11,7 @@ import {
   type DecisionWord,
 } from "../domain/coordination";
 import type { WaitlistCursor } from "../types";
+import { buttonClass, cardClass, noticeClass, textLinkClass } from "@/modules/ui";
 
 export type WaitlistQueueText = {
   empty: string;
@@ -50,14 +51,13 @@ type Props = {
   text: WaitlistQueueText;
 };
 
-const big =
-  "block w-full rounded-xl border-2 border-current px-5 py-4 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const big = buttonClass("secondary", "lg");
 
 export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, action, text }: Props) {
   if (entries.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <p className="rounded-lg border-2 border-current p-4 text-lg">{text.empty}</p>
+        <p className={noticeClass("info")}>{text.empty}</p>
         {cursor && (
           <Link href={waitlistHref()} className={big}>
             {text.firstPage}
@@ -68,18 +68,19 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
   }
   return (
     <div className="flex flex-col gap-6">
-      <ul className="flex flex-col gap-6">
+      {/* Em grade no computador (#324): a coordenação vê várias pessoas de uma vez. */}
+      <ul className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {entries.map((entry) => {
           const requested = confirmation?.profileId === entry.profileId ? confirmation.word : null;
           // Liberar exige saber quem é; um pedido de confirmação pela URL também não passa.
           const confirming = requested === "liberar" && !entry.isIdentified ? null : requested;
           return (
-            <li key={entry.profileId} className="flex flex-col gap-3 rounded-xl border-2 border-current p-4" data-testid="waitlist-entry">
+            <li key={entry.profileId} className={cardClass()} data-testid="waitlist-entry">
               <p className="text-2xl font-bold">{entry.displayName}</p>
               <p className="text-lg">{entry.place}</p>
-              <p className="text-lg">{fillText(text.since, { date: entry.since })}</p>
+              <p className="text-base text-ink-muted">{fillText(text.since, { date: entry.since })}</p>
               {!entry.isIdentified && (
-                <p className="rounded-lg border-2 border-current p-3 text-lg" data-testid="waitlist-unknown-name">
+                <p className={noticeClass("info")} data-testid="waitlist-unknown-name">
                   {text.unknownNameNote}
                 </p>
               )}
@@ -90,7 +91,7 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
                   </p>
                   <input type="hidden" name={DECISION_PROFILE_FIELD} value={entry.profileId} />
                   <input type="hidden" name={DECISION_FIELD} value={confirming} />
-                  <button type="submit" className={`${big} ${confirming === "liberar" ? "bg-neutral-900 text-white" : ""}`}>
+                  <button type="submit" className={buttonClass(confirming === "liberar" ? "primary" : "danger", "lg")}>
                     {confirming === "liberar" ? text.confirmApproveButton : text.confirmBlockButton}
                   </button>
                   <Link href={waitlistHref(cursor)} className={big}>
@@ -111,7 +112,7 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
                       {text.approveButton}
                     </Link>
                   ) : (
-                    <button type="button" disabled className={`${big} cursor-not-allowed opacity-50`}>
+                    <button type="button" disabled className={big}>
                       {text.approveButton}
                     </button>
                   )}
@@ -137,7 +138,7 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
         </Link>
       )}
       {cursor && (
-        <Link href={waitlistHref()} className="text-center text-lg underline">
+        <Link href={waitlistHref()} className={`${textLinkClass()} self-center`}>
           {text.firstPage}
         </Link>
       )}

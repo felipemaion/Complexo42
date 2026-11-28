@@ -24,6 +24,13 @@ issue → branch → testes + código → npm run check → PR → CI verde → 
    quando há mudança visível.
 8. **Merge:** *squash and merge*, feito por quem revisou ou pelo mantenedor.
 
+## Telas
+
+Toda página usa o `PageShell` e os componentes de [`src/modules/ui`](src/modules/ui) (cartão, campo,
+aviso, botão), com as cores e fontes dos tokens de `src/app/globals.css`. Nada de `<main>` próprio,
+cor fixa ou as classes do visual antigo: `tests/design-tokens.test.ts` e `tests/ui-patterns.test.ts`
+reprovam no CI.
+
 ## Ambientes
 
 | Ambiente | Branch | Dados |

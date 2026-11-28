@@ -1,12 +1,21 @@
+export { skillErrorText } from "./domain/error-text";
 export { maxSkillsPerPerson, normalizeSkillText, parseSkillName, skillNameLimits } from "./domain/skill-name";
 export {
+  createSkill,
   decideSuggestion,
+  listAdminCatalog,
+  mergeSkills,
+  moveSkill,
+  renameSkill,
+  renameSkillGroup,
+  setSkillActive,
   listCatalog,
   listMySuggestions,
   listOpenSuggestions,
   readMySkillIds,
   setMySkills,
   suggestSkill,
+  type AdminSkillView,
   type MySuggestionView,
   type QueueSuggestionView,
   type SkillError,

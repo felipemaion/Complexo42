@@ -16,6 +16,11 @@ test("/perfil sem sessão manda para o login, voltando ao formulário depois", a
   await expect(page).toHaveURL(/\/entrar\?next=%2Fperfil$/);
 });
 
+test("/foto/<id> sem sessão manda para o login (a foto nunca é pública, #308)", async ({ page }) => {
+  await page.goto("/foto/1c7a3e5f-4d2b-4a9f-8e3c-8b6d7f2a1b04");
+  await expect(page).toHaveURL(/\/entrar\?next=/);
+});
+
 test.describe("formulário com o Supabase local", () => {
   test.skip(!LIVE, "precisa do Supabase local e do Mailpit (ver o topo do arquivo)");
   test.describe.configure({ mode: "serial" });
@@ -60,6 +65,14 @@ test.describe("formulário com o Supabase local", () => {
     await expect(page).toHaveURL(`${baseURL}/perfil`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Seus dados");
 
+    // Foto (#308) vem DESLIGADA (profile.photoEnabled): sem seção na tela, e o envio responde 404.
+    await expect(page.getByRole("heading", { name: /foto/i })).toHaveCount(0);
+    const photoOff = await page.request.post("/perfil/foto", {
+      headers: { origin: baseURL! },
+      multipart: { photo: { name: "eu.jpg", mimeType: "image/jpeg", buffer: Buffer.from([0xff, 0xd8, 0xff, 0xe0]) } },
+    });
+    expect(photoOff.status()).toBe(404);
+
     // Tudo com rótulo; botão grande e sem rolagem lateral no celular.
     const name = page.getByLabel("Seu nome");
     const whatsapp = page.getByLabel("Seu WhatsApp, com DDD");
@@ -67,11 +80,21 @@ test.describe("formulário com o Supabase local", () => {
     const neighborhood = page.getByLabel("Seu bairro (se quiser)");
     const city = page.getByLabel("Sua cidade", { exact: true });
     const save = page.getByRole("button", { name: "Salvar meus dados" });
+    // Cada envio com erro devolve ao formulário os valores que foram ENVIADOS (o componente reaplica `state.values`). Quem
+    // digita antes da resposta chegar tem o texto trocado pelo do envio anterior: foi o que esvaziava a máscara do
+    // WhatsApp (#337). Por isso todo envio que não sai da página espera a resposta e o botão voltar ao normal.
+    const submitAndWait = async () => {
+      const answered = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/perfil");
+      await save.click();
+      await answered;
+      await expect(save).toHaveText("Salvar meus dados");
+      await expect(save).toBeEnabled();
+    };
     expect((await save.boundingBox())?.height).toBeGreaterThanOrEqual(56);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
     // Enviar vazio: o servidor recusa, o resumo recebe o foco e cada campo diz o que falta.
-    await save.click();
+    await submitAndWait();
     const summary = page.getByRole("main").getByRole("alert");
     await expect(summary).toBeFocused();
     await expect(summary).toContainText("Falta arrumar alguns campos");
@@ -82,13 +105,13 @@ test.describe("formulário com o Supabase local", () => {
 
     // Nome de uma palavra só: o servidor recusa e pede o sobrenome (#312); com sobrenome, passa.
     await name.fill("Maria");
-    await save.click();
+    await submitAndWait();
     await expect(summary).toBeFocused();
     await expect(name).toHaveAttribute("aria-invalid", "true");
     await expect(name).toHaveAccessibleDescription(/nome e sobrenome/);
     await expect(name).toHaveValue("Maria");
     await name.fill("a b");
-    await save.click();
+    await submitAndWait();
     await expect(name).toHaveAttribute("aria-invalid", "true");
     await name.fill("Maria Souza");
 
@@ -125,7 +148,7 @@ test.describe("formulário com o Supabase local", () => {
     // Celular inválido: só ele volta com erro, e o que foi digitado continua lá.
     await name.fill("Pessoa de Teste");
     await whatsapp.fill("(11) 3456-7890");
-    await save.click();
+    await submitAndWait();
     await expect(page.getByRole("main").getByRole("alert")).toBeFocused();
     await expect(whatsapp).toHaveAttribute("aria-invalid", "true");
     await expect(name).not.toHaveAttribute("aria-invalid", "true");
@@ -149,7 +172,7 @@ test.describe("formulário com o Supabase local", () => {
     await chooseCity(page, "São Paulo");
     await district.selectOption({ label: "Sé" });
     await neighborhood.fill("Rua A, 12");
-    await save.click();
+    await submitAndWait();
     await expect(neighborhood).toHaveAttribute("aria-invalid", "true");
     await expect(neighborhood).toHaveAccessibleDescription(/Não informe rua nem número/);
     await neighborhood.fill("Vila Exemplo");

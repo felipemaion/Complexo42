@@ -13,6 +13,7 @@ import {
   type AllowlistUploadState,
 } from "../domain/coordination";
 import type { AllowlistSource } from "../types";
+import { buttonClass, fieldClass, noticeClass } from "@/modules/ui";
 
 export type AllowlistUploadText = {
   fileLabel: string;
@@ -35,7 +36,7 @@ type Props = {
   text: AllowlistUploadText;
 };
 
-const big = "rounded-xl border-2 border-current px-6 py-5 text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const big = buttonClass("primary", "lg");
 
 export function AllowlistUploadForm({ action, text }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" });
@@ -43,12 +44,12 @@ export function AllowlistUploadForm({ action, text }: Props) {
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {state.status === "error" && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {text.errors[state.error]}
         </p>
       )}
       {state.status === "done" && lines && (
-        <div role="status" className="flex flex-col gap-2 rounded-lg border-2 border-current p-4 text-lg" data-testid="allowlist-result">
+        <div role="status" className={`${noticeClass("success")} flex flex-col gap-2`} data-testid="allowlist-result">
           <p className="font-bold">{text.doneTitle}</p>
           <p data-testid="allowlist-received">{fillText(text.received, { count: state.received })}</p>
           <p data-testid="allowlist-promoted">{fillText(text.promoted, { count: state.promoted })}</p>
@@ -64,7 +65,7 @@ export function AllowlistUploadForm({ action, text }: Props) {
         </div>
       )}
       <div className="flex flex-col gap-2">
-        <label htmlFor="allowlist-file" className="text-xl font-bold">
+        <label htmlFor="allowlist-file" className="text-lg font-bold">
           {text.fileLabel}
         </label>
         <input
@@ -74,22 +75,22 @@ export function AllowlistUploadForm({ action, text }: Props) {
           required
           accept=".csv,.txt,text/csv,text/plain"
           aria-describedby="allowlist-file-hint"
-          className="rounded-xl border-2 border-current p-4 text-lg"
+          className={`${fieldClass()} file:me-3 file:rounded-control file:border-0 file:bg-soft file:px-3 file:py-1 file:font-semibold`}
         />
-        <p id="allowlist-file-hint" className="text-base">
+        <p id="allowlist-file-hint" className="text-base text-ink-muted">
           {text.fileHint}
         </p>
       </div>
       <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 text-xl font-bold">{text.sourceLabel}</legend>
+        <legend className="mb-2 text-lg font-bold">{text.sourceLabel}</legend>
         {allowlistSources.map((source, index) => (
-          <label key={source} className="flex items-center gap-3 rounded-xl border-2 border-current p-4 text-lg">
-            <input type="radio" name={ALLOWLIST_SOURCE_FIELD} value={source} defaultChecked={index === 0} className="size-6" />
+          <label key={source} className="flex min-h-target cursor-pointer items-center gap-3 rounded-control border-2 border-field bg-surface p-4 text-lg has-checked:border-primary-ink">
+            <input type="radio" name={ALLOWLIST_SOURCE_FIELD} value={source} defaultChecked={index === 0} className="size-6 accent-primary" />
             {text.sources[source]}
           </label>
         ))}
       </fieldset>
-      <button type="submit" disabled={pending} className={`${big} w-full`}>
+      <button type="submit" disabled={pending} className={big}>
         {pending ? text.sending : text.submitButton}
       </button>
     </form>

@@ -40,6 +40,7 @@ async function dbRows() {
       social_links_enc: null,
       updated_at: "2026-11-19T11:00:00+00:00",
     },
+    profile_photo: null,
     background: null,
     memberships: [],
     house_memberships: [],

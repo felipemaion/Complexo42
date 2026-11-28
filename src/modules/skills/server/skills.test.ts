@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
 import type { HouseClient } from "@/modules/houses";
-import { decideSuggestion, listCatalog, listMySuggestions, listOpenSuggestions, readMySkillIds, setMySkills, suggestSkill } from "./skills";
+import {
+  createSkill,
+  decideSuggestion,
+  listAdminCatalog,
+  listCatalog,
+  listMySuggestions,
+  listOpenSuggestions,
+  mergeSkills,
+  moveSkill,
+  readMySkillIds,
+  renameSkill,
+  renameSkillGroup,
+  setMySkills,
+  setSkillActive,
+  suggestSkill,
+} from "./skills";
 
 type HouseQuery = ReturnType<ReturnType<HouseClient["from"]>["select"]>;
 type Call = { fn: string; args: Record<string, unknown> };
@@ -123,5 +138,48 @@ describe("leituras", () => {
 
   it("erro de leitura sobe com o código, sem a mensagem", async () => {
     await expect(listCatalog(fake({ error: { code: "42501", message: "detalhe interno" } }).client)).rejects.toThrow("skills_read_failed:forbidden");
+  });
+});
+
+describe("gestão do catálogo (#25)", () => {
+  it("cada função manda ao banco só o que é dela, com o texto aparado", async () => {
+    const { client, calls } = fake();
+    expect(await createSkill(client, { name: "  Soldagem ", category: " Ofícios " })).toEqual({ ok: true });
+    expect(await renameSkill(client, { id: ID, name: " Solda " })).toEqual({ ok: true });
+    expect(await moveSkill(client, { id: ID, category: "Esportes" })).toEqual({ ok: true });
+    expect(await renameSkillGroup(client, { from: "Ofícios", to: "Trabalho manual" })).toEqual({ ok: true });
+    expect(await setSkillActive(client, { id: ID, active: false })).toEqual({ ok: true });
+    expect(await mergeSkills(client, { from: ID, to: ID2 })).toEqual({ ok: true });
+    expect(calls).toEqual([
+      { fn: "create_skill", args: { p_name: "Soldagem", p_category: "Ofícios" } },
+      { fn: "rename_skill", args: { p_id: ID, p_name: "Solda" } },
+      { fn: "move_skill", args: { p_id: ID, p_category: "Esportes" } },
+      { fn: "rename_skill_group", args: { p_old: "Ofícios", p_new: "Trabalho manual" } },
+      { fn: "set_skill_active", args: { p_id: ID, p_active: false } },
+      { fn: "merge_skills", args: { p_from: ID, p_to: ID2 } },
+    ]);
+  });
+
+  it("entrada inválida é recusada sem chamar o banco", async () => {
+    const { client, calls } = fake();
+    expect(await createSkill(client, { name: "x", category: "Ofícios" })).toEqual({ ok: false, error: "invalid" });
+    expect(await renameSkill(client, { id: "nao-e-id", name: "Solda" })).toEqual({ ok: false, error: "invalid" });
+    expect(await moveSkill(client, { id: ID, category: 7 })).toEqual({ ok: false, error: "invalid" });
+    expect(await renameSkillGroup(client, { from: "", to: "Novo" })).toEqual({ ok: false, error: "invalid" });
+    expect(await setSkillActive(client, { id: ID, active: "sim" })).toEqual({ ok: false, error: "invalid" });
+    expect(await mergeSkills(client, { from: ID, to: "x" })).toEqual({ ok: false, error: "invalid" });
+    expect(await mergeSkills(client, { from: ID, to: ID })).toEqual({ ok: false, error: "merge_invalid" });
+    expect(calls).toEqual([]);
+  });
+
+  it("traduz os códigos do banco, sem repassar a mensagem", async () => {
+    expect(await createSkill(fake({ error: { code: "C7704", message: "interno" } }).client, { name: "Soldagem", category: "Ofícios" })).toEqual({ ok: false, error: "exists" });
+    expect(await mergeSkills(fake({ error: { code: "C7705" } }).client, { from: ID, to: ID2 })).toEqual({ ok: false, error: "merge_invalid" });
+    expect(await setSkillActive(fake({ error: { code: "42501" } }).client, { id: ID, active: true })).toEqual({ ok: false, error: "forbidden" });
+  });
+
+  it("lista o catálogo inteiro, com as desativadas", async () => {
+    const { client } = fake({ data: [{ id: ID, name: "A", category: "G", active: false }] });
+    expect(await listAdminCatalog(client)).toEqual([{ id: ID, name: "A", category: "G", active: false }]);
   });
 });

@@ -16,6 +16,7 @@ import {
 } from "@/modules/access";
 import { requireUserClient } from "@/server/auth/session";
 import { decideAccessAction } from "./actions";
+import { noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.coordination.waitlist.title };
 
@@ -48,14 +49,14 @@ export default async function WaitlistQueuePage({ searchParams }: Props) {
     };
   });
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.waitlist.title}</h1>
+    <PageShell width="wide">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.waitlist.title}</h1>
       {done && (
-        <p role={done === "liberado" || done === "bloqueado" ? "status" : "alert"} className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role={done === "liberado" || done === "bloqueado" ? "status" : "alert"} className={noticeClass(done === "liberado" || done === "bloqueado" ? "success" : "error")}>
           {text.waitlist.done[done]}
         </p>
       )}
-      <p className="text-lg">{text.waitlist.intro}</p>
+      <p className="max-w-prose text-lg text-ink-muted">{text.waitlist.intro}</p>
       <WaitlistQueue
         entries={entries}
         {...(cursor ? { cursor } : {})}
@@ -64,9 +65,9 @@ export default async function WaitlistQueuePage({ searchParams }: Props) {
         action={decideAccessAction}
         text={text.waitlist}
       />
-      <Link href={COORDINATION_PATH} className="text-center text-lg underline">
+      <Link href={COORDINATION_PATH} className={`${textLinkClass()} self-center`}>
         {text.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

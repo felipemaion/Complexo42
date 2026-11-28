@@ -219,6 +219,11 @@ erDiagram
         text occupation_enc "cifrado"
         timestamptz updated_at
     }
+    profile_photos {
+        uuid profile_id PK, FK
+        text photo_enc "cifrado"
+        timestamptz updated_at
+    }
     contact_visibility {
         uuid profile_id PK, FK
         text kind PK
@@ -245,14 +250,23 @@ erDiagram
         timestamptz decided_at
         timestamptz created_at
     }
+    profile_badge_prefs {
+        uuid profile_id PK, FK
+        text badge_kind PK "house ou totem"
+        smallint position "ordem no perfil público"
+        boolean shown
+        timestamptz updated_at
+    }
     profiles ||--o| access_waitlist_hmac : "espera"
     profiles |o--o{ access_allowlist : "adicionou"
     profiles ||--o| profile_contacts : "contato"
+    profiles ||--o| profile_photos : "foto"
     profiles ||--o| profile_background : "formação e atividade"
     profiles ||--o{ contact_visibility : "quem vê"
     profiles ||--o{ consent_acceptances : "aceitou o termo"
     profiles ||--o{ profile_skills : "tem"
     profiles ||--o{ skill_suggestions : "sugere"
+    profiles ||--o{ profile_badge_prefs : "escolhe medalhas"
     skills ||--o{ profile_skills : "usada em"
 ```
 
@@ -454,6 +468,10 @@ erDiagram
     }
     profile_save_attempts {
         uuid profile_id "schema app: limite de tentativas"
+        timestamptz attempted_at
+    }
+    photo_upload_attempts {
+        uuid profile_id "schema app: limite de 10 envios de foto por hora"
         timestamptz attempted_at
     }
     server_secrets {

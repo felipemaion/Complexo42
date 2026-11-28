@@ -12,7 +12,9 @@ const TURNSTILE = { TURNSTILE_SITE_KEY: `0x${"a".repeat(22)}`, TURNSTILE_SECRET_
 const CIFRA = { FIELD_ENCRYPTION_KEY: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=", BLIND_INDEX_KEY: "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=" };
 // Questionário real das casas (#313): obrigatório em produção; sem ele o app serviria o exemplo em silêncio.
 const QUESTIONARIO = { QUESTIONNAIRE_PATH: "/app/questionario/questionnaire.json" };
-const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org", ...TURNSTILE, ...CIFRA, ...QUESTIONARIO };
+// Chave que assina o resultado do questionário (ADR 0014, #290): obrigatória em produção.
+const ASSINATURA = { QUESTIONNAIRE_SIGNING_KEY: "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=" };
+const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org", ...TURNSTILE, ...CIFRA, ...QUESTIONARIO, ...ASSINATURA };
 const AUTH_MISSING = [
   "SUPABASE_URL: obrigatória em produção",
   "SUPABASE_ANON_KEY: obrigatória em produção",
@@ -22,6 +24,7 @@ const AUTH_MISSING = [
   "FIELD_ENCRYPTION_KEY: obrigatória em produção",
   "BLIND_INDEX_KEY: obrigatória em produção",
   "QUESTIONNAIRE_PATH: obrigatória em produção",
+  "QUESTIONNAIRE_SIGNING_KEY: obrigatória em produção",
 ];
 
 describe("parseEnv", () => {
@@ -229,5 +232,29 @@ describe("questionário real em produção (#313)", () => {
   it("fora de produção segue opcional: desenvolvimento, testes e CI usam o exemplo", () => {
     expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
     expect(parseEnv({ NODE_ENV: "test" }).ok).toBe(true);
+  });
+});
+
+describe("chave de assinatura do questionário em produção (#290)", () => {
+  const prod = { NODE_ENV: "production", DB_HEALTH_URL: "http://rest:3001/ready", ...AUTH };
+
+  it("em produção, sem QUESTIONNAIRE_SIGNING_KEY o app não sobe e o erro cita só o nome", () => {
+    const { QUESTIONNAIRE_SIGNING_KEY: _fora, ...semChave } = prod;
+    void _fora;
+    expect(parseEnv(semChave)).toEqual({ ok: false, problems: ["QUESTIONNAIRE_SIGNING_KEY: obrigatória em produção"] });
+  });
+
+  it("variável vazia conta como ausente (compose com `:-` repassa vazio)", () => {
+    expect(parseEnv({ ...prod, QUESTIONNAIRE_SIGNING_KEY: "" }).ok).toBe(false);
+  });
+
+  it("chave que não tem 32 bytes em base64 é recusada, e o valor não vai na mensagem", () => {
+    const result = parseEnv({ ...prod, QUESTIONNAIRE_SIGNING_KEY: "curta-demais" });
+    expect(result.ok).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("curta-demais");
+  });
+
+  it("fora de produção segue opcional", () => {
+    expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
   });
 });

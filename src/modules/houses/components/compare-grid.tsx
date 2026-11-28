@@ -19,7 +19,7 @@ type Props = {
 const colorOf = (color: HouseView["color"]) => `light-dark(${color.light}, ${color.dark})`;
 // Bordas e o ✓ pelos tokens de globals.css (#324): borda de campo (3:1 com o fundo) e texto sobre a cor da casa.
 const neutralBorder = "var(--c-field)";
-const chip = "rounded-full border border-current px-2 py-0.5 text-sm font-semibold";
+const chip = "rounded-full border border-field px-2 py-0.5 text-sm font-semibold";
 
 export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, text, disabled, onSelect }: Readonly<Props>) {
   return (
