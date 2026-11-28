@@ -13,6 +13,7 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 | | pgTAP: RLS em toda tabela, matriz de permissões, guardas de privilégio, regras por tabela | job `database` (`supabase test db`) |
 | | Playwright sem banco e com Supabase local (login, perfil, casa, contato, navegação, exclusão, fluxo completo) | jobs `e2e` e `e2e-live` |
 | | Imagem Docker: sem `.env`, não-root, `/api/healthz` | job `image` |
+| | Staging de mentira (#319): banco só com migrations (`migra.sh`, sem seed), app pelo compose do deploy, passos de operador pelos scripts, E2E do caminho inteiro; a matriz reverte os três consertos de 28/11 e exige a falha | job `staging` (`scripts/staging-ci.sh`) |
 | **Antes do deploy** (staging, #82) | Os mesmos jobs verdes na `main`; `restore-test.sh` (#84) | CI + `deploy/` |
 | **Antes do lançamento** (#39) | Pentest do §4, carga do §5, revisão manual de segurança | staging |
 
@@ -24,7 +25,7 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 | **Cripto** (R13) | Vitest de `src/server/crypto/`; CHECK de valor cifrado; varredura de colunas em texto puro | Rotação de chave (#50); teste que lê o banco e prova que `*_enc` não é texto legível (#155) |
 | **XSS** | ESLint barra `innerHTML` e afins (`tests/eslint-xss.test.ts`); `react/no-danger`; teste de redes sociais; CSP com nonce (#152): `src/server/csp.test.ts` e `e2e/csp.spec.ts` (todo `<script>` com o nonce, Turnstile carrega, nada bloqueado) | E2E que injeta `<script>` em todo campo de texto (#156) |
 | **Auth** | Vitest de sessão, rotas, Turnstile e erros; E2E do link mágico e da senha (definir, entrar, senha errada genérica, recuperar, remover); política da senha; travas do compose e do Kong (`tests/senha-gotrue.test.ts` e `ci.yml`); allowlist | E2E de toda rota protegida sem sessão → login (#156); expiração e reuso do link (passo 3 do §4); reautenticação por código de e-mail para sessão com mais de 24 h (ADR 0018, fora da v1) |
-| **Deploy** | Testes bash de deploy, backup e segredos; `ci-hardening` (actions por SHA); `check-image.sh` | Scan de dependências e imagem (`npm audit`, Trivy) e de código (Semgrep) no CI (#153) |
+| **Deploy** | Testes bash de deploy, backup e segredos; `ci-hardening` (actions por SHA); `check-image.sh`; montagem do servidor no job `staging` | O `deploy.sh` em si (pull por digest, sincronia da infra) só roda com dublês; criar a conta com o cadastro fechado não tem script (#319). Scan de dependências e imagem (`npm audit`, Trivy) e de código (Semgrep) no CI (#153) |
 | **Cabeçalhos HTTP** | `tests/security-headers.test.ts` (#68): nosniff, frame, referrer, permissions, HSTS; CSP do proxy com nonce novo por requisição, até no redirecionamento (#152) | Conferir no staging que o proxy de borda não remove os cabeçalhos |
 | **Acessibilidade e visual** (#324) | `e2e/a11y.spec.ts`: axe (WCAG 2.2 AA) nos temas claro e escuro, em 390 e 1440 px, sem rolagem horizontal, nas páginas públicas e no cabeçalho logado; `tests/design-tokens.test.ts`: cor e fonte só pelos tokens de `globals.css` | As demais páginas logadas, que entram no axe junto com os PRs de cada grupo da #324 |
 | **Desempenho** | Nada | §5 inteiro (#74, #75) |

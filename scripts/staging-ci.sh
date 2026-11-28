@@ -161,24 +161,27 @@ monta_e_testa() {
   [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SITE/auth/v1/otp")" = 404 ] || { echo "o /auth/v1/otp responde de fora"; return 1; }
 
   # PASSO SEM SCRIPT E SEM DOC (achado deste job, #319): o compose do deploy fecha o cadastro
-  # (GOTRUE_DISABLE_SIGNUP=true), então a primeira coordenação só "entra uma vez", como o bootstrap
-  # pede, se alguém criar a conta antes -- e o link mágico de quem não tem conta falha calado
-  # (`signup_disabled`). Aqui a conta é criada pela API de admin do GoTrue, DE DENTRO da rede interna
-  # (de fora o /admin dá 404), com a chave de serviço descartável deste job. Quando o passo tiver
-  # script de operador, este trecho passa a chamá-lo.
-  etapa conta "conta da primeira coordenação (cadastro fechado no servidor)"
-  local email="coordenacao.staging.$(date +%s)@exemplo.org"
-  docker run --rm --network "${PROJ}_interna" --entrypoint node \
-    -e SERVICE_ROLE_KEY="$(sed -n 's/^SERVICE_ROLE_KEY=//p' "$ENV_FILE")" -e EMAIL="$email" "$IMAGEM" -e '
-      fetch("http://kong:8000/auth/v1/admin/users", { method: "POST",
-        headers: { apikey: process.env.SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ email: process.env.EMAIL, email_confirm: true }) })
-      .then(async (r) => { if (r.status !== 200) { console.error("admin/users:", r.status, await r.text()); process.exit(1); } })' \
-    || { echo "não consegui criar a conta pela API de admin"; return 1; }
+  # (GOTRUE_DISABLE_SIGNUP=true), então quem não tem conta não entra -- nem a primeira coordenação,
+  # que o bootstrap manda "entrar uma vez" --, e o link mágico falha calado (`signup_disabled`). Aqui
+  # as contas são criadas pela API de admin do GoTrue, DE DENTRO da rede interna (de fora o /admin
+  # dá 404), com a chave de serviço descartável deste job. Quando o passo tiver script de operador,
+  # este trecho passa a chamá-lo.
+  etapa contas "contas da coordenação e da pessoa (cadastro fechado no servidor)"
+  local agora; agora=$(date +%s)
+  local email="coordenacao.staging.$agora@exemplo.org" email_pessoa="pessoa.staging.$agora@exemplo.org" e
+  for e in "$email" "$email_pessoa"; do
+    docker run --rm --network "${PROJ}_interna" --entrypoint node \
+      -e SERVICE_ROLE_KEY="$(sed -n 's/^SERVICE_ROLE_KEY=//p' "$ENV_FILE")" -e EMAIL="$e" "$IMAGEM" -e '
+        fetch("http://kong:8000/auth/v1/admin/users", { method: "POST",
+          headers: { apikey: process.env.SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SERVICE_ROLE_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ email: process.env.EMAIL, email_confirm: true }) })
+        .then(async (r) => { if (r.status !== 200) { console.error("admin/users:", r.status, await r.text()); process.exit(1); } })' \
+      || { echo "não consegui criar a conta pela API de admin"; return 1; }
+  done
 
   etapa e2e "caminho inteiro no navegador (e2e/staging.spec.ts)"
   if ! (cd "$RAIZ" && E2E_STAGING_URL=$SITE E2E_STAGING_MAILPIT_URL=http://127.0.0.1:$PORTA_MAILPIT \
-        E2E_STAGING_APP_CONTAINER=$APP E2E_STAGING_DB_CONTAINER=$DB E2E_STAGING_EMAIL=$email \
+        E2E_STAGING_APP_CONTAINER=$APP E2E_STAGING_DB_CONTAINER=$DB E2E_STAGING_EMAIL=$email E2E_STAGING_MEMBER_EMAIL=$email_pessoa \
         npx playwright test -c playwright.staging.config.ts); then
     mostra_logs; return 1
   fi

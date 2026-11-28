@@ -13,22 +13,23 @@ const SITE = process.env.E2E_STAGING_URL;
 const MAILPIT = process.env.E2E_STAGING_MAILPIT_URL;
 const APP_CONTAINER = process.env.E2E_STAGING_APP_CONTAINER;
 const DB_CONTAINER = process.env.E2E_STAGING_DB_CONTAINER;
-// A conta já existe: com o cadastro fechado no servidor, o script a cria antes (ver scripts/staging-ci.sh).
-const email = process.env.E2E_STAGING_EMAIL ?? "";
-test.skip(!SITE || !MAILPIT || !APP_CONTAINER || !DB_CONTAINER || !email, "só no staging de mentira (scripts/staging-ci.sh)");
+// As contas já existem: com o cadastro fechado no servidor, o script as cria antes (ver scripts/staging-ci.sh).
+const coordinatorEmail = process.env.E2E_STAGING_EMAIL ?? "";
+const memberEmail = process.env.E2E_STAGING_MEMBER_EMAIL ?? "";
+test.skip(!SITE || !MAILPIT || !APP_CONTAINER || !DB_CONTAINER || !coordinatorEmail || !memberEmail, "só no staging de mentira (scripts/staging-ci.sh)");
 
 const questionnaire = JSON.parse(readFileSync("config/questionnaire.example.json", "utf8")) as QuestionnaireConfig;
 
 /** O passo de operador do docs/OPERACAO.md ("Primeira coordenação"), pelo próprio script. */
 function bootstrapCoordination(): string {
   return execFileSync("bash", ["deploy/bootstrap-coordenacao.sh"], {
-    input: `${email}\n`,
+    input: `${coordinatorEmail}\n`,
     env: { ...process.env, APP_CONTAINER, DB_CONTAINER },
     encoding: "utf8",
   });
 }
 
-async function latestLink(request: APIRequestContext, after: number): Promise<string> {
+async function latestLink(request: APIRequestContext, email: string, after: number): Promise<string> {
   for (let i = 0; i < 60; i++) {
     const list = await (await request.get(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`)).json();
     const msg = (list.messages ?? []).find((m: { Created: string }) => Date.parse(m.Created) >= after);
@@ -42,7 +43,8 @@ async function latestLink(request: APIRequestContext, after: number): Promise<st
   throw new Error("e-mail não chegou");
 }
 
-async function signInByEmail(page: Page, request: APIRequestContext): Promise<void> {
+/** Login pelo link mágico, com o e-mail saindo do GoTrue pelo SMTP. */
+async function signInByEmail(page: Page, request: APIRequestContext, email: string): Promise<void> {
   const at = Date.now() - 1000;
   await page.goto("/entrar");
   await page.getByLabel("Seu e-mail").fill(email);
@@ -52,23 +54,18 @@ async function signInByEmail(page: Page, request: APIRequestContext): Promise<vo
   await expect(page.getByRole("main").getByRole("status")).toHaveText(/Se este e-mail puder entrar/);
   // No servidor o link é o do GoTrue (/auth/v1/verify → /auth/callback) e já entra; só o template
   // local (supabase/templates) leva à tela /auth/confirmar com o botão "Entrar".
-  await page.goto(await latestLink(request, at));
+  await page.goto(await latestLink(request, email, at));
   if (new URL(page.url()).pathname === "/auth/confirmar") await page.getByRole("button", { name: "Entrar" }).click();
 }
 
-test("banco novo: bootstrap → login → termo → questionário → casa → perfil → a coordenação vê o resultado", async ({ page, request, baseURL }) => {
-  test.setTimeout(240_000);
-  // Banco novo, ninguém pode autorizar ninguém: o operador põe o e-mail na lista.
-  expect(bootstrapCoordination()).toContain("ainda precisa entrar");
-
-  // Login pelo link mágico, com o e-mail saindo do GoTrue pelo SMTP.
-  await signInByEmail(page, request);
+/** Login → termo → questionário → casa → perfil, pela interface. */
+async function joinThroughQuestionnaire(page: Page, request: APIRequestContext, email: string, name: string, baseURL: string): Promise<void> {
+  await signInByEmail(page, request, email);
   await acceptTermIfAsked(page);
   await expect(page).toHaveURL(`${baseURL}/casa`);
-
   // Termo do questionário: o banco só aceita a versão cadastrada pelo operador (questionario-banco.sh).
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
-  for (const _item of questionnaire.items) {
+  for (let i = 0; i < questionnaire.items.length; i++) {
     await page.getByTestId("scale-5").click();
     await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
@@ -79,19 +76,35 @@ test("banco novo: bootstrap → login → termo → questionário → casa → p
 
   await page.getByTestId("continue-link").click();
   await expect(page).toHaveURL(`${baseURL}/perfil`);
-  await page.getByLabel("Seu nome").fill("Pessoa Staging");
-  await page.getByLabel("Seu WhatsApp, com DDD").fill("11 999990000");
+  await page.getByLabel("Seu nome").fill(name);
+  await page.getByLabel("Seu WhatsApp, com DDD").fill(`11 9${String(Date.now()).slice(-8)}`);
   await chooseCity(page, "São Paulo");
   await page.getByRole("button", { name: "Salvar meus dados" }).click();
   await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
+}
 
-  // Com perfil, o mesmo comando do operador dá o papel de gestora da raiz.
+test("banco novo: bootstrap → login → termo → questionário → casa → a coordenação autoriza e vê o resultado", async ({ browser, request, baseURL }) => {
+  test.setTimeout(300_000);
+  // Banco novo, ninguém pode autorizar ninguém: o operador põe o e-mail da coordenação na lista.
+  expect(bootstrapCoordination()).toContain("ainda precisa entrar");
+  const coordinator = await (await browser.newContext()).newPage();
+  await joinThroughQuestionnaire(coordinator, request, coordinatorEmail, "Coordenação Staging", baseURL!);
+  // Com perfil e casa, o mesmo comando do operador dá o papel de gestora da raiz.
   expect(bootstrapCoordination()).toContain("concedido");
 
-  // A coordenação nacional vê o resultado: o único do banco novo é o dela.
-  await page.goto("/coordenacao/casas/resultados");
-  const results = page.locator('a[href^="/coordenacao/casas/resultados/"]');
+  // A coordenação autoriza a segunda pessoa pela tela.
+  await coordinator.goto("/coordenacao/autorizados");
+  await coordinator.getByLabel("E-mail", { exact: true }).fill(memberEmail);
+  await coordinator.getByRole("button", { name: "Adicionar" }).click();
+  await expect(coordinator.getByTestId("allowlist-add-done")).toHaveText("Adicionado");
+
+  const member = await (await browser.newContext()).newPage();
+  await joinThroughQuestionnaire(member, request, memberEmail, "Pessoa Staging", baseURL!);
+
+  // A coordenação nacional vê o resultado dela (a lista não traz o da própria coordenação).
+  await coordinator.goto("/coordenacao/casas/resultados");
+  const results = coordinator.locator('a[href^="/coordenacao/casas/resultados/"]');
   await expect(results).toHaveCount(1);
   await results.click();
-  await expect(page.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
+  await expect(coordinator.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
 });
