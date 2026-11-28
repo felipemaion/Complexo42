@@ -104,6 +104,8 @@ export type SubmitContext = {
   sign(message: string): string;
   /** Cifra o valor com o esquema do ADR 0003 (AES-256-GCM; o contexto vira o AAD). */
   encrypt(plaintext: string, context: CipherContext): Promise<string>;
+  /** Recusa do banco ao gravar o resultado: só o código e o status, para o log (#313). Nunca mensagem nem respostas. */
+  onRefusal?: OnRefusal;
 };
 
 /**
@@ -130,7 +132,7 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
   // A última resposta válida fica guardada, cifrada (AAD da linha da pessoa), para a troca de casa; a assinatura a cobre.
   const answersEnc = await ctx.encrypt(JSON.stringify(parsed.data.answers), savedAnswersContext(userId));
   const signature = ctx.sign(`result|${userId}|${term}|${result.houseId}|${totemEnc}|${scoresEnc}|${nowSeconds}|${answersEnc}`);
-  const { error } = await client.rpc("record_questionnaire_result", {
+  const { error, status } = await client.rpc("record_questionnaire_result", {
     p_term_version: term,
     p_house_key: result.houseId,
     p_totem_enc: totemEnc,
@@ -139,7 +141,10 @@ export async function submitQuestionnaire(client: HouseClient, input: unknown, c
     p_signature: signature,
     p_answers_enc: answersEnc,
   });
-  if (error) return refusedSubmit(client, error, ctx);
+  if (error) {
+    ctx.onRefusal?.(refusalDetail(error, status));
+    return refusedSubmit(client, error, ctx);
+  }
   // A pessoa vê só o perfil dos eixos da casa; o totem e as notas dos outros eixos ficam internos.
   return {
     ok: true,

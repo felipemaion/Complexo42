@@ -17,14 +17,14 @@ import { sessionHouseClient } from "./session";
  * Registra a recusa. Só o código do motivo e, quando o banco recusou, o código do Postgres e o status do
  * PostgREST (#313): nada da pessoa, da casa, das respostas nem a mensagem do banco no log (R11).
  */
-async function logged(event: string, run: (onRefusal: OnRefusal) => Promise<HouseActionResult>): Promise<HouseActionResult> {
+async function logged<R extends { ok: boolean }>(event: string, run: (onRefusal: OnRefusal) => Promise<R>): Promise<R> {
   let detail: RefusalDetail = {};
   const result = await run((d) => {
     detail = d;
   });
   if (!result.ok) {
     log.warn(event, {
-      reason: result.error,
+      reason: "error" in result ? result.error : undefined,
       ...(detail.code ? { pg_code: detail.code } : {}),
       ...(detail.status ? { status: detail.status } : {}),
     });
@@ -58,22 +58,22 @@ export async function submitAnswersAction(input: unknown): Promise<SubmitAnswers
   const { user } = await requireUserClientBeforeHouse();
   const client = await sessionHouseClient();
   if (!client) return { ok: false, error: "failed" };
-  let result: SubmitAnswersResult;
-  try {
-    result = await submitQuestionnaire(client, input, {
-      questionnaire: getQuestionnaire(),
-      houseIds: instance.houses.map((h) => h.id),
-      userId: user.id,
-      nowSeconds: Math.floor(Date.now() / 1000),
-      sign: signQuestionnaireMessage,
-      encrypt: encryptField,
-    });
-  } catch {
-    // Sem chave de assinatura (ou erro inesperado): falha fechado, sem detalhe nem respostas no log.
-    result = { ok: false, error: "failed" };
-  }
-  if (!result.ok) log.warn("questionnaire_submit_refused", { reason: result.error });
-  return result;
+  return logged("questionnaire_submit_refused", async (onRefusal): Promise<SubmitAnswersResult> => {
+    try {
+      return await submitQuestionnaire(client, input, {
+        questionnaire: getQuestionnaire(),
+        houseIds: instance.houses.map((h) => h.id),
+        userId: user.id,
+        nowSeconds: Math.floor(Date.now() / 1000),
+        sign: signQuestionnaireMessage,
+        encrypt: encryptField,
+        onRefusal,
+      });
+    } catch {
+      // Sem chave de assinatura (ou erro inesperado): falha fechado, sem detalhe nem respostas no log.
+      return { ok: false, error: "failed" };
+    }
+  });
 }
 
 /** Médias por casa guardadas em memória do servidor (só o agregado: contas e somas, nunca notas por pessoa). */
