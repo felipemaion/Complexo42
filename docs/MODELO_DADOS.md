@@ -548,6 +548,21 @@ sem quem sugeriu.
 exclusão da conta apaga as duas (cascade). A tela da pessoa é `/perfil/habilidades` (busca e marcação múltipla,
 "x de 10", "Sugerir habilidade"); a fila é `/coordenacao/habilidades` (só a nacional).
 
+**Busca de pessoas por habilidade (#23).** `search_people_by_skills(habilidades, modo, uf, município, distrito, equipe,
+sem_equipe, limite, cursor)` (security definer) roda no banco, pelo índice `(skill_id, profile_id)`. Escopo: a coordenação
+nacional (`manages_root`) vê todos os perfis ativos; os demais, só quem `app.can_view_profile` deixa (aplicado depois de o
+filtro de habilidade reduzir os candidatos); quem não tem escopo recebe lista vazia, não erro. De 1 a 5 habilidades, com E
+(todas) ou OU (qualquer uma). **UF (`state_code`), município (`municipality_code`) e distrito (`district_code`) ficam em
+texto puro** (acima: município, UF, turma, equipe, casa não identificam sozinhos), então podem filtrar no banco; formação e
+atividade são cifradas e ficam fora do filtro. A lista traz o nome **cifrado** (o servidor decifra só o da página), a equipe, a
+quantidade de habilidades em comum e as habilidades da pessoa; **nunca contato** (o botão "ver contato" é da #48, auditado).
+Paginação por cursor `(em comum, id)`, 20 por página (máximo 50; o banco devolve uma linha a mais para dizer que há outra
+página), ordenada por habilidades em comum. **No máximo 60 buscas por hora por pessoa** (`54000`, contadas no `audit_log` pelo
+índice `audit_log_actor_event_created_idx`), e cada busca grava `skills_searched` (só o ator: nem o termo nem as
+habilidades vão para o log). Índice novo: `profiles (state_code, municipality_code)` onde `access_status = 'active'`. Tela:
+`/coordenacao/pessoas` (filtros na URL; quem não é gestor recebe 404). O desempenho (meta: menos de 500 ms com 50 mil perfis)
+se mede por `scripts/skill-search-benchmark.sql`, fora do CI (o pgTAP só confere que os índices existem).
+
 **Catálogo PROVISÓRIO** (47 habilidades em 8 grupos, até o stakeholder aprovar): vai por migration
 (`..._estrutura_instancia.sql`), no local e no servidor. Para trocar, crie uma migration nova (upsert pelo nome).
 

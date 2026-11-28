@@ -205,6 +205,11 @@ const valid = {
     statusOpen: "t", statusApproved: "t", statusRejected: "t", backLink: "t",
     errors: { forbidden: "t", invalid: "t", limit: "t", not_found: "t", too_many_open: "t", daily_limit: "t", exists: "t", failed: "t" },
     queue: { menuLink: "t", title: "t", intro: "t", empty: "t", categoryLabel: "t", approveButton: "t", rejectButton: "t", decided: "t", backLink: "t" },
+    search: {
+      menuLink: "t", title: "t", intro: "t", skillLabel: "t", removeSkill: "t", modeLabel: "t", modeAll: "t", modeAny: "t", stateLabel: "t",
+      noTeamLabel: "t", submitButton: "t", choose: "t", noResults: "t", more: "t", unreadableName: "t", inCommon: "t", teamLabel: "t", noTeam: "t",
+      errors: { forbidden: "t", invalid: "t", rate_limited: "t", failed: "t" }, backLink: "t",
+    },
   },
   questionnaireCoordination: {
     linkResults: "t", linkQueue: "t", linkDelegations: "t", linkWindow: "t", window: { title: "t", intro: "t", statusOpen: "t", statusClosed: "t", openButton: "t", closeButton: "t", failed: "t" }, backLink: "t", noName: "t",

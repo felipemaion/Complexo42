@@ -13,7 +13,7 @@ const row = (id: string, common = 1) => ({
   display_name_enc: `v1.enc.${id}`,
   state_code: "SP",
   municipality_code: 3550308,
-  team_name: "Turma S",
+  team_name: "Equipe S",
   common_count: common,
   skill_ids: [A],
 });
@@ -61,7 +61,7 @@ describe("searchPeople", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.people.map((p) => p.id)).toEqual([P1, P2]);
-    expect(result.people[0]).toMatchObject({ name: `Nome de ${P1}`, municipality: "São Paulo", state: "SP", team: "Turma S", commonCount: 2, skillIds: [A] });
+    expect(result.people[0]).toMatchObject({ name: `Nome de ${P1}`, municipality: "São Paulo", state: "SP", team: "Equipe S", commonCount: 2, skillIds: [A] });
     expect(result.next).toEqual({ common: 1, id: P2 });
     expect(decrypt).toHaveBeenCalledTimes(2);
   });

@@ -9,15 +9,15 @@ describe("parseSearchParams (filtros da busca na URL; #23)", () => {
     expect(parseSearchParams({})).toEqual({ skillIds: [], mode: "all" });
   });
 
-  it("habilidades (uma ou várias), modo, UF, município, turma, sem turma e cursor", () => {
+  it("habilidades (uma ou várias), modo, UF, município, equipe, sem equipe e cursor", () => {
     expect(
-      parseSearchParams({ h: [A, B], modo: "qualquer", uf: "sp", mun: "3550308", turma: A, sem: "1", c: "2", i: B }),
+      parseSearchParams({ h: [A, B], modo: "qualquer", uf: "sp", mun: "3550308", equipe: A, sem: "1", c: "2", i: B }),
     ).toEqual({ skillIds: [A, B], mode: "any", state: "SP", municipality: 3550308, unit: A, noTeam: true, after: { common: 2, id: B } });
     expect(parseSearchParams({ h: A }).skillIds).toEqual([A]);
   });
 
   it("descarta o que não vale, sem quebrar a tela: id ruim, repetido, UF e modo estranhos", () => {
-    const parsed = parseSearchParams({ h: [A, A, "x", "<script>"], modo: "talvez", uf: "SPP", mun: "abc", turma: "nao", c: "-1", i: "x" });
+    const parsed = parseSearchParams({ h: [A, A, "x", "<script>"], modo: "talvez", uf: "SPP", mun: "abc", equipe: "nao", c: "-1", i: "x" });
     expect(parsed).toEqual({ skillIds: [A], mode: "all" });
   });
 
@@ -36,7 +36,13 @@ describe("searchQueryString (os filtros voltam para a URL, para salvar ou compar
   it("é o inverso do parse e põe o cursor da próxima página", () => {
     const filters = { skillIds: [A, B], mode: "any" as const, state: "SP", municipality: 3550308, unit: A, noTeam: true };
     const query = searchQueryString(filters, { common: 2, id: B });
-    expect(parseSearchParams(Object.fromEntries(new URLSearchParams(query).entries()) as Record<string, string>)).toMatchObject({ ...filters, after: { common: 2, id: B } });
+    const params = new URLSearchParams(query);
+    const raw: Record<string, string | string[]> = { h: params.getAll("h") };
+    for (const key of ["modo", "uf", "mun", "equipe", "sem", "c", "i"]) {
+      const value = params.get(key);
+      if (value !== null) raw[key] = value;
+    }
+    expect(parseSearchParams(raw)).toMatchObject({ ...filters, after: { common: 2, id: B } });
     expect(query).toContain("h=" + A);
   });
 
