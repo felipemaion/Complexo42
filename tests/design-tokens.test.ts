@@ -27,6 +27,7 @@ const pendingMigration = new Set([
   "src/app/(conta)/casa/page.tsx",
   "src/app/(conta)/coordenacao/casas/analise/[id]/page.tsx",
   "src/app/(conta)/coordenacao/casas/delegacoes/page.tsx",
+  "src/app/(conta)/coordenacao/casas/janela/page.tsx",
   "src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx",
   "src/app/(conta)/coordenacao/casas/resultados/page.tsx",
   "src/app/(conta)/perfil/page.tsx",
