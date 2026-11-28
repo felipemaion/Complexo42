@@ -9,7 +9,40 @@
 -- 4. Os sinônimos (`skills.aliases`) ficam sem caixa e sem acento (`app.norm_text`), como o termo buscado.
 -- 5. "Baixar meus dados" traz as habilidades e as sugestões; a exclusão da conta apaga as duas (cascade).
 
-create extension if not exists unaccent with schema extensions;
+-- A `unaccent` precisa estar no schema `extensions` (as funções chamam `extensions.unaccent` com
+-- `search_path = ''`). `create extension if not exists ... with schema extensions` não move uma extensão que já
+-- esteja em outro schema (o que já aconteceu com a pgcrypto no servidor, #317): mesmo padrão idempotente de
+-- `app.ensure_pgcrypto_in_extensions` (cria se faltar, move se estiver fora, nada se já está). A unaccent é relocável.
+create schema if not exists extensions;
+
+create or replace function app.ensure_unaccent_in_extensions()
+returns text
+language plpgsql
+set search_path = ''
+as $$
+declare
+  current_schema_name text;
+begin
+  select n.nspname into current_schema_name
+  from pg_catalog.pg_extension as e
+  join pg_catalog.pg_namespace as n on n.oid = e.extnamespace
+  where e.extname = 'unaccent';
+
+  if current_schema_name is null then
+    create extension unaccent with schema extensions;
+  elsif current_schema_name <> 'extensions' then
+    alter extension unaccent set schema extensions;
+  end if;
+  return 'extensions';
+end;
+$$;
+
+comment on function app.ensure_unaccent_in_extensions() is
+  'Só o dono do banco: garante a unaccent no schema extensions (cria ou move). Idempotente.';
+
+revoke all on function app.ensure_unaccent_in_extensions() from public, anon, authenticated, service_role;
+
+select app.ensure_unaccent_in_extensions();
 
 -- Texto de busca: minúsculo e sem acento. IMUTÁVEL de propósito (dicionário explícito), para valer em índice.
 create or replace function app.norm_text(t text)
@@ -22,6 +55,10 @@ as $$ select lower(extensions.unaccent('extensions.unaccent'::regdictionary, t))
 
 revoke execute on function app.norm_text(text) from public, anon;
 grant execute on function app.norm_text(text) to authenticated;
+
+-- Um nome de habilidade por nome normalizado ("Excel" e "excel" não coexistem), mesmo se a aprovação de uma
+-- sugestão correr contra outra. Os 47 nomes do catálogo (#300) não colidem normalizados.
+create unique index skills_name_norm_key on public.skills (app.norm_text(name));
 
 create or replace function app.skills_per_person_max()
 returns integer
@@ -146,7 +183,7 @@ alter table public.audit_log add constraint audit_log_event_check check (event i
   'questionnaire_access_granted', 'questionnaire_access_revoked',
   'questionnaire_result_viewed', 'house_changed',
   'house_window_opened', 'house_window_closed',
-  'skill_suggestion_decided'
+  'skill_suggestion_decided', 'skill_reactivated'
 ));
 
 -- ---------------------------------------------------------------------------------------
@@ -255,6 +292,7 @@ declare
   sug public.skill_suggestions;
   cat text := btrim(p_category);
   skill uuid;
+  was_active boolean;
 begin
   if caller is null or not app.manages_root() then
     raise exception 'só a coordenação nacional decide' using errcode = 'insufficient_privilege';
@@ -269,9 +307,17 @@ begin
   end if;
 
   if p_approve then
-    select s.id into skill from public.skills as s where app.norm_text(s.name) = app.norm_text(sug.name);
+    -- O índice único do nome normalizado fecha a corrida: se outra aprovação criou a mesma habilidade, usa-se a dela.
+    insert into public.skills (name, category) values (sug.name, cat)
+    on conflict ((app.norm_text(name))) do nothing
+    returning id into skill;
     if skill is null then
-      insert into public.skills (name, category) values (sug.name, cat) returning id into skill;
+      select s.id, s.active into skill, was_active from public.skills as s where app.norm_text(s.name) = app.norm_text(sug.name);
+      -- Casou com uma habilidade desativada: reativa antes de marcar para a pessoa, e registra.
+      if not was_active then
+        update public.skills set active = true where id = skill;
+        insert into public.audit_log (actor_id, event) values (caller, 'skill_reactivated');
+      end if;
     end if;
     perform 1 from public.profiles as p where p.id = sug.profile_id for update;
     if (select count(*) from public.profile_skills as ps where ps.profile_id = sug.profile_id) < app.skills_per_person_max() then
@@ -288,7 +334,7 @@ end;
 $$;
 
 comment on function public.decide_skill_suggestion(uuid, boolean, text) is
-  'A coordenação nacional aprova (cria a habilidade no catálogo) ou rejeita a sugestão; audita (#15).';
+  'A coordenação nacional aprova (cria a habilidade no catálogo, ou reativa a desativada de mesmo nome) ou rejeita a sugestão; audita (#15).';
 
 revoke execute on function public.set_my_skills(uuid[]) from public, anon;
 revoke execute on function public.suggest_skill(text) from public, anon;

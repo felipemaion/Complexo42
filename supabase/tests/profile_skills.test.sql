@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(58);
+select plan(71);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp');
@@ -66,6 +66,16 @@ select is(
   (select aliases from public.skills where id = pg_temp.sk(1)),
   array['falar em publico', 'oratoria'],
   'os sinônimos são guardados sem acento, sem caixa, sem espaço nas pontas e sem repetição'
+);
+select throws_ok($$ insert into public.skills (name, category) values ('HABILIDADE teste 3', 'Grupo') $$, '23505', null,
+  'não há duas habilidades com o mesmo nome normalizado (caixa e acento)');
+select is((select n.nspname::text from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'unaccent'),
+  'extensions', 'a unaccent está no schema extensions');
+select is(app.ensure_unaccent_in_extensions(), 'extensions', 'garantir a unaccent é idempotente (cria ou move; aqui já está)');
+select ok(
+  not has_function_privilege('authenticated', 'app.ensure_unaccent_in_extensions()', 'execute')
+  and not has_function_privilege('anon', 'app.ensure_unaccent_in_extensions()', 'execute'),
+  'só o dono do banco garante a extensão'
 );
 select ok(
   not has_table_privilege('authenticated', 'public.profile_skills', 'insert')
@@ -128,6 +138,20 @@ select throws_ok(
      select pg_temp.person('p_c'), id from skill_ids where n <= 11 $$,
   'C7701', null, 'o gatilho do banco recusa a 11ª, mesmo fora da função'
 );
+
+-- set_my_skills só mexe nas linhas de quem chama.
+set local role authenticated;
+select pg_temp.login('p_a');
+select is(public.set_my_skills(pg_temp.sks(1, 3)), 3, 'p_a marca 3');
+select pg_temp.login('p_b');
+select is(public.set_my_skills(array[pg_temp.sk(5)]), 1, 'p_b marca 1');
+select is(public.set_my_skills(null), 0, 'p_b limpa as dela');
+reset role;
+select is((select count(*)::int from public.profile_skills where profile_id = pg_temp.person('p_a')), 3,
+  'as habilidades de p_a não mudaram com o que p_b fez');
+set local role authenticated;
+select pg_temp.login('p_a');
+select is(public.set_my_skills(null), 0, 'p_a limpa as dela (para o resto do teste)');
 
 -- ---------------------------------------------------------------------------------------
 -- suggest_skill: nome livre, limites e finalidade
@@ -246,6 +270,27 @@ update public.skill_suggestions set created_at = now() - interval '2 days' where
 set local role authenticated;
 select pg_temp.login('p_b');
 select lives_ok($$ select public.suggest_skill('Sugestão B seis') $$, 'passado o dia, a pessoa volta a poder sugerir (2 abertas, cabe mais uma)');
+
+-- Aprovar quando uma habilidade desativada de mesmo nome apareceu no meio: reativa, marca e registra.
+set local role authenticated;
+select pg_temp.login('p_c');
+insert into made select 9, public.suggest_skill('Nova coisa');
+reset role;
+insert into public.skills (name, category, active) values ('nova COISA', 'Grupo', false);
+set local role authenticated;
+select pg_temp.login('root_mgr');
+select public.decide_skill_suggestion((select id from made where n = 9), true, 'Grupo');
+reset role;
+select ok((select active from public.skills where app.norm_text(name) = 'nova coisa'), 'a habilidade desativada foi reativada');
+select is((select count(*)::int from public.skills where app.norm_text(name) = 'nova coisa'), 1, 'e não se criou uma duplicada');
+select ok(
+  exists (select 1 from public.profile_skills ps join public.skills s on s.id = ps.skill_id
+          where ps.profile_id = pg_temp.person('p_c') and app.norm_text(s.name) = 'nova coisa'),
+  'a reativada foi marcada para quem sugeriu'
+);
+select is((select count(*)::int from public.audit_log where event = 'skill_reactivated' and actor_id = pg_temp.person('root_mgr')), 1,
+  'a reativação vai para o audit_log');
+set local role authenticated;
 
 -- ---------------------------------------------------------------------------------------
 -- Baixar meus dados
