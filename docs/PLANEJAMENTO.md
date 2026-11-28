@@ -59,11 +59,11 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 ## 3. Escopo
 
 ### Dentro do POC (MVP)
-1. **Cadastro e perfil**: nome, WhatsApp, município/bairro, **formação acadêmica** (nível mais
+1. **Cadastro e perfil**: **nome completo** (obrigatório; o sobrenome ainda não é exigido pelo esquema, #312), WhatsApp, município/bairro, **formação acadêmica** (nível mais
    alto; "qual?" opcional) e **atividade profissional** (campos separados), habilidades (sem
    nível, até 10, do catálogo; a pessoa sugere uma nova e a coordenação aprova; o formulário
    pergunta o que ela faz no dia a dia), **miniatura do rosto**, opcional (ADR 0006, revisão de 2026-11-28),
-   links de redes sociais e "feitos". Todo membro logado vê o **perfil público** dos outros (foto, nome e medalhas; o dono escolhe o que aparece e para quem); o
+   links de redes sociais e "feitos". Todo membro logado vê o **perfil público** dos outros (foto, nome e medalhas; o dono escolhe quais medalhas aparecem e em que ordem); o
    contato segue por consentimento (ADR 0010). Consentimento LGPD, edição e exclusão da própria conta. Acesso só
    pela **lista de autorizados**, com lista de espera (ADR 0008 §1).
 2. **Casa de formação** (ADR 0008 §2, ADR 0014): ordem de entrada termo → questionário →
@@ -74,7 +74,7 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
    comparação 2×2 ("Compare as casas": média real dos membros com n ≥ 10 e expectativas por
    pergunta; respostas guardadas cifradas). A troca é por **janela de
    transferência** aberta pela coordenação nacional (ADR 0016, revisão de 2026-11-28; substitui a
-   trava de 4 meses), feita pela tela de comparação; a coordenação nacional troca a qualquer momento.
+   trava de 4 meses, que sai com a #302), feita pela tela de comparação; a coordenação nacional troca a qualquer momento.
 3. **Painel da coordenação**: lista com filtros por habilidade e região, contagem por região.
 4. **Equipes**: criar equipe, adicionar e remover membros, definir líder.
 5. **Missões** (ADR 0006): catálogo de missões com etapas e pontos (ex.: escrever um projeto

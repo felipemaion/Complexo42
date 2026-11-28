@@ -71,13 +71,13 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   substitui as respostas (e um resultado decidido pela coordenação as apaga); somem com a conta; entram em "Baixar meus dados".
   **Totem pendente (legado):** o caminho `record_totem_pending` reescreve o resultado sem respostas e por isso as **apaga**; com os pesos 1-3-5 o empate de totem não acontece mais em respostas novas (a soma nunca é zero), então isso só valeria para um caminho que não roda; fica fixado em pgTAP. A coordenação continua sem ver respostas individuais. Não vão para o log (R11). Quem respondeu antes desta mudança fica sem
   respostas guardadas (a troca de casa mostra então só o gráfico, sem expectativas).
-- **Troca de casa (#268):** depois da trava de 4 meses, "Trocar de casa" abre a MESMA tela de comparação de "Escolher outra
+- **Troca de casa (#268):** na janela de transferência aberta pela coordenação nacional (ADR 0016), "Trocar de casa" abre a MESMA tela de comparação de "Escolher outra
   casa" (#240), com a casa atual e a sugerida pelo último questionário em destaque. O **servidor** monta tudo a partir do guardado:
   lê o resultado e as respostas cifradas da própria pessoa (função `own_questionnaire_answers_enc`), decifra e sela o **mesmo
   token** cifrado e com validade da comparação; o navegador não manda respostas e a comparação segue com o limite por pessoa. Com
   respostas guardadas, o "o que se espera" é **por pergunta**; sem elas (quem respondeu antes de #256) a tela mostra só o gráfico e a média, **sem
   expectativas**: as frases gerais por eixo foram canceladas em 2026-11-28 e nada é gravado em `axes.<eixo>.expectation` (o campo
-  segue opcional no esquema, sem uso). Sem resultado nenhum, a tela mostra as casas e o aviso, sem gráfico nem expectativas. O totem nunca aparece. Confirmar outra casa leva à apresentação, com o aviso da nova trava.
+  segue opcional no esquema, sem uso). Sem resultado nenhum, a tela mostra as casas e o aviso, sem gráfico nem expectativas. Confirmar outra casa leva à apresentação.
 - O esquema Zod rejeita item em dois eixos, item sem eixo, eixo com número par de itens, casas
   repetidas e letras iguais nos dois polos de um eixo do totem.
 
@@ -115,7 +115,7 @@ Ritmo: R·Regrado/A·Adaptável).
 
 A sugestão é só o ponto de partida: a pessoa continua podendo **escolher outra casa** e aceitar
 pelo fluxo de sempre (`accept_house`). Trocar de casa depois de aceitar continua sendo com a
-coordenação [?] (prazo e regra para a pessoa trocar sozinha).
+coordenação nacional, a qualquer momento, ou pela própria pessoa na janela de transferência (ADR 0016).
 
 ### 3. Pedido de análise (casos antigos e correção pela coordenação)
 
@@ -269,7 +269,7 @@ perfil dela com o **perfil médio dos membros da casa** e **o que se espera nest
   carrega; `compareHouseAction` aceita só `{ casa, token }` (campo a mais é recusado) e abre o token no servidor. Ninguém varre a
   chave com respostas fabricadas, e o limite é de 30 comparações por pessoa a cada 10 minutos. O log só traz a contagem de linhas
   que não decifraram.
-- Confirmar a casa continua como hoje (escolha direta, `self`; a trava de 4 meses é avisada no termo).
+- Confirmar a casa continua como hoje (escolha direta, `self`; a troca depois só na janela de transferência, ADR 0016).
 
 ## Consequências
 
