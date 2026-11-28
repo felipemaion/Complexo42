@@ -47,11 +47,13 @@ define_senha() { # define_senha <papel> <senha>: a senha vai no stdin do psql, n
   printf "set log_statement = 'none';\n\\\\set s '%s'\nalter role %s with login password :'s';\n" "$2" "$1" | sql > /dev/null
 }
 
-# Login de verdade, por TCP, com a senha lida do stdin dentro do container.
+# Login de verdade, por TCP, com a senha lida do stdin dentro do container. Pelo IP da rede do
+# container, que é o caminho do rest e do auth: no 127.0.0.1 o pg_hba da imagem confia sem senha, e o
+# teste provaria nada (medido no staging de mentira).
 entra() { # entra <papel> <senha>
   local r
   r=$(printf '%s\n' "$2" | dc exec -T db sh -c \
-    'IFS= read -r PGPASSWORD; export PGPASSWORD; psql -X -h 127.0.0.1 -U "$1" -d postgres -tAc "select 1"' _ "$1" 2> /dev/null) || return 1
+    'IFS= read -r PGPASSWORD; export PGPASSWORD; ip=$(hostname -i | cut -d" " -f1); psql -X -h "$ip" -U "$1" -d postgres -tAc "select 1"' _ "$1" 2> /dev/null) || return 1
   [ "$r" = 1 ]
 }
 
@@ -63,11 +65,13 @@ conferir() {
   local P A G estado esperado svc cid envs
   P=$(valor POSTGRES_PASSWORD); A=$(valor AUTHENTICATOR_PASSWORD); G=$(valor AUTH_ADMIN_PASSWORD)
   if [ "$P" != "$A" ] && [ "$P" != "$G" ] && [ "$A" != "$G" ]; then ok "três senhas distintas no arquivo"; else falha "senhas repetidas no arquivo de segredos"; fi
-  estado=$(printf '%s\n' "select rolname || '|' || rolcanlogin || '|' || (rolpassword is not null) from pg_authid where rolname in ('postgres', 'authenticator', 'supabase_auth_admin') order by 1;" | sql)
-  # papel|pode entrar|tem senha (o psql -tA mostra booleano como t/f)
+  estado=$(printf '%s\n' "select rolname || '|' || (case when rolcanlogin then 't' else 'f' end) || '|' || (case when rolpassword is null then 'f' else 't' end) from pg_authid where rolname in ('postgres', 'authenticator', 'supabase_auth_admin') order by 1;" | sql)
+  # papel|pode entrar|tem senha (t/f escritos no SQL: booleano concatenado vira true/false)
   for esperado in "authenticator|t|t" "postgres|f|f" "supabase_auth_admin|t|t"; do
     if grep -qx "$esperado" <<< "$estado"; then ok "papel ${esperado%%|*}: login e senha como esperado"; else falha "papel ${esperado%%|*}: login ou senha fora do esperado"; fi
   done
+  # O próprio teste de login tem de exigir senha: com uma errada, ninguém entra.
+  if entra authenticator "senha-errada-de-proposito"; then falha "o login de teste entrou com senha errada (pg_hba sem senha?): os itens de login abaixo não valem"; fi
   if entra authenticator "$A"; then ok "authenticator entra com a própria senha"; else falha "authenticator não entra com a própria senha"; fi
   if entra supabase_auth_admin "$G"; then ok "supabase_auth_admin entra com a própria senha"; else falha "supabase_auth_admin não entra com a própria senha"; fi
   if entra authenticator "$P" || entra supabase_auth_admin "$P"; then falha "a senha do superusuário entra num papel de serviço"; else ok "a senha do superusuário não entra nos papéis de serviço"; fi

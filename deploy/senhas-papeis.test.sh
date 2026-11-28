@@ -47,6 +47,7 @@ case "$1" in
     fi
     # login por TCP: a senha chega no stdin; o papel é o último argumento
     IFS= read -r senha; papel=${!#}
+    [ -f "$STUB/trust" ] && { echo 1; exit 0; }   # pg_hba sem senha: qualquer uma entra
     if [ "$(cat "$STUB/login-$papel")" = t ] && [ "$senha" = "$(cat "$STUB/pw-$papel")" ]; then echo 1; else exit 2; fi ;;
 esac
 DUBLE
@@ -83,6 +84,9 @@ inicio; printf '%s' "$SUPER" > "$BASE/pw-authenticator"; roda --conferir
 
 inicio; printf 'POSTGRES_PASSWORD=%s\n' "$SUPER" >> "$BASE/env-rest"; roda --conferir
 { [ "$RC" = 1 ] && grep -q 'container rest recebe a senha do superusuário' "$BASE/saida" && sem_senha_na_saida; }; verifica "rest com a senha do superusuário no ambiente: reprova sem imprimi-la" $?
+
+inicio; touch "$BASE/trust"; roda --conferir; rm -f "$BASE/trust"
+{ [ "$RC" = 1 ] && grep -q 'entrou com senha errada' "$BASE/saida"; }; verifica "login de teste sem exigir senha (pg_hba trust): reprova em vez de dar falso ok" $?
 
 inicio; troca_no_arquivo AUTH_ADMIN_PASSWORD "$AUT"; roda --conferir
 { [ "$RC" = 1 ] && grep -q 'senhas repetidas' "$BASE/saida"; }; verifica "duas senhas iguais no arquivo: reprova" $?
