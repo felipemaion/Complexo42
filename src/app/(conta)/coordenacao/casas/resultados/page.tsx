@@ -14,12 +14,12 @@ const field = "min-h-12 rounded-xl border-2 border-current bg-transparent px-3 t
 // delegado: as da concessão), com casa, totem e data. Quem não tem permissão recebe 404; a RLS decide
 // quem aparece. A lista não traz totem nem nota; abrir uma pessoa (que os mostra) é registrado.
 export default async function ResultsPage({ searchParams }: Readonly<{ searchParams: Promise<{ casa?: string | string[]; outra?: string | string[] }> }>) {
-  const { client, deps, user } = await requireCoordinationScreen("results");
+  const { client, deps } = await requireCoordinationScreen("results");
   const query = await searchParams;
   const raw = query.casa;
   const otherHouse = query.outra === "1";
   const houseId = typeof raw === "string" && instance.houses.some((house) => house.id === raw) ? raw : undefined;
-  const { rows, truncated } = await listResults(client, deps, user.id, { houseId, otherHouse });
+  const { rows, truncated } = await listResults(client, deps, { houseId, otherHouse });
   const text = instance.questionnaireCoordination;
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6 pt-10">
