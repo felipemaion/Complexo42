@@ -14,11 +14,8 @@ export type SchemaStatus = "ok" | "stale" | "unavailable" | "unconfigured";
 
 export type SchemaProbe = { status: SchemaStatus; reason?: DbFailure };
 
-/**
- * As versões do termo da config no banco (#222). `questionnaire_missing` e `consent_mismatch` são só
- * para o log: o corpo do healthz mostra apenas ok ou degradado.
- */
-export type TermsStatus = "ok" | "questionnaire_missing" | "consent_mismatch" | "unavailable" | "unconfigured";
+/** As versões do termo da config no banco (#222). `degraded`: o banco não tem uma delas (não diz qual). */
+export type TermsStatus = "ok" | "degraded" | "unavailable" | "unconfigured";
 
 export type TermsProbe = { status: TermsStatus; reason?: DbFailure };
 

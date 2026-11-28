@@ -13,6 +13,5 @@ export function appVersion(tag: string | undefined, commit: string | undefined):
  */
 export function evaluateHealth(db: DbStatus, schema: SchemaStatus, terms: TermsStatus, version: AppVersion): HealthReport {
   const healthy = db === "ok" && schema === "ok" && terms === "ok";
-  // `terms` sai só como ok ou degradado: o motivo (versão ausente, termo diferente) vai ao log, nunca à resposta (#222).
   return { httpStatus: healthy ? 200 : 503, body: { status: healthy ? "ok" : "degraded", version, db, schema, terms: terms === "ok" ? "ok" : "degraded" } };
 }

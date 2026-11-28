@@ -32,8 +32,8 @@ export async function GET(): Promise<NextResponse> {
   // "banco indisponível" mandaria quem está de plantão olhar o lugar errado.
   if (schema.status === "stale") log.error("healthz_schema_stale", {});
   else if (schema.reason) log.warn("healthz_schema_unavailable", { reason: schema.reason });
-  // Evento próprio: o conserto é inserir a versão (migration) e não depende do resto.
-  if (terms.status === "questionnaire_missing" || terms.status === "consent_mismatch") log.error("healthz_terms_missing", { reason: terms.status });
+  // Evento próprio: o conserto é cadastrar a versão que falta (docs/OPERACAO.md) e não depende do resto.
+  if (terms.status === "degraded") log.error("healthz_terms_missing", {});
   else if (terms.reason) log.warn("healthz_terms_unavailable", { reason: terms.reason });
   const { httpStatus, body } = evaluateHealth(db.status, schema.status, terms.status, appVersion(env.APP_VERSION, env.GIT_SHA));
   return NextResponse.json(body, { status: httpStatus, headers: { "Cache-Control": "no-store" } });

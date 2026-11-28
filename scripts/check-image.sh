@@ -62,7 +62,7 @@ const erro=(cod,corpo)=>(q,s)=>{if(q.url.startsWith("/rest/v1/rpc/term_versions_
 h.createServer(vazio).listen(9990,"0.0.0.0");
 h.createServer(erro(404,{code:"PGRST205",message:"Could not find the table in the schema cache"})).listen(9991,"0.0.0.0");
 h.createServer(erro(401,{code:"42501",message:"permission denied for table profiles"})).listen(9992,"0.0.0.0");
-h.createServer((q,s)=>{if(q.url.startsWith("/rest/v1/rpc/term_versions_check")){rpc("questionnaire_missing")(q,s)}else{vazio(q,s)}}).listen(9993,"0.0.0.0");'
+h.createServer((q,s)=>{if(q.url.startsWith("/rest/v1/rpc/term_versions_check")){rpc("degraded")(q,s)}else{vazio(q,s)}}).listen(9993,"0.0.0.0");'
 
 # Sobe só leitura, com /tmp em memória, e consulta o healthz de dentro do container.
 # $1 = DB_HEALTH_URL   $2 = SUPABASE_URL

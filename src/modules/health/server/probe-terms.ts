@@ -5,14 +5,13 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
 /** As versões do termo que a config do app espera encontrar no banco. */
 export type TermVersions = { questionnaire: string; general: string };
 
-const MOTIVOS = ["questionnaire_missing", "consent_mismatch"] as const;
-
 /**
  * Pergunta ao banco, por `public.term_versions_check` (só leitura, #222), se as versões do termo da
  * config existem. Sem isso o app sobe e o aceite do termo é recusado em silêncio (staging, 2026-11-28:
  * tabela de versões vazia). Vai pelo mesmo caminho e com a mesma chave anon da sonda de esquema.
  *
- * Nunca lança, e a resposta do banco só vira um dos estados conhecidos: nada do corpo vai adiante.
+ * O banco só diz `ok` ou `degraded` (sem dizer qual versão falhou). Nunca lança, e a resposta só vira um dos
+ * estados conhecidos: nada do corpo vai adiante.
  */
 export async function probeTerms(
   baseUrl: string | undefined,
@@ -33,8 +32,7 @@ export async function probeTerms(
     });
     const corpo: unknown = res.ok ? await res.json().catch(() => undefined) : undefined;
     if (corpo === "ok") return { status: "ok" };
-    const motivo = MOTIVOS.find((m) => m === corpo);
-    if (motivo) return { status: motivo };
+    if (corpo === "degraded") return { status: "degraded" };
     return { status: "unavailable", reason: "http_error" };
   } catch (err) {
     const expirou = err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");

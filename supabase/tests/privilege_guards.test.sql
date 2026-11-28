@@ -59,7 +59,7 @@ $$;
 select set_eq(
   $$ select * from pg_temp.functions_open_to_anon() $$,
   array['app.is_encrypted_value', 'public.term_versions_check'],
-  'anon só executa as funções da lista (hoje: o validador de valor cifrado, usado em CHECK, e a conferência das versões do termo do healthz, #222: só lê e devolve ok ou o motivo)'
+  'anon só executa as funções da lista (hoje: o validador de valor cifrado, usado em CHECK, e a conferência das versões do termo do healthz, #222: o app não tem chave de serviço, a função só lê, valida o formato e devolve ok ou degraded sem dizer qual versão falhou)'
 );
 
 -- Prova: função nova com o EXECUTE padrão do Postgres (PUBLIC) aparece na lista.

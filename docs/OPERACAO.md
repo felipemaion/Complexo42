@@ -506,13 +506,20 @@ falha (`timeout`, `network`, `http_error`) vai só para o log.
 > **`terms` (#222).** Em 2026-11-28 o staging subiu com a tabela de versões do termo vazia e o
 > aceite do termo do questionário era recusado em silêncio (`questionnaire_consent_refused`).
 > `public.term_versions_check(versão do questionário, versão do termo geral)` só lê e devolve
-> `ok`, `questionnaire_missing` ou `consent_mismatch`; o corpo do healthz mostra só `ok` ou
-> `degraded`, nunca a versão, e o motivo vai ao log (`healthz_terms_missing`). O conserto é
-> inserir a versão por migration (ou, numa versão nova do termo geral, redefinir
-> `app.current_consent_version()`). A tabela segue sem acesso pela API; a função é executável por
-> `anon` porque o healthz roda sem login. Sem o arquivo do questionário legível, `terms` fica
-> degradado. **Checklist de deploy:** versão nova do termo do questionário = migration com a versão
-> **antes** da imagem; o healthz acusa se esquecer.
+> `ok` ou `degraded`, **sem dizer qual das duas falhou**; o corpo do healthz também mostra só `ok`
+> ou `degraded`, nunca a versão (o log tem `healthz_terms_missing`). O app não tem chave de
+> serviço (R6), então a função é executável por `anon` (o healthz roda sem login); ela valida o
+> formato das versões e a tabela segue sem acesso pela API.
+>
+> **Quem cadastra o quê.** A versão do termo **geral** vem por migration
+> (`app.current_consent_version()`). A do termo do **questionário** NÃO vem por migration: o
+> operador a cadastra junto com o JSON privado (checklist do questionário, acima), para não levar
+> `termo-exemplo-1` à produção. A sonda detecta que o operador **esqueceu esse passo**.
+>
+> **Esquecer o cadastro faz o deploy voltar a imagem.** `terms: "degraded"` torna o status geral
+> `degraded` (503); o smoke do deploy (`curl -f` no `/api/healthz`) falha e o deploy devolve a
+> imagem anterior. Por isso o cadastro vem **antes** do deploy do questionário novo. Sem o arquivo
+> do questionário legível, `terms` também fica degradado.
 
 > **Por que duas sondas, e não uma.** Elas falham por motivos diferentes, e a
 > primeira não vê a falha da segunda. O `/ready` responde **200 com o cache de
