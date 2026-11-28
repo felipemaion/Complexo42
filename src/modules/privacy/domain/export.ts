@@ -54,6 +54,8 @@ export const ownDataRowsSchema = z.object({
     .nullable(),
   /** Miniatura da foto (#308), cifrada (base64 do WebP); nulo se nunca enviou. */
   profile_photo: z.object({ photo_enc: z.string(), updated_at: timestamp }).nullable(),
+  /** Medalhas do perfil público (#305): tipo, posição e se aparece. Vazio se a pessoa nunca escolheu (vale o padrão). */
+  badge_prefs: z.array(z.object({ badge_kind: z.string(), position: z.number().int(), shown: z.boolean() })).default([]),
   /** Formação e atividade profissional (#304), cifradas; nulo se nunca informou. */
   background: z
     .object({
@@ -206,6 +208,7 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  medalhasDoPerfil: { tipo: string; posicao: number; aparece: boolean }[];
   habilidades: { nome: string; grupo: string }[];
   sugestoesDeHabilidade: { nome: string; estado: string; sugeridaEm: string; decididaEm: string | null }[];
   /** Casa sugerida e totem (ADR 0014). O totem é interno: só aparece neste arquivo. */
@@ -429,6 +432,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     ),
     termosDeConsentimento: rows.consent_acceptances.map((c) => ({ versao: c.version, aceitoEm: c.accepted_at })),
     termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),
+    medalhasDoPerfil: rows.badge_prefs.map((b) => ({ tipo: b.badge_kind, posicao: b.position, aparece: b.shown })),
     habilidades: rows.skills.map((s) => ({ nome: s.name, grupo: s.category })),
     sugestoesDeHabilidade: rows.skill_suggestions.map((q) => ({ nome: q.name, estado: q.status, sugeridaEm: q.created_at, decididaEm: q.decided_at })),
     papeis: rows.roles.map((r) => ({

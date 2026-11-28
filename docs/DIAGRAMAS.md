@@ -250,6 +250,13 @@ erDiagram
         timestamptz decided_at
         timestamptz created_at
     }
+    profile_badge_prefs {
+        uuid profile_id PK, FK
+        text badge_kind PK "house ou totem"
+        smallint position "ordem no perfil público"
+        boolean shown
+        timestamptz updated_at
+    }
     profiles ||--o| access_waitlist_hmac : "espera"
     profiles |o--o{ access_allowlist : "adicionou"
     profiles ||--o| profile_contacts : "contato"
@@ -259,6 +266,7 @@ erDiagram
     profiles ||--o{ consent_acceptances : "aceitou o termo"
     profiles ||--o{ profile_skills : "tem"
     profiles ||--o{ skill_suggestions : "sugere"
+    profiles ||--o{ profile_badge_prefs : "escolhe medalhas"
     skills ||--o{ profile_skills : "usada em"
 ```
 

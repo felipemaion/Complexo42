@@ -538,6 +538,18 @@ apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo 
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
 `supabase/migrations/20261119130100_access_functions.sql`.
 
+### `profile_badge_prefs` e `public_profile` (#305)
+Perfil público: todo membro ativo vê **foto, nome e medalhas** de outro membro ativo; o dono escolhe quais
+medalhas aparecem e em que ordem. `profile_badge_prefs`: `profile_id` (cascade com o perfil), `badge_kind`
+(`house` ou `totem`, CHECK fechado; crescer é trocar o CHECK numa migration), `position` (1 a 20, único por
+pessoa, deferível para reordenar), `shown`, `updated_at`; chave (`profile_id`, `badge_kind`). **Sem linhas vale o
+padrão (casa, totem).** Só o dono lê (RLS) e grava, pelo conjunto inteiro, `set_my_badge_prefs(tipos, visíveis)`
+(`22023` para tipo repetido, fora da lista ou listas de tamanhos diferentes); nenhum INSERT, UPDATE ou DELETE
+direto. `public_profile(id)` (security definer) é a única leitura do perfil de outra pessoa: devolve o nome
+**cifrado** (o servidor decifra) e a lista de medalhas na ordem do dono. **Zero linhas, igual, para "não existe",
+"inativo" e "sem permissão"**, sem como enumerar perfis. Contato (ADR 0010), formação, atividade e respostas
+não passam por ela.
+
 ### `skills`, `profile_skills` e `skill_suggestions` (#8, #15)
 `skills`: `id`, `name` (único), `category`, `aliases` (text[], sinônimos para a busca), `active`.
 Índice GIN em `aliases`. Os **sinônimos ficam sem caixa e sem acento** (gatilho, `app.norm_text`, que usa

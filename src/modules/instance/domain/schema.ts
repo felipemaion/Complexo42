@@ -404,6 +404,27 @@ export const instanceConfigSchema = z.strictObject({
       failed: text,
     }),
   }),
+  /** Perfil público (#305). */
+  publicProfile: z.strictObject({
+    title: text,
+    badgesTitle: text,
+    noBadges: text,
+    photoAlt: text,
+    unreadableName: text,
+    backLink: text,
+    badgeKinds: z.strictObject({ house: text, totem: text }),
+    prefs: z.strictObject({
+      homeLink: text,
+      title: text,
+      intro: text,
+      showLabel: text,
+      orderLabel: text,
+      saveButton: text,
+      saved: text,
+      errors: z.strictObject({ invalid: text, forbidden: text, failed: text }),
+      backLink: text,
+    }),
+  }),
   /** Habilidades da pessoa (#15). `{max}` e `{count}` são trocados na tela. */
   skills: z.strictObject({
     homeLink: text,

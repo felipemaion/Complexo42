@@ -373,6 +373,27 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
+  // Perfil público (#305, decisão de 28/11): foto, nome e medalhas, visível aos membros ativos; o dono escolhe quais medalhas e a ordem.
+  publicProfile: {
+    title: "Perfil",
+    badgesTitle: "Medalhas",
+    noBadges: "Esta pessoa não mostra medalhas.",
+    photoAlt: "Foto da pessoa",
+    unreadableName: "Nome indisponível",
+    backLink: "Voltar",
+    badgeKinds: { house: "Casa", totem: "Totem" },
+    prefs: {
+      homeLink: "Minhas medalhas",
+      title: "Minhas medalhas",
+      intro: "Escolha quais medalhas os outros membros veem no seu perfil e em que ordem. Número menor aparece primeiro.",
+      showLabel: "Mostrar no meu perfil",
+      orderLabel: "Posição",
+      saveButton: "Salvar medalhas",
+      saved: "Medalhas salvas.",
+      errors: { invalid: "Não entendi a escolha. Confira as posições e tente de novo.", forbidden: "Só quem está ativo escolhe as medalhas.", failed: "Não foi possível salvar agora. Tente de novo." },
+      backLink: "Voltar ao perfil",
+    },
+  },
   // Habilidades da pessoa (#15, decisão de 28/11): sem nível, até 10, o que ela faz no dia a dia; quem não acha a sua sugere uma e a
   // coordenação nacional aprova. `{max}`, `{count}` são trocados na tela.
   skills: {
