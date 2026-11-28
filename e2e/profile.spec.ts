@@ -72,7 +72,7 @@ test.describe("formulário com o Supabase local", () => {
     // WhatsApp (#337). Por isso todo envio que não sai da página espera a resposta e o botão voltar ao normal.
     const submitAndWait = async () => {
       const answered = page.waitForResponse((r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/perfil");
-      await submitAndWait();
+      await save.click();
       await answered;
       await expect(save).toHaveText("Salvar meus dados");
       await expect(save).toBeEnabled();
