@@ -41,7 +41,16 @@ case "$1" in
        case "${STUB_SMOKE:-ok}" in ok) exit 0 ;; falha_sempre) exit 1 ;;
          falha_primeiro) [ "$n" -le "${STUB_FALHAS:-3}" ] && exit 1; exit 0 ;; esac ;;
 esac
-case "$*" in *"up -d"*) exit "${STUB_UP:-0}" ;; esac
+# O ensaio ANTES do `up -d` generico: ele tambem casa com *"up -d"*.
+case "$*" in
+  *"up -d --dry-run"*)
+    printf '%s\n' "${STUB_ENSAIO:-Container app-1  Recreate}"
+    exit "${STUB_ENSAIO_SAIDA:-0}" ;;
+esac
+case "$*" in
+  *"-p ${STUB_SUPA_PROJ:-naoexiste} "*" up -d"*) exit "${STUB_UP_SUPA:-0}" ;;
+  *"up -d"*) exit "${STUB_UP:-0}" ;;
+esac
 exit 0
 DUBLE
 printf '#!/bin/sh\nexit ${STUB_FLOCK:-0}\n' > "$BASE/bin/flock"
@@ -313,6 +322,108 @@ verifica "e o app SOBE (e o que o break-glass quer)" $r
 cp "$IMG/kong.yml" "$SRV/kong.yml"; cp "$IMG/docker-compose.supabase.yml" "$SRV/"
 cp "$IMG/initdb/01-extensions.sql" "$IMG/initdb/02-roles.sh" "$SRV/initdb/"
 roda "$DIG" > /dev/null 2>&1
+
+echo "== recriacao seletiva do Supabase (gravar nao e aplicar)"
+# Deixa servidor e imagem iguais, para partir de um estado limpo.
+cp "$IMG/docker-compose.supabase.yml" "$SRV/"; cp "$IMG/kong.yml" "$SRV/"
+cp "$IMG/initdb/01-extensions.sql" "$IMG/initdb/02-roles.sh" "$SRV/initdb/"
+rm -f "$MANIF"; roda "$DIG" > /dev/null 2>&1
+
+# (i) sem SUPABASE_PROJETO: nao recria NADA, mas grita e registra.
+printf 'compose v4\n' > "$IMG/docker-compose.supabase.yml"
+roda "$DIG"; verifica "sem SUPABASE_PROJETO: o deploy segue" $?
+grep -q 'NADA foi recriado' "$BASE/saida" && r=0 || r=1
+verifica "e avisa, alto, que nada foi recriado" $r
+grep -q 'supabase_mudou_recriacao_pendente' "$LOG" && r=0 || r=1
+verifica "e deixa isso no deploy.log, nao so na tela" $r
+grep -q 'dry-run' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e nem ensaia: sem o nome do projeto, nao se adivinha" $r
+
+# A partir daqui, com o projeto do Supabase configurado.
+export STUB_SUPA_PROJ=stgsupa
+printf 'SUPABASE_PROJETO=stgsupa\n' >> "$BASE/deploy.conf"
+
+# (j) o compose do Supabase mudou: ensaia e aplica, e o compose decide o escopo
+printf 'compose v5\n' > "$IMG/docker-compose.supabase.yml"
+roda "$DIG"; verifica "compose do Supabase mudou: deploy segue" $?
+grep -q -- '-p stgsupa .* up -d --dry-run' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "ENSAIA antes de aplicar" $r
+grep -qE -- '-p stgsupa .* up -d$' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "e aplica com up -d, deixando o compose decidir o escopo" $r
+grep -q -- 'up -d --remove-orphans' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e NUNCA com --remove-orphans" $r
+grep -q 'ensaio:' "$BASE/saida" && r=0 || r=1
+verifica "e registra no log o que o ensaio previu" $r
+
+# (k) a ORDEM importa: ensaio antes do up. Aplicar e depois ensaiar nao serve.
+o_ensaio=$(grep -n 'up -d --dry-run' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+o_up=$(grep -nE -- '-p stgsupa .* up -d$' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+[ -n "$o_ensaio" ] && [ -n "$o_up" ] && [ "$o_ensaio" -lt "$o_up" ] && r=0 || r=1
+verifica "o ensaio vem ANTES do up" $r
+
+# (l) kong.yml e bind mount: exige recriacao EXPLICITA
+printf 'kong v5\n' > "$IMG/kong.yml"
+roda "$DIG"; verifica "kong.yml mudou: deploy segue" $?
+grep -q -- 'up -d --no-deps --force-recreate kong' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "recria o kong explicitamente (--no-deps --force-recreate)" $r
+grep -q 'bind mount' "$BASE/saida" && r=0 || r=1
+verifica "e diz por que precisou (o compose nao ve bind mount)" $r
+
+# (m) so o initdb mudou: NADA de up no Supabase -- ele so roda em volume novo
+printf 'roles v5\n' > "$IMG/initdb/02-roles.sh"
+roda "$DIG"; verifica "so initdb mudou: deploy segue" $?
+grep -q -- '-p stgsupa' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e NAO mexe no Supabase por causa do initdb" $r
+grep -q 'initdb/ mudou' "$BASE/saida" && r=0 || r=1
+verifica "mas segue avisando do initdb" $r
+
+# (n) nada mudou: nem ensaio
+roda "$DIG"; verifica "nada mudou: deploy segue" $?
+grep -q 'dry-run' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e nem ensaia quando nada mudou" $r
+
+# (o) o ensaio diz que o BANCO seria recriado: FALHA, e devolve o arquivo
+printf 'compose v6\n' > "$IMG/docker-compose.supabase.yml"
+: > "$STUB_MIGRA"
+antes_do_banco=$(cat "$SRV/docker-compose.supabase.yml")
+STUB_ENSAIO='Container complexo42stg-db-1  Recreate' roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "ensaio recriando o BANCO derruba o deploy" $r
+grep -q 'NAO faz isso por conta propria' "$BASE/saida" && r=0 || r=1
+verifica "e diz que isso e decisao humana" $r
+[ "$(cat "$SRV/docker-compose.supabase.yml")" = "$antes_do_banco" ] && r=0 || r=1
+verifica "e DEVOLVE o arquivo ao conteudo anterior" $r
+grep -q 'supabase_recriaria_db' "$LOG" && r=0 || r=1
+verifica "e registra o motivo no deploy.log" $r
+[ ! -s "$STUB_MIGRA" ] && r=0 || r=1
+verifica "e as migrations NAO rodam (falha na etapa 2/5)" $r
+grep -qE -- '-p stgsupa .* up -d$' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e nao chega a aplicar nada" $r
+
+# (p) saude nao volta depois de recriar: devolve, recria com o antigo, e falha
+: > "$STUB_MIGRA"
+antes_da_saude=$(cat "$SRV/docker-compose.supabase.yml")
+STUB_SMOKE=falha_sempre roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "saude ausente depois de recriar derruba o deploy" $r
+[ "$(cat "$SRV/docker-compose.supabase.yml")" = "$antes_da_saude" ] && r=0 || r=1
+verifica "e devolve o arquivo anterior" $r
+grep -q 'supabase_devolvido' "$LOG" && r=0 || r=1
+verifica "e registra em qual estado ficou o ambiente" $r
+[ ! -s "$STUB_MIGRA" ] && r=0 || r=1
+verifica "e as migrations NAO rodam" $r
+# O manifesto tem de voltar a casar com o disco: se nao, o deploy SEGUINTE
+# trava lendo o arquivo devolvido como "editado a mao".
+sha_disco=$(shasum -a 256 "$SRV/docker-compose.supabase.yml" 2> /dev/null | cut -d" " -f1 \
+  || sha256sum "$SRV/docker-compose.supabase.yml" | cut -d" " -f1)
+grep -q "$sha_disco" "$MANIF" && r=0 || r=1
+verifica "e o MANIFESTO volta a casar com o disco (nao trava o proximo deploy)" $r
+
+unset STUB_SUPA_PROJ
+escreve_config
+cp "$IMG/docker-compose.supabase.yml" "$SRV/"; cp "$IMG/kong.yml" "$SRV/"
+cp "$IMG/initdb/01-extensions.sql" "$IMG/initdb/02-roles.sh" "$SRV/initdb/"
+rm -f "$MANIF"; roda "$DIG" > /dev/null 2>&1
 
 echo "== falhas, cada uma com seu registro"
 STUB_PULL=1 roda "$DIG"; [ $? -ne 0 ] && r=0 || r=1; verifica "pull falhando derruba o deploy" $r

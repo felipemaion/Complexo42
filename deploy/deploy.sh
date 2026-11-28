@@ -236,6 +236,7 @@ confere "$CONFIG" "o arquivo de configuracao" || exit 2
 unset PROJECT_DIR ENV_FILE COMPOSE_APP APP_PROJETO REDE_PROXY ALVO_SAUDE MIGRA
 unset DB_CONTAINER DB_USER DB_NOME
 unset INFRA_DIR MANIFESTO IMAGEM ESPERA_SMOKE SMOKE_IMAGEM TRAVA REGISTRO
+unset SUPABASE_PROJETO
 # shellcheck source=/dev/null
 . "$CONFIG"
 
@@ -248,6 +249,12 @@ unset INFRA_DIR MANIFESTO IMAGEM ESPERA_SMOKE SMOKE_IMAGEM TRAVA REGISTRO
 : "${REDE_PROXY:?falta REDE_PROXY na configuracao}"
 : "${ALVO_SAUDE:?falta ALVO_SAUDE na configuracao}"
 : "${MIGRA:?falta MIGRA na configuracao}"
+# OPCIONAL, e de proposito. Sem ela o deploy NAO recria nada no Supabase: só
+# avisa, alto, que a mudanca ficou no disco sem valer. Adivinhar o nome do
+# projeto seria pior que nao agir -- um `up -d` no projeto errado, com o
+# compose do Supabase, derruba o banco. Sem configuracao, comportamento de
+# antes; com ela, recriacao seletiva.
+SUPABASE_PROJETO=${SUPABASE_PROJETO:-}
 # O que o migra.sh precisa. Exigido AQUI, com o resto da configuracao, e nao la
 # dentro: la ele so e exigido na etapa 3/5, DEPOIS do pull e da sincronia da
 # infra -- o deploy faz trabalho, muda arquivos no servidor e so entao descobre
@@ -452,6 +459,123 @@ grava_e_registra() { # grava_e_registra <origem> <alvo> <relativo>
   return 0
 }
 
+# ── aplicar a infra: gravar o arquivo nao e trocar o que roda ────────────
+# Quatro vezes em 2026-11-27 a sincronia gravou e o container seguiu com o
+# conteudo antigo: DB_CONTAINER, os templates em portugues, o kong.yml do #247
+# e o migra.sh. Nas quatro o deploy ficou VERDE. Isto fecha os dois casos que
+# sao do compose do Supabase.
+dc_supabase() {
+  docker compose -p "$SUPABASE_PROJETO" --env-file "$ENV_FILE" \
+    -f "$INFRA_DIR/docker-compose.supabase.yml" "$@"
+}
+
+# Devolve o conteudo anterior dos arquivos que esta sincronia trocou e refaz o
+# manifesto. Refazer o manifesto NAO e detalhe: sem isso o disco passa a
+# divergir do que o manifesto diz, e o deploy SEGUINTE trava como se alguem
+# tivesse editado a mao -- a armadilha que custou 40 minutos em 2026-11-27.
+restaura_infra() { # restaura_infra <raiz temporaria>
+  local tmp=$1 rel falhou=0
+  for rel in "${INFRA_PERMITIDA[@]}"; do
+    [ -f "$tmp/antes/$rel" ] || continue
+    if grava_infra "$tmp/antes/$rel" "$INFRA_DIR/$rel" "$rel"; then
+      log "infra: $rel DEVOLVIDO ao conteudo anterior"
+    else
+      log "ERRO: nao consegui devolver $rel ao conteudo anterior"; falhou=1
+    fi
+  done
+  grava_manifesto || falhou=1
+  return $falhou
+}
+
+# O ensaio decide o ESCOPO; o health check decide se fica. Nunca
+# `--remove-orphans`: ele apagaria servico que nao esta neste compose.
+aplica_no_supabase() { # aplica_no_supabase <tmp> <compose_mudou> <kong_mudou>
+  local tmp=$1 compose_mudou=$2 kong_mudou=$3 ensaio segs
+  [ "$compose_mudou" = 0 ] && [ "$kong_mudou" = 0 ] && return 0
+
+  if [ -z "$SUPABASE_PROJETO" ]; then
+    log "ATENCAO: o compose do Supabase ou o kong.yml mudaram, e SUPABASE_PROJETO"
+    log "         nao esta na configuracao -- NADA foi recriado. Os containers"
+    log "         seguem com a configuracao ANTERIOR, e o deploy vai ficar verde."
+    log "         Ponha SUPABASE_PROJETO=<projeto Compose do Supabase> na config."
+    registra supabase_mudou_recriacao_pendente "$(decorrido)"
+    return 0
+  fi
+
+  # ── ensaio: quem o compose recriaria ──
+  if ! ensaio=$(dc_supabase up -d --dry-run 2>&1); then
+    log "ERRO: o ensaio do compose do Supabase falhou -- nada foi recriado"
+    printf '%s\n' "$ensaio" | while IFS= read -r l; do log "  ensaio: $l"; done
+    restaura_infra "$tmp" || log "ALERTA: a devolucao dos arquivos tambem falhou"
+    return 1
+  fi
+  printf '%s\n' "$ensaio" | while IFS= read -r l; do log "  ensaio: $l"; done
+
+  # ── trava do banco: o deploy NUNCA recria o db por conta propria ──
+  # Recriar o Postgres e decisao humana: encerra conexao, pode disparar
+  # initdb em volume novo, e nao ha rollback que devolva o que se perdeu.
+  if printf '%s\n' "$ensaio" | grep -Eq "$DB_CONTAINER.*(Recreate|Remove|Stop|Kill|Restart)"; then
+    log "ERRO: o ensaio diz que o banco ($DB_CONTAINER) seria recriado."
+    log "      O deploy NAO faz isso por conta propria -- chame um humano."
+    log "      Devolvendo os arquivos de infra ao conteudo anterior."
+    restaura_infra "$tmp" || log "ALERTA: a devolucao dos arquivos tambem falhou"
+    registra supabase_recriaria_db "$(decorrido)"
+    return 1
+  fi
+
+  # ── aplica: o compose decide quais servicos, nunca um mapa escrito a mao ──
+  if [ "$compose_mudou" = 1 ]; then
+    log "infra: aplicando o compose do Supabase (o compose decide o escopo)"
+    dc_supabase up -d || { log "ERRO: up -d no Supabase falhou"; aplica_falhou "$tmp" "$kong_mudou"; return 1; }
+  fi
+  # kong.yml e bind mount: o compose NAO ve mudanca nele. Sem isto o arquivo
+  # novo fica no disco e o Kong segue servindo o anterior -- medido 2x.
+  if [ "$kong_mudou" = 1 ]; then
+    log "infra: kong.yml mudou -- recriando o kong explicitamente (bind mount)"
+    dc_supabase up -d --no-deps --force-recreate kong \
+      || { log "ERRO: recriacao do kong falhou"; aplica_falhou "$tmp" "$kong_mudou"; return 1; }
+  fi
+
+  # ── health check, com as repeticoes do smoke ──
+  # O smoke bate no /api/healthz do app, que desde a sonda de esquema passa
+  # pelo kong e pelo PostgREST: um kong quebrado aparece aqui. E ele REPETE
+  # ate ESPERA_SMOKE -- o Kong levou 9 tentativas para aceitar conexao em
+  # 2026-11-28, e 3 horas antes. Conferir uma vez so reverteria mudanca boa.
+  log "infra: conferindo saude depois de recriar"
+  if segs=$(smoke); then
+    log "infra: saudavel em ${segs}s depois da recriacao"
+    return 0
+  fi
+  log "ERRO: depois de recriar, o app nao respondeu -- devolvendo a infra"
+  aplica_falhou "$tmp" "$kong_mudou"
+  return 1
+}
+
+# Volta atras: devolve os arquivos e recria com eles. Se a volta tambem nao
+# responder, o deploy falha de todo jeito -- mas o registro diz qual dos dois
+# estados ficou, que e o que quem for consertar precisa saber.
+aplica_falhou() { # aplica_falhou <tmp> <kong_mudou>
+  local tmp=$1 kong_mudou=$2
+  if ! restaura_infra "$tmp"; then
+    log "ALERTA: nao consegui devolver os arquivos de infra. Estado MISTO."
+    registra supabase_devolucao_falhou "$(decorrido)"
+    return 0
+  fi
+  dc_supabase up -d > /dev/null 2>&1 || log "ALERTA: up -d da devolucao falhou"
+  if [ "$kong_mudou" = 1 ]; then
+    dc_supabase up -d --no-deps --force-recreate kong > /dev/null 2>&1 \
+      || log "ALERTA: recriacao do kong na devolucao falhou"
+  fi
+  if smoke > /dev/null; then
+    log "infra: devolvida e saudavel -- o deploy falha, o ambiente fica de pe"
+    registra supabase_devolvido_ok "$(decorrido)"
+  else
+    log "ALERTA: nem com a infra devolvida o app responde"
+    registra supabase_devolvido_sem_saude "$(decorrido)"
+  fi
+  return 0
+}
+
 # Um ponto so de limpeza, e trap para o sinal no meio do caminho.
 sincroniza_infra() {
   local rc
@@ -467,6 +591,7 @@ sincroniza_infra() {
 
 sincroniza_infra_em() {
   local tmp=$1 rel alvo origem img loc man mudou=0 initdb_mudou=0 i=0
+  local compose_mudou=0 kong_mudou=0
   local -a acao=() sha_img=()
   extrai_infra "$tmp" || return 1
   confere_sobras "$tmp" || return 1
@@ -515,6 +640,23 @@ sincroniza_infra_em() {
   i=0
   for rel in "${INFRA_PERMITIDA[@]}"; do
     origem="$tmp/deploy/$rel"; alvo="$INFRA_DIR/$rel"; img=${sha_img[i]}
+    # Copia do conteudo ANTERIOR, antes de sobrescrever, para a volta atras.
+    # Só para arquivo que ja existia: em arquivo NOVO nao ha o que devolver,
+    # e devolver seria apagar -- que esta funcao nao faz de proposito.
+    case ${acao[i]} in
+      atualiza:*|adota:*)
+        # `${rel%/*}` devolve o PROPRIO nome quando nao ha barra -- criar isso
+        # como diretorio faria o `cp` copiar para DENTRO dele, e a devolucao
+        # nao acharia o arquivo. Medido: o teste (o) reprovou exatamente nisso.
+        case "$rel" in
+          */*) mkdir -p "$tmp/antes/${rel%/*}" || {
+                 log "ERRO: nao consegui preparar a copia anterior de $rel"; return 1; } ;;
+          *)   mkdir -p "$tmp/antes" || {
+                 log "ERRO: nao consegui preparar a copia anterior de $rel"; return 1; } ;;
+        esac
+        cp -p "$alvo" "$tmp/antes/$rel" || {
+          log "ERRO: nao consegui guardar o conteudo anterior de $rel"; return 1; } ;;
+    esac
     case ${acao[i]} in
       igual) ;;
       novo)
@@ -532,7 +674,14 @@ sincroniza_infra_em() {
     # FORA do ramo do arquivo que ja existia: antes este `case` so rodava la,
     # entao arquivo NOVO em initdb/ nao disparava o aviso -- e e o caso em que
     # ele mais importa, porque e initdb que nunca rodou.
-    case ${acao[i]} in igual) ;; *) case "$rel" in initdb/*) initdb_mudou=1 ;; esac ;; esac
+    case ${acao[i]} in
+      igual) ;;
+      *) case "$rel" in
+           initdb/*) initdb_mudou=1 ;;
+           docker-compose.supabase.yml) compose_mudou=1 ;;
+           kong.yml) kong_mudou=1 ;;
+         esac ;;
+    esac
     i=$((i + 1))
   done
 
@@ -550,6 +699,9 @@ sincroniza_infra_em() {
     log "         acao MANUAL -- ver docs/OPERACAO.md."
     registra initdb_mudou_recriacao_pendente "$(decorrido)"
   fi
+  # Por ultimo, e DENTRO desta funcao: a volta atras precisa das copias que
+  # vivem em "$tmp", e o diretorio temporario morre quando ela retorna.
+  aplica_no_supabase "$tmp" "$compose_mudou" "$kong_mudou" || return 1
   return 0
 }
 
