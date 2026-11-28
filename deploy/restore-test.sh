@@ -13,6 +13,8 @@
 # INITDB_DIR=<dir do deploy>/initdb (padrão: ./initdb ao lado deste script, se existir): o banco
 # descartável nasce com o MESMO initdb do servidor. Sem ele faltam os papéis (anon, authenticated...)
 # que as políticas de RLS citam, e o pg_restore para no primeiro `create policy ... to authenticated`.
+# E o initdb já cria o schema `auth` (vazio): por isso `--clean --if-exists`, que derruba o que o dump
+# traz antes de recriar, sem erro para o que não existe. Um volume novo do servidor tem o mesmo initdb.
 #
 # MINIMOS="perfis=1 unidades=1 ..." (opcional) reprova se alguma contagem de controle vier abaixo
 # do mínimo: um banco restaurado vazio não é "restauração ok". REGISTRO=<arquivo> (opcional,
@@ -113,7 +115,7 @@ set +e
 decifrador < "$ARQ" \
   | docker exec -i -e PGPASSWORD="$SENHA" "$NOME" \
       pg_restore -U supabase_admin -d postgres --no-owner --no-privileges \
-      --exit-on-error > /tmp/restore-$$.log 2>&1
+      --clean --if-exists --exit-on-error > /tmp/restore-$$.log 2>&1
 ESTADO=("${PIPESTATUS[@]}")
 set -e
 FIM_T=$(date +%s)
