@@ -29,7 +29,7 @@ done < "$ARQUIVO"
 CLARO=${CLARO%$'\n'}; EMAIL=${EMAIL%$'\n'}
 [ -n "$CLARO$EMAIL" ] || { echo "nenhum trecho para varrer" >&2; exit 2; }
 
-SAIDA=$(docker exec -i "$DB" psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -At \
+SAIDA=$(docker exec -i "$DB" psql -q -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -At \
   -v claro="$CLARO" -v email="$EMAIL" <<'SQL'
 -- Trechos de texto em claro: por coluna, sem devolver o valor.
 create function pg_temp.varre_trechos(p_claro text[], p_email text[]) returns table (onde text) language plpgsql as $f$
