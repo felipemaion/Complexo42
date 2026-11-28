@@ -311,6 +311,25 @@ describe("submitQuestionnaire", () => {
     });
   });
 
+  it("recusa do banco entrega código e status a quem registra (#313), sem mensagem nem respostas", async () => {
+    // O caso do staging: a pgcrypto fora do schema `extensions` estourava 42883 dentro de verify_server_signature.
+    const seen: RefusalDetail[] = [];
+    const { client } = fakeClient({ error: { code: "42883", message: "function extensions.digest(bytea, unknown) does not exist" }, status: 404 });
+    expect(await submitQuestionnaire(client, { answers: conclusive }, { ...ctx, onRefusal: (d) => seen.push(d) })).toEqual({ ok: false, error: "failed" });
+    expect(seen).toEqual([{ code: "42883", status: 404 }]);
+    expect(JSON.stringify(seen)).not.toMatch(/digest|bytea/);
+  });
+
+  it("termo da pessoa (22023) e sucesso também seguem o contrato: recusa avisa, sucesso não", async () => {
+    const seen: RefusalDetail[] = [];
+    await submitQuestionnaire(fakeClient({ error: { code: "22023" }, status: 400 }).client, { answers: conclusive }, { ...ctx, onRefusal: (d) => seen.push(d) });
+    expect(seen).toEqual([{ code: "22023", status: 400 }]);
+    seen.length = 0;
+    await submitQuestionnaire(fakeClient().client, { answers: conclusive }, { ...ctx, onRefusal: (d) => seen.push(d) });
+    await submitQuestionnaire(fakeClient().client, { answers: { lixo: 1 } }, { ...ctx, onRefusal: (d) => seen.push(d) });
+    expect(seen).toEqual([]);
+  });
+
   describe("recusa visível (#199)", () => {
     /** Cliente cujo envio é recusado com `code` e cuja leitura do pedido aberto devolve `request`. */
     function refusingClient(code: string, request: { data?: unknown; error?: unknown }) {

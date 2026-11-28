@@ -15,8 +15,20 @@ vi.mock("@/server/auth/session", () => ({
 vi.mock("@/server/crypto", () => ({ decryptField: vi.fn(), encryptField: vi.fn(), signQuestionnaireMessage: vi.fn() }));
 vi.mock("./session", () => ({ sessionHouseClient: vi.fn(async () => client) }));
 vi.mock("./questionnaire", () => ({ getQuestionnaire: () => ({ consentTermVersion: "termo-1" }) }));
+// O envio das respostas pontua com o questionário real; aqui só importa o log da recusa, então o servidor
+// do banco é simulado: `submitQuestionnaire` avisa o `onRefusal` que a action passou, como o real faria.
+vi.mock("./houses", async (importOriginal) => {
+  const real = await importOriginal<typeof import("./houses")>();
+  return {
+    ...real,
+    submitQuestionnaire: vi.fn(async (_client: unknown, _input: unknown, ctx: { onRefusal?: (d: { code?: string; status?: number }) => void }) => {
+      ctx.onRefusal?.({ code: "42883", status: 404 });
+      return { ok: false, error: "failed" };
+    }),
+  };
+});
 
-const { acceptHouseAction, recordConsentAction } = await import("./actions");
+const { acceptHouseAction, recordConsentAction, submitAnswersAction } = await import("./actions");
 const { instance } = await import("@config/instance");
 
 function clientFailing(error: unknown, status: number): HouseClient {
@@ -64,5 +76,15 @@ describe("log do aceite recusado (#313)", () => {
     client = { rpc: () => Promise.resolve({ data: "ok", error: null, status: 200 }), from: () => ({ select: () => ({}) as never }) };
     expect(await recordConsentAction({ termVersion: "termo-1" })).toEqual({ ok: true });
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+describe("log do envio das respostas recusado (#313)", () => {
+  it("submitAnswersAction: loga o motivo e o código do Postgres e o status da recusa, sem respostas nem mensagem", async () => {
+    client = clientFailing({ code: "42883", message: "function extensions.digest(bytea, unknown) does not exist" }, 404);
+    expect(await submitAnswersAction({ answers: { q1: 5 } })).toEqual({ ok: false, error: "failed" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith("questionnaire_submit_refused", { reason: "failed", pg_code: "42883", status: 404 });
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/digest|q1/);
   });
 });
