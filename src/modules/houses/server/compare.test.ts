@@ -260,3 +260,21 @@ describe("compareHouse com o token de notas (sem respostas guardadas, #268)", ()
     expect(await compareHouse(client, { houseId: "casa-a", token: bad }, ctx)).toEqual({ ok: false, error: "failed" });
   });
 });
+
+describe("compareHouse: token vencido pede para recarregar (follow-up #270)", () => {
+  it("token legítimo e vencido → erro expired (a tela manda recarregar); inválido ou de outra pessoa continua failed", async () => {
+    const { client, ctx } = setup(members(3));
+    const expired = await sealCompareToken(answers as never, "u-1", -900, encrypt);
+    expect(await compareHouse(client, { houseId: "casa-a", token: expired }, ctx)).toEqual({ ok: false, error: "expired" });
+    const expiredScores = await sealScoresToken({ house1: 10, house2: 10 }, "u-1", -900, encrypt);
+    expect(await compareHouse(client, { houseId: "casa-a", token: expiredScores }, ctx)).toEqual({ ok: false, error: "expired" });
+    expect(await compareHouse(client, { houseId: "casa-a", token: await sealCompareToken(answers as never, "u-2", -900, encrypt) }, ctx)).toEqual({ ok: false, error: "failed" });
+    expect(await compareHouse(client, { houseId: "casa-a", token: "lixo" }, ctx)).toEqual({ ok: false, error: "failed" });
+  });
+
+  it("vencido não gasta o limite nem consulta o banco", async () => {
+    const { client, calls, ctx } = setup(members(3), { limiter: { allow: () => { throw new Error("não deveria contar"); } } });
+    await compareHouse(client, { houseId: "casa-a", token: await sealCompareToken(answers as never, "u-1", -900, encrypt) }, ctx);
+    expect(calls).toEqual([]);
+  });
+});

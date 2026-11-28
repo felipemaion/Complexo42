@@ -36,7 +36,7 @@ const scores = { house1: -60, house2: 40, totem1: 10, totem2: -10 };
 const savedAnswers = { h1a: -5, h1b: -3, h1c: -1, h2a: 5, h2b: 3, h2c: 1, t1a: 1, t2a: -1 };
 
 type Stored = { result?: { house_key: string; scores_enc: string } | null; answers?: string | null; readError?: boolean; rpcError?: boolean };
-function setup(stored: Stored) {
+function setup(stored: Stored, failures: string[] = []) {
   const rpcs: string[] = [];
   const from: string[] = [];
   const client: HouseClient = {
@@ -50,7 +50,7 @@ function setup(stored: Stored) {
       return { select: () => query as never };
     },
   };
-  const ctx: ChangeHouseContext = { questionnaire, houseIds: ["casa-a", "casa-b", "casa-c", "casa-d"], userId: "u-1", nowSeconds: 1000, encrypt, decrypt };
+  const ctx: ChangeHouseContext = { questionnaire, houseIds: ["casa-a", "casa-b", "casa-c", "casa-d"], userId: "u-1", nowSeconds: 1000, encrypt, decrypt, onFailure: (reason) => failures.push(reason) };
   return { client, ctx, rpcs, from };
 }
 const resultRow = (house = "casa-b") => ({ house_key: house, scores_enc: `enc[questionnaire_results.scores_enc.u-1](${JSON.stringify(scores)})` });
@@ -109,5 +109,44 @@ describe("loadChangeHouse", () => {
     expect(text).not.toContain("totem");
     expect(text).not.toContain("h1a");
     expect(view.chart?.every((axis) => axis.key === "house1" || axis.key === "house2")).toBe(true);
+  });
+});
+
+describe("loadChangeHouse: log só com o código do motivo (follow-up #270)", () => {
+  it("erro de leitura do resultado → só o código read_failed (nada de mensagem, id ou valor)", async () => {
+    const failures: string[] = [];
+    const { client, ctx } = setup({ readError: true }, failures);
+    await loadChangeHouse(client, ctx);
+    expect(failures).toEqual(["read_failed"]);
+  });
+
+  it("notas que não decifram → só o código result_unreadable", async () => {
+    const failures: string[] = [];
+    const { client, ctx } = setup({ result: { house_key: "casa-b", scores_enc: "lixo-com-dado-sensivel" } }, failures);
+    await loadChangeHouse(client, ctx);
+    expect(failures).toEqual(["result_unreadable"]);
+    expect(JSON.stringify(failures)).not.toContain("lixo");
+  });
+
+  it("sem resultado (escolheu a casa direto) e leitura boa: nada a registrar", async () => {
+    const failures: string[] = [];
+    await loadChangeHouse(...(() => { const s = setup({ result: null }, failures); return [s.client, s.ctx] as const; })());
+    await loadChangeHouse(...(() => { const s = setup({ result: resultRow(), answers: null }, failures); return [s.client, s.ctx] as const; })());
+    expect(failures).toEqual([]);
+  });
+});
+
+describe("loadChangeHouse: nenhuma chave totem* (follow-up #270)", () => {
+  const keysOf = (value: unknown): string[] =>
+    typeof value === "object" && value !== null ? Object.entries(value).flatMap(([key, inner]) => [key, ...keysOf(inner)]) : Array.isArray(value) ? value.flatMap(keysOf) : [];
+
+  it("a view, e o corpo do token (de notas e de respostas), não têm chave totem*", async () => {
+    for (const answers of [null, answersEnc()]) {
+      const { client, ctx } = setup({ result: resultRow(), answers });
+      const view = await loadChangeHouse(client, ctx);
+      expect(keysOf(view).filter((key) => key.startsWith("totem"))).toEqual([]);
+      const body = JSON.parse(await decrypt(view.compareToken!, { table: "compare_tokens", column: "answers", rowId: "u-1" }));
+      expect(keysOf(body).filter((key) => key.startsWith("totem"))).toEqual([]);
+    }
   });
 });
