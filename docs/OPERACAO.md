@@ -408,7 +408,20 @@ processo com o **nome** da variável no log, nunca o valor.
 > obrigatórias na subida — app que não autentica ninguém não é app meio
 > funcionando — e por isso existe a guarda
 > `scripts/check-env-compose.py` no CI, que confere o par
-> (obrigatórias no `env.ts`) × (`environment:` do compose do app).
+> (obrigatórias no `env.ts`) × (`environment:` do compose do app) em **três
+> estados**: obrigatória ausente → erro; obrigatória repassada com `:-`
+> (tolerando vazio) → erro, porque a falha só mudaria de lugar; `:?` numa
+> chave fora da lista → **aviso**, porque é obrigatoriedade declarada só no
+> compose, invisível para quem lê o `env.ts` — e há caso legítimo
+> (`SUPABASE_PUBLIC_URL` recebe `${SITE_URL:?}`).
+>
+> E o deploy ganhou um **preflight** antes das migrations: `compose config -q`
+> resolve o compose do app com o env do ambiente, então variável ausente falha
+> citando o nome dela, na etapa 2/5. Antes isso só aparecia no `up` da 4/5 —
+> **depois das migrations aplicadas** —, e ali o rollback tentava subir a
+> imagem anterior com o mesmo env quebrado, falhava também e registrava
+> `rollback_falhou`: o log acusava o rollback quando o problema era uma linha
+> de configuração.
 >
 > **O `QUESTIONNAIRE_SIGNING_KEY` ainda não está no `secrets/env` do staging**
 > (conferido em 2026-11-28). Ele é repassado pelo compose e tolerado vazio, de

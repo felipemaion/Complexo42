@@ -476,8 +476,8 @@ dc_supabase() {
 # Ecoa a saida do compose no log, LIMITADA. Erro de interpolacao do compose
 # cita o NOME da variavel, nao o valor -- mas saida de terceiro no log do root
 # merece teto, e `head` aqui nao esconde decisao nenhuma: a decisao sai das
-# funcoes abaixo, nao do que foi impresso.
-ecoa_ensaio() { # ecoa_ensaio <texto>
+# funcoes abaixo, nao do que foi impresso. Serve ao ensaio e ao preflight.
+ecoa_compose() { # ecoa_compose <texto>
   local l n=0
   while IFS= read -r l; do
     n=$((n + 1))
@@ -530,7 +530,7 @@ banco_em_risco() { # banco_em_risco <texto do ensaio>
   # Skipped nao: banco parado que sobe de novo nao perde nada.
   if grep -Eq '(Creat|Recreat|Remov|Stopp?|Kill|Restart)' <<< "$linhas"; then
     log "ERRO: o ensaio diz que o banco ($DB_CONTAINER) seria tocado:"
-    ecoa_ensaio "$linhas"
+    ecoa_compose "$linhas"
     return 0
   fi
   return 1
@@ -587,12 +587,12 @@ aplica_no_supabase() { # aplica_no_supabase <tmp> <compose_mudou> <kong_mudou>
   # ── ensaio: quem o compose recriaria ──
   if ! ensaio=$(dc_supabase up -d --dry-run 2>&1); then
     log "ERRO: o ensaio do compose do Supabase falhou -- nada foi recriado"
-    ecoa_ensaio "$ensaio"
+    ecoa_compose "$ensaio"
     restaura_infra "$tmp" || log "ALERTA: a devolucao dos arquivos tambem falhou"
     registra supabase_ensaio_falhou "$(decorrido)"
     return 1
   fi
-  ecoa_ensaio "$ensaio"
+  ecoa_compose "$ensaio"
 
   # ── trava do banco: o deploy NUNCA toca o db por conta propria ──
   # Recriar o Postgres e decisao humana: encerra conexao, pode disparar
@@ -816,6 +816,25 @@ elif ! sincroniza_infra; then
   log "ERRO: sincronia da infra falhou -- app NAO foi trocado"
   registra infra_falhou "$(decorrido)"; exit 1
 fi
+
+# ── preflight: a configuracao do app RESOLVE? ──
+# `config -q` resolve o compose com o env e falha citando a variavel que falta.
+# Sem isto, variavel ausente so aparece no `up` da etapa 4/5 -- DEPOIS das
+# migrations aplicadas --, e la o rollback tenta subir a imagem anterior com O
+# MESMO env quebrado, falha tambem, e registra `rollback_falhou`: o log aponta
+# para o rollback quando o problema e uma linha de configuracao.
+#
+# Depois da sincronia da infra, de proposito: o compose que vale e o que acabou
+# de ser gravado, nao o que estava em disco quando o deploy comecou.
+log "preflight da configuracao do app"
+if ! saida_preflight=$(APP_IMAGEM="$IMAGEM_ALVO" dc config -q 2>&1); then
+  log "ERRO: a configuracao do app nao resolve -- app NAO foi trocado, nada migrado"
+  ecoa_compose "$saida_preflight"
+  log "      Em geral e variavel ausente no env do ambiente. O nome dela esta acima."
+  registra preflight_falhou "$(decorrido)"
+  exit 1
+fi
+log "preflight ok: o compose do app resolve com este env"
 
 # 3/5 ANTES do up: migration quebrada não pode conviver com app novo.
 log "3/5 migrations"

@@ -48,6 +48,8 @@ case "$1" in
        case "${STUB_SMOKE:-ok}" in ok) exit 0 ;; falha_sempre) exit 1 ;;
          falha_primeiro) [ "$n" -le "${STUB_FALHAS:-3}" ] && exit 1; exit 0 ;; esac ;;
 esac
+# Preflight da configuracao do app: `config -q`.
+case "$*" in *"config -q"*) exit "${STUB_CONFIG:-0}" ;; esac
 # O ensaio ANTES do `up -d` generico: ele tambem casa com *"up -d"*.
 case "$*" in
   *"up -d --dry-run"*)
@@ -526,6 +528,33 @@ escreve_config
 cp "$IMG/docker-compose.supabase.yml" "$SRV/"; cp "$IMG/kong.yml" "$SRV/"
 cp "$IMG/initdb/01-extensions.sql" "$IMG/initdb/02-roles.sh" "$SRV/initdb/"
 rm -f "$MANIF"; roda "$DIG" > /dev/null 2>&1
+
+echo "== preflight da configuracao do app (antes das migrations)"
+: > "$STUB_MIGRA"
+roda "$DIG"; verifica "caminho feliz: deploy segue" $?
+grep -q -- 'config -q' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "o preflight RODA no caminho feliz" $r
+grep -q 'preflight ok' "$BASE/saida" && r=0 || r=1
+verifica "e diz que resolveu" $r
+o_pre=$(grep -n -- 'config -q' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+o_up=$(grep -nE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+[ -n "$o_pre" ] && { [ -z "$o_up" ] || [ "$o_pre" -lt "$o_up" ]; } && r=0 || r=1
+verifica "e vem ANTES do up do app" $r
+
+: > "$STUB_MIGRA"
+STUB_CONFIG=1 roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "configuracao que nao resolve DERRUBA o deploy" $r
+grep -q 'nada migrado' "$BASE/saida" && r=0 || r=1
+verifica "e diz que nada foi migrado" $r
+[ ! -s "$STUB_MIGRA" ] && r=0 || r=1
+verifica "e as migrations NAO rodam (era isso que o preflight existe para evitar)" $r
+grep -q 'preflight_falhou' "$LOG" && r=0 || r=1
+verifica "e registra preflight_falhou, nao rollback_falhou" $r
+grep -q 'rollback' "$BASE/saida" && r=1 || r=0
+verifica "e NAO fala de rollback: nao houve troca para desfazer" $r
+grep -qE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e o app NAO e trocado" $r
 
 echo "== falhas, cada uma com seu registro"
 STUB_PULL=1 roda "$DIG"; [ $? -ne 0 ] && r=0 || r=1; verifica "pull falhando derruba o deploy" $r
