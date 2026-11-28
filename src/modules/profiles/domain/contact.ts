@@ -2,6 +2,7 @@
 // escolhas possíveis e a leitura do que o formulário e o banco mandam. A decisão de acesso é do
 // banco (`app.can_view_contact`, R15); aqui só se valida a entrada (Zod, no servidor).
 import { z } from "zod";
+import { formatBrazilianWhatsapp, whatsappLink } from "./whatsapp";
 
 /** Os contatos que a pessoa controla, um por um. */
 export const contactKinds = ["whatsapp", "social", "email"] as const;
@@ -44,6 +45,26 @@ export type MemberContact = {
   email?: string | null;
 };
 
+/** Quais contatos de um alvo quem olha pode ver (só permissão, sem valor; vem de `contact_access`). */
+export type ContactAccess = Record<ContactKind, boolean>;
+
+/**
+ * Resultado do clique em "ver contato", já pronto para a tela (o valor foi decifrado no servidor). `forbidden` é o
+ * mesmo texto para qualquer motivo: a permissão pode ter mudado entre a tela e o clique.
+ */
+export type ViewContactState =
+  | { status: "idle" }
+  | { status: "forbidden" | "rate_limited" | "failed"; kind: ContactKind }
+  | {
+      status: "ok";
+      kind: ContactKind;
+      /** Nada cadastrado para esse tipo. */
+      empty: boolean;
+      whatsapp?: { display: string; href: string | null };
+      social?: string[];
+      email?: { address: string; href: string | null };
+    };
+
 /** Um acesso ao contato da pessoa, já com o nome de quem viu decifrado (ou nulo). */
 export type ContactView = { viewerName: string | null; kind: ContactKind; viewedAt: string };
 
@@ -77,4 +98,26 @@ export function describeContactView(view: ContactView, text: ContactViewText): s
     .replace("{name}", view.viewerName ?? text.viewsUnknownPerson)
     .replace("{kind}", text.viewsKinds[view.kind])
     .replace("{date}", date);
+}
+
+const emailShape = /^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,24}$/;
+
+/**
+ * Transforma o contato devolvido pelo banco (já decifrado) no que a tela mostra. O link do WhatsApp é `wa.me` só com
+ * dígitos validados; o do e-mail só se o endereço tem a forma de e-mail. Qualquer coisa fora disso aparece como texto,
+ * sem link. Sem valor: `empty`.
+ */
+export function viewStateFromContact(kind: ContactKind, contact: MemberContact): ViewContactState {
+  if (kind === "whatsapp") {
+    const value = contact.whatsapp;
+    if (!value) return { status: "ok", kind, empty: true };
+    return { status: "ok", kind, empty: false, whatsapp: { display: formatBrazilianWhatsapp(value), href: whatsappLink(value) } };
+  }
+  if (kind === "social") {
+    const links = contact.social ?? [];
+    return links.length === 0 ? { status: "ok", kind, empty: true } : { status: "ok", kind, empty: false, social: links };
+  }
+  const address = contact.email;
+  if (!address) return { status: "ok", kind, empty: true };
+  return { status: "ok", kind, empty: false, email: { address, href: emailShape.test(address) ? `mailto:${address}` : null } };
 }
