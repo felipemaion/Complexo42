@@ -28,9 +28,15 @@ case "$1" in
     case "$*" in
       *pg_tables*) printf '%s\n' "${STUB_ESTADO:-0 0}"; exit 0 ;;
       *"select version from"*) printf '%s\n' ${STUB_APLICADAS:-}; exit 0 ;;
+      # O aviso ao PostgREST passa por aqui (psql -q -c "notify pgrst, ...").
+      # STUB_FALHA_NOTIFY simula banco que aceita conexao e recusa o comando.
+      *"notify pgrst"*) [ -n "${STUB_FALHA_NOTIFY:-}" ] && exit 1; exit 0 ;;
       *"-q -c"*) exit 0 ;;
     esac
     sql=$(cat); printf '%s\n' "$sql" > "$STUB_SQL"
+    # Marcador de ORDEM: so assim o teste distingue "avisou depois de aplicar"
+    # de "avisou antes", que seria inutil -- o cache releria o esquema velho.
+    printf 'APLICOU\n' >> "$STUB_CHAMADAS"
     # A falha casa pelo NOME DO ARQUIVO no marcador \echo, nao por comentario:
     # comentario some se alguem reescrever a migration.
     for m in ${STUB_FALHA_EM:-}; do
@@ -111,6 +117,31 @@ grep -q 'create table um()' "$STUB_SQL" && r=1 || r=0
 verifica "e NAO executa o corpo de nenhuma" $r
 STUB_ESTADO="0 0" roda
 verifica "banco vazio nao precisa de --adotar" $?
+
+echo "== aviso ao PostgREST (cache de esquema)"
+roda
+grep -q "notify pgrst, 'reload schema'" "$STUB_CHAMADAS" && r=0 || r=1
+verifica "avisa o PostgREST para reler o esquema" $r
+ordem_aplicou=$(grep -n '^APLICOU$' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+ordem_aviso=$(grep -n 'notify pgrst' "$STUB_CHAMADAS" | head -n1 | cut -d: -f1)
+[ -n "$ordem_aplicou" ] && [ -n "$ordem_aviso" ] && [ "$ordem_aplicou" -lt "$ordem_aviso" ] && r=0 || r=1
+verifica "o aviso vem DEPOIS de aplicar, nao antes" $r
+
+STUB_APLICADAS=$'20260101000000\n20260202000000\n20260303000000' roda
+grep -q 'nada pendente' "$BASE/saida" && r=0 || r=1
+verifica "nada pendente: segue saindo 0" $r
+grep -q "notify pgrst" "$STUB_CHAMADAS" && r=0 || r=1
+verifica "e avisa MESMO SEM migration nova (cache velho sem DDL novo)" $r
+
+STUB_ESTADO="-1 12" roda --adotar
+grep -q "notify pgrst" "$STUB_CHAMADAS" && r=0 || r=1
+verifica "--adotar tambem avisa" $r
+
+STUB_FALHA_NOTIFY=1 roda
+[ $? -ne 0 ] && r=0 || r=1
+verifica "aviso falhando DERRUBA o script (API ficaria com esquema velho)" $r
+grep -q 'nao consegui avisar o PostgREST' "$BASE/saida" && r=0 || r=1
+verifica "e diz exatamente o que falhou" $r
 
 echo "== repositorio publico"
 grep -Eq '([0-9]{1,3}\.){3}[0-9]{1,3}|/home/[a-z]|ubuntu@' "$SCRIPT" && r=1 || r=0
