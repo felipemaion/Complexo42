@@ -32,7 +32,8 @@ where not exists (select 1 from public.units as u where u.state_code = s.uf)
 -- ---------------------------------------------------------------------------------------
 -- 2. Auditoria: um evento de sistema, só com a contagem
 -- ---------------------------------------------------------------------------------------
--- (Esta lista repete a vigente em `20261128120000_skill_search.sql` e acrescenta o evento novo.)
+-- (Esta lista repete a vigente em `20261128170000_skill_catalog_admin.sql` e acrescenta o evento novo. Migration nova
+-- que mexa nesta lista tem de partir da última e manter este evento.)
 alter table public.audit_log drop constraint audit_log_event_check;
 alter table public.audit_log add constraint audit_log_event_check check (event in (
   'contact_viewed', 'role_granted', 'role_revoked', 'member_moved', 'logo_approved',
@@ -47,6 +48,7 @@ alter table public.audit_log add constraint audit_log_event_check check (event i
   'house_window_opened', 'house_window_closed',
   'skill_suggestion_decided', 'skill_reactivated',
   'skills_searched',
+  'skill_created', 'skill_renamed', 'skill_moved', 'skill_deactivated', 'skill_merged', 'skill_group_renamed',
   'members_attached_to_state'
 ));
 
