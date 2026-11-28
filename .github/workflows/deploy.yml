@@ -123,3 +123,17 @@ jobs:
               -o ServerAliveInterval=15 \
               -o ServerAliveCountMax=4 \
               "$USUARIO@$MAQUINA" "$REF"
+
+      # Cabeçalhos de segurança de fora, como o navegador vê (#86): CSP com nonce, Permissions-Policy, HSTS,
+      # cookies, nenhum CORS em /auth/v1 e nenhum 200 nas varreduras comuns. O script vem do repositório
+      # (público) no mesmo commit, sem checkout e sem token. Falhou: o deploy já está no ar, mas o job fica
+      # vermelho para alguém olhar. O endereço é a variável SITE_URL do environment.
+      - name: Conferir os cabeçalhos de segurança
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          SCRIPT_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/scripts/check-headers.sh
+        run: |
+          set -euo pipefail
+          [ -n "$SITE_URL" ] || { echo "ERRO: falta a variável SITE_URL no environment"; exit 1; }
+          curl -fsSL --max-time 30 "$SCRIPT_URL" -o "$RUNNER_TEMP/check-headers.sh"
+          bash "$RUNNER_TEMP/check-headers.sh" "$SITE_URL"
