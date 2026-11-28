@@ -46,6 +46,7 @@
 - #153 CI: scan de dependências, imagem e código (npm audit, Trivy, Semgrep) — `seguranca, infra`
 - #282 Deploy: marcador de aplicação pendente da infra (disco novo, containers velhos)
 - #286 Deploy: o `docker-compose.app.yml` do servidor não é sincronizado nem conferido
+- #293 Deps: triar os PRs do dependabot #163–#166
 
 ## M1 · Cadastro do aluno
 
@@ -53,6 +54,11 @@
 - #87 Infra: provedores de login no Auth auto-hospedado (Google OAuth + relay SMTP) — `bloqueada, seguranca, backend, infra`
 - #130 Baixar e excluir meus dados também para quem está em espera ou bloqueado (decisão do jurídico) — `precisa-decisao, frontend`
 - #222 Checar no boot/healthz que a versão do termo da config existe no banco (`public.term_version_exists`)
+- #288 Deploy: compose do servidor repassa `FIELD_ENCRYPTION_KEY` e `BLIND_INDEX_KEY` (destrava o login no staging)
+- #289 Env: repor a exigência das chaves de cifra em produção (depende da #288; desfaz o #285)
+- #290 Staging: gerar `QUESTIONNAIRE_SIGNING_KEY` e exigi-la na subida
+- #291 Auth: teste negativo do login com Google
+- #292 Conteúdo: pendências do Cortez (Siracusa, "Primeiros passos", catálogo de habilidades)
 
 ## M2 · Busca e painel da coordenação
 
