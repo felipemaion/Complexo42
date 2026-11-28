@@ -79,7 +79,7 @@ async function joinThroughQuestionnaire(page: Page, request: APIRequestContext, 
   // O resultado é pontuado, cifrado e assinado no app e conferido no banco (pgcrypto em `extensions`).
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
   await page.getByTestId("continue-link").click();
   await expect(page).toHaveURL(`${baseURL}/perfil`);

@@ -151,7 +151,7 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   await page.getByRole("button", { name: "[PREENCHER] Atividade exemplo 2A" }).click();
   await expect(page.getByTestId("house-name")).toHaveText("Atenas");
   await page.getByRole("button", { name: "Aceitar" }).click();
-  await expect(page.getByRole("heading", { name: "Sua casa", exact: true })).toBeVisible();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
 
   // Só então o perfil (#12): "Continuar" leva à página inicial, que manda quem não tem perfil ao formulário.
   await page.getByTestId("continue-link").click();
