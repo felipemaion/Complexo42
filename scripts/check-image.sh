@@ -13,6 +13,12 @@
 #           porque o erro só existe depois de o PostgREST resolver a tabela.
 set -euo pipefail
 img="${1:?uso: $0 <imagem>}"
+# Chaves de cifra de TESTE, 32 bytes em base64. Obrigatórias em produção desde
+# 2026-11-28: sem elas o processo recusa subir -- que é exatamente o conserto.
+# base64 de 32 bytes, nao 43 caracteres iguais mais "=": o app exige que a
+# chave sobreviva ao round-trip base64, e so o primeiro jeito garante isso.
+CHAVE_TESTE_A=$(printf 'a%.0s' $(seq 1 32) | base64 | tr -d '\n')
+CHAVE_TESTE_B=$(printf 'b%.0s' $(seq 1 32) | base64 | tr -d '\n')
 name="healthz-check-$$"
 fail() { echo "FALHOU: $*" >&2; exit 1; }
 cleanup() { docker rm -f "$name" "$name-rest" >/dev/null 2>&1 || true; }
@@ -59,6 +65,7 @@ healthz() {
   docker run -d --name "$name" --read-only --tmpfs /tmp -e DB_HEALTH_URL="$1" \
     -e SUPABASE_URL="$2" -e SITE_URL=http://127.0.0.1:3000 \
     -e TURNSTILE_SITE_KEY=1x00000000000000000000AA -e TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
+    -e FIELD_ENCRYPTION_KEY="$CHAVE_TESTE_A" -e BLIND_INDEX_KEY="$CHAVE_TESTE_B" \
     -e SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiJ9.$(printf %s '{"role":"anon"}' | base64).ci" "$img" >/dev/null
   # O dublê entra DEPOIS, na pilha de rede do app, e precisa dele de pé.
   docker run -d --name "$name-rest" --network "container:$name" --read-only \

@@ -37,6 +37,26 @@ services:
       # widget DESTE ambiente, criadas no painel da Cloudflare (docs/OPERACAO.md).
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?obrigatorio}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?obrigatorio}
+      # Cifra de campo (ADR 0003). SEM ELAS O LOGIN NÃO FUNCIONA: a checagem de
+      # acesso cifra/decifra, e sem chave o app responde `missing_key` -- o
+      # processo sobe saudável e recusa toda entrada. Foi o que aconteceu no
+      # staging em 2026-11-28: as chaves estavam no `secrets/env`, com valor, e
+      # este bloco não as listava. `:?` para o compose recusar subir sem elas,
+      # como já faz com a ANON_KEY; a guarda do CI confere o par
+      # (env.ts obrigatórias) x (este bloco).
+      FIELD_ENCRYPTION_KEY: ${FIELD_ENCRYPTION_KEY:?obrigatorio}
+      BLIND_INDEX_KEY: ${BLIND_INDEX_KEY:?obrigatorio}
+      # Rotação de chave (ADR 0003 §5): vazio é o normal. Precisam estar aqui
+      # para a rotação não exigir editar o compose no meio da operação.
+      FIELD_ENCRYPTION_KEY_VERSION: ${FIELD_ENCRYPTION_KEY_VERSION:-}
+      FIELD_ENCRYPTION_PREVIOUS_KEYS: ${FIELD_ENCRYPTION_PREVIOUS_KEYS:-}
+      # Assinatura do resultado do questionário (ADR 0014). Vazio é tolerado
+      # aqui -- o app trata vazio como ausente -- porque ela ainda NÃO está no
+      # secrets/env do staging (conferido em 2026-11-28); sem ela o
+      # questionário falha ao gravar, mas o resto do app funciona. Por isso não
+      # entrou nas obrigatórias: derrubaria o ambiente inteiro em vez de uma
+      # tela. Gerar e instalar a chave é ação do dono do servidor.
+      QUESTIONNAIRE_SIGNING_KEY: ${QUESTIONNAIRE_SIGNING_KEY:-}
       # CSP (#152): "1" só avisa no console do navegador, para a estreia no
       # staging; vazio (padrão) bloqueia. Não deixe "1" em produção (docs/OPERACAO.md).
       CSP_REPORT_ONLY: ${CSP_REPORT_ONLY:-}

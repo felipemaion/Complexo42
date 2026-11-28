@@ -50,8 +50,9 @@ const envSchema = z.object({
   LOG_DIR: z.string().default("data/logs"),
   GIT_SHA: z.string().regex(/^[0-9a-f]{7,40}$/, { error: "precisa ser um hash de commit" }).optional(),
   APP_VERSION: z.string().regex(/^[\w.+-]{1,64}$/, { error: "formato de tag inválido" }).optional(),
-  // Opcionais na subida: rota que não usa criptografia não depende delas. Quem cifra ou
-  // decifra sem elas recebe erro claro (src/server/crypto, código "missing_key").
+  // OBRIGATÓRIAS em produção (ver REQUIRED_IN_PRODUCTION) desde 2026-11-28: sem elas a
+  // checagem de acesso falha com "missing_key" e NINGUÉM entra. Fora de produção seguem
+  // opcionais. Quem cifra ou decifra sem elas recebe erro claro (src/server/crypto).
   FIELD_ENCRYPTION_KEY: key32.optional(),
   FIELD_ENCRYPTION_KEY_VERSION: z.coerce
     .number({ error: "precisa ser um número" })
@@ -95,7 +96,25 @@ const envSchema = z.object({
 
 // Obrigatórias só em produção. Checadas fora do schema para aparecerem junto com os
 // demais erros (o Zod pula refinamentos quando algum campo já falhou).
-const REQUIRED_IN_PRODUCTION = ["DB_HEALTH_URL", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SITE_URL", "TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"] as const;
+// As chaves de cifra entram aqui para o app RECUSAR SUBIR sem elas, em vez de
+// subir e falhar no primeiro uso -- que e o login. Em 2026-11-28 o staging
+// passou a recusar entrada com `missing_key` porque elas nao chegavam ao
+// container, e nada acusou: o processo estava vivo e saudavel.
+//
+// QUESTIONNAIRE_SIGNING_KEY NAO entra, de proposito: ela nao esta no
+// secrets/env do staging (conferido em 2026-11-28), e exigi-la aqui faria o
+// app recusar subir -- trocar uma falha no questionario por uma queda do
+// ambiente inteiro. Entra quando a chave existir nos ambientes.
+const REQUIRED_IN_PRODUCTION = [
+  "DB_HEALTH_URL",
+  "SUPABASE_URL",
+  "SUPABASE_ANON_KEY",
+  "SITE_URL",
+  "TURNSTILE_SITE_KEY",
+  "TURNSTILE_SECRET_KEY",
+  "FIELD_ENCRYPTION_KEY",
+  "BLIND_INDEX_KEY",
+] as const;
 
 export type ServerEnv = z.infer<typeof envSchema>;
 

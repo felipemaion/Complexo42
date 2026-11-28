@@ -395,6 +395,26 @@ processo com o **nome** da variável no log, nunca o valor.
 | `DB_HEALTH_URL` | obrigatória em produção; no servidor, `http://rest:3001/ready` (admin do PostgREST) |
 | `HEALTH_TIMEOUT_MS` | tempo máximo de **cada** sonda do healthz (padrão 2000; as duas correm em paralelo) |
 | `LOG_DIR` | onde fica o `app.log` (padrão `data/logs`) |
+| `FIELD_ENCRYPTION_KEY` | **obrigatória em produção**; cifra de campo (ADR 0003). Sem ela **ninguém entra** |
+| `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra** |
+| `FIELD_ENCRYPTION_KEY_VERSION`, `FIELD_ENCRYPTION_PREVIOUS_KEYS` | rotação de chave (ADR 0003 §5); vazio é o normal |
+| `QUESTIONNAIRE_SIGNING_KEY` | assina o resultado do questionário (ADR 0014). **Ausente no staging** em 2026-11-28 |
+
+> **As duas primeiras ficaram 9 dias no `secrets/env` sem chegar ao container.**
+> O `gen-secrets.sh` as gerava, o `env.example` as documentava, e o
+> `environment:` do `docker-compose.app.yml` não as listava. O container subia
+> saudável, o `/api/healthz` respondia `200` e **todo login era recusado** com
+> `auth_access_check_failed reason=missing_key`. Por isso elas agora são
+> obrigatórias na subida — app que não autentica ninguém não é app meio
+> funcionando — e por isso existe a guarda
+> `scripts/check-env-compose.py` no CI, que confere o par
+> (obrigatórias no `env.ts`) × (`environment:` do compose do app).
+>
+> **O `QUESTIONNAIRE_SIGNING_KEY` ainda não está no `secrets/env` do staging**
+> (conferido em 2026-11-28). Ele é repassado pelo compose e tolerado vazio, de
+> propósito: sem ele o questionário falha ao gravar o resultado, mas o resto
+> do app funciona. Exigi-lo na subida trocaria uma tela quebrada pelo ambiente
+> inteiro fora. Gerar e instalar a chave é ação do dono do servidor.
 
 `GET /api/healthz` responde `{status, version, db, schema}` com
 `Cache-Control: no-store`, e dá **200 só quando as duas sondas passam**:
