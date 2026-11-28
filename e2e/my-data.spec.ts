@@ -47,9 +47,13 @@ test.describe("quem está em espera baixa os próprios dados (#130)", () => {
     // Sem a lista de autorizados, a pessoa fica em espera e não alcança mais nenhuma tela de dentro.
     await expect(page).toHaveURL(`${baseURL}/espera`);
 
-    const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Baixar meus dados" }).click()]);
+    // Se o servidor recusar (limite ou erro), a tela volta para /espera?dados=...: falha com o motivo, sem esperar o tempo todo.
+    const download = page.waitForEvent("download", { timeout: 20_000 }).catch(() => null);
+    await page.getByRole("button", { name: "Baixar meus dados" }).click();
+    const file = await download;
+    expect(file, `sem download; a página ficou em ${page.url()}`).not.toBeNull();
     const chunks: Buffer[] = [];
-    for await (const chunk of await file.createReadStream()) chunks.push(chunk as Buffer);
+    for await (const chunk of await file!.createReadStream()) chunks.push(chunk as Buffer);
     const text = Buffer.concat(chunks).toString("utf8");
     const data = JSON.parse(text);
     expect(data.conta.emailDeLogin).toBe(me.email);
