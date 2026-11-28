@@ -628,7 +628,10 @@ aplica_no_supabase() { # aplica_no_supabase <tmp> <compose_mudou> <kong_mudou>
   # ── ensaio: quem o compose recriaria ──
   if ! ensaio=$(dc_supabase up -d --dry-run 2>&1); then
     log "ERRO: o ensaio do compose do Supabase falhou -- nada foi recriado"
-    ecoa_compose "$ensaio"
+    # Mesmo --env-file do preflight: no ramo de FALHA a saida pode ser erro de
+    # dotenv, com `CHAVE=valor` dentro. Aqui vai so o NOME. No ramo de sucesso
+    # a saida e a lista de containers do ensaio, que e o que se quer ler.
+    ecoa_variaveis "$ensaio" ensaio
     restaura_infra "$tmp" || log "ALERTA: a devolucao dos arquivos tambem falhou"
     registra supabase_ensaio_falhou "$(decorrido)"
     return 1

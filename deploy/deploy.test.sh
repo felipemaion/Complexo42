@@ -559,6 +559,26 @@ verifica "e NAO fala de rollback: nao houve troca para desfazer" $r
 grep -qE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" && r=1 || r=0
 verifica "e o app NAO e trocado" $r
 
+echo "== nem o ENSAIO do Supabase leva valor do env para o log"
+# Mesmo --env-file, mesma forma de erro: apontado na revisao do #284.
+export STUB_SUPA_PROJ=stgsupa
+printf 'SUPABASE_PROJETO=stgsupa\n' >> "$BASE/deploy.conf"
+printf 'compose v9\n' > "$IMG/docker-compose.supabase.yml"
+: > "$STUB_MIGRA"
+STUB_ENSAIO_SAIDA=1 \
+STUB_ENSAIO='unexpected character "x" in variable name near "SEGREDO=zzz-do-ensaio"' \
+  roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "ensaio ilegivel derruba o deploy" $r
+grep -q 'zzz-do-ensaio' "$BASE/saida" && r=1 || r=0
+verifica "e o VALOR nao aparece na saida" $r
+grep -q 'zzz-do-ensaio' "$LOG" && r=1 || r=0
+verifica "nem no deploy.log" $r
+unset STUB_SUPA_PROJ
+escreve_config
+cp "$IMG/docker-compose.supabase.yml" "$SRV/"; rm -f "$MANIF"
+roda "$DIG" > /dev/null 2>&1
+
 echo "== o preflight nao leva valor do env para o log do root"
 # Erro de dotenv tem a forma `... in variable name near "CHAVE=valor"`: filtrar
 # por linha casaria "variable" e levaria o VALOR. Apontado em revisao do #284.
