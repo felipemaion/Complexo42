@@ -906,8 +906,8 @@ Postgres descartável e apaga o que baixou no fim.
 Dois olhos, porque o servidor não consegue avisar que caiu:
 
 - **De fora**, o monitor de uptime (passo do Felipe, abaixo) consulta o `/api/healthz` de cada ambiente
-  a cada 5 min. Um workflow diário do GitHub (`.github/workflows/vigia-externo.yml`) confere de novo o
-  healthz e o certificado: é o reforço, e pega também o vigia do servidor ter parado.
+  a cada 5 min. Um workflow diário do GitHub (`.github/workflows/vigia-externo.yml`, PR de workflow #367, merge do
+  Felipe) confere de novo o healthz e o certificado: é o reforço, e pega também o vigia do servidor ter parado.
 - **De dentro**, o `deploy/vigia.sh` roda a cada 5 min e mede: disco ≥ 80% (`/`, a raiz de dados do
   Docker e `data/logs`), memória de cada container ≥ 90% do `mem_limit`, container `unhealthy` ou
   reiniciando, backup mais novo com mais de 26 h e certificado a menos de 15 dias. Não conseguir medir
