@@ -90,6 +90,21 @@ export async function requireAccessUserClient(): Promise<{ user: CurrentUser; cl
 }
 
 /**
+ * Sessão + portão de acesso, SEM o do termo, o da casa e o da espera: para o titular exercer o direito de acesso aos
+ * próprios dados (LGPD art. 18) também em espera (#130, parte 1). Quem está `waitlisted` passa em vez de ir para a
+ * espera; quem está `blocked` (ou cuja leitura do status falhou) segue o caminho de sempre: a sessão é encerrada. O
+ * acesso dos bloqueados aos próprios dados espera a decisão do jurídico (#130, parte 2). Nunca `service_role`.
+ */
+export async function requireHolderClient(): Promise<{ user: CurrentUser; client: AuthClient }> {
+  const session = await getSession();
+  if (!session) redirect(LOGIN_PATH);
+  // `accessRedirect` manda a espera para /espera: aqui ela passa. Bloqueio e falha continuam saindo pelo logout.
+  const denied = await accessRedirect(session.client, session.user.id);
+  if (denied && denied !== WAITLIST_PATH) redirect(denied);
+  return { user: session.user, client: session.client };
+}
+
+/**
  * Sessão + acesso + termo (#11), SEM a casa: só a tela da casa e as ações da escolha da casa usam esta
  * (ADR 0017), senão ninguém chegaria a elas. Quem não aceitou a versão atual do termo vai para a tela do termo.
  */
