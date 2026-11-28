@@ -11,8 +11,8 @@ describe("probeTerms (#222)", () => {
     expect(await probeTerms(BASE, CHAVE, versions, 1000, async () => resposta("ok"))).toEqual({ status: "ok" });
   });
 
-  it.each(["questionnaire_missing", "consent_mismatch"] as const)("%s: o banco não tem a versão da config", async (motivo) => {
-    expect(await probeTerms(BASE, CHAVE, versions, 1000, async () => resposta(motivo))).toEqual({ status: motivo });
+  it("degraded: o banco não tem a versão da config (sem dizer qual)", async () => {
+    expect(await probeTerms(BASE, CHAVE, versions, 1000, async () => resposta("degraded"))).toEqual({ status: "degraded" });
   });
 
   it("chama a função pública por POST, com a chave anon e as duas versões no corpo", async () => {

@@ -31,7 +31,7 @@ describe("evaluateHealth", () => {
 // #222: versão do termo da config ausente no banco (a tabela vazia do staging): o aceite é recusado em
 // silêncio. O corpo diz só "degraded"; o motivo vai ao log.
 describe("evaluateHealth: versões do termo", () => {
-  it.each(["questionnaire_missing", "consent_mismatch", "unavailable", "unconfigured"] as const)("503 degradado com o termo %s", (terms) => {
+  it.each(["degraded", "unavailable", "unconfigured"] as const)("503 degradado com o termo %s", (terms) => {
     expect(evaluateHealth("ok", "ok", terms, version)).toEqual({
       httpStatus: 503,
       body: { status: "degraded", version, db: "ok", schema: "ok", terms: "degraded" },

@@ -90,16 +90,16 @@ describe("GET /api/healthz", () => {
   });
 
   // #222: o staging subiu com a tabela de versões vazia e o aceite do termo era recusado em silêncio.
-  it.each(["questionnaire_missing", "consent_mismatch"])("503 quando o banco não tem a versão do termo (%s), sem vazar a versão", async (motivo) => {
+  it("503 quando o banco não tem a versão do termo, sem vazar a versão", async () => {
     setup(async () => new Response("ok"));
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (url: string) => (url.includes("/rpc/term_versions_check") ? new Response(JSON.stringify(motivo)) : new Response("ok"))),
+      vi.fn(async (url: string) => (url.includes("/rpc/term_versions_check") ? new Response(JSON.stringify("degraded")) : new Response("ok"))),
     );
     const res = await GET();
     expect(res.status).toBe(503);
     const corpo = await res.text();
     expect(JSON.parse(corpo)).toMatchObject({ status: "degraded", db: "ok", schema: "ok", terms: "degraded" });
-    expect(corpo).not.toMatch(/questionnaire_missing|consent_mismatch|termo-|"v1"|p_questionnaire/);
+    expect(corpo).not.toMatch(/questionnaire_missing|consent_mismatch|termo-|"v1"|p_questionnaire|termo-teste/);
   });
 });
