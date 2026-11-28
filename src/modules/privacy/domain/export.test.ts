@@ -38,6 +38,12 @@ const rows: OwnDataRows = {
     social_links_enc: "enc:redes",
     updated_at: "2026-11-19T12:00:00+00:00",
   },
+  background: {
+    education_level_enc: "enc:nivel",
+    education_detail_enc: "enc:qual",
+    occupation_enc: "enc:atividade",
+    updated_at: "2026-11-19T12:30:00+00:00",
+  },
   memberships: [
     { unit_name: "São Paulo", unit_type: "Estado", member_role: "member", joined_at: "2026-11-19T11:00:00+00:00", left_at: null },
   ],
@@ -102,6 +108,9 @@ const plain: Record<string, string> = {
   "enc:totem": "AB",
   "enc:respostas": JSON.stringify({ q01: -3, q02: 2 }),
   "enc:notas": JSON.stringify({ house1: -40, house2: 75, totem1: 0, totem2: -100 }),
+  "enc:nivel": "college_complete",
+  "enc:qual": "Engenharia Civil",
+  "enc:atividade": "Professora de matemática",
   "enc:respostasguardadas": JSON.stringify({ q01: -5, q02: 3, q03: 1 }),
 };
 
@@ -131,7 +140,7 @@ const build = (over: Partial<Parameters<typeof buildOwnDataExport>[0]> = {}) =>
 describe("buildOwnDataExport", () => {
   it("traz todos os campos, decifrados, com as chaves em português", async () => {
     expect(await build()).toEqual({
-      sobre: { formato: 10, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
+      sobre: { formato: 11, geradoEm: "2026-11-20T01:30:00.000Z", descricao: "Cópia dos seus dados." },
       conta: { emailDeLogin: "maria@exemplo.org" },
       perfil: {
         nome: "Maria Aparecida",
@@ -146,6 +155,12 @@ describe("buildOwnDataExport", () => {
         atualizadoEm: "2026-11-19T12:00:00+00:00",
       },
       contato: { whatsapp: "+5511987654321", redesSociais: ["https://exemplo.org/maria"], atualizadoEm: "2026-11-19T12:00:00+00:00" },
+      formacaoEAtividade: {
+        nivelDeFormacao: "college_complete",
+        qual: "Engenharia Civil",
+        atividadeProfissional: "Professora de matemática",
+        atualizadoEm: "2026-11-19T12:30:00+00:00",
+      },
       vinculos: [{ unidade: "São Paulo", tipo: "Estado", papelNoGrupo: "member", entrouEm: "2026-11-19T11:00:00+00:00", saiuEm: null }],
       casas: [
         {
@@ -209,6 +224,10 @@ describe("buildOwnDataExport", () => {
         { table: "profiles", column: "neighborhood_enc", rowId: USER },
         { table: "profile_contacts", column: "whatsapp_enc", rowId: USER },
         { table: "profile_contacts", column: "social_links_enc", rowId: USER },
+        // Formação e atividade (#304): cifradas na linha da própria pessoa.
+        { table: "profile_background", column: "education_level_enc", rowId: USER },
+        { table: "profile_background", column: "education_detail_enc", rowId: USER },
+        { table: "profile_background", column: "occupation_enc", rowId: USER },
         // O nome de quem viu o contato é da linha dela (#119).
         { table: "profiles", column: "display_name_enc", rowId: VIEWER },
         // Totem e respostas do questionário (ADR 0014): cifrados na linha da própria pessoa.
@@ -272,11 +291,23 @@ describe("buildOwnDataExport", () => {
     expect(out.perfil?.termoDeConsentimento).toEqual({ versao: null, aceitoEm: null });
   });
 
+  it("formação e atividade que não decifram viram null, sem derrubar o resto; nível fora da lista também", async () => {
+    const seen: string[] = [];
+    const out = await build({
+      rows: { ...rows, background: { ...rows.background!, education_detail_enc: "enc:estragado", education_level_enc: "enc:atividade" } },
+      onDecryptError: (column) => seen.push(column),
+    });
+    expect(out.formacaoEAtividade).toMatchObject({ nivelDeFormacao: null, qual: null, atividadeProfissional: "Professora de matemática" });
+    expect(seen).toContain("education_detail_enc");
+    expect(out.perfil?.nome).toBe("Maria Aparecida");
+  });
+
   it("quem ainda não tem perfil recebe perfil e contato nulos e listas vazias", async () => {
     const out = await build({
       rows: {
         profile: null,
         contact: null,
+        background: null,
         memberships: [],
         house_memberships: [],
         questionnaire_consents: [],
@@ -296,6 +327,7 @@ describe("buildOwnDataExport", () => {
       conta: { emailDeLogin: null },
       perfil: null,
       contato: null,
+      formacaoEAtividade: null,
       vinculos: [],
       casas: [],
       termosDeConsentimento: [],
@@ -387,6 +419,7 @@ describe("ownDataRowsSchema", () => {
       ...rows,
       profile: { ...rows.profile!, display_name_enc: null, municipality_code: null, municipality_name: null, state_code: null, district_code: null, district_name: null, neighborhood_enc: null, consent_version: null, consent_at: null, profile_completed_at: null },
       contact: null,
+      background: null,
     };
     const out = await build({ rows: incomplete });
     expect(out.perfil).toMatchObject({ nome: null, municipio: null, perfilCompletoEm: null, termoDeConsentimento: { versao: null, aceitoEm: null } });

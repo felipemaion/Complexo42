@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ProfileInputError, parseProfileContactInput, parseProfileInput, profileLimits, serializeSocialLinks } from "./schema";
+import { ProfileInputError, educationLevels, parseProfileBackgroundInput, parseProfileContactInput, parseProfileInput, profileLimits, serializeSocialLinks } from "./schema";
 
 const profile = { displayName: "Ana Souza", municipalityCode: 3550308, consentVersion: "v1" };
 const contact = { whatsapp: "+5511999998888" };
@@ -98,6 +98,49 @@ describe("parseProfileContactInput", () => {
     expect(fieldsOf(() => parseProfileContactInput({ ...contact, socialLinks: [long] }))).toEqual(["socialLinks.0"]);
     const dup = ["https://rede.example/a", "https://rede.example/a"];
     expect(fieldsOf(() => parseProfileContactInput({ ...contact, socialLinks: dup }))).toEqual(["socialLinks"]);
+  });
+});
+
+describe("parseProfileBackgroundInput (formação e atividade, #304)", () => {
+  it("tudo é opcional: vazio vira null", () => {
+    expect(parseProfileBackgroundInput({})).toEqual({ educationLevel: null, educationDetail: null, occupation: null });
+  });
+
+  it("nível é lista fechada, e o texto sai normalizado", () => {
+    expect(
+      parseProfileBackgroundInput({ educationLevel: "postgraduate", educationDetail: "  Saúde   Pública ", occupation: " Professora  de  matemática " }),
+    ).toEqual({ educationLevel: "postgraduate", educationDetail: "Saúde Pública", occupation: "Professora de matemática" });
+    for (const educationLevel of educationLevels) expect(() => parseProfileBackgroundInput({ educationLevel })).not.toThrow();
+    for (const educationLevel of ["doctorate", "", "SUPERIOR", 3]) {
+      expect(fieldsOf(() => parseProfileBackgroundInput({ educationLevel }))).toEqual(["educationLevel"]);
+    }
+  });
+
+  it('"qual?" só vale em superior e pós; nos outros níveis (ou sem nível) é descartado', () => {
+    for (const educationLevel of ["elementary", "high_school", null]) {
+      expect(parseProfileBackgroundInput({ educationLevel, educationDetail: "Engenharia" }).educationDetail).toBeNull();
+    }
+    for (const educationLevel of ["college_incomplete", "college_complete", "postgraduate"]) {
+      expect(parseProfileBackgroundInput({ educationLevel, educationDetail: "Engenharia" }).educationDetail).toBe("Engenharia");
+    }
+  });
+
+  it("texto livre: de 2 a 80 caracteres, sem caractere de controle", () => {
+    expect(parseProfileBackgroundInput({ occupation: "TI" }).occupation).toBe("TI");
+    expect(parseProfileBackgroundInput({ occupation: "é".repeat(80) }).occupation).toHaveLength(80);
+    for (const occupation of ["A", "a".repeat(81), "   ", "Pedreiro\u0000"]) {
+      expect(fieldsOf(() => parseProfileBackgroundInput({ occupation }))).toEqual(["occupation"]);
+    }
+    expect(fieldsOf(() => parseProfileBackgroundInput({ educationLevel: "college_complete", educationDetail: "x" }))).toEqual(["educationDetail"]);
+  });
+
+  it("campo desconhecido é recusado, e o erro cita só o nome do campo (R11)", () => {
+    expect(fieldsOf(() => parseProfileBackgroundInput({ occupation: "Dentista", cpf: "1" }))).toEqual(["(raiz)"]);
+    try {
+      parseProfileBackgroundInput({ occupation: "x" });
+    } catch (error) {
+      expect((error as Error).message).not.toContain("x ");
+    }
   });
 });
 
