@@ -66,6 +66,9 @@ select is(
 select is(app.attach_active_members_to_state(), 0, 'repetir não faz nada (idempotente), e nenhum evento novo');
 
 -- A coordenação nacional passa a ler o perfil de quem se cadastrou depois.
+-- (Quem lê precisa ser membro ativo: casa aceita, ADR 0017.)
+insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at)
+values ('00000000-0000-0000-0000-0000000000c1', 'esparta', 'self', now() - interval '8 days', now() - interval '8 days');
 insert into public.role_assignments (profile_id, role, unit_id)
 select '00000000-0000-0000-0000-0000000000c1', 'manager', u.id from public.units u where u.path = 'br'::extensions.ltree;
 set local role authenticated;
