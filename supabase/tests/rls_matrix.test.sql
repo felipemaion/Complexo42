@@ -28,6 +28,7 @@ insert into declared values
   ('house_transfer_window', '', 's'),
   ('houses', '', 'S'),
   ('municipalities', '', 'S'),
+  ('news', '', 's'),
   ('profile_background', '', 'Siu'),
   ('profile_badge_prefs', '', 'S'),
   ('profile_contacts', '', 'S'),
