@@ -393,13 +393,46 @@ processo com o **nome** da variável no log, nunca o valor.
 | Variável | Para quê |
 |---|---|
 | `DB_HEALTH_URL` | obrigatória em produção; no servidor, `http://rest:3001/ready` (admin do PostgREST) |
-| `HEALTH_TIMEOUT_MS` | tempo máximo da checagem do banco (padrão 2000) |
+| `HEALTH_TIMEOUT_MS` | tempo máximo de **cada** sonda do healthz (padrão 2000; as duas correm em paralelo) |
 | `LOG_DIR` | onde fica o `app.log` (padrão `data/logs`) |
 
-`GET /api/healthz` responde `{status, version, db}` com `Cache-Control: no-store`:
-200 quando o banco responde e 503 (`degraded`) quando não responde ou não está
-configurado. O motivo da falha (`timeout`, `network`, `http_error`) vai só para
-o log. Os logs são JSON, no stdout e em `data/logs/app.log`, e mascaram nome,
+`GET /api/healthz` responde `{status, version, db, schema}` com
+`Cache-Control: no-store`, e dá **200 só quando as duas sondas passam**:
+
+| Campo | Sonda | O que prova |
+|---|---|---|
+| `db` | `DB_HEALTH_URL` (`rest:3001/ready`) | o processo do PostgREST está de pé |
+| `schema` | `SUPABASE_URL` + `/rest/v1/municipalities?select=code&limit=1`, com a chave anon | a **API de dados conhece o esquema de hoje** |
+
+Qualquer estado diferente de `ok` nas duas dá 503 (`degraded`). O motivo da
+falha (`timeout`, `network`, `http_error`) vai só para o log.
+
+> **Por que duas sondas, e não uma.** Elas falham por motivos diferentes, e a
+> primeira não vê a falha da segunda. O `/ready` responde **200 com o cache de
+> esquema vazio**: em 2026-11-27 o PostgREST subiu antes de o banco terminar
+> de migrar, ficou 19 horas com 2 relações de 23 no cache, toda leitura de
+> perfil deu 404 — e **o login quebrou depois de autenticar com sucesso**,
+> pelo Google e pelo link por e-mail. O healthz seguiu verde o tempo todo, e
+> por isso o deploy nunca reverteu. O conserto da causa está no `migra.sh`
+> (`notify pgrst, 'reload schema'`); esta sonda é o que faz a falha aparecer
+> se acontecer de novo, por outro caminho.
+>
+> **`schema: "stale"` tem evento próprio no log** (`healthz_schema_stale`, em
+> nível de erro), porque o conserto é um comando e não melhora sozinho:
+> `notify pgrst, 'reload schema'` no banco do ambiente.
+>
+> A sonda considera **saudável** a resposta `401` com código `42501`
+> (`insufficient_privilege`): ela prova que o PostgREST resolveu a tabela e o
+> Postgres recusou o papel `anon` — que é o estado normal, porque
+> `municipalities` tem grant só para `authenticated`. Depender disso em vez de
+> exigir `200` é deliberado: a sonda não precisa de grant nenhum para o
+> `anon`, então não abre leitura de dado para ninguém.
+
+**O health check do deploy não mudou, e não precisava.** O `smoke()` do
+`deploy.sh` já bate no `/api/healthz` com `curl -fsS`, repetindo até
+`ESPERA_SMOKE` (60 tentativas, 1s cada). Com o healthz ficando estrito, o
+deploy passa a reverter sozinho num esquema velho — sem uma linha nova no
+script. Os logs são JSON, no stdout e em `data/logs/app.log`, e mascaram nome,
 telefone e e-mail (R11). O compose de referência é `deploy/docker-compose.app.yml`:
 sistema de arquivos só leitura, sem `ports:`, com `mem_limit`. Use nele um
 `COMPOSE_PROJECT_NAME` diferente do Supabase e aponte `SUPABASE_NETWORK` para a

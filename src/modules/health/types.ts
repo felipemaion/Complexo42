@@ -6,8 +6,16 @@ export type DbFailure = "timeout" | "http_error" | "network";
 
 export type DbProbe = { status: DbStatus; reason?: DbFailure };
 
+/**
+ * Estado do ESQUEMA visto pela API de dados. `stale` é o cache do PostgREST
+ * sem as tabelas que as migrations já criaram -- processo vivo, API inútil.
+ */
+export type SchemaStatus = "ok" | "stale" | "unavailable" | "unconfigured";
+
+export type SchemaProbe = { status: SchemaStatus; reason?: DbFailure };
+
 export type AppVersion = { tag: string; commit: string };
 
-export type HealthBody = { status: "ok" | "degraded"; version: AppVersion; db: DbStatus };
+export type HealthBody = { status: "ok" | "degraded"; version: AppVersion; db: DbStatus; schema: SchemaStatus };
 
 export type HealthReport = { httpStatus: 200 | 503; body: HealthBody };
