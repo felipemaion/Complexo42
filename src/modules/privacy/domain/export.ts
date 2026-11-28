@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 10;
+export const exportFormatVersion = 11;
 
 const timestamp = z.string().min(1);
 
@@ -49,6 +49,15 @@ export const ownDataRowsSchema = z.object({
     .object({
       whatsapp_enc: z.string(),
       social_links_enc: z.string().nullable(),
+      updated_at: timestamp,
+    })
+    .nullable(),
+  /** Formação e atividade profissional (#304), cifradas; nulo se nunca informou. */
+  background: z
+    .object({
+      education_level_enc: z.string().nullable(),
+      education_detail_enc: z.string().nullable(),
+      occupation_enc: z.string().nullable(),
       updated_at: timestamp,
     })
     .nullable(),
@@ -173,6 +182,13 @@ export type OwnDataExport = {
     atualizadoEm: string;
   } | null;
   contato: { whatsapp: string | null; redesSociais: string[] | null; atualizadoEm: string } | null;
+  /** Formação e atividade (#304); nulo se nunca informou. O nível é a chave da lista (ex.: `college_complete`). */
+  formacaoEAtividade: {
+    nivelDeFormacao: string | null;
+    qual: string | null;
+    atividadeProfissional: string | null;
+    atualizadoEm: string;
+  } | null;
   vinculos: { unidade: string; tipo: string; papelNoGrupo: string; entrouEm: string; saiuEm: string | null }[];
   /** Casas (ADR 0011): o nome vem da config; casa que saiu da config aparece pela chave. */
   casas: {
@@ -313,6 +329,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
 
   const p = rows.profile;
   const c = rows.contact;
+  const b = rows.background;
   const houseName = (key: string | null) => (key === null ? null : (input.houseNames[key] ?? key));
   let links: string[] | null = null;
   if (c?.social_links_enc) {
@@ -351,6 +368,12 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       whatsapp: await open(c.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
       redesSociais: links,
       atualizadoEm: c.updated_at,
+    },
+    formacaoEAtividade: b && {
+      nivelDeFormacao: await open(b.education_level_enc, "profile_background", "education_level_enc"),
+      qual: await open(b.education_detail_enc, "profile_background", "education_detail_enc"),
+      atividadeProfissional: await open(b.occupation_enc, "profile_background", "occupation_enc"),
+      atualizadoEm: b.updated_at,
     },
     vinculos: rows.memberships.map((m) => ({
       unidade: m.unit_name,
@@ -442,10 +465,13 @@ export function exportFilename(at: Date): string {
 /**
  * O pedido veio de uma página do próprio site? O botão é um POST de formulário; o cookie
  * `SameSite=Lax` já não vai em POST de outro site, e isto é a segunda barreira (como a checagem
- * de origem das server actions). Sem `Origin`, recusa.
+ * de origem das server actions). Sem `Origin` útil, só passa com `Sec-Fetch-Site: same-origin`.
  */
-export function isSameOrigin(origin: string | null, siteUrl: string): boolean {
-  if (!origin) return false;
+export function isSameOrigin(origin: string | null, siteUrl: string, fetchSite?: string | null): boolean {
+  // Sem origem útil (`Origin: null`, ou ausente): o navegador envia `null` num POST do próprio site quando a página foi
+  // alcançada sem recarregar depois de uma que manda `no-referrer` (o link de login, #130). Aí vale o `Sec-Fetch-Site`,
+  // que só o navegador escreve (a página e o JavaScript não o alteram): `same-origin` é o próprio site.
+  if (!origin || origin === "null") return fetchSite === "same-origin";
   try {
     return new URL(origin).origin === new URL(siteUrl).origin;
   } catch {

@@ -82,8 +82,10 @@ export const instanceConfigSchema = z.strictObject({
     signupClosed: text,
     signedOut: text,
     signOutButton: text,
+    /** Título do /inicio quando o nome da pessoa não pôde ser lido (#324). */
     signedInTitle: text,
-    signedInMessage: text,
+    /** Saudação do /inicio com o primeiro nome (#324); `{name}` é trocado na tela. */
+    greeting: text.refine((v) => v.includes("{name}"), "use {name}"),
     /** Rótulo antes do e-mail mascarado de quem está logado (ex.: "Conectado como"). */
     connectedAs: text,
     navLabel: text,
@@ -181,6 +183,21 @@ export const instanceConfigSchema = z.strictObject({
     /** Bairro (#179): texto livre, opcional. */
     neighborhoodLabel: text,
     neighborhoodHint: text,
+    backgroundTitle: text,
+    backgroundHint: text,
+    educationLevelLabel: text,
+    educationLevelNone: text,
+    educationLevels: z.strictObject({
+      elementary: text,
+      high_school: text,
+      college_incomplete: text,
+      college_complete: text,
+      postgraduate: text,
+    }),
+    educationDetailLabel: text,
+    educationDetailHint: text,
+    occupationLabel: text,
+    occupationHint: text,
     /** Bairro guardado que não abriu: aviso de que continua guardado e o botão para trocá-lo. */
     neighborhoodUnreadable: text,
     replaceNeighborhood: text,
@@ -210,6 +227,9 @@ export const instanceConfigSchema = z.strictObject({
       municipalityCode: text,
       district: text,
       neighborhood: text,
+      educationLevel: text,
+      educationDetail: text,
+      occupation: text,
       socialLinks: text,
     }),
     /** WhatsApp já usado em outro cadastro (não diz de quem). */
@@ -342,6 +362,8 @@ export const instanceConfigSchema = z.strictObject({
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** O mesmo link para quem já tem a casa aceita (#324): leva à página da própria casa. */
+    ownHouseLink: text,
     /** Na página da pessoa, sem casa nem resultado (#203): convite para fazer o questionário. */
     inviteMessage: text,
     /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */

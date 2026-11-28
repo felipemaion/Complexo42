@@ -22,6 +22,47 @@ test("sem sessão, o download manda para o login e não devolve dado nenhum", as
   expect(res.headers()["content-disposition"]).toBeUndefined();
 });
 
+test.describe("quem está em espera baixa os próprios dados (#130)", () => {
+  test.skip(!LIVE, "precisa do Supabase local e da chave de serviço local (ver o topo do arquivo)");
+
+  test("em /espera o botão baixa só o arquivo da própria pessoa, sem liberar o acesso", async ({ browser, baseURL }) => {
+    test.setTimeout(90_000);
+    const run = Date.now();
+    const me = { email: `espera.dados.${run}@exemplo.org`, name: "Pessoa Em Espera", phone: `11 9${String(run).slice(-8)}`, city: "São Paulo" };
+    const link = await (
+      await fetch(`${API}/auth/v1/admin/generate_link`, {
+        method: "POST",
+        headers: { apikey: SERVICE_KEY!, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "magiclink", email: me.email }),
+      })
+    ).json();
+    const page = await (await browser.newContext({ acceptDownloads: true })).newPage();
+    await page.goto(`/auth/confirmar?token_hash=${link.hashed_token}&type=${link.verification_type}`);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await acceptTermIfAsked(page);
+    await page.getByLabel("Seu nome").fill(me.name);
+    await page.getByLabel("Seu WhatsApp, com DDD").fill(me.phone);
+    await chooseCity(page, me.city);
+    await page.getByRole("button", { name: "Salvar meus dados" }).click();
+    // Sem a lista de autorizados, a pessoa fica em espera e não alcança mais nenhuma tela de dentro.
+    await expect(page).toHaveURL(`${baseURL}/espera`);
+
+    // O navegador chega a /espera sem recarregar, depois do link de login (`no-referrer`): o POST sai com `Origin: null`
+    // e `Sec-Fetch-Site: same-origin`, e o servidor precisa aceitar (#130).
+    const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Baixar meus dados" }).click()]);
+    const chunks: Buffer[] = [];
+    for await (const chunk of await file.createReadStream()) chunks.push(chunk as Buffer);
+    const text = Buffer.concat(chunks).toString("utf8");
+    const data = JSON.parse(text);
+    expect(data.conta.emailDeLogin).toBe(me.email);
+    expect(data.perfil).toMatchObject({ nome: me.name, liberacaoDeAcesso: "waitlisted" });
+    expect(text).not.toContain("hmac");
+    // Continua em espera: baixar não abre nenhuma outra tela.
+    await page.goto("/inicio");
+    await expect(page).toHaveURL(`${baseURL}/espera`);
+  });
+});
+
 test.describe("download com o Supabase local", () => {
   test.skip(!LIVE, "precisa do Supabase local e da chave de serviço local (ver o topo do arquivo)");
   test.describe.configure({ mode: "serial" });

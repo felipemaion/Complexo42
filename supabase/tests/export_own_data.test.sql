@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(31);
+select plan(32);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -31,6 +31,9 @@ where id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac) values
   ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('ZapA'), repeat('a', 64)),
   ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('ZapB'), repeat('b', 64));
+-- Formação e atividade (#304): só A tem.
+insert into public.profile_background (profile_id, education_level_enc, education_detail_enc, occupation_enc)
+values ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('NivelA'), pg_temp.enc('QualA'), pg_temp.enc('AtividadeA'));
 
 -- O vínculo de A com o estado foi encerrado: a RLS já não mostra a unidade a A, mas o
 -- histórico é dado dela e entra na exportação.
@@ -104,6 +107,12 @@ select ok((select d->'profile' ? 'consent_at' and d->'profile' ? 'created_at' fr
   'data do termo e do cadastro presentes');
 select is((select d->'contact'->>'whatsapp_enc' from out_a), pg_temp.enc('ZapA'),
   'WhatsApp (ainda cifrado) de A');
+select is(
+  (select d->'background'->>'education_level_enc' || '/' || (d->'background'->>'education_detail_enc') || '/'
+          || (d->'background'->>'occupation_enc') from out_a),
+  pg_temp.enc('NivelA') || '/' || pg_temp.enc('QualA') || '/' || pg_temp.enc('AtividadeA'),
+  'formação e atividade (ainda cifradas) de A'
+);
 select ok(
   (select d::text not like '%hmac%' and d::text not like '%' || repeat('a', 64) || '%' from out_a),
   'nenhum HMAC na exportação'

@@ -11,6 +11,9 @@ import { normalizeSocialLink, socialLinkInputMaxLength, socialLinkMaxLength } fr
 export const profileLimits = {
   displayNameMin: 2,
   displayNameMax: 80,
+  /** "Qual?" da formação e atividade profissional (#304). */
+  backgroundTextMin: 2,
+  backgroundTextMax: 80,
   neighborhoodMin: 2,
   neighborhoodMax: 60,
   socialLinksMax: 5,
@@ -27,11 +30,14 @@ const CONTROL_CHARS = /\p{Cc}/u;
 
 const codePoints = (value: string) => [...value].length;
 
-/** Texto livre curto: NFC, sem caracteres de controle, espaços internos colapsados. */
+/**
+ * Texto livre curto: NFC, sem caracteres de controle, sem invisíveis (`\p{Cf}`: ZWSP, RTL override...), espaços
+ * internos colapsados. Vale para todos os campos curtos (nome, bairro, formação, atividade).
+ */
 function shortText(min: number, max: number) {
   return z
     .string()
-    .transform((value) => value.normalize("NFC").trim().replace(/\s+/g, " "))
+    .transform((value) => stripInvisible(value.normalize("NFC")).trim().replace(/\s+/g, " "))
     .refine((value) => !CONTROL_CHARS.test(value), "caracteres de controle não são permitidos")
     .refine((value) => codePoints(value) >= min && codePoints(value) <= max, `use de ${min} a ${max} caracteres`);
 }
@@ -66,11 +72,10 @@ const neighborhoodSchema = z
  * caracteres e palavras. Quem foi cadastrado com uma palavra só continua com o perfil válido; a
  * regra vale na próxima gravação.
  */
-const fullNameSchema = z
-  .string()
-  .transform(stripInvisible)
-  .pipe(shortText(profileLimits.displayNameMin, profileLimits.displayNameMax))
-  .refine(isFullName, "informe nome e sobrenome");
+const fullNameSchema = shortText(profileLimits.displayNameMin, profileLimits.displayNameMax).refine(
+  isFullName,
+  "informe nome e sobrenome",
+);
 
 export const profileInputSchema = z.strictObject({
   displayName: fullNameSchema,
@@ -82,6 +87,27 @@ export const profileInputSchema = z.strictObject({
   neighborhood: neighborhoodSchema.nullable().default(null),
   consentVersion: z.string().regex(/^[A-Za-z0-9._-]{1,32}$/, "versão do termo inválida"),
 });
+
+/**
+ * Formação (#304): nível mais alto, em lista fechada. As chaves são genéricas (R17); o rótulo de
+ * cada uma vem de `config/instance.ts`. Em superior e pós a pessoa pode dizer "qual?" (curso ou área).
+ */
+export const educationLevels = ["elementary", "high_school", "college_incomplete", "college_complete", "postgraduate"] as const;
+export type EducationLevel = (typeof educationLevels)[number];
+export const educationLevelsWithDetail: readonly EducationLevel[] = ["college_incomplete", "college_complete", "postgraduate"];
+
+/** Formação e atividade (#304): tudo opcional, e a atividade é independente da formação. */
+export const profileBackgroundInputSchema = z
+  .strictObject({
+    educationLevel: z.enum(educationLevels).nullable().default(null),
+    educationDetail: shortText(profileLimits.backgroundTextMin, profileLimits.backgroundTextMax).nullable().default(null),
+    occupation: shortText(profileLimits.backgroundTextMin, profileLimits.backgroundTextMax).nullable().default(null),
+  })
+  // "Qual?" só vale em superior e pós: nos outros níveis (ou sem nível) é descartado.
+  .transform((value) => ({
+    ...value,
+    educationDetail: value.educationLevel !== null && educationLevelsWithDetail.includes(value.educationLevel) ? value.educationDetail : null,
+  }));
 
 export const profileContactInputSchema = z.strictObject({
   /** Já em E.164 (+5511999998888). Converter o que a pessoa digitou é papel do formulário. */
@@ -113,6 +139,10 @@ function parseWith<T extends z.ZodType>(schema: T, raw: unknown): z.output<T> {
 
 export function parseProfileInput(raw: unknown): z.output<typeof profileInputSchema> {
   return parseWith(profileInputSchema, raw);
+}
+
+export function parseProfileBackgroundInput(raw: unknown): z.output<typeof profileBackgroundInputSchema> {
+  return parseWith(profileBackgroundInputSchema, raw);
 }
 
 export function parseProfileContactInput(raw: unknown): z.output<typeof profileContactInputSchema> {

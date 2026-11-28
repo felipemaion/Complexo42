@@ -42,6 +42,10 @@ grep -qF "$CHAVE" "$STUB_CHAMADAS"; r=$?; [ "$r" != 0 ]; verifica "nenhum argume
 printf '%s' "$SAIDA" | grep -qF "$CHAVE"; r=$?; [ "$r" != 0 ]; verifica "a saída não imprime a chave" $?
 grep -q 'outra-linha' "$STUB_SQL"; r=$?; [ "$r" != 0 ]; verifica "só a QUESTIONNAIRE_SIGNING_KEY sai do arquivo de segredos" $?
 
+# --- rodado com bash -x, o rastro não mostra a chave ----------------------------------------
+RASTRO=$(bash -x "$SCRIPT" "$BASE/q.json" "$BASE/segredos" 2>&1)
+printf '%s' "$RASTRO" | grep -qF "$CHAVE"; r=$?; [ "$r" != 0 ]; verifica "rodado com bash -x, o rastro não mostra a chave" $?
+
 # --- o banco recusa ------------------------------------------------------------------------
 STUB_DB_FALHA=1 roda "$BASE/q.json" "$BASE/segredos"
 [ "$RC" = 1 ]; verifica "banco recusou: sai 1" $?

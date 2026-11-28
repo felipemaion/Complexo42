@@ -14,8 +14,8 @@
 |---|---|---|---|
 | Nome completo (**obrigatório**; o esquema ainda aceita uma palavra só, o sobrenome vem na #312) | `profiles.display_name_enc` | AES-256-GCM | Escopo do monitor/gestor; colegas de equipe; todo membro logado no perfil público (#305) |
 | Foto do rosto (**opcional**, #308; ADR 0006, revisão de 2026-11-28). **Finalidade:** a coordenação e os colegas reconhecerem a pessoa pessoalmente. Só a miniatura (~256 px, WebP, ~20 KB, sem EXIF; original descartado); coluna e armazenamento definidos na #308 | a definir na #308 | AES-256-GCM ou armazenamento sem URL pública | Só membros logados; some com a conta e entra em "Baixar meus dados" |
-| Formação acadêmica (nível mais alto; "qual?" opcional, texto livre) (#304). **Finalidade:** encaixar a pessoa num eixo da casa e achar quem pode ajudar | a definir na #304 | AES-256-GCM | Coordenação do escopo; o dono escolhe se aparece no perfil público (#305) |
-| Atividade profissional (texto livre, separada da formação) (#304). **Finalidade:** idem | a definir na #304 | AES-256-GCM | Coordenação do escopo; o dono escolhe se aparece no perfil público (#305) |
+| Formação acadêmica (#304): nível mais alto, em **lista fechada** (fundamental, médio, superior incompleto, superior completo, pós-graduação), e "qual?" opcional em texto livre (só em superior e pós). **Opcional.** **Finalidade:** encaixar a pessoa num eixo da casa e achar quem pode ajudar | `profile_background.education_level_enc`, `education_detail_enc` | AES-256-GCM | O dono; a coordenação do escopo (monitor/gestor, `app.can_view_background`). Fora do perfil público: o dono escolher mostrar é a #305 |
+| Atividade profissional (#304): texto livre de 2 a 80 caracteres, separado da formação. **Opcional.** **Finalidade:** idem | `profile_background.occupation_enc` | AES-256-GCM | Idem |
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Redes sociais (máx. 5 URLs https) | `profile_contacts.social_links_enc` | AES-256-GCM | Coordenação do escopo (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Portfólio (máx. 3 links https) | `portfolio_items.url_enc` | AES-256-GCM | Escopo, porta-voz da equipe (ADR 0007 §5) |
@@ -283,6 +283,23 @@ hífen, apóstrofo e ponto), sem espaços nas pontas, espaços internos colapsad
 "não informe rua nem número". Quem já vê o perfil (`can_view_profile`) o vê pelo servidor, que
 decifra; hoje nenhuma tela de terceiros o mostra. Vai no arquivo de exportação (`bairro`) e some
 com a conta (cascata).
+
+### `profile_background` (#304)
+1:1 com `profiles` (`profile_id` PK, FK `on delete cascade`), no molde de `profile_contacts`: formação e atividade ficam fora de `profiles` para que listagens de perfis nunca as tragam por engano.
+
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `education_level_enc` | text null | 🔒 nível: um de `elementary`, `high_school`, `college_incomplete`, `college_complete`, `postgraduate`. A lista é validada no servidor (Zod); o banco só confere o formato cifrado |
+| `education_detail_enc` | text null | 🔒 "qual?" (curso ou área), texto livre de 2 a 80 caracteres; só guardado quando o nível é superior ou pós |
+| `occupation_enc` | text null | 🔒 atividade profissional, texto livre de 2 a 80 caracteres, independente da formação |
+| `updated_at` | timestamptz | gravado pelo trigger |
+
+AAD de cada valor: `profile_background.<coluna>.<profile_id>`. Tudo opcional: vazio vira `null`. RLS: o dono
+lê e grava a própria linha (`app.can_edit_profile`); monitor e gestor do escopo leem a de membro `active`
+(`app.can_view_background`, a mesma regra do contato); porta-voz, admin técnico e quem está fora do escopo não leem.
+Sem busca nem filtro por formação ou atividade: se a busca de membros (#23) precisar filtrar por nível, será
+preciso rever a cifra de `education_level` (lista fechada, onde um índice cego bastaria). Vai no arquivo de
+exportação (`formacaoEAtividade`) e some com a conta (cascata).
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)
@@ -616,7 +633,8 @@ em todos os eventos (veja "Excluir minha conta"). Limpeza (retenção, LGPD) pre
 forma explícita; nenhum teste ou migration atual limpa o log.
 
 ### "Baixar meus dados" (#20, LGPD art. 18)
-A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
+A pessoa baixa, pelo botão da página inicial **ou da tela de espera** (#130, parte 1: quem está `waitlisted` também tem o direito
+de acesso; a rota exige só a sessão, sem o portão de acesso, e o banco lê só as linhas dela), um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
 encerrados, aceites do termo do questionário, o resultado do questionário (casa, **totem** e **notas por eixo**, cifrados e decifrados pelo servidor; formato 9 do arquivo), os pedidos de

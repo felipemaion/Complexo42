@@ -249,6 +249,12 @@ select id, 'v1.AAAAAAAAAAAAAAAA.CCCCCCCCCCCCCCCCCCCCCC', encode(sha256(id::text:
 from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_susp', 'team_a_mon',
                            'stu_ah', 'stu_bh', 'stu_ah2', 'stu_hpend');
 
+-- Formação e atividade (#304): quem tem a linha é stu_a e stu_b (ativos), stu_wait (na espera) e os da
+-- casa: stu_ah e stu_bh (casa 1, equipes A e B) e stu_ah2 (casa 2, equipe A).
+insert into public.profile_background (profile_id, education_level_enc, occupation_enc)
+select id, 'v1.AAAAAAAAAAAAAAAA.CCCCCCCCCCCCCCCCCCCCCC', 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD'
+from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_ah', 'stu_bh', 'stu_ah2');
+
 -- Quem vê o contato (#119, ADR 0010): a escolha de cada pessoa, contato por contato. Sem linha
 -- é `none` (stu_a e os demais).
 insert into public.contact_visibility (profile_id, kind, scope)
@@ -910,7 +916,7 @@ grant select on fixture_houses to authenticated;
 insert into public.house_members (profile_id, house_key, join_method, accepted_at)
 select id, 'casa-t1', 'self', now() from people where name = 'team_a_mon' and not exists (select 1 from public.house_members h where h.profile_id = people.id and h.left_at is null);
 
-select plan((select count(*)::int from matrix) + 156);
+select plan((select count(*)::int from matrix) + 165);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 10 unidades da árvore foram capturadas.
@@ -1472,6 +1478,20 @@ select set_eq(
   $$ select id from people where name in ('house_mon', 'stu_ah', 'stu_bh') $$,
   'coordenador da casa 1 lê os perfis da casa 1 no ABC, de qualquer equipe; NÃO outra casa, outra região, sem aceite nem quem não está ativo'
 );
+-- Formação e atividade (#304), ramo do coordenador da casa (`app.is_house_coordinator_of`): só os membros
+-- da casa dele, de qualquer equipe. Fica aqui, antes dos testes que encerram vínculos de casa.
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_ah'), pg_temp.person('stu_bh')],
+  'coordenador da casa 1 lê a formação dos membros da casa 1 (equipes A e B); NÃO a da casa 2 nem de quem não é da casa'
+);
+select pg_temp.login('house2_mon');
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_ah2')],
+  'coordenador da casa 2 lê só a formação dos membros da casa 2'
+);
+select pg_temp.login('house_mon');
 select is_empty(
   $$ select 1 from public.unit_members $$,
   'coordenador da casa NÃO lê vínculos de território (não gerencia unidade)'
@@ -1808,6 +1828,37 @@ select throws_ok(
   'gestor nacional sem login recente NÃO exclui nem a própria conta'
 );
 
+-- Formação e atividade (#304, `app.can_view_background`): dono e coordenação do escopo, só de perfil ativo
+reset role;
+set local role authenticated;
+select pg_temp.login('stu_a');
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_a')],
+  'membro lê só a própria formação e atividade'
+);
+select pg_temp.login('team_a_mon');
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_a'), pg_temp.person('stu_ah'), pg_temp.person('stu_ah2')],
+  'monitor da equipe A lê a formação de quem é da equipe A (e só dela)'
+);
+select pg_temp.login('sp_mgr');
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_a'), pg_temp.person('stu_b'), pg_temp.person('stu_ah'), pg_temp.person('stu_ah2'), pg_temp.person('stu_bh')],
+  'gestor de SP lê a de membros ativos de SP; NÃO a de quem está na espera'
+);
+select pg_temp.login('mg_mgr');
+select is_empty(
+  $$ select 1 from public.profile_background $$,
+  'gestor de OUTRO estado (fora do escopo) NÃO lê'
+);
+select pg_temp.login('spokes_a');
+select is_empty($$ select 1 from public.profile_background $$, 'porta-voz NÃO lê');
+select pg_temp.login('tech');
+select is_empty($$ select 1 from public.profile_background $$, 'admin técnico NÃO lê');
+
 -- Visitante anônimo
 set local role anon;
 set local request.jwt.claims to '{"role": "anon"}';
@@ -1825,6 +1876,11 @@ select throws_ok(
   $$ select 1 from public.profile_contacts $$,
   '42501', null,
   'visitante anônimo não lê contatos'
+);
+select throws_ok(
+  $$ select 1 from public.profile_background $$,
+  '42501', null,
+  'visitante anônimo não lê formação e atividade'
 );
 
 select throws_ok(

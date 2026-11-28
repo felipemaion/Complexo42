@@ -114,6 +114,10 @@ insert into public.access_waitlist_hmac (profile_id, email_hmac) values
 insert into public.profile_contacts (profile_id, whatsapp_enc, whatsapp_hmac) values
   ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('ZapA'), repeat('a', 64)),
   ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('ZapB'), repeat('b', 64));
+-- Formação e atividade (#304): o rastreio de "nenhuma linha com o id" pega se a cascata falhar.
+insert into public.profile_background (profile_id, occupation_enc) values
+  ('00000000-0000-0000-0000-0000000000a1', pg_temp.enc('AtividadeA')),
+  ('00000000-0000-0000-0000-0000000000a2', pg_temp.enc('AtividadeB'));
 insert into app.profile_save_attempts (profile_id) values ('00000000-0000-0000-0000-0000000000a1');
 insert into public.profile_skills (profile_id, skill_id)
 select p.id, (select id from public.skills order by name limit 1)
