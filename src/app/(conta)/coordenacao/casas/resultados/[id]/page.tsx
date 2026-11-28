@@ -9,6 +9,7 @@ import { HouseWithShield } from "@/modules/houses/components/house-shield";
 import { ChosenHouseAndTotem } from "@/modules/houses/components/totem-medal";
 import { changeHouseAction } from "../actions";
 import { errorText as lookupErrorText, fill, houseName, shortDate } from "../../format";
+import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.results.title };
 
@@ -28,29 +29,29 @@ export default async function ResultPage({
   const text = instance.questionnaireCoordination;
   if (opened.status === "unreadable") {
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+      <PageShell width="content">
+        <p role="alert" className={noticeClass("error")}>
           {text.results.unreadableOne}
         </p>
-        <Link href={RESULTS_PATH} className="text-center text-lg underline">
+        <Link href={RESULTS_PATH} className={`${textLinkClass()} self-center`}>
           {text.results.backLink}
         </Link>
-      </main>
+      </PageShell>
     );
   }
   const { result, name, choice } = opened;
   const differs = choseOtherHouse({ houseId: result.houseId, chosenHouseId: choice.houseId });
   const errorText = lookupErrorText(text.errors, query.erro);
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{fill(text.results.detailTitle, { name: name ?? text.noName })}</h1>
+    <PageShell width="content">
+      <h1 className="text-3xl font-bold sm:text-4xl">{fill(text.results.detailTitle, { name: name ?? text.noName })}</h1>
       <ChosenHouseAndTotem
         houseId={choice.houseId}
         houseName={choice.houseId ? houseName(choice.houseId) : ""}
         totemCode={result.totem}
         totemName={totemName(deps.questionnaire, result.totem)}
       />
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-lg">
+      <dl className={`${cardClass()} grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-lg`}>
         <dt className="font-semibold">{text.results.houseLabel}</dt>
         <dd data-testid="result-house">
           <HouseWithShield houseId={result.houseId} name={houseName(result.houseId)} size={32} />
@@ -87,21 +88,21 @@ export default async function ResultPage({
         <p className="text-lg">{text.results.noScores}</p>
       )}
       {errorText && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {errorText}
         </p>
       )}
       {query.trocada === "1" && (
-        <p role="status" className="rounded-xl border-2 border-current p-4 text-lg">
+        <p role="status" className={noticeClass("info")}>
           {text.results.changedNotice}
         </p>
       )}
-      <form action={changeHouseAction} className="flex flex-col gap-3" data-testid="change-house-form">
+      <form action={changeHouseAction} className={cardClass()} data-testid="change-house-form">
         <h2 className="text-2xl font-bold">{text.results.changeHouseTitle}</h2>
         <input type="hidden" name="pessoa" value={personId} />
         <label className="flex flex-col gap-1 text-lg font-semibold">
           {text.results.changeHouseLabel}
-          <select name="casa" required defaultValue="" className="min-h-12 w-full rounded-xl border-2 border-current bg-transparent px-3 text-lg">
+          <select name="casa" required defaultValue="" className={fieldClass()}>
             <option value="" disabled />
             {instance.houses.map((house) => (
               <option key={house.id} value={house.id}>
@@ -110,13 +111,13 @@ export default async function ResultPage({
             ))}
           </select>
         </label>
-        <button type="submit" className="min-h-14 rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white">
+        <button type="submit" className={buttonClass("primary", "lg")}>
           {text.results.changeHouseButton}
         </button>
       </form>
-      <Link href={RESULTS_PATH} className="text-center text-lg underline">
+      <Link href={RESULTS_PATH} className={`${textLinkClass()} self-center`}>
         {text.results.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

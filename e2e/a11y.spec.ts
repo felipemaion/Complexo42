@@ -128,4 +128,14 @@ test.describe("páginas logadas com o Supabase local", () => {
       await expectAccessible(page, path);
     }
   });
+
+  test("telas das casas na coordenação passam no axe nos dois temas, sem rolagem horizontal", async ({ browser }) => {
+    test.setTimeout(240_000);
+    const page = await signedInManager(browser, { hasAcceptedTerm: true });
+    for (const path of ["/coordenacao/casas/resultados", "/coordenacao/casas/analise", "/coordenacao/casas/delegacoes", "/coordenacao/casas/janela"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(new RegExp(`${path}$`));
+      await expectAccessible(page, path);
+    }
+  });
 });

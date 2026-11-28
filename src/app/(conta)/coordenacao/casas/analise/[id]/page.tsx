@@ -7,11 +7,12 @@ import { answerSentence, crossOrder, totemCodes, totemLabel } from "@/modules/qu
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { resolveCaseAction } from "../actions";
 import { errorText as lookupErrorText, fill, shortDate } from "../../format";
+import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.queue.title };
 
 const QUEUE_PATH = "/coordenacao/casas/analise";
-const field = "min-h-12 w-full rounded-xl border-2 border-current bg-transparent px-3 text-lg";
+const field = fieldClass();
 
 // Um caso inconclusivo: as respostas (frases da escala), o gráfico dos 4 eixos e o formulário para
 // escolher a casa e o totem e resolver. Abrir registra o acesso. Sem permissão ou caso fora do
@@ -27,14 +28,14 @@ export default async function CasePage({
   const text = instance.questionnaireCoordination;
   if (opened.status === "unreadable") {
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+      <PageShell width="content">
+        <p role="alert" className={noticeClass("error")}>
           {text.queue.unreadableOne}
         </p>
-        <Link href={QUEUE_PATH} className="text-center text-lg underline">
+        <Link href={QUEUE_PATH} className={`${textLinkClass()} self-center`}>
           {text.queue.backLink}
         </Link>
-      </main>
+      </PageShell>
     );
   }
   const errorCode = (await searchParams).erro;
@@ -50,19 +51,19 @@ export default async function CasePage({
     }),
   }));
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{fill(text.queue.caseTitle, { name: opened.name ?? text.noName })}</h1>
+    <PageShell width="content">
+      <h1 className="text-3xl font-bold sm:text-4xl">{fill(text.queue.caseTitle, { name: opened.name ?? text.noName })}</h1>
       <p className="text-lg">
         <span className="font-semibold">{text.queue.tiedAxesLabel}: </span>
         {opened.legacyKey ? text.queue.legacyKey : opened.tiedAxes.map(axisName).join(", ")} · {shortDate(opened.createdAt)}
       </p>
       {errorText && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {errorText}
         </p>
       )}
       {opened.legacyKey ? (
-        <p role="status" className="rounded-xl border-2 border-current p-4 text-lg" data-testid="case-legacy-key">
+        <p role="status" className={noticeClass("info")} data-testid="case-legacy-key">
           {text.queue.legacyKeyNotice}
         </p>
       ) : (
@@ -92,7 +93,7 @@ export default async function CasePage({
         </section>
         </>
       )}
-      <form action={resolveCaseAction} className="flex flex-col gap-4">
+      <form action={resolveCaseAction} className={cardClass()}>
         <h2 className="text-2xl font-bold">{text.queue.resolveTitle}</h2>
         <input type="hidden" name="pedido" value={opened.requestId} />
         {opened.houseId !== null ? (
@@ -127,13 +128,13 @@ export default async function CasePage({
             ))}
           </select>
         </label>
-        <button type="submit" className="min-h-14 rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white">
+        <button type="submit" className={buttonClass("primary", "lg")}>
           {text.queue.resolveButton}
         </button>
       </form>
-      <Link href={QUEUE_PATH} className="text-center text-lg underline">
+      <Link href={QUEUE_PATH} className={`${textLinkClass()} self-center`}>
         {text.queue.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }
