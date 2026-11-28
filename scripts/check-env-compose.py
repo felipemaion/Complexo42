@@ -49,18 +49,30 @@ def lista_do_arquivo(caminho: str) -> list[str]:
     deploy conferindo a lista errada.
     """
     try:
-        with open(caminho, encoding="utf-8") as f:
+        # newline="" desliga a traducao de fim de linha: em modo texto normal o
+        # Python transforma "\r\n" em "\n" e o CR DESAPARECE na leitura -- o CI
+        # aprovaria um arquivo em CRLF que o deploy, lendo bytes, recusa. O
+        # proprio teste de CRLF pegou isso.
+        with open(caminho, encoding="utf-8", newline="") as f:
             texto = f.read()
     except OSError as e:
         sys.exit(f"ERRO: nao consegui ler {caminho}: {e}")
     nomes = []
-    for linha in texto.splitlines():
-        linha = linha.strip()
-        if not linha or linha.startswith("#"):
+    # A linha vai CRUA para o fullmatch, sem strip: o deploy le a MESMA linha
+    # crua. Com strip aqui, "FIELD_ENCRYPTION_KEY " (espaco no fim) ou um CRLF
+    # passariam no CI e o deploy recusaria o arquivo -- ou, na versao anterior
+    # dele, descartaria o nome em silencio e deixaria de conferir a variavel.
+    # Apontado na revisao do PR que criou este arquivo.
+    for bruta in texto.split("\n"):
+        if bruta == "" or bruta.startswith("#"):
             continue
-        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", linha):
-            sys.exit(f"ERRO: {caminho}: linha nao e nome de variavel: {linha!r}")
-        nomes.append(linha)
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", bruta):
+            sys.exit(
+                f"ERRO: {caminho}: linha nao e nome de variavel: {bruta!r}\n"
+                "      Espaco, TAB ou CR no fim contam. O deploy le a linha crua:\n"
+                "      divergir aqui faz a conferencia do servidor conferir menos."
+            )
+        nomes.append(bruta)
     if not nomes:
         sys.exit(f"ERRO: {caminho} nao tem nome nenhum -- o deploy nao conferiria nada")
     return nomes

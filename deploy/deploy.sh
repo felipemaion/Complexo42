@@ -904,19 +904,60 @@ log "preflight ok: o compose do app resolve com este env"
 # e a exigencia DESTA versao do app que tem de bater com ESTE compose. Arquivo
 # equivalente no servidor envelheceria em silencio, e sincroniza-lo faria o
 # deploy ler o que a sincronia escreve (ver SO_LEITURA_NA_IMAGEM).
-lista_obrigatorias() { # imprime um nome por linha
-  local c="obrig-$$-$RANDOM" arq rc=0
-  arq=$(mktemp) || return 1
+# Estado da extracao, para a limpeza acontecer de qualquer lugar -- inclusive de
+# um sinal no meio do `docker cp`. Mesma razao do limpa_infra.
+OBRIG_CONTAINER=
+OBRIG_TMP=
+OBRIG_SAIDA=
+limpa_obrig() {
+  [ -n "$OBRIG_CONTAINER" ] && docker rm -f "$OBRIG_CONTAINER" > /dev/null 2>&1
+  [ -n "$OBRIG_TMP" ] && rm -rf "$OBRIG_TMP"
+  [ -n "$OBRIG_SAIDA" ] && rm -f "$OBRIG_SAIDA"
+  OBRIG_CONTAINER=; OBRIG_TMP=; OBRIG_SAIDA=
+  return 0
+}
+
+# Escreve um nome por linha em <destino>. NAO imprime em stdout de proposito:
+# capturar a saida com $(...) rodaria a funcao num SUBSHELL, e as variaveis de
+# limpeza acima nunca chegariam ao trap do chamador.
+lista_obrigatorias() { # lista_obrigatorias <destino>
+  local destino=$1 c="obrig-$$-$RANDOM" arq rc=0 invalidas
+  OBRIG_TMP=$(mktemp -d) || return 1
+  arq="$OBRIG_TMP/obrigatorias-em-producao.txt"
   if ! docker create --name "$c" "$IMAGEM_ALVO" > /dev/null 2>&1; then
-    rm -f "$arq"; return 1
+    return 1
   fi
-  docker cp "$c:/app/deploy/obrigatorias-em-producao.txt" "$arq" > /dev/null 2>&1 || rc=1
+  OBRIG_CONTAINER=$c
+  # Para um DIRETORIO vazio, nao sobre o arquivo: assim `docker cp` nao decide
+  # nada sobre um destino que ja existe.
+  docker cp "$c:/app/deploy/obrigatorias-em-producao.txt" "$OBRIG_TMP/" > /dev/null 2>&1 || rc=1
   docker rm -f "$c" > /dev/null 2>&1 || log "ALERTA: o container $c ficou para tras"
-  # A imagem e dado de ENTRADA: linha estranha nao pode virar nome de variavel
-  # nem comando. So nome de variavel de ambiente passa, e com teto.
-  [ "$rc" = 0 ] && grep -E '^[A-Z][A-Z0-9_]*$' "$arq" | sort -u | head -n 200
-  rm -f "$arq"
-  return $rc
+  OBRIG_CONTAINER=
+  [ "$rc" = 0 ] || return $rc
+
+  # `docker cp` traz symlink COMO symlink: ler isso seguiria o destino no HOST,
+  # e a imagem escolheria qual arquivo do servidor vira "a lista". Mesma recusa
+  # que a sincronia da infra faz com os arquivos dela.
+  if [ -L "$arq" ] || [ ! -f "$arq" ]; then
+    log "ERRO: obrigatorias-em-producao.txt na imagem nao e arquivo comum"
+    return 1
+  fi
+
+  # A linha vai CRUA, e o guarda do CI valida a MESMA linha crua. Filtrar aqui
+  # em vez de recusar faria espaco, TAB ou CR no fim DESCARTAR o nome em
+  # silencio: a conferencia passaria conferindo menos, que e justamente o
+  # defeito que este preflight existe para fechar. Apontado na revisao do PR.
+  invalidas=$(grep -vE '^#' "$arq" | grep -v '^$' | grep -cvE '^[A-Z][A-Z0-9_]*$') || invalidas=0
+  if [ "$invalidas" != 0 ]; then
+    log "ERRO: $invalidas linha(s) de obrigatorias-em-producao.txt nao sao nome de"
+    log "      variavel (espaco, TAB ou CR no fim contam). Recuso em vez de"
+    log "      descartar: nome descartado em silencio e variavel nao conferida."
+    return 1
+  fi
+  # Teto de 200: a imagem e dado de entrada.
+  grep -E '^[A-Z][A-Z0-9_]*$' "$arq" | sort -u | head -n 200 > "$destino"
+  rm -rf "$OBRIG_TMP"; OBRIG_TMP=
+  return 0
 }
 
 # Nomes que o compose RESOLVIDO entrega ao servico `app` com valor nao vazio.
@@ -938,14 +979,26 @@ nomes_com_valor() { # nomes_com_valor <yaml resolvido>
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", valor)
       while (length(valor) > 0 && index(q, substr(valor, 1, 1)) > 0) valor = substr(valor, 2)
       while (length(valor) > 0 && index(q, substr(valor, length(valor), 1)) > 0) valor = substr(valor, 1, length(valor) - 1)
+      # O compose do servidor (v5.6.1, medido em 2026-11-28) imprime vazio como
+      # `NOME: ""`. `null` e `~` entram por garantia: outra versao pode imprimir
+      # YAML nulo, e nulo nao e valor que o app possa usar.
+      if (valor == "null" || valor == "Null" || valor == "NULL" || valor == "~") valor = ""
       if (valor != "") print nome
     }
   '
 }
 
 confere_obrigatorias() {
-  local nomes resolvido faltando
-  if ! nomes=$(lista_obrigatorias) || [ -z "$nomes" ]; then
+  local nomes resolvido faltando rc
+  OBRIG_SAIDA=$(mktemp) || { log "ERRO: nao consegui criar temporario"; return 1; }
+  # So INT/TERM, nunca EXIT (gotcha 63: trap de EXIT faz as checagens ${VAR:?}
+  # deste script sairem com 0).
+  trap 'limpa_obrig; exit 130' INT TERM
+  lista_obrigatorias "$OBRIG_SAIDA"; rc=$?
+  trap - INT TERM
+  nomes=$([ "$rc" = 0 ] && cat "$OBRIG_SAIDA")
+  limpa_obrig
+  if [ "$rc" != 0 ] || [ -z "$nomes" ]; then
     # Imagem anterior a esta guarda. No modo normal a imagem vem de um build da
     # `main`, que SEMPRE traz a lista: faltar e sinal de imagem errada, e recusar
     # custa um deploy. No break-glass a imagem vem por tag e pode ser antiga --

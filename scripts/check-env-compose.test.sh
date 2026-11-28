@@ -200,6 +200,26 @@ saida=$(python3 "$GUARDA" --lista "$BASE/lista-suja.txt" --env-ts "$BASE/env.ts"
 grep -q 'nao e nome de variavel' <<< "$saida" && r=0 || r=1
 verifica "linha que nao e nome de variavel reprova, dizendo o motivo" $r
 
+echo "== a linha vai CRUA: espaco ou CR no fim reprovam"
+# O deploy le a MESMA linha crua. Com strip aqui, "A_KEY " passava no CI e o
+# deploy recusava o arquivo -- ou, pior, descartava o nome em silencio.
+printf 'A_KEY \nB_KEY\n' > "$BASE/lista-espaco.txt"
+saida=$(python3 "$GUARDA" --lista "$BASE/lista-espaco.txt" --env-ts "$BASE/env.ts" --compose "$BASE/completo.yml" 2>&1)
+[ "$?" = 0 ] && r=1 || r=0
+verifica "nome com espaco no fim reprova" $r
+grep -q 'A_KEY ' <<< "$saida" && r=0 || r=1
+verifica "e mostra a linha como ela esta" $r
+
+printf 'A_KEY\r\nB_KEY\n' > "$BASE/lista-crlf.txt"
+python3 "$GUARDA" --lista "$BASE/lista-crlf.txt" --env-ts "$BASE/env.ts" --compose "$BASE/completo.yml" > /dev/null 2>&1
+[ "$?" = 0 ] && r=1 || r=0
+verifica "arquivo em CRLF reprova" $r
+
+printf '\tA_KEY\nB_KEY\n' > "$BASE/lista-tab.txt"
+python3 "$GUARDA" --lista "$BASE/lista-tab.txt" --env-ts "$BASE/env.ts" --compose "$BASE/completo.yml" > /dev/null 2>&1
+[ "$?" = 0 ] && r=1 || r=0
+verifica "TAB antes do nome reprova" $r
+
 echo "== e o caso de verdade: os arquivos do repositorio"
 saida=$(cd "$RAIZ" && python3 "$GUARDA" 2>&1); codigo=$?
 [ "$codigo" = 0 ] && r=0 || r=1

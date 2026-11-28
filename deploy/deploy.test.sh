@@ -45,7 +45,12 @@ case "$1" in
           # STUB_LISTA vazia = imagem SEM a lista: o `docker cp` falha, como
           # falharia de verdade numa imagem anterior a guarda.
           [ -n "${STUB_LISTA:-}" ] || exit 1
-          printf '%s\n' "$STUB_LISTA" > "$3"; exit 0 ;;
+          # O destino e um DIRETORIO: `docker cp` nao decide nada sobre um
+          # arquivo que ja existe.
+          if [ "${STUB_LISTA_SYMLINK:-}" = 1 ]; then
+            ln -s /etc/passwd "$3/obrigatorias-em-producao.txt"; exit 0
+          fi
+          printf '%s\n' "$STUB_LISTA" > "$3/obrigatorias-em-producao.txt"; exit 0 ;;
       esac
       # entrega o /app/deploy que a "imagem" carrega. `cp -R origem destino`
       # com destino inexistente ja cria o destino -- nao precisa de mkdir, e
@@ -651,6 +656,40 @@ roda emergencia:sha-abc1234; verifica "no break-glass o deploy SEGUE sem a lista
 grep -q 'ALERTA' "$BASE/saida" && r=0 || r=1
 verifica "e avisa que a conferencia nao foi feita" $r
 export STUB_LISTA=$STUB_LISTA_GUARDADA
+
+echo "== lista malformada na imagem: RECUSA, nao descarta em silencio"
+# Apontado na revisao: o CI validava a linha com strip e o deploy filtrava a
+# linha crua. Espaco no fim passava no CI e o nome desaparecia aqui -- a
+# conferencia seguia "ok" conferindo uma variavel menos.
+STUB_LISTA_GUARDADA=$STUB_LISTA
+export STUB_LISTA="DB_HEALTH_URL
+BLIND_INDEX_KEY "
+: > "$STUB_MIGRA"
+roda "$DIG"; verifica "nome com espaco no fim derruba o deploy" $(( $? == 0 ? 1 : 0 ))
+grep -q 'nao sao nome de' "$BASE/saida" && r=0 || r=1
+verifica "e diz que recusou a linha, em vez de descartar" $r
+[ -s "$STUB_MIGRA" ] && r=1 || r=0
+verifica "e nada e migrado" $r
+
+export STUB_LISTA=$(printf 'DB_HEALTH_URL\nBLIND_INDEX_KEY\r')
+roda "$DIG"; verifica "CR no fim (CRLF) tambem derruba" $(( $? == 0 ? 1 : 0 ))
+
+export STUB_LISTA=$STUB_LISTA_GUARDADA
+export STUB_LISTA_SYMLINK=1
+roda "$DIG"; verifica "lista que e symlink na imagem derruba o deploy" $(( $? == 0 ? 1 : 0 ))
+grep -q 'nao e arquivo comum' "$BASE/saida" && r=0 || r=1
+verifica "e diz que nao e arquivo comum" $r
+unset STUB_LISTA_SYMLINK
+
+echo "== YAML nulo conta como vazio"
+export STUB_CONFIG_RESOLVIDO="services:
+  app:
+    environment:
+$(printf '%s\n' "$STUB_LISTA" | sed 's/^/      /; s/$/: valor/' | sed 's/^      BLIND_INDEX_KEY: valor/      BLIND_INDEX_KEY: null/')"
+roda "$DIG"; verifica "obrigatoria com valor null conta como ausente" $(( $? == 0 ? 1 : 0 ))
+grep -q 'BLIND_INDEX_KEY' "$BASE/saida" && r=0 || r=1
+verifica "e diz o nome dela" $r
+unset STUB_CONFIG_RESOLVIDO
 
 echo "== nem o ENSAIO do Supabase leva valor do env para o log"
 # Mesmo --env-file, mesma forma de erro: apontado na revisao do #284.
