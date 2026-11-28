@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
-import { DELETE_ACCOUNT_PATH } from "@/modules/privacy";
+import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { signOut } from "@/server/auth/actions";
 import { waitlistPageRedirect } from "@/server/auth/session";
 
@@ -13,13 +13,31 @@ import { waitlistPageRedirect } from "@/server/auth/session";
 // resto do app) e volta ao login, para trocar de conta.
 export const metadata: Metadata = { title: instance.waitlist.title };
 
-export default async function WaitlistPage() {
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+export default async function WaitlistPage({ searchParams }: Props) {
   const target = await waitlistPageRedirect();
   if (target) redirect(target);
+  const myDataStatus = parseMyDataStatus((await searchParams)[MY_DATA_STATUS_PARAM]);
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-4 p-6">
       <h1 className="text-3xl font-bold">{instance.waitlist.title}</h1>
       <p className="text-lg">{instance.waitlist.message}</p>
+      {/* Direito de acesso também para quem espera (#130, LGPD art. 18): o mesmo POST do início, que volta para cá. */}
+      <form method="post" action={MY_DATA_PATH} className="flex flex-col gap-3">
+        <input type="hidden" name="volta" value="espera" />
+        {myDataStatus && (
+          <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+            {myDataStatus === "limite" ? instance.myData.rateLimited : instance.myData.failed}
+          </p>
+        )}
+        <button type="submit" aria-describedby="my-data-hint" className="min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-lg font-semibold">
+          {instance.myData.downloadButton}
+        </button>
+        <p id="my-data-hint" className="text-base">
+          {instance.myData.downloadHint}
+        </p>
+      </form>
       <form action={signOut}>
         <button type="submit" className="min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-lg font-semibold">
           {instance.waitlist.signOutButton}

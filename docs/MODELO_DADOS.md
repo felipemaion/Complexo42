@@ -597,7 +597,8 @@ em todos os eventos (veja "Excluir minha conta"). Limpeza (retenção, LGPD) pre
 forma explícita; nenhum teste ou migration atual limpa o log.
 
 ### "Baixar meus dados" (#20, LGPD art. 18)
-A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
+A pessoa baixa, pelo botão da página inicial **ou da tela de espera** (#130, parte 1: quem está `waitlisted` também tem o direito
+de acesso; a rota exige só a sessão, sem o portão de acesso, e o banco lê só as linhas dela), um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
 encerrados, aceites do termo do questionário, o resultado do questionário (casa, **totem** e **notas por eixo**, cifrados e decifrados pelo servidor; formato 9 do arquivo), os pedidos de
