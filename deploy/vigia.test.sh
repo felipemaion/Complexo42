@@ -130,6 +130,34 @@ export ALERTA_PARA=; roda; roda
 { [ ! -s "$BASE/curl-args" ] && grep -q 'ALERTA.*disco' "$BASE/vigia.log"; }; verifica "sem ALERTA_PARA: não chama o SMTP, mas registra o alerta" $?
 echo 40 > "$BASE/uso-_"; roda
 
+# --- o cenário que o vigia existe para pegar: DISCO CHEIO (revisão do #361) --------------------
+export ALERTA_PARA=mantenedor@exemplo.org
+mkdir -p "$BASE/run" "$BASE/tmp-cheio" "$BASE/log-cheio"
+export RUNTIME_DIRECTORY="$BASE/run"
+# Estado vazio: é o que sobra de uma gravação truncada pelo disco cheio. Não pode abortar.
+for f in "$BASE"/estado/*; do : > "$f"; done
+roda; { [ "$RC" = 0 ] && [ "$(emails)" = 0 ]; }; verifica "estado vazio (gravação truncada): não aborta e segue" $?
+# Disco cheio de verdade: nada grava no estado, no log nem no TMPDIR.
+echo 100 > "$BASE/uso-_"
+chmod 500 "$BASE/estado" "$BASE/tmp-cheio"; chmod 500 "$BASE/log-cheio"
+REGISTRO_ORIGINAL=$REGISTRO; export REGISTRO="$BASE/log-cheio/vigia.log" TMPDIR="$BASE/tmp-cheio"
+: > "$BASE/curl-config"; : > "$BASE/curl-args"
+roda
+{ [ "$(emails)" -ge 1 ] && grep -q 'ALERTA.*disco' "$BASE/emails"; }; verifica "disco cheio, estado sem escrita: alerta JÁ na 1ª medição" $?
+grep -q '100%' "$BASE/emails"; verifica "e o e-mail diz o uso" $?
+{ grep -q 'senha-do-relay-de-teste' "$BASE/curl-config" && grep -q -- "-K $BASE/run/" "$BASE/curl-args"; }; verifica "a senha vai pelo RUNTIME_DIRECTORY (/run), não pelo TMPDIR cheio" $?
+[ -z "$(ls -A "$BASE/run")" ]; verifica "e o arquivo da senha some no fim" $?
+grep -q 'disco' "$BASE/saida"; verifica "sem log gravável, a medição sai na saída (journal do systemd)" $?
+# Liberado o espaço, volta a funcionar sozinho.
+chmod 700 "$BASE/estado" "$BASE/tmp-cheio" "$BASE/log-cheio"; export REGISTRO=$REGISTRO_ORIGINAL TMPDIR=/tmp
+echo 40 > "$BASE/uso-_"
+roda; roda; { [ "$RC" = 0 ] && [ -s "$BASE/estado/disco__" ]; }; verifica "espaço liberado: volta a gravar o estado e não aborta" $?
+
+# --- df com uso não numérico não aborta: vira "não consegui medir" ---------------------------
+printf -- '-\n' > "$BASE/uso-_dados"
+roda; roda; { [ "$RC" = 0 ] && grep -q 'ALERTA.*disco /dados' "$REGISTRO"; }; verifica "df com uso '-': não aborta e alerta que não mediu" $?
+echo 40 > "$BASE/uso-_dados"; roda
+
 # --- configuração faltando: sai 2 -----------------------------------------------------------
 ( unset AMBIENTE; bash "$SCRIPT" > /dev/null 2>&1; [ $? = 2 ] ); verifica "sem AMBIENTE: sai 2" $?
 
