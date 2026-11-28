@@ -109,4 +109,13 @@ test.describe("páginas logadas com o Supabase local", () => {
     await expect(page.getByTestId("scale--3")).toHaveAttribute("aria-checked", "true");
     await expectAccessible(page, "/casa (pergunta)");
   });
+
+  test("perfil, contato, habilidades, senha e excluir conta passam no axe nos dois temas, sem rolagem horizontal", async ({ browser }) => {
+    test.setTimeout(240_000);
+    const page = await signedInManager(browser, { hasAcceptedTerm: true });
+    for (const path of ["/perfil", "/perfil/contato", "/perfil/habilidades", "/senha", "/excluir-conta"]) {
+      await page.goto(path);
+      await expectAccessible(page, path);
+    }
+  });
 });

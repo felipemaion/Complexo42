@@ -2,7 +2,7 @@
 // o raio é mexer lá, não aqui. Funções puras para valer igual em <button>, <Link> e <a>.
 
 export type PageWidth = "form" | "content" | "wide";
-export type ButtonVariant = "primary" | "secondary" | "danger" | "choice";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "choice" | "choiceSelected";
 export type ButtonSize = "md" | "lg";
 export type NoticeTone = "info" | "error" | "success";
 
@@ -26,6 +26,8 @@ const buttonVariantClass: Readonly<Record<ButtonVariant, string>> = {
   danger: "justify-center text-center border-danger bg-surface text-danger hover:bg-danger-soft",
   // Alternativa de uma lista (atividades, casas): texto à esquerda, como item de menu.
   choice: "justify-start text-left border-field bg-surface text-ink hover:border-primary-ink hover:bg-soft",
+  // A alternativa escolhida: mesma forma, com a cor da marca.
+  choiceSelected: "justify-start text-left border-transparent bg-primary text-on-primary",
 };
 
 const buttonSizeClass: Readonly<Record<ButtonSize, string>> = {

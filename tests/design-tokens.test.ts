@@ -29,12 +29,8 @@ const pendingMigration = new Set([
   "src/app/(conta)/coordenacao/casas/janela/page.tsx",
   "src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx",
   "src/app/(conta)/coordenacao/casas/resultados/page.tsx",
-  "src/app/(conta)/perfil/page.tsx",
-  "src/app/(conta)/senha/",
   "src/modules/access/components/member-block-form.tsx",
   "src/modules/access/components/waitlist-queue.tsx",
-  "src/modules/profiles/components/contact-visibility.tsx",
-  "src/modules/profiles/components/profile-form.tsx",
 ]);
 
 function componentFiles(dir: string): string[] {
