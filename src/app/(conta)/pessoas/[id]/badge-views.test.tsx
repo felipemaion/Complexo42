@@ -1,9 +1,11 @@
 // Medalhas do perfil público (#305): na ordem que o dono escolheu, sem a que ele desligou nem a que não resolve, e o
 // totem entra só como código e nome (decifrado no servidor por `readMemberTotems`).
 import { renderToStaticMarkup } from "react-dom/server";
+import { instance } from "@config/instance";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const readMemberTotems = vi.fn<(client: unknown, ids: readonly string[], deps: unknown) => Promise<Map<string, string>>>();
+const readMemberHouses = vi.fn<(client: unknown, ids: readonly string[], known: readonly string[]) => Promise<Map<string, string>>>();
 
 vi.mock("server-only", () => ({}));
 vi.mock("@/modules/houses", async () => {
@@ -12,6 +14,7 @@ vi.mock("@/modules/houses", async () => {
     ChosenHouseAndTotem: medal.ChosenHouseAndTotem,
     coordinationViewDeps: () => ({ crypto: {}, questionnaire: { totemLabels: { PR: { name: "Totem Teste", description: "d" } } } }),
     readMemberTotems,
+    readMemberHouses,
   };
 });
 vi.mock("@/server/log", () => ({ log: { warn: vi.fn(), info: vi.fn(), error: vi.fn() } }));
@@ -23,6 +26,7 @@ const client = {} as never;
 
 beforeEach(() => {
   readMemberTotems.mockReset();
+  readMemberHouses.mockReset();
 });
 
 describe("resolveBadges", () => {
@@ -60,7 +64,31 @@ describe("medalha do totem", () => {
     expect(await badgeViews.totem!(client, PERSON)).toBeNull();
   });
 
-  it("a medalha da casa de outra pessoa ainda não tem leitura própria", () => {
-    expect(badgeViews.house).toBeUndefined();
+});
+
+describe("medalha da casa", () => {
+  it("lê a casa da pessoa pela função própria e mostra o brasão com o nome da casa da config", async () => {
+    const [first] = instance.houses;
+    readMemberHouses.mockResolvedValue(new Map([[PERSON, first!.id]]));
+    const node = await badgeViews.house!(client, PERSON);
+    expect(readMemberHouses).toHaveBeenCalledWith(client, [PERSON], instance.houses.map((h) => h.id));
+    expect(renderToStaticMarkup(<>{node}</>)).toContain(first!.name);
+  });
+
+  it("sem casa, casa desconhecida ou falha na leitura, sem medalha", async () => {
+    readMemberHouses.mockResolvedValue(new Map());
+    expect(await badgeViews.house!(client, PERSON)).toBeNull();
+    readMemberHouses.mockResolvedValue(new Map([[PERSON, "casa-fantasma"]]));
+    expect(await badgeViews.house!(client, PERSON)).toBeNull();
+    readMemberHouses.mockRejectedValue(new Error("member_houses_failed:42501"));
+    expect(await badgeViews.house!(client, PERSON)).toBeNull();
+  });
+
+  it("a ordem do dono vale para casa e totem juntos", async () => {
+    const [first] = instance.houses;
+    readMemberHouses.mockResolvedValue(new Map([[PERSON, first!.id]]));
+    readMemberTotems.mockResolvedValue(new Map([[PERSON, "PR"]]));
+    expect((await resolveBadges(client, PERSON, ["totem", "house"])).map((b) => b.kind)).toEqual(["totem", "house"]);
+    expect((await resolveBadges(client, PERSON, ["totem"])).map((b) => b.kind)).toEqual(["totem"]);
   });
 });
