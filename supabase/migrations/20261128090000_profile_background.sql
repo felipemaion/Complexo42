@@ -10,7 +10,7 @@
 --    `app.can_view_background`. Porta-voz, admin técnico e colegas não leem. Nada é apagado pela API: a
 --    linha some com a conta (cascata).
 -- 3. `export_own_data()` passa a trazer `background` (ainda cifrado; o servidor decifra). Definição
---    igual à de `..._questionnaire_answers.sql`, mais a chave nova.
+--    igual à de `..._house_transfer_window.sql`, mais a chave nova.
 
 create table public.profile_background (
   profile_id uuid primary key references public.profiles (id) on delete cascade,
@@ -189,8 +189,7 @@ begin
         'consent_version', h.consent_version,
         'joined_at', h.joined_at,
         'accepted_at', h.accepted_at,
-        'left_at', h.left_at,
-        'locked_until', h.locked_until
+        'left_at', h.left_at
       ) order by h.joined_at, h.id)
       from public.house_members as h
       where h.profile_id = caller
