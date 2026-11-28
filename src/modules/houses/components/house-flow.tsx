@@ -14,6 +14,7 @@ import { IntensityScale } from "@/modules/questionnaire/components/intensity-sca
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import type { ChartAxis, HouseByPoles, PublicQuestionnaire } from "@/modules/questionnaire";
 import { changeHouseFlow, formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "../domain/flow";
+import { guardAction } from "../domain/guard-action";
 import { refusalMessage } from "../domain/refusal";
 import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
@@ -52,7 +53,7 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
 
   const acceptConsent = () =>
     startTransition(async () => {
-      const result = await recordConsentAction({ termVersion: questionnaire.consentTermVersion });
+      const result = await guardAction(() => recordConsentAction({ termVersion: questionnaire.consentTermVersion }));
       if (result.ok) dispatch({ type: "consent_accepted" });
       else setError(result.error);
     });
@@ -65,7 +66,7 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
     if (step.kind !== "submit") return;
     let cancelled = false;
     void (async () => {
-      const response = await submitAnswersAction({ answers });
+      const response = await guardAction(() => submitAnswersAction({ answers }));
       if (cancelled) return;
       // A recusa vai no estado do fluxo (#199): setError e dispatch na mesma hora apagariam o motivo.
       if (!response.ok) dispatch({ type: "submit_failed", error: response.error, retryAfterSeconds: response.retryAfterSeconds });
@@ -80,7 +81,7 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
 
   const acceptHouse = (houseId: string, joinMethod: "self" | "questionnaire") =>
     startTransition(async () => {
-      const result = await acceptHouseAction({ houseId, joinMethod });
+      const result = await guardAction(() => acceptHouseAction({ houseId, joinMethod }));
       if (result.ok) {
         router.replace("/casa");
         router.refresh();
@@ -127,9 +128,6 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
             {questionnaire.consentTerm}
           </p>
           {/* O aviso é texto da tela (config), junto ao botão; o termo vem da config privada e não muda. */}
-          <p className="rounded-xl border-2 border-current p-4 text-lg font-semibold" data-testid="consent-lock-notice">
-            {text.consentLockNotice}
-          </p>
           <p className="rounded-xl border-2 border-current p-4 text-lg" data-testid="consent-stored-notice">
             {text.consentStoredNotice}
           </p>
@@ -227,12 +225,6 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
               firstStepsTitle={text.firstStepsTitle}
               videosTitle={text.videosTitle}
             />
-          )}
-          {/* Troca depois da trava: o aviso da nova trava de 4 meses vem antes de aceitar (#268). */}
-          {step.returnTo && (
-            <p className="rounded-xl border-2 border-current p-4 text-lg font-semibold" data-testid="change-lock-notice">
-              {text.consentLockNotice}
-            </p>
           )}
           <button
             type="button"

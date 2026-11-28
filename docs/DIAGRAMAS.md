@@ -314,8 +314,13 @@ erDiagram
         timestamptz accepted_at
         timestamptz left_at
         uuid ended_by FK
-        timestamptz locked_until "trava individual; sai com a janela de transferência (#302, ADR 0016)"
         boolean moved "encerrado por troca"
+    }
+    house_transfer_window {
+        boolean singleton PK "uma linha só"
+        boolean is_open "aberta ou fechada, sem datas"
+        timestamptz changed_at
+        uuid changed_by FK
     }
     questionnaire_term_versions {
         text version PK "schema app"

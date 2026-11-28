@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import { states } from "@config/states";
-import { formatBrazilianWhatsapp, listDistricts, listMunicipalitiesByState, loadOwnProfile, ProfileForm } from "@/modules/profiles";
+import { formatBrazilianWhatsapp, listDistricts, listMunicipalitiesByState, loadOwnProfile, needsFullNameNotice, ProfileForm } from "@/modules/profiles";
 import { usesGoogleSignIn } from "@/server/auth/password-flows";
 import { requireUserClient } from "@/server/auth/session";
 import { setPasswordAction } from "../senha/actions";
@@ -27,6 +27,11 @@ export default async function ProfilePage() {
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
       <h1 className="text-3xl font-bold">{text.title}</h1>
+      {own && needsFullNameNotice(own.displayName) && (
+        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg">
+          {text.completeNameNotice}
+        </p>
+      )}
       <ProfileForm
         action={saveProfileAction}
         initial={{

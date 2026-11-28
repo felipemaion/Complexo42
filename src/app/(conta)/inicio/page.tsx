@@ -3,11 +3,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
-import { coordinationViewDeps, OwnHouse, readHouseLock, readMemberTotems, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
+import { coordinationViewDeps, OwnHouse, readMemberTotems, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
 import { totemName } from "@/modules/questionnaire";
 import { log } from "@/server/log";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
-import { CONTACT_VISIBILITY_PATH, loadOwnProfile, SocialLinkList } from "@/modules/profiles";
+import { CONTACT_VISIBILITY_PATH, loadOwnProfile, needsFullNameNotice, SocialLinkList } from "@/modules/profiles";
 import { PASSWORD_PATH, PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -28,7 +28,6 @@ export default async function SignedInHome({ searchParams }: Props) {
   const text = instance.auth;
   const deps = coordinationViewDeps();
   const houseClient = await sessionHouseClient();
-  const lockedUntil = houseClient ? await readHouseLock(houseClient, user.id) : null;
   const houseCard = houseClient && await readOwnHouseCard(houseClient, user.id, { crypto: deps.crypto, questionnaire: deps.questionnaire, houseIds: instance.houses.map((house) => house.id) });
   // O totem da própria pessoa (#303): lido pela função do banco e decifrado aqui, no servidor. Se falhar, a página abre sem a medalha.
   const totemCode = houseCard && houseCard.kind === "house" && houseClient
@@ -48,6 +47,11 @@ export default async function SignedInHome({ searchParams }: Props) {
           {instance.profile.saved}
         </p>
       )}
+      {needsFullNameNotice(own.displayName) && (
+        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg">
+          {instance.profile.completeNameNotice}
+        </p>
+      )}
       <p className="text-lg">{text.signedInMessage}</p>
       <p className="text-lg">
         {text.connectedAs} <strong>{user.maskedEmail}</strong>
@@ -58,7 +62,6 @@ export default async function SignedInHome({ searchParams }: Props) {
           card={houseCard}
           houses={instance.houses}
           text={instance.houseSelection}
-          lockedUntil={lockedUntil}
           totem={totemCode ? { code: totemCode, name: totemName(deps.questionnaire, totemCode) } : null}
         />
       )}

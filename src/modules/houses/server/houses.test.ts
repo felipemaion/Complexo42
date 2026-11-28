@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { HouseClient, HouseQuery } from "../types";
 import { parseQuestionnaire } from "@/modules/questionnaire";
-import { acceptHouse, readAcceptedHouse, readHouseLock, recordConsent, refusalDetail, submitQuestionnaire, type RefusalDetail } from "./houses";
+import { acceptHouse, readAcceptedHouse, readTransferWindow, recordConsent, refusalDetail, submitQuestionnaire, type RefusalDetail } from "./houses";
 
 const houseIds = ["casa-a", "casa-b"];
 
@@ -77,7 +77,7 @@ describe("acceptHouse", () => {
       ["23505", "already_accepted"],
       ["C7601", "failed"], // a região não é mais exigida (ADR 0011)
       ["C7602", "removed_by_coordination"],
-      ["C7603", "house_locked"], // trava de 4 meses para trocar de casa
+      ["C7605", "window_closed"], // janela de transferência fechada
       ["C7604", "house_conflict"], // troca concorrente
       ["22023", "failed"],
       [undefined, "failed"],
@@ -138,10 +138,10 @@ describe("motivo técnico da recusa (#313)", () => {
   });
 
   it("acceptHouse recusado pelo banco entrega código e status", async () => {
-    const { client } = fakeClient({ error: { code: "C7603", message: "detalhe interno" }, status: 400 });
+    const { client } = fakeClient({ error: { code: "C7605", message: "detalhe interno" }, status: 400 });
     const r = refusal();
-    expect(await acceptHouse(client, { houseId: "casa-a", joinMethod: "self" }, houseIds, "termo-1", r.on)).toEqual({ ok: false, error: "house_locked" });
-    expect(r.seen).toEqual([{ code: "C7603", status: 400 }]);
+    expect(await acceptHouse(client, { houseId: "casa-a", joinMethod: "self" }, houseIds, "termo-1", r.on)).toEqual({ ok: false, error: "window_closed" });
+    expect(r.seen).toEqual([{ code: "C7605", status: 400 }]);
   });
 
   it("sucesso, entrada inválida e termo desatualizado não chamam o registro (nada foi ao banco)", async () => {
@@ -367,16 +367,19 @@ describe("submitQuestionnaire", () => {
   });
 });
 
-describe("readHouseLock", () => {
-  it("lê só a trava do vínculo aberto e aceito da própria pessoa", async () => {
-    const { client, filters } = fakeClient({ data: { locked_until: "2027-03-27T15:00:00+00:00" } });
-    expect(await readHouseLock(client, "u1")).toBe("2027-03-27T15:00:00+00:00");
-    expect(filters).toContainEqual(["from", "house_members", "locked_until"]);
-    expect(filters).toContainEqual(["eq", "profile_id", "u1"]);
-    expect(filters).toContainEqual(["is", "left_at", null]);
+describe("readTransferWindow", () => {
+  it("lê o estado da janela de transferência (ADR 0016)", async () => {
+    const { client, filters } = fakeClient({ data: { is_open: true } });
+    expect(await readTransferWindow(client)).toBe(true);
+    expect(filters).toContainEqual(["from", "house_transfer_window", "is_open"]);
+    expect((await readTransferWindow(fakeClient({ data: { is_open: false } }).client))).toBe(false);
   });
 
-  it("sem casa aceita, devolve nulo", async () => {
-    expect(await readHouseLock(fakeClient().client, "u1")).toBeNull();
+  it("sem linha, fecha (falha fechado)", async () => {
+    expect(await readTransferWindow(fakeClient().client)).toBe(false);
+  });
+
+  it("erro do banco sobe como erro, sem texto de origem", async () => {
+    await expect(readTransferWindow(fakeClient({ error: { code: "42501", message: "detalhe interno" } }).client)).rejects.toThrow("transfer_window_read_failed:not_active");
   });
 });

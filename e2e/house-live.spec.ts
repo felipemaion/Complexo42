@@ -133,8 +133,8 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   const requests = recordRequests(page);
 
   await expect(page.getByTestId("consent-term")).toHaveText(questionnaire.consentTerm);
-  // Trava de 4 meses (ADR 0016): o aviso aparece antes do aceite, junto ao botão, fora do termo.
-  await expect(page.getByTestId("consent-lock-notice")).toContainText("4 meses");
+  // Sem trava de 4 meses (ADR 0016): nenhum aviso de prazo junto ao botão.
+  await expect(page.getByTestId("consent-lock-notice")).toHaveCount(0);
   // Respostas guardadas cifradas: aviso de tela logo depois, ainda antes do botão de aceitar e fora do termo.
   await expect(page.getByTestId("consent-stored-notice")).toContainText("guardadas de forma cifrada");
   await expect(page.getByTestId("consent-term")).not.toContainText("guardadas de forma cifrada");
@@ -326,7 +326,17 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
 
 // Troca de casa depois da trava (#268): a MESMA tela de comparação do "Escolher outra casa", montada no servidor a partir do que
 // está guardado. Com respostas guardadas a expectativa é por pergunta; sem elas (respondeu antes), pelo eixo.
-async function answerAndAccept(page: Page, memberId: string) {
+// A janela de transferência é um estado único do banco (ADR 0016): cada teste põe o que precisa, direto no banco, e a deixa fechada.
+async function setWindow(open: boolean) {
+  const r = await admin("/rest/v1/house_transfer_window?singleton=eq.true", { method: "PATCH", body: JSON.stringify({ is_open: open }) });
+  expect(r.ok).toBe(true);
+}
+
+test.afterEach(async () => {
+  await setWindow(false);
+});
+
+async function answerAndAccept(page: Page) {
   await page.goto("/casa");
   await page.getByRole("button", { name: "Aceito e quero responder" }).click();
   for (let index = 0; index < questionnaire.items.length; index += 1) {
@@ -336,20 +346,16 @@ async function answerAndAccept(page: Page, memberId: string) {
   await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
-  // Trava vencida (4 meses passaram): só então o link de troca aparece.
-  const unlocked = await admin(`/rest/v1/house_members?profile_id=eq.${memberId}&left_at=is.null`, {
-    method: "PATCH",
-    body: JSON.stringify({ locked_until: new Date(Date.now() - 60_000).toISOString() }),
-  });
-  expect(unlocked.ok).toBe(true);
+  // Janela de transferência aberta pela coordenação nacional: só então o link de troca aparece.
+  await setWindow(true);
   await page.goto("/casa");
   await page.getByTestId("change-house-link").click();
 }
 
-test("trocar de casa depois da trava: tela de comparação com a casa atual e expectativas por pergunta (#268)", async ({ page }) => {
+test("trocar de casa com a janela aberta: tela de comparação com a casa atual e expectativas por pergunta (#268)", async ({ page }) => {
   const member = await createMember("trc");
   await signIn(page, member.email);
-  await answerAndAccept(page, member.id);
+  await answerAndAccept(page);
   const requests = recordRequests(page);
   await expect(page.getByTestId("compare-houses")).toBeVisible();
   await expect(page.locator('[data-testid^="compare-house-"]')).toHaveCount(4);
@@ -370,13 +376,38 @@ test("trocar de casa depois da trava: tela de comparação com a casa atual e ex
   expect(compareBodies.length).toBeGreaterThan(0);
   expect(JSON.stringify(compareBodies)).not.toContain("answers");
   await page.getByTestId("compare-confirm").click();
-  // A confirmação traz o aviso da nova trava de 4 meses.
-  await expect(page.getByTestId("change-lock-notice")).toBeVisible();
+  // Sem trava de 4 meses (ADR 0016): a confirmação não traz aviso de prazo.
+  await expect(page.getByTestId("change-lock-notice")).toHaveCount(0);
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   const rows = await houseRows(member.id);
   expect(rows).toHaveLength(1);
   expect(rows[0]?.join_method).toBe("self");
+});
+
+test("janela fechada: sem link de troca nem data; abrir e fechar mostram e tiram o link (ADR 0016)", async ({ page }) => {
+  const member = await createMember("jan");
+  await setWindow(false);
+  await signIn(page, member.email);
+  await page.goto("/casa");
+  await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+  for (let index = 0; index < questionnaire.items.length; index += 1) {
+    await page.getByTestId("scale--5").click();
+    await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
+  }
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("change-house-link")).toHaveCount(0);
+  await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
+  expect(await page.content()).not.toMatch(/\d{2}\/\d{2}\/\d{4}/);
+  await page.goto("/inicio");
+  await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
+  await setWindow(true);
+  await page.goto("/casa");
+  await expect(page.getByTestId("change-house-link")).toBeVisible();
+  await setWindow(false);
+  await page.goto("/casa");
+  await expect(page.getByTestId("change-house-link")).toHaveCount(0);
 });
 
 test("trocar de casa sem respostas guardadas (respondeu antes): o que se espera vem por eixo (#268)", async ({ page }) => {
@@ -392,7 +423,7 @@ test("trocar de casa sem respostas guardadas (respondeu antes): o que se espera 
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   // Como quem respondeu antes de guardarmos as respostas: o resultado fica, as respostas não.
   expect((await admin(`/rest/v1/questionnaire_results?profile_id=eq.${member.id}`, { method: "PATCH", body: JSON.stringify({ answers_enc: null }) })).ok).toBe(true);
-  expect((await admin(`/rest/v1/house_members?profile_id=eq.${member.id}&left_at=is.null`, { method: "PATCH", body: JSON.stringify({ locked_until: new Date(Date.now() - 60_000).toISOString() }) })).ok).toBe(true);
+  await setWindow(true);
   await page.goto("/casa");
   await page.getByTestId("change-house-link").click();
   await expect(page.getByTestId("compare-houses")).toBeVisible();
@@ -424,11 +455,11 @@ test("sabe → atividade → apresentação → escolher outra → aceitar (self
   await expect(page.getByTestId("app-logo").first()).toHaveAttribute("alt", /\S/);
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
-  // Casa definida: a pessoa vê a data a partir da qual poderá trocar (4 meses; ADR 0016) e ainda não vê o link de troca.
-  await expect(page.getByTestId("house-lock-notice")).toContainText(/\d{2}\/\d{2}\/\d{4}/);
+  // Casa definida com a janela fechada: sem data nem link de troca (ADR 0016).
+  await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
   await expect(page.getByTestId("change-house-link")).toHaveCount(0);
   await page.goto("/inicio");
-  await expect(page.getByTestId("house-lock-notice")).toBeVisible();
+  await expect(page.getByTestId("house-lock-notice")).toHaveCount(0);
   await page.goto("/casa");
 
   expect(actionBodies(requests)).toEqual([[{ houseId: "alexandria", joinMethod: "self" }]]);
