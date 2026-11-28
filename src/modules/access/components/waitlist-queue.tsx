@@ -80,7 +80,7 @@ export function WaitlistQueue({ entries, cursor, nextCursor, confirmation, actio
               <p className="text-lg">{entry.place}</p>
               <p className="text-base text-ink-muted">{fillText(text.since, { date: entry.since })}</p>
               {!entry.isIdentified && (
-                <p className="rounded-lg border-2 border-current p-3 text-lg" data-testid="waitlist-unknown-name">
+                <p className={noticeClass("info")} data-testid="waitlist-unknown-name">
                   {text.unknownNameNote}
                 </p>
               )}
