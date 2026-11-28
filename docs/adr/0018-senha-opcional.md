@@ -28,7 +28,7 @@ alternativa e para recuperar a senha. O Auth é o GoTrue v2.198 auto-hospedado.
    o login por senha só existe pela rede interna. O proxy de borda sempre acrescenta
    `X-Forwarded-For` às chamadas de fora; o servidor do app fala com o Kong direto, sem esse
    cabeçalho. No `deploy/kong.yml`, uma rota com `headers: x-forwarded-for: ["~*.+"]` responde 404 a
-   `/token`, `/recover`, `/otp`, `/magiclink`, `/resend`, `/user` e `/reauthenticate` vindos de fora
+   `/token`, `/recover`, `/otp`, `/magiclink`, `/resend`, `/user`, `/reauthenticate` e `/admin` vindos de fora
    (inclusive `//auth/v1/token` e `%74oken`). O navegador só usa `/verify`, `/authorize` e
    `/callback`, que seguem abertos. Escolhi isso ao `rate-limiting` do Kong porque elimina o vetor
    em vez de só limitá-lo, e não tem estado nem dependência. Medido com o Kong 3.9.4 da imagem do

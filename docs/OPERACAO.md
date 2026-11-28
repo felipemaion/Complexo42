@@ -325,6 +325,19 @@ Só `/auth/v1/*`, publicado pelo proxy reverso. `/rest/v1` responde 404 de
 fora: o app o consome pela rede interna. A barreira real dos dados é a RLS,
 não o kong — ver `docs/adr/0009` §1.
 
+E **dentro** do `/auth/v1/*` o navegador só alcança o que precisa: `/verify`,
+`/authorize` e `/callback`. O resto (`/token`, `/recover`, `/otp`,
+`/magiclink`, `/resend`, `/user`, `/reauthenticate` e `/admin`) responde 404
+quando vem de fora — a regra casa pelo `X-Forwarded-For`, que o proxy sempre
+acrescenta e a chamada interna do app não tem (ADR 0018 §3).
+
+> **`/admin` entrou depois.** De fora ele respondia **401** — o GoTrue
+> exigindo a chave de serviço —, e não 404. A chave sozinha já barrava;
+> agora a defesa é o segredo **mais** o 404. Consequência operacional:
+> `admin/generate_link` (o atalho para emitir um link de acesso sem PKCE)
+> continua valendo **de dentro**, pela rede interna ou por `docker exec`, e
+> passa a dar 404 pela URL pública.
+
 ## Armadilhas
 
 Erros encontrados ao montar isto, todos corrigidos aqui. Valem para qualquer
