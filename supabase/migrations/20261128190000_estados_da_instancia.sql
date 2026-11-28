@@ -50,6 +50,11 @@ alter table public.audit_log add constraint audit_log_event_check check (event i
   'members_attached_to_state'
 ));
 
+-- A contagem (`item_count`) era só do lote da lista de autorizados; o evento novo também é um lote.
+alter table public.audit_log drop constraint audit_log_item_count_only_for_batches;
+alter table public.audit_log add constraint audit_log_item_count_only_for_batches
+  check ((event in ('allowlist_imported', 'members_attached_to_state')) = (item_count is not null));
+
 -- ---------------------------------------------------------------------------------------
 -- 3. Quem já estava ativo sem vínculo entra no estado dele
 -- ---------------------------------------------------------------------------------------

@@ -521,7 +521,9 @@ insert into people values
   ('pend_susp',   '00000000-0000-0000-0000-0000000000d7');  -- pendente, conta suspensa
 insert into auth.users (id) select id from people where name in
   ('root_wait', 'root_blk', 'root_susp', 'sp_mgr_susp', 'wait_nounit', 'blk', 'pend_susp');
--- RJ não tem unidade de estado: essas pessoas ficam sem vínculo.
+-- RJ não tem unidade de estado: essas pessoas ficam sem vínculo. (Os 27 estados vêm da migration, #365; aqui o RJ sai para
+-- o teste continuar cobrindo quem se cadastra num estado sem unidade.)
+delete from public.units where state_code = 'RJ';
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
 select id, pg_temp.enc(name), case when name = 'sp_mgr_susp' then 3550308 else 3304557 end, 'v1'
 from people where name in ('root_wait', 'root_blk', 'root_susp', 'sp_mgr_susp', 'wait_nounit', 'blk', 'pend_susp');
