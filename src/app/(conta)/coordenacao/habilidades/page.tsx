@@ -31,7 +31,7 @@ export default async function SkillSuggestionsPage({
         </p>
       )}
       {errorText && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg">
+        <p role="alert" className="rounded-xl border-2 border-danger p-4 text-lg">
           {errorText}
         </p>
       )}
