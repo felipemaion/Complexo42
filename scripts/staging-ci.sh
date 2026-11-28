@@ -14,7 +14,8 @@
 #   5. deploy/docker-compose.app.yml com o questionário de exemplo em ./questionario;
 #   6. um proxy no papel do proxy do servidor (scripts/staging-ci/proxy.conf.template);
 #   7. e2e/staging.spec.ts: bootstrap (deploy/bootstrap-coordenacao.sh) → login → termo →
-#      questionário → casa → perfil → a coordenação vê o resultado.
+#      questionário → casa → perfil → a coordenação vê o resultado;
+#   8. deploy/backup.sh e deploy/restore-test.sh com um par age descartável (só no caso normal, #84).
 #
 # Uso: STAGING_IMAGEM=<imagem do app já construída> scripts/staging-ci.sh [--reverter <caso>]
 #   --reverter desfaz UM conserto e inverte o resultado: sai 0 só se o staging FALHAR, na etapa e
@@ -175,6 +176,29 @@ monta_e_testa() {
         npx playwright test -c playwright.staging.config.ts); then
     mostra_logs; return 1
   fi
+
+  # Backup e restauração (#84), com os scripts do servidor, sobre o banco que o E2E acabou de usar.
+  # O par age é DESCARTÁVEL: nasce no diretório temporário do job (apagado na limpeza), a chave
+  # privada só é lida pelo age, por caminho, e nada dela vai para log, saída ou artefato.
+  [ -n "$REVERTER" ] && return 0
+  etapa backup "deploy/backup.sh e deploy/restore-test.sh (par age descartável)"
+  command -v age-keygen > /dev/null || { echo "sem age-keygen no runner"; return 1; }
+  local chave="$DIR/chave-age-descartavel" publica arq
+  age-keygen -o "$chave" 2> /dev/null
+  publica=$(age-keygen -y "$chave")
+  COMPOSE_FILE="$DIR/docker-compose.supabase.yml" ENV_FILE="$ENV_FILE" PROJECT_DIR="$DIR" \
+    BACKUP_DIR="$DIR/backups" AGE_RECIPIENT="$publica" bash "$RAIZ/deploy/backup.sh"
+  arq=$(ls -1t "$DIR"/backups/diario/*.age | head -n1)
+  # O que o E2E deixou: 2 perfis, 2 casas aceitas, 1 papel (a coordenação), a raiz e os municípios.
+  MINIMOS="perfis=2 casas=2 papeis=1 unidades=1 municipios=5000" REGISTRO="$DIR/backup.log" \
+    INITDB_DIR="$DIR/initdb" bash "$RAIZ/deploy/restore-test.sh" "$arq" "$chave"
+  # A conferência morde: um mínimo impossível TEM de reprovar.
+  if MINIMOS="perfis=999999" INITDB_DIR="$DIR/initdb" bash "$RAIZ/deploy/restore-test.sh" "$arq" "$chave" > /dev/null 2>&1; then
+    echo "ERRO: o restore-test aprovou um banco abaixo do minimo"; return 1
+  fi
+  grep -q ' restore-test ok segundos=' "$DIR/backup.log" || { echo "o registro do restore-test nao saiu"; return 1; }
+  if grep -q 'AGE-SECRET-KEY' "$DIR/backup.log"; then echo "ERRO: a chave privada foi parar no registro"; return 1; fi
+  cat "$DIR/backup.log"
 }
 
 # O subshell roda com -e próprio e o código dele decide. O trap de limpeza fica fora, para os
