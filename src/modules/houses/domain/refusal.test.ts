@@ -12,6 +12,7 @@ const texts: RefusalTexts = {
     house_conflict: "conflito",
     rate_limited: "espere um pouco",
     failed: "não foi possível",
+    app_updated: "app atualizado",
   },
   rateLimitedWait: "Espere {minutes} min.",
 };

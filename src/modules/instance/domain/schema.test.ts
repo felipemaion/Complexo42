@@ -183,6 +183,7 @@ const valid = {
       removed_by_coordination: "t",
       house_locked: "t",
       house_conflict: "t",
+      app_updated: "t",
       rate_limited: "t",
       failed: "t",
     },

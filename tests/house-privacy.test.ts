@@ -40,7 +40,7 @@ describe("respostas do questionário só no aparelho", () => {
 
   it("as únicas chamadas ao servidor levam as respostas (para o servidor pontuar), a casa com a forma de entrada ou a versão do termo; nunca casa nem totem do resultado", () => {
     const flow = readFileSync(join(CLIENT_DIR, "house-flow.tsx"), "utf8");
-    const calls = [...flow.matchAll(/await (\w+Action)\(([^)]*)\)/g)].map((m) => `${m[1]}(${m[2]})`);
+    const calls = [...flow.matchAll(/\b(?!guardAction)(\w+Action)\(([^)]*)\)/g)].map((m) => `${m[1]}(${m[2]})`);
     expect(calls).toEqual([
       "recordConsentAction({ termVersion: questionnaire.consentTermVersion })",
       "submitAnswersAction({ answers })",
