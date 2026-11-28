@@ -1,7 +1,8 @@
 -- Matriz declarativa de privilégio por tabela (#154, parte a; AGENTS.md R5 e R16).
 --
 -- Cada tabela de `public` precisa de UMA linha em `declared`: as operações (S select, I insert, U update, D delete)
--- que `anon` e `authenticated` podem fazer na tabela. O que não está listado é negado. O teste lê o catálogo e
+-- que `anon` e `authenticated` podem fazer na tabela. Letra minúscula é privilégio só em coluna (`s`). O que não está
+-- listado é negado. O teste lê o catálogo e
 -- falha fechado:
 --   * tabela existente sem linha, ou linha de tabela que não existe;
 --   * privilégio real diferente do declarado (inclusive o aberto demais);
@@ -14,19 +15,49 @@ create extension if not exists pgtap with schema extensions;
 select plan(4);
 
 create temp table declared (tbl text primary key, anon_ops text not null, auth_ops text not null);
--- tbl | anon | authenticated   (sem linhas ainda: a primeira execução mostra o estado real)
+-- tbl | anon | authenticated
+insert into declared values
+  ('access_allowlist', '', ''),
+  ('access_waitlist_hmac', '', ''),
+  ('audit_log', '', 'S'),
+  ('consent_acceptances', '', 'S'),
+  ('contact_visibility', '', 'S'),
+  ('districts', '', 'S'),
+  ('house_analysis_requests', '', 'S'),
+  ('house_members', '', 'S'),
+  ('house_transfer_window', '', 's'),
+  ('houses', '', 'S'),
+  ('municipalities', '', 'S'),
+  ('profile_background', '', 'S'),
+  ('profile_contacts', '', 'S'),
+  ('profile_photos', '', 'SD'),
+  ('profile_skills', '', 'S'),
+  ('profiles', '', 'S'),
+  ('questionnaire_consents', '', 'S'),
+  ('questionnaire_data_grants', '', 'S'),
+  ('questionnaire_results', '', 's'),
+  ('role_assignments', '', 'S'),
+  ('skill_suggestions', '', 'S'),
+  ('skills', '', 'S'),
+  ('unit_members', '', 'S'),
+  ('unit_types', '', 'S'),
+  ('units', '', 'S');
+
+create function pg_temp.ops(p_role text, p_oid oid) returns text language sql stable as $$
+  select coalesce(string_agg(
+    case when has_table_privilege(p_role, p_oid, x.priv) then x.op
+         when has_any_column_privilege(p_role, p_oid, x.priv) then lower(x.op) end,
+    '' order by x.ord), '')
+  from (values ('S', 1, 'select'), ('I', 2, 'insert'), ('U', 3, 'update')) as x(op, ord, priv)
+$$;
+create function pg_temp.table_ops(p_role text, p_oid oid) returns text language sql stable as $$
+  select pg_temp.ops(p_role, p_oid) || case when has_table_privilege(p_role, p_oid, 'delete') then 'D' else '' end
+$$;
 
 create temp table actual as
 select c.relname::text as tbl,
-  coalesce((select string_agg(x.op, '' order by x.ord)
-            from (values ('S', 1, 'select'), ('I', 2, 'insert'), ('U', 3, 'update'), ('D', 4, 'delete')) as x(op, ord, priv)
-            where has_table_privilege('anon', c.oid, x.priv)), '') as anon_ops,
-  coalesce((select string_agg(x.op, '' order by x.ord)
-            from (values ('S', 1, 'select'), ('I', 2, 'insert'), ('U', 3, 'update'), ('D', 4, 'delete')) as x(op, ord, priv)
-            where has_table_privilege('authenticated', c.oid, x.priv)), '') as auth_ops,
-  -- Privilégio só em coluna não aparece acima: marca para a pessoa declarar de propósito.
-  (has_any_column_privilege('anon', c.oid, 'select, insert, update') or has_any_column_privilege('authenticated', c.oid, 'select, insert, update'))
-    and not (has_table_privilege('anon', c.oid, 'select') or has_table_privilege('authenticated', c.oid, 'select')) as only_columns,
+  pg_temp.table_ops('anon', c.oid) as anon_ops,
+  pg_temp.table_ops('authenticated', c.oid) as auth_ops,
   c.relrowsecurity as rls
 from pg_class as c
 join pg_namespace as n on n.oid = c.relnamespace
@@ -56,7 +87,7 @@ select is_empty(
   $$ select a.tbl, o.op
      from actual as a
      cross join (values ('S', 'SELECT'), ('I', 'INSERT'), ('U', 'UPDATE'), ('D', 'DELETE')) as o(op, cmd)
-     where position(o.op in a.auth_ops) > 0
+     where position(o.op in upper(a.auth_ops)) > 0
        and not exists (
          select 1 from pg_policies as p
          where p.schemaname = 'public' and p.tablename = a.tbl and p.cmd in (o.cmd, 'ALL')
@@ -64,9 +95,6 @@ select is_empty(
        ) $$,
   'toda operação concedida a authenticated tem política que a permita'
 );
-
--- Mostra o estado real (para preencher a declaração da primeira vez).
-select diag(string_agg(format('%s | %s | %s%s', tbl, anon_ops, auth_ops, case when only_columns then ' | SÓ COLUNAS' else '' end), E'\n' order by tbl)) from actual;
 
 select * from finish();
 rollback;
