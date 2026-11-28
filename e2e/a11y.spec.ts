@@ -25,7 +25,7 @@ async function expectAccessible(page: Page, where: string, scope?: string): Prom
   }
 }
 
-for (const path of ["/", "/entrar", "/conta-excluida"]) {
+for (const path of ["/", "/entrar", "/conta-excluida", "/espera", "/auth/confirmar"]) {
   test(`${path} passa no axe nos dois temas, sem rolagem horizontal`, async ({ page }) => {
     await page.goto(path);
     await expectAccessible(page, path);
@@ -43,8 +43,8 @@ test.describe("páginas logadas com o Supabase local", () => {
       headers: { apikey: SERVICE_KEY!, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json", ...init.headers },
     });
 
-  /** Gestora da raiz, ativa, com casa e termo aceito (mesmo preparo de e2e/navigation-live.spec.ts). */
-  async function signedInManager(browser: Browser): Promise<Page> {
+  /** Gestora da raiz, ativa e com casa (mesmo preparo de e2e/navigation-live.spec.ts); com ou sem o termo aceito. */
+  async function signedInManager(browser: Browser, { hasAcceptedTerm }: { hasAcceptedTerm: boolean }): Promise<Page> {
     const email = `a11y.${Date.now()}@exemplo.org`;
     const user = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, email_confirm: true }) })).json();
     const created = await admin("/rest/v1/profiles", {
@@ -61,7 +61,9 @@ test.describe("páginas logadas com o Supabase local", () => {
     });
     expect(created.status).toBe(201);
     await giveHouse(admin, user.id);
-    await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
+    if (hasAcceptedTerm) {
+      await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
+    }
     const [unit] = await (await admin("/rest/v1/units?parent_id=is.null&select=id")).json();
     await admin("/rest/v1/role_assignments", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ profile_id: user.id, role: "manager", unit_id: unit.id }) });
     const link = await (await admin("/auth/v1/admin/generate_link", { method: "POST", body: JSON.stringify({ type: "magiclink", email }) })).json();
@@ -74,9 +76,17 @@ test.describe("páginas logadas com o Supabase local", () => {
 
   test("o cabeçalho das páginas logadas passa no axe nos dois temas, sem rolagem horizontal", async ({ browser }) => {
     test.setTimeout(120_000);
-    const page = await signedInManager(browser);
+    const page = await signedInManager(browser, { hasAcceptedTerm: true });
     await page.goto("/coordenacao");
     // Só o cabeçalho, que é o que a base da #324 muda; as páginas entram nos PRs de cada grupo.
     await expectAccessible(page, "cabeçalho", "header");
+  });
+
+  test("o termo passa no axe nos dois temas, sem rolagem horizontal", async ({ browser, baseURL }) => {
+    test.setTimeout(120_000);
+    const page = await signedInManager(browser, { hasAcceptedTerm: false });
+    await page.goto("/termo");
+    await expect(page).toHaveURL(`${baseURL}/termo`);
+    await expectAccessible(page, "/termo");
   });
 });

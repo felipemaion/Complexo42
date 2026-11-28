@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buttonClass, pageContainerClass } from "./styles";
+import { buttonClass, fieldClass, noticeClass, pageContainerClass, textLinkClass } from "./styles";
 
 describe("estilos comuns (#324)", () => {
   it("todo botão tem alvo de toque de pelo menos 44 px", () => {
@@ -18,5 +18,16 @@ describe("estilos comuns (#324)", () => {
     expect(pageContainerClass("form")).toContain("max-w-form");
     expect(pageContainerClass("content")).toContain("max-w-content");
     expect(pageContainerClass("wide")).toContain("max-w-site");
+  });
+
+  it("campos e links de ação também têm alvo de toque de 44 px", () => {
+    expect(fieldClass()).toContain("min-h-target");
+    expect(textLinkClass()).toContain("min-h-target");
+  });
+
+  it("o aviso de erro usa o tom de perigo e mantém o texto na cor de leitura", () => {
+    expect(noticeClass("error")).toContain("border-danger");
+    expect(noticeClass("error")).toContain("text-ink");
+    expect(noticeClass("success")).toContain("border-success");
   });
 });

@@ -32,8 +32,6 @@ const pendingMigration = new Set([
   "src/app/(conta)/coordenacao/casas/resultados/page.tsx",
   "src/app/(conta)/perfil/page.tsx",
   "src/app/(conta)/senha/",
-  "src/app/auth/confirmar/page.tsx",
-  "src/app/entrar/page.tsx",
   "src/modules/access/components/member-block-form.tsx",
   "src/modules/access/components/waitlist-queue.tsx",
   "src/modules/houses/components/compare-grid.tsx",

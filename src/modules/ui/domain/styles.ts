@@ -4,6 +4,7 @@
 export type PageWidth = "form" | "content" | "wide";
 export type ButtonVariant = "primary" | "secondary" | "danger";
 export type ButtonSize = "md" | "lg";
+export type NoticeTone = "info" | "error" | "success";
 
 const pageWidthClass: Readonly<Record<PageWidth, string>> = {
   // Login, termo, perfil, senha: uma coluna de leitura confortável.
@@ -37,4 +38,30 @@ export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSi
     buttonVariantClass[variant],
     buttonSizeClass[size],
   ].join(" ");
+}
+
+/** Link com cara de link, mas com alvo de toque de botão (ações secundárias: "Esqueci a senha", "Excluir minha conta"). */
+export function textLinkClass(): string {
+  return "inline-flex min-h-target items-center justify-center px-2 text-lg text-link underline";
+}
+
+/** Cartão: a superfície que agrupa um formulário ou um bloco da página. */
+export function cardClass(): string {
+  return "flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-8";
+}
+
+/** Campo de texto: borda de 3:1 com o fundo (WCAG 1.4.11) e altura de alvo de toque. */
+export function fieldClass(): string {
+  return "w-full min-h-target rounded-control border-2 border-field bg-surface px-4 py-3 text-lg text-ink";
+}
+
+const noticeToneClass: Readonly<Record<NoticeTone, string>> = {
+  info: "border-line bg-soft",
+  error: "border-danger bg-danger-soft",
+  success: "border-success bg-success-soft",
+};
+
+/** Aviso (status, erro, sucesso): o tom vem da borda e do fundo; o texto fica na cor de leitura. */
+export function noticeClass(tone: NoticeTone): string {
+  return `rounded-control border-2 p-4 text-lg text-ink ${noticeToneClass[tone]}`;
 }
