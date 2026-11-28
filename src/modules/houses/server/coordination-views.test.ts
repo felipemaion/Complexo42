@@ -101,8 +101,8 @@ describe("readCoordinationAccess e canSeeResults", () => {
 describe("listResults", () => {
   const VIEWER = "99999999-9999-4999-8999-999999999999";
   const resultRows = [
-    { profile_id: U1, house_key: HOUSE_A, created_at: "2026-11-27T10:00:00Z" },
-    { profile_id: U2, house_key: HOUSE_B, created_at: "2026-11-26T10:00:00Z" },
+    { profile_id: U1, house_key: HOUSE_A, created_at: "2026-11-27T10:00:00Z", totem_enc: encTotem(U1, "XV") },
+    { profile_id: U2, house_key: HOUSE_B, created_at: "2026-11-26T10:00:00Z", totem_enc: encTotem(U2, "YW") },
   ];
   const profiles = [
     { id: U1, display_name_enc: encName(U1, "Ana Teste") },
@@ -121,21 +121,39 @@ describe("listResults", () => {
     { profile_id: U2, house_key: HOUSE_A, chosen_at: "2026-11-27T12:00:00Z", changed_by_coordination_at: "2026-11-27T12:00:00Z" },
   ];
 
-  it("lista nome, casa sugerida, casa escolhida e datas (nada de totem nem nota), do mais novo ao mais antigo", async () => {
+  it("lista nome, casa sugerida, casa escolhida, totem e datas (nada de nota), do mais novo ao mais antigo", async () => {
     const { client, log, rpcCalls } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: chosen } });
     const out = await listResults(client, deps, VIEWER, {});
     expect(out).toEqual({
       rows: [
-        { profileId: U1, name: "Ana Teste", houseId: HOUSE_A, createdAt: "2026-11-27T10:00:00Z", chosenHouseId: HOUSE_A, chosenAt: "2026-11-27T11:00:00Z", changedByCoordinationAt: null },
-        { profileId: U2, name: "Beto Teste", houseId: HOUSE_B, createdAt: "2026-11-26T10:00:00Z", chosenHouseId: HOUSE_A, chosenAt: "2026-11-27T12:00:00Z", changedByCoordinationAt: "2026-11-27T12:00:00Z" },
+        { profileId: U1, name: "Ana Teste", houseId: HOUSE_A, createdAt: "2026-11-27T10:00:00Z", chosenHouseId: HOUSE_A, chosenAt: "2026-11-27T11:00:00Z", changedByCoordinationAt: null, totem: "XV" },
+        { profileId: U2, name: "Beto Teste", houseId: HOUSE_B, createdAt: "2026-11-26T10:00:00Z", chosenHouseId: HOUSE_A, chosenAt: "2026-11-27T12:00:00Z", changedByCoordinationAt: "2026-11-27T12:00:00Z", totem: "YW" },
       ],
       truncated: false,
     });
     expect(rpcCalls).toEqual([{ fn: "coordination_chosen_houses", args: { p_profiles: [U1, U2] } }]);
     expect(log).toContainEqual(["order", "created_at", { ascending: false }]);
-    // O totem e as notas nem são pedidos ao banco: só o detalhe (que registra o acesso) os lê.
+    // O totem vem numa leitura à parte, só das pessoas da página; as notas (scores_enc) nunca são pedidas.
     const columns = log.filter((e) => e[0] === "from" && e[1] === "questionnaire_results").map((e) => String(e[2]));
-    expect(columns).toEqual(["profile_id,house_key,created_at"]);
+    expect(columns).toEqual(["profile_id,house_key,created_at", "profile_id,totem_enc"]);
+    expect(log).toContainEqual(["in", "profile_id", [U1, U2]]);
+  });
+
+  it("totem ilegível, fora da config ou ausente: a linha sai com totem nulo (a lista não cai)", async () => {
+    const rows = [
+      { ...resultRows[0], totem_enc: "lixo" },
+      { ...resultRows[1], totem_enc: encTotem(U2, "ZZ") },
+    ];
+    const { client } = fake({ questionnaire_results: { data: rows }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: chosen } });
+    const out = await listResults(client, deps, VIEWER, {});
+    expect(out.rows.map((row) => row.totem)).toEqual([null, null]);
+  });
+
+  it("filtro \"outra casa\" também traz o totem (leitura à parte, pelos ids da página)", async () => {
+    const other = [{ profile_id: U2, house_key: HOUSE_B, created_at: "2026-11-26T10:00:00Z" }];
+    const { client } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_other_house_results: { data: other }, coordination_chosen_houses: { data: chosen } });
+    const out = await listResults(client, deps, VIEWER, { otherHouse: true });
+    expect(out.rows.map((row) => [row.profileId, row.totem])).toEqual([[U2, "YW"]]);
   });
 
   it("quem ainda não aceitou casa fica com a casa escolhida vazia", async () => {
