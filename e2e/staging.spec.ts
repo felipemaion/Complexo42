@@ -16,7 +16,12 @@ const DB_CONTAINER = process.env.E2E_STAGING_DB_CONTAINER;
 // As contas já existem: com o cadastro fechado no servidor, o script as cria antes (ver scripts/staging-ci.sh).
 const coordinatorEmail = process.env.E2E_STAGING_EMAIL ?? "";
 const memberEmail = process.env.E2E_STAGING_MEMBER_EMAIL ?? "";
-test.skip(!SITE || !MAILPIT || !APP_CONTAINER || !DB_CONTAINER || !coordinatorEmail || !memberEmail, "só no staging de mentira (scripts/staging-ci.sh)");
+// Sem `test.skip`: faltando uma variável, o caso principal tem de FALHAR, não passar pulado (revisão do
+// #333). Fora do staging, o playwright.config.ts nem coleta este arquivo (testIgnore).
+const missing = Object.entries({ SITE, MAILPIT, APP_CONTAINER, DB_CONTAINER, coordinatorEmail, memberEmail })
+  .filter(([, value]) => !value)
+  .map(([name]) => name);
+if (missing.length > 0) throw new Error(`staging de mentira sem configuração: ${missing.join(", ")} (rode por scripts/staging-ci.sh)`);
 
 const questionnaire = JSON.parse(readFileSync("config/questionnaire.example.json", "utf8")) as QuestionnaireConfig;
 
@@ -47,6 +52,8 @@ async function latestLink(request: APIRequestContext, email: string, after: numb
 async function signInByEmail(page: Page, request: APIRequestContext, email: string): Promise<void> {
   const at = Date.now() - 1000;
   await page.goto("/entrar");
+  // Cadastro fechado no servidor (#332): o aviso é o mesmo para todos, antes de digitar qualquer e-mail.
+  await expect(page.getByTestId("signup-closed")).toBeVisible();
   await page.getByLabel("Seu e-mail").fill(email);
   // Turnstile (#116) com a chave de teste que sempre passa.
   await expect(page.locator('input[name="cf-turnstile-response"]')).not.toHaveValue("", { timeout: 20_000 });

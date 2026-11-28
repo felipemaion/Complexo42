@@ -51,6 +51,8 @@ export const instance = parseInstanceConfig({
     emailNeedsScript: "Para receber o link por e-mail, ative o JavaScript do navegador. Ou entre com Google.",
     // Mesma resposta para qualquer e-mail (não revela quem tem conta).
     emailSent: "Se este e-mail puder entrar, você vai receber um link. Abra a mensagem e toque no botão para entrar.",
+    // Cadastro fechado no Auth (#332): aviso igual para todo mundo, sem dizer se um e-mail tem conta.
+    signupClosed: "Por enquanto, só entra quem já recebeu acesso da coordenação. Se o link não chegar, fale com quem convidou você.",
     signedOut: "Você saiu da sua conta.",
     signOutButton: "Sair",
     signedInTitle: "Você entrou",

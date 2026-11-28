@@ -30,6 +30,7 @@ supabase/tests
 deploy/*.test.sh
 deploy/backup.sh
 deploy/bootstrap-coordenacao.sh
+deploy/criar-conta.sh
 deploy/email-hmac.mjs
 deploy/deploy.sh
 deploy/enviar-backup.sh

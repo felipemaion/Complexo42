@@ -99,19 +99,26 @@ mão de um gestor da raiz. Quem abre esse ciclo é o **operador**, com `deploy/b
 instalação, abaixo) e **fora da imagem** do app; o `email-hmac.mjs` fica ao lado dele e vai ao container
 do app por `node -e` para calcular o HMAC com a `BLIND_INDEX_KEY` dele (a chave não sai do app).
 
+Com o cadastro fechado (`GOTRUE_DISABLE_SIGNUP=true`, no compose), quem **não tem conta** no Auth não
+entra: nenhum link sai, e a tela de login avisa, para todos, que só entra quem já recebeu acesso. Por isso
+a receita começa criando a conta, com `deploy/criar-conta.sh` (#332): ele chama a API de admin do Auth
+**de dentro** do container do app, pela rede interna (de fora, `/auth/v1/admin` dá 404, #278), com a
+`SERVICE_ROLE_KEY` lida do arquivo de segredos e passada **só por stdin**. A conta nasce confirmada e
+**sem acesso**: quem libera é o bootstrap.
+
 ```bash
-# uma vez, e a cada mudança dos dois arquivos: cópia à mão, como root
+# uma vez, e a cada mudança dos arquivos: cópia à mão, como root
+sudo install -m 0755 deploy/criar-conta.sh /opt/complexo42/criar-conta.sh
 sudo install -m 0755 deploy/bootstrap-coordenacao.sh /opt/complexo42/bootstrap-coordenacao.sh
 sudo install -m 0644 deploy/email-hmac.mjs /opt/complexo42/email-hmac.mjs
-# o e-mail entra por stdin (digite e Enter); nunca por argumento
+# nos dois, o e-mail entra por stdin (digite e Enter); nunca por argumento
+sudo APP_CONTAINER=<container-do-app> /opt/complexo42/criar-conta.sh <dir do deploy>/secrets/env
 sudo APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
   /opt/complexo42/bootstrap-coordenacao.sh
 ```
 
-- **Lacuna (#319):** com o cadastro fechado (`GOTRUE_DISABLE_SIGNUP=true`), quem **não tem conta** no
-  Auth não entra: o link mágico falha calado (`signup_disabled`). A conta precisa existir antes, e ainda
-  não há script nem passo descrito para criá-la; o job "Staging de mentira" do CI a cria pela API de
-  admin, de dentro da rede interna.
+- `criar-conta.sh` é **idempotente** (conta que já existe não é erro). Saídas: `0` criada ou já existia,
+  `1` o Auth recusou, `2` uso errado (e-mail inválido, chave ausente ou que não é a de serviço).
 - A pessoa **ainda não entrou**: o e-mail vai para a lista e o comando diz para ela entrar; depois de
   ela entrar uma vez (login e perfil), rode **de novo**. Quem já estava na espera (`waitlisted`) é
   liberado na hora, como na importação, e ganha o papel.
@@ -141,7 +148,7 @@ arquivo de segredos, manda tudo ao psql por stdin, numa transação, e não impr
 # uma vez, e a cada mudança do script: cópia à mão, como root
 sudo install -m 0755 deploy/questionario-banco.sh /opt/complexo42/questionario-banco.sh
 sudo DB_CONTAINER=<container-do-banco> \
-  /opt/complexo42/questionario-banco.sh questionario/questionnaire.json <segredos>
+  /opt/complexo42/questionario-banco.sh <dir do deploy>/questionario/questionnaire.json <dir do deploy>/secrets/env
 ```
 
 Sem a chave no banco, curta (menos de 32 caracteres) ou diferente da do app, gravar o resultado do
@@ -1018,6 +1025,7 @@ deploy de reescrever o que ele mesmo executa.
 | `/opt/complexo42/migra.sh` | `deploy/migra.sh` | **cópia à mão, como root** |
 | `/opt/complexo42/bootstrap-coordenacao.sh` e `email-hmac.mjs` | `deploy/` (mesmos nomes) | **cópia à mão, como root** (só no bootstrap, #295) |
 | `/opt/complexo42/questionario-banco.sh` | `deploy/questionario-banco.sh` | **cópia à mão, como root** (#319) |
+| `/opt/complexo42/criar-conta.sh` | `deploy/criar-conta.sh` | **cópia à mão, como root** (#332) |
 
 E estes **só existem no servidor** — não têm origem no repositório, então para
 eles a pergunta "está igual à `main`?" não faz sentido:
@@ -1033,12 +1041,12 @@ eles a pergunta "está igual à `main`?" não faz sentido:
 em silêncio: no dia em que um PR tocar um desses scripts, o número aqui passa
 a estar errado — e número errado numa conferência é pior que nenhum. O comando
 abaixo calcula o esperado a partir da `main` e diz **qual** dos dois lados está
-atrasado. **Cobre os cinco** scripts de operador: um que ficasse fora da lista
+atrasado. **Cobre os seis** scripts de operador: um que ficasse fora da lista
 seria conferido por ninguém, que é exatamente como a cópia velha do `migra.sh`
 sobreviveu a três PRs.
 
 ```sh
-for f in deploy.sh migra.sh bootstrap-coordenacao.sh email-hmac.mjs questionario-banco.sh; do
+for f in deploy.sh migra.sh bootstrap-coordenacao.sh email-hmac.mjs questionario-banco.sh criar-conta.sh; do
   inst=$(sudo md5sum "/opt/complexo42/$f" | cut -c1-12)
   main=$(curl -fsSL "https://raw.githubusercontent.com/felipemaion/Complexo42/main/deploy/$f" | md5sum | cut -c1-12)
   [ "$inst" = "$main" ] && e=ok || e="DESATUALIZADO"
@@ -1050,10 +1058,10 @@ done
 > vazia em vez de dizer o que houve. Num servidor que nunca precisou do
 > bootstrap, `bootstrap-coordenacao.sh` e `email-hmac.mjs` **não existem** — e
 > isso é legítimo. Ler "sem resposta" como "ok" é o erro a evitar: confira se as
-> cinco linhas saíram.
+> seis linhas saíram.
 
 O modo não é o mesmo para todos: `deploy.sh`, `migra.sh`,
-`bootstrap-coordenacao.sh` e `questionario-banco.sh` são `0755` (executados); `email-hmac.mjs` é `0644`
+`bootstrap-coordenacao.sh`, `questionario-banco.sh` e `criar-conta.sh` são `0755` (executados); `email-hmac.mjs` é `0644`
 (lido pelo `node -e` dentro do container do app, nunca executado no host).
 
 **Isto já custou caro.** O PR que fez o `migra.sh` avisar o PostgREST para

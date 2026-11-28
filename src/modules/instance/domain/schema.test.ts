@@ -21,6 +21,7 @@ const valid = {
     recoverySent: "t",
     emailNeedsScript: "t",
     emailSent: "t",
+    signupClosed: "t",
     signedOut: "t",
     signOutButton: "t",
     signedInTitle: "t",
