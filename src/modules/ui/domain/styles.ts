@@ -2,7 +2,7 @@
 // o raio é mexer lá, não aqui. Funções puras para valer igual em <button>, <Link> e <a>.
 
 export type PageWidth = "form" | "content" | "wide";
-export type ButtonVariant = "primary" | "secondary" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "choice";
 export type ButtonSize = "md" | "lg";
 export type NoticeTone = "info" | "error" | "success";
 
@@ -21,9 +21,11 @@ export function pageContainerClass(width: PageWidth): string {
 }
 
 const buttonVariantClass: Readonly<Record<ButtonVariant, string>> = {
-  primary: "border-transparent bg-primary text-on-primary hover:brightness-110",
-  secondary: "border-field bg-surface text-ink hover:bg-soft",
-  danger: "border-danger bg-surface text-danger hover:bg-danger-soft",
+  primary: "justify-center text-center border-transparent bg-primary text-on-primary hover:brightness-110",
+  secondary: "justify-center text-center border-field bg-surface text-ink hover:bg-soft",
+  danger: "justify-center text-center border-danger bg-surface text-danger hover:bg-danger-soft",
+  // Alternativa de uma lista (atividades, casas): texto à esquerda, como item de menu.
+  choice: "justify-start text-left border-field bg-surface text-ink hover:border-primary-ink hover:bg-soft",
 };
 
 const buttonSizeClass: Readonly<Record<ButtonSize, string>> = {
@@ -34,7 +36,7 @@ const buttonSizeClass: Readonly<Record<ButtonSize, string>> = {
 /** Botão ou link com cara de botão: alvo de toque ≥ 44 px, foco e desabilitado pelos tokens. */
 export function buttonClass(variant: ButtonVariant = "secondary", size: ButtonSize = "md"): string {
   return [
-    "inline-flex items-center justify-center gap-2 rounded-control border-2 text-center font-semibold no-underline transition-colors",
+    "inline-flex items-center gap-2 rounded-control border-2 font-semibold no-underline transition-colors",
     buttonVariantClass[variant],
     buttonSizeClass[size],
   ].join(" ");

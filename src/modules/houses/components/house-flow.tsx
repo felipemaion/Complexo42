@@ -20,6 +20,7 @@ import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../
 import type { HouseErrorCode } from "../types";
 import { CompareHouses } from "./compare-houses";
 import { HousePresentation, type HouseView } from "./house-presentation";
+import { buttonClass, cardClass, noticeClass } from "@/modules/ui";
 
 type Props = {
   houses: readonly HouseView[];
@@ -32,9 +33,12 @@ type Props = {
   change?: { currentId: string; suggestedId?: string; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string };
 };
 
-const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
-const primary =
-  "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
+// Botões pelos tokens (#324): voltar pequeno no topo, alternativas largas e as ações lado a lado no computador.
+const backClass = `${buttonClass("secondary")} self-start`;
+const choice = buttonClass("choice", "lg");
+const primary = `${buttonClass("primary", "lg")} sm:flex-1`;
+const secondary = `${buttonClass("secondary", "lg")} sm:flex-1`;
+const actions = "flex flex-col gap-3 sm:flex-row";
 
 export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Props>) {
   const router = useRouter();
@@ -89,7 +93,7 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
     });
 
   const back = (
-    <button type="button" className={big} onClick={() => dispatch({ type: "back" })} disabled={pending}>
+    <button type="button" className={backClass} onClick={() => dispatch({ type: "back" })} disabled={pending}>
       ← {text.backButton}
     </button>
   );
@@ -100,14 +104,14 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
       body = (
         <>
           {back}
-          <h2 className="text-2xl font-bold">{text.activitiesTitle}</h2>
-          <ul className="flex flex-col gap-3">
+          <h2 className="text-2xl font-bold sm:text-3xl">{text.activitiesTitle}</h2>
+          <ul className="grid gap-3 sm:grid-cols-2">
             {houses.flatMap((house) =>
               house.activities.map((activity) => (
                 <li key={activity}>
                   <button
                     type="button"
-                    className={big}
+                    className={`${choice} h-full`}
                     onClick={() => dispatch({ type: "activity_chosen", houseId: house.id })}
                   >
                     {activity}
@@ -123,20 +127,22 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
       body = (
         <>
           {back}
-          <h2 className="text-2xl font-bold">{text.consentTitle}</h2>
-          <p className="whitespace-pre-line text-lg" data-testid="consent-term">
+          <h2 className="text-2xl font-bold sm:text-3xl">{text.consentTitle}</h2>
+          <p className="max-w-prose whitespace-pre-line text-lg" data-testid="consent-term">
             {questionnaire.consentTerm}
           </p>
           {/* O aviso é texto da tela (config), junto ao botão; o termo vem da config privada e não muda. */}
-          <p className="rounded-xl border-2 border-current p-4 text-lg" data-testid="consent-stored-notice">
+          <p className={noticeClass("info")} data-testid="consent-stored-notice">
             {text.consentStoredNotice}
           </p>
-          <button type="button" className={primary} onClick={acceptConsent} disabled={pending}>
-            {text.consentAccept}
-          </button>
-          <button type="button" className={big} onClick={() => dispatch({ type: "consent_declined" })} disabled={pending}>
-            {text.consentDecline}
-          </button>
+          <div className={actions}>
+            <button type="button" className={primary} onClick={acceptConsent} disabled={pending}>
+              {text.consentAccept}
+            </button>
+            <button type="button" className={secondary} onClick={() => dispatch({ type: "consent_declined" })} disabled={pending}>
+              {text.consentDecline}
+            </button>
+          </div>
         </>
       );
       break;
@@ -147,10 +153,11 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
       body = (
         <>
           {back}
-          <p className="text-lg font-semibold" data-testid="question-progress">
+          <p className="text-base font-semibold text-ink-muted" data-testid="question-progress">
             {formatProgress(text.progress, step.index + 1, questionnaire.items.length)}
           </p>
-          <h2 className="text-2xl font-bold">{item.text}</h2>
+          {/* Pergunta grande e centralizada; a escala embaixo, com largura limitada (#324). */}
+          <h2 className="mx-auto max-w-prose text-center text-2xl font-bold sm:text-3xl">{item.text}</h2>
           {/* `key`: cada pergunta começa com a escala vazia e o foco no começo. */}
           <IntensityScale
             key={item.id}
@@ -161,7 +168,7 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
             value={chosen}
             onChange={(value) => dispatch({ type: "answer", value })}
           />
-          <button type="button" className={primary} onClick={() => dispatch({ type: "next" })} disabled={chosen === undefined}>
+          <button type="button" className={`${buttonClass("primary", "lg")} mx-auto sm:max-w-sm`} onClick={() => dispatch({ type: "next" })} disabled={chosen === undefined}>
             {isLast ? text.finishButton : text.nextButton}
           </button>
         </>
@@ -226,17 +233,19 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
               videosTitle={text.videosTitle}
             />
           )}
-          <button
-            type="button"
-            className={primary}
-            onClick={() => acceptHouse(step.houseId, step.method)}
-            disabled={pending || !house}
-          >
-            {text.acceptButton}
-          </button>
-          <button type="button" className={big} onClick={() => dispatch({ type: "choose_other" })} disabled={pending}>
-            {text.chooseOtherButton}
-          </button>
+          <div className={actions}>
+            <button
+              type="button"
+              className={primary}
+              onClick={() => acceptHouse(step.houseId, step.method)}
+              disabled={pending || !house}
+            >
+              {text.acceptButton}
+            </button>
+            <button type="button" className={secondary} onClick={() => dispatch({ type: "choose_other" })} disabled={pending}>
+              {text.chooseOtherButton}
+            </button>
+          </div>
         </>
       );
       break;
@@ -244,10 +253,10 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cardClass()}>
       {body}
       {(state.refusal || error) && (
-        <p role="alert" className="rounded-xl border-2 border-red-700 p-4 text-lg" data-testid="refusal-message">
+        <p role="alert" className={noticeClass("error")} data-testid="refusal-message">
           {state.refusal ? refusalMessage(text, state.refusal) : text.errors[error!]}
         </p>
       )}

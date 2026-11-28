@@ -89,7 +89,7 @@ export function SpiderChart({ chart, title, houses, compare }: Readonly<Props>) 
                 dominantBaseline="middle"
                 fontSize={14}
                 fontWeight={700}
-                fill={spoke.side === "a" ? "var(--color-primary)" : "var(--color-secondary)"}
+                className={spoke.side === "a" ? "fill-primary-ink" : "fill-secondary-ink"}
               >
                 {spoke.label}
               </text>
@@ -115,7 +115,7 @@ export function SpiderChart({ chart, title, houses, compare }: Readonly<Props>) 
         )}
         {spokes.map((spoke, index) => {
           const point = spokePoint(index, count, Math.max(3, (radius * spoke.intensity) / 100), center);
-          return <circle key={`dot-${spoke.side}-${spoke.axis}`} cx={point.x} cy={point.y} r={4} fill={spoke.side === "a" ? "var(--color-primary)" : "var(--color-secondary)"} />;
+          return <circle key={`dot-${spoke.side}-${spoke.axis}`} cx={point.x} cy={point.y} r={4} className={spoke.side === "a" ? "fill-primary-ink" : "fill-secondary-ink"} />;
         })}
         {/* Nomes das casas por último, por cima de tudo: o retângulo opaco (cor do fundo, borda na cor da casa) impede que as linhas passem pela palavra. */}
         {zones.map((zone) => {
@@ -130,7 +130,7 @@ export function SpiderChart({ chart, title, houses, compare }: Readonly<Props>) 
                 width={width}
                 height={labelHeight}
                 rx={labelHeight / 3}
-                style={{ fill: "Canvas", stroke: colorOf(house.color) }}
+                style={{ fill: "var(--c-surface)", stroke: colorOf(house.color) }}
                 strokeWidth={1}
               />
               <text x={zone.label.x} y={zone.label.y} textAnchor="middle" dominantBaseline="central" fontSize={13} fontWeight={700} fill="currentColor">

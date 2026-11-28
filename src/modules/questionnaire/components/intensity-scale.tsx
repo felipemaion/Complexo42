@@ -54,7 +54,8 @@ export function IntensityScale({ legend, intensities, poleA, poleB, value, onCha
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    // Largura limitada (#324): no computador a escala não se espalha pela tela e as pontas ficam perto dos círculos.
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div className="flex justify-between gap-4 text-lg font-semibold">
         <span className="max-w-[45%] text-left">{toDisplaySentence(poleA)}</span>
         <span className="max-w-[45%] text-right">{toDisplaySentence(poleB)}</span>
@@ -89,8 +90,8 @@ export function IntensityScale({ legend, intensities, poleA, poleB, value, onCha
             >
               <span
                 style={{ width: diameterPx[index], height: diameterPx[index] }}
-                className={`block rounded-full border-4 ${isPoleA ? "border-[var(--color-primary)]" : "border-[var(--color-secondary)]"} ${
-                  isChecked ? (isPoleA ? "bg-[var(--color-primary)]" : "bg-[var(--color-secondary)]") : "bg-transparent"
+                className={`block rounded-full border-4 transition-colors ${isPoleA ? "border-primary-ink" : "border-secondary-ink"} ${
+                  isChecked ? (isPoleA ? "bg-primary-ink" : "bg-secondary-ink") : "bg-transparent"
                 }`}
               />
             </button>

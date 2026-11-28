@@ -3,7 +3,7 @@ import { buttonClass, fieldClass, noticeClass, pageContainerClass, textLinkClass
 
 describe("estilos comuns (#324)", () => {
   it("todo botão tem alvo de toque de pelo menos 44 px", () => {
-    for (const variant of ["primary", "secondary", "danger"] as const) {
+    for (const variant of ["primary", "secondary", "danger", "choice"] as const) {
       expect(buttonClass(variant, "md")).toContain("min-h-target");
       expect(buttonClass(variant, "lg")).toContain("min-h-14");
     }

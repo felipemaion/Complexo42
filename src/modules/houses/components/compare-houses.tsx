@@ -10,6 +10,7 @@ import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { compareHouseAction } from "../server/actions";
 import { CompareHouseGrid } from "./compare-grid";
 import type { HouseView } from "./house-presentation";
+import { buttonClass, cardClass, noticeClass } from "@/modules/ui";
 
 type Text = InstanceConfig["houseSelection"];
 
@@ -39,9 +40,8 @@ type Props = {
   onBack(): void;
 };
 
-const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
-const primary =
-  "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
+const back = `${buttonClass("secondary")} self-start`;
+const primary = buttonClass("primary", "lg");
 
 export function CompareHouses({ houses, suggestedId, currentId, selectedId, chart, byPoles, compareToken, text, disabled, onSelect, onConfirm, onBack }: Readonly<Props>) {
   const t = text.compare;
@@ -73,14 +73,14 @@ export function CompareHouses({ houses, suggestedId, currentId, selectedId, char
 
   return (
     <div className="flex flex-col gap-4" data-testid="compare-houses">
-      <button type="button" className={big} onClick={onBack} disabled={disabled}>
+      <button type="button" className={back} onClick={onBack} disabled={disabled}>
         {t.backButton}
       </button>
-      <h2 className="text-2xl font-bold">{t.title}</h2>
-      <p className="text-lg">{t.intro}</p>
+      <h2 className="text-2xl font-bold sm:text-3xl">{t.title}</h2>
+      <p className="max-w-prose text-lg text-ink-muted">{t.intro}</p>
       <CompareHouseGrid houses={houses} suggestedId={suggestedId} currentId={currentId} selectedId={selectedId} text={t} disabled={disabled} onSelect={onSelect} />
       {selected && (
-        <section className="flex flex-col gap-4" aria-labelledby="compare-detail-title" data-testid="compare-detail">
+        <section className={cardClass()} aria-labelledby="compare-detail-title" data-testid="compare-detail">
           <h3 id="compare-detail-title" className="text-xl font-bold">
             {selected.name}
           </h3>
@@ -99,7 +99,7 @@ export function CompareHouses({ houses, suggestedId, currentId, selectedId, char
                 <p className="text-base" data-testid="average-note">{t.averageNote}</p>
               )}
               {comparison.status === "ready" && comparison.average.status === "few" && (
-                <p className="rounded-xl border-2 border-current p-3 text-lg" data-testid="few-members">{t.fewMembers}</p>
+                <p className={noticeClass("info")} data-testid="few-members">{t.fewMembers}</p>
               )}
               {comparison.status === "ready" && comparison.average.status === "unavailable" && (
                 <p className="text-lg" role="status">{t.averageUnavailable}</p>
@@ -125,7 +125,7 @@ export function CompareHouses({ houses, suggestedId, currentId, selectedId, char
               )}
             </div>
           )}
-          {comparison.status === "failed" && <p role="alert" className="text-lg" data-testid={comparison.expired ? "compare-expired" : undefined}>{comparison.expired ? t.expiredReload : t.expectUnavailable}</p>}
+          {comparison.status === "failed" && <p role="alert" className={noticeClass("error")} data-testid={comparison.expired ? "compare-expired" : undefined}>{comparison.expired ? t.expiredReload : t.expectUnavailable}</p>}
           <button type="button" className={primary} onClick={onConfirm} disabled={disabled || selected.id === currentId} data-testid="compare-confirm">
             {t.confirmButton}
           </button>

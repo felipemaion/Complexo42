@@ -46,7 +46,7 @@ describe("SpiderChart com as zonas das casas", () => {
   it("os nomes das casas são desenhados por último, por cima de tudo, com fundo opaco e borda na cor da casa", () => {
     const html = render(houseAxes, houses);
     expect(html.indexOf('data-testid="house-zone-label"')).toBeGreaterThan(html.lastIndexOf("<circle"));
-    expect(html.match(/data-testid="house-zone-label"><rect[^>]*fill:Canvas;stroke:light-dark\(/g)).toHaveLength(4);
+    expect(html.match(/data-testid="house-zone-label"><rect[^>]*fill:var\(--c-surface\);stroke:light-dark\(/g)).toHaveLength(4);
   });
 
   it("o nome da casa é texto normal do tema (currentColor); a cor da casa fica só na borda e na zona", () => {
