@@ -6,11 +6,11 @@ import { listCatalog, listMySuggestions, maxSkillsPerPerson, readMySkillIds, ski
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireUser } from "@/server/auth/session";
 import { saveSkillsAction, suggestSkillAction } from "./actions";
+import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.skills.title };
 
-const big =
-  "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const big = buttonClass("secondary", "lg");
 
 // Habilidades da pessoa (#15): o que ela faz no dia a dia, sem nível, até 10, em cartões por grupo com busca.
 // Quem não acha a sua sugere uma; a coordenação nacional aprova antes de entrar no catálogo.
@@ -27,40 +27,40 @@ export default async function SkillsPage({
   const errorText = query.erro ? (text.errors[query.erro as keyof typeof text.errors] ?? text.errors.failed) : null;
   const statusText = { open: text.statusOpen, approved: text.statusApproved, rejected: text.statusRejected } as const;
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.title}</h1>
-      <p className="text-lg">{text.intro.replace("{max}", String(maxSkillsPerPerson))}</p>
+    <PageShell width="form">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.title}</h1>
+      <p className="max-w-prose text-lg text-ink-muted">{text.intro.replace("{max}", String(maxSkillsPerPerson))}</p>
       {query.salvo === "1" && (
-        <p role="status" className="rounded-xl border-2 border-current p-3 text-lg">
+        <p role="status" className={noticeClass("success")}>
           {text.saved}
         </p>
       )}
       {query.sugerida === "1" && (
-        <p role="status" className="rounded-xl border-2 border-current p-3 text-lg">
+        <p role="status" className={noticeClass("success")}>
           {text.suggested}
         </p>
       )}
       {errorText && (
-        <p role="alert" className="rounded-xl border-2 border-danger p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {errorText}
         </p>
       )}
-      <form action={saveSkillsAction} className="flex flex-col gap-4">
+      <form action={saveSkillsAction} className={cardClass()}>
         <SkillPicker
           skills={catalog}
           selected={mine}
           max={maxSkillsPerPerson}
           text={{ searchLabel: text.searchLabel, counter: text.counter, limitReached: text.limitReached, empty: text.empty }}
         />
-        <button type="submit" className={big}>
+        <button type="submit" className={buttonClass("primary", "lg")}>
           {text.saveButton}
         </button>
       </form>
-      <section className="flex flex-col gap-3" aria-labelledby="suggest-title">
+      <section className={cardClass()} aria-labelledby="suggest-title">
         <h2 id="suggest-title" className="text-2xl font-bold">
           {text.suggestTitle}
         </h2>
-        <p className="text-lg">{text.suggestHint}</p>
+        <p className="text-lg text-ink-muted">{text.suggestHint}</p>
         <form action={suggestSkillAction} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-lg font-semibold">
             {text.suggestLabel}
@@ -71,7 +71,7 @@ export default async function SkillsPage({
               minLength={skillNameLimits.min}
               maxLength={skillNameLimits.max}
               autoComplete="off"
-              className="min-h-12 w-full rounded-xl border-2 border-current bg-transparent px-3 text-lg font-normal"
+              className={`${fieldClass()} font-normal`}
             />
           </label>
           <button type="submit" className={big}>
@@ -86,16 +86,16 @@ export default async function SkillsPage({
           </h2>
           <ul className="flex flex-col gap-2">
             {suggestions.map((suggestion) => (
-              <li key={suggestion.id} className="rounded-xl border-2 border-current p-3 text-lg" data-testid="my-suggestion">
+              <li key={suggestion.id} className="rounded-control border border-line bg-surface p-3 text-lg" data-testid="my-suggestion">
                 {suggestion.name} — {statusText[suggestion.status]}
               </li>
             ))}
           </ul>
         </section>
       )}
-      <Link href={HOME_PATH} className="text-center text-lg underline">
+      <Link href={HOME_PATH} className={`${textLinkClass()} self-center`}>
         {text.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

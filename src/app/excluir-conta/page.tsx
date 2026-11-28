@@ -12,13 +12,13 @@ import {
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireSessionClient } from "@/server/auth/session";
 import { deleteAccountAction, reauthenticateAction } from "./actions";
+import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.deleteAccount.title };
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
-const button =
-  "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const button = buttonClass("danger", "lg");
 
 const statusText: Record<DeleteAccountStatus, string> = {
   confirmacao: instance.deleteAccount.invalidConfirmation,
@@ -37,20 +37,20 @@ export default async function DeleteAccountPage({ searchParams }: Props) {
   const recent = status !== "reautenticar" && isRecentLogin(authAgeSeconds(accessToken));
   const text = instance.deleteAccount;
   return (
-    <main className="mx-auto flex max-w-md flex-col justify-center gap-6 p-6 pt-16">
-      <h1 className="text-3xl font-bold">{text.title}</h1>
+    <PageShell width="form" isCentered>
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.title}</h1>
       {status && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {statusText[status]}
         </p>
       )}
-      <div className="flex flex-col gap-3 text-lg" data-testid="delete-account-warnings">
+      <div className={`${noticeClass("error")} flex flex-col gap-3`} data-testid="delete-account-warnings">
         {text.warnings.map((warning) => (
           <p key={warning}>{warning}</p>
         ))}
       </div>
       {recent ? (
-        <form action={deleteAccountAction} className="flex flex-col gap-4">
+        <form action={deleteAccountAction} className={cardClass()}>
           <label htmlFor="confirmation" className="text-lg font-semibold">
             {text.confirmLabel}
           </label>
@@ -64,23 +64,23 @@ export default async function DeleteAccountPage({ searchParams }: Props) {
             spellCheck={false}
             maxLength={64}
             placeholder={CONFIRMATION_WORD}
-            className="rounded-lg border-2 border-current px-4 py-3 text-xl"
+            className={fieldClass()}
           />
           <button type="submit" className={button}>
             {text.confirmButton}
           </button>
         </form>
       ) : (
-        <form action={reauthenticateAction} className="flex flex-col gap-4">
+        <form action={reauthenticateAction} className={cardClass()}>
           <p className="text-lg">{text.reauthMessage}</p>
-          <button type="submit" className={button}>
+          <button type="submit" className={buttonClass("secondary", "lg")}>
             {text.reauthButton}
           </button>
         </form>
       )}
-      <Link href={HOME_PATH} className="text-center text-lg underline">
+      <Link href={HOME_PATH} className={`${textLinkClass()} self-center`}>
         {text.cancelLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

@@ -51,3 +51,5 @@ tests
 *.md
 Dockerfile
 .dockerignore
+# Exceções dos scanners de segurança (#153): só o CI as lê.
+security
