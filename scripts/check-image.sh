@@ -70,7 +70,7 @@ healthz() {
     -e SUPABASE_URL="$2" -e SITE_URL=http://127.0.0.1:3000 \
     -e TURNSTILE_SITE_KEY=1x00000000000000000000AA -e TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
     -e FIELD_ENCRYPTION_KEY="$CHAVE_TESTE_A" -e BLIND_INDEX_KEY="$CHAVE_TESTE_B" \
-    -v "$EXEMPLO_QUESTIONARIO:/tmp/questionnaire.json:ro" -e QUESTIONNAIRE_PATH=/tmp/questionnaire.json \
+    -v "$EXEMPLO_QUESTIONARIO:/app/questionario/questionnaire.json:ro" -e QUESTIONNAIRE_PATH=/app/questionario/questionnaire.json \
     -e SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiJ9.$(printf %s '{"role":"anon"}' | base64).ci" "$img" >/dev/null
   # O dublê entra DEPOIS, na pilha de rede do app, e precisa dele de pé.
   docker run -d --name "$name-rest" --network "container:$name" --read-only \

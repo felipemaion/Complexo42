@@ -172,8 +172,16 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
 
 **Config com `expectation` (#240).** O `questionnaire.json` do servidor precisa trazer `expectation: {a, b}` em todos os itens dos eixos da casa; sem isso o app **não sobe** (erro `questionnaire_invalid` citando `items.<id>.expectation`). Instale o arquivo novo antes de subir o app novo.
 
-1. cadastrar a versão do termo (acima); 2. instalar o arquivo em `QUESTIONNAIRE_PATH`; 3. reiniciar
-o app (ele valida o arquivo na subida e recusa subir com um inválido).
+1. **cadastrar a `consentTermVersion`** do arquivo em `app.questionnaire_term_versions` (acima);
+2. **instalar o JSON** em `<dir do deploy>/questionario/questionnaire.json`, legível pelo uid 1000 do
+   container (`chown 1000:1000` e `chmod 600`); a pasta `./questionario` é montada só leitura em
+   `/app/questionario`;
+3. **`QUESTIONNAIRE_PATH=/app/questionario/questionnaire.json` no `secrets/env` ANTES de subir o compose**:
+   o compose usa `:?` e recusa subir sem ela (e o app, em produção, também);
+4. reiniciar o app (ele valida o arquivo na subida e recusa subir com um inválido).
+
+> **Se `./questionario` não existir**, o Docker cria uma pasta **vazia, de root**, e o app falha na
+> subida com `questionnaire_invalid` (arquivo ilegível). Crie a pasta e instale o arquivo antes do `up`.
 
 **Trocar a versão do termo geral (`config/consent.ts` + `app.current_consent_version()`).** Quem não aceitou a
 versão vigente deixa de valer como membro (`app.is_active_member()` exige o aceite): perde o acesso a dados de
