@@ -55,7 +55,7 @@ test.describe("quem está em espera baixa os próprios dados (#130)", () => {
     if (!file) {
       const probe = await page.request.post("/meus-dados", { headers: { Origin: new URL(page.url()).origin }, maxRedirects: 0 });
       const seen = await response;
-      const seenText = seen ? `${seen.status()} ${JSON.stringify(seen.headers()["content-type"])} ${(await seen.text().catch(() => "")).slice(0, 200)}` : "sem resposta";
+      const seenText = seen ? `${seen.status()} cabeçalhos enviados: ${JSON.stringify(await seen.request().allHeaders())} ${JSON.stringify(seen.headers()["content-type"])} ${(await seen.text().catch(() => "")).slice(0, 200)}` : "sem resposta";
       throw new Error(`sem download; resposta do navegador: ${seenText}; página em ${page.url()}; POST direto: ${probe.status()} ${JSON.stringify(probe.headers()["content-disposition"])} ${(await probe.text()).slice(0, 200)}`);
     }
     const chunks: Buffer[] = [];
