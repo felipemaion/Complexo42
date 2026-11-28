@@ -192,6 +192,52 @@ jobs:
           path: test-results/
           retention-days: 7
 
+  # npm audit das dependências de PRODUÇÃO (#153). Reprova só crítico ou alto com correção
+  # disponível (scripts/audit-gate.mjs); o resto vai para o resumo. Exceção: uma por advisory em
+  # security/npm-audit-exceptions.json, com motivo e data de revisão. Sem `npm ci`: o audit lê o lock.
+  dependencies:
+    name: Dependências (npm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22 }
+      - name: npm audit --omit=dev
+        run: |
+          set -o pipefail
+          # O audit sai != 0 quando acha qualquer coisa; quem decide é o portão, que também reprova
+          # se o relatório vier com erro (sem rede não é "limpo").
+          npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
+          node scripts/audit-gate.mjs "$RUNNER_TEMP/audit.json" security/npm-audit-exceptions.json | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # Semgrep (#153), SÓ EM RELATÓRIO até a triagem do ruído inicial: não reprova o build. Regras
+  # p/typescript e p/nextjs do registro público, sem conta e sem métricas. Imagem fixada por digest.
+  # Supressão, quando houver, é na linha (`nosemgrep: <regra>` com o motivo), nunca a regra inteira.
+  semgrep:
+    name: Código (Semgrep, relatório)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - name: Semgrep p/typescript + p/nextjs
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src \
+            semgrep/semgrep:1.184.0@sha256:cc1b68266f267878b39739373ea9985b9a78e5d64497dd875c8de100b22695ed \
+            semgrep scan --config p/typescript --config p/nextjs --metrics=off --disable-version-check \
+              --json --output semgrep.json --quiet
+          python3 - <<'RESUMO' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          achados = json.load(open("semgrep.json"))["results"]
+          print(f"### Semgrep (relatório, não reprova): {len(achados)} achado(s)")
+          if achados:
+              print("| regra | severidade | arquivo:linha |\n|---|---|---|")
+              for r in achados:
+                  print(f"| {r['check_id'].split('.')[-1]} | {r['extra']['severity']} | {r['path']}:{r['start']['line']} |")
+          RESUMO
+
   database:
     name: Banco (migrations + testes de RLS)
     runs-on: ubuntu-latest
@@ -220,6 +266,26 @@ jobs:
         with: { persist-credentials: false }
       - run: docker build --build-arg GIT_SHA="$GITHUB_SHA" -t complexo42:ci .
       - run: ./scripts/check-image.sh complexo42:ci
+      # Trivy na imagem (#153). Binário oficial com versão e SHA256 FIXOS, conferidos antes de rodar,
+      # como o gitleaks acima: sem action de terceiro (a trivy-action teve tags trocadas em 2026; um SHA
+      # de action protege a action, não o binário que ela baixa). Reprova SÓ crítico ou alto com
+      # correção (--ignore-unfixed); o relatório completo de alto/crítico vai para o resumo do job.
+      # Exceção: security/trivyignore.yaml, uma por CVE, com motivo e data de validade.
+      - name: Trivy (vulnerabilidades da imagem)
+        env:
+          TRIVY_VERSION: 0.76.2
+          TRIVY_SHA256: ab9d51f86e6a5fb936f605faff6b593ac51bc378fff4d3e8b9d58358b9c367c3 # Linux-ARM64
+        run: |
+          set -euo pipefail
+          curl -sSfL -o "$RUNNER_TEMP/trivy.tgz" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-ARM64.tar.gz"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/trivy.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/trivy.tgz" -C "$RUNNER_TEMP" trivy
+          bash scripts/check-trivyignore.test.sh
+          python3 scripts/check-trivyignore.py security/trivyignore.yaml
+          trivy() { "$RUNNER_TEMP/trivy" image --quiet --ignorefile security/trivyignore.yaml --severity HIGH,CRITICAL "$@" complexo42:ci; }
+          { echo '### Trivy (imagem, alto/crítico)'; echo '```'; trivy --format table --exit-code 0; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          trivy --format table --ignore-unfixed --exit-code 1
       # As migrations viajam na imagem (#81) e o .dockerignore exclui `supabase`:
       # sem este passo, uma mudanca nele quebraria o deploy calada, porque o
       # build continua passando -- so o passo de migrations do deploy falharia.
