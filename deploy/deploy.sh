@@ -477,13 +477,20 @@ dc_supabase() {
 # cita o NOME da variavel, nao o valor -- mas saida de terceiro no log do root
 # merece teto, e `head` aqui nao esconde decisao nenhuma: a decisao sai das
 # funcoes abaixo, nao do que foi impresso. Serve ao ensaio e ao preflight.
-ecoa_compose() { # ecoa_compose <texto>
-  local l n=0
+ecoa_compose() { # ecoa_compose <texto> [prefixo] [--so-config]
+  local texto=$1 pre=${2:-ensaio} filtra=${3:-} l n=0
   while IFS= read -r l; do
+    # Com --so-config, so passam linhas que falam de variavel/interpolacao: erro
+    # de parse do --env-file costuma ECOAR A LINHA `CHAVE=valor` do arquivo de
+    # segredos, e isso nao entra no log do root.
+    if [ -n "$filtra" ] && ! printf '%s' "$l" | grep -Eqi 'variable|required|missing|interpolation|not set|obrigat'; then
+      continue
+    fi
     n=$((n + 1))
-    [ "$n" -gt 20 ] && { log "  ensaio: (... saida truncada em 20 linhas)"; return 0; }
-    log "  ensaio: $l"
-  done <<< "$1"
+    [ "$n" -gt 20 ] && { log "  $pre: (... saida truncada em 20 linhas)"; return 0; }
+    log "  $pre: $l"
+  done <<< "$texto"
+  [ "$n" = 0 ] && log "  $pre: (nada que mencione variavel; saida omitida de proposito)"
   return 0
 }
 
@@ -829,7 +836,7 @@ fi
 log "preflight da configuracao do app"
 if ! saida_preflight=$(APP_IMAGEM="$IMAGEM_ALVO" dc config -q 2>&1); then
   log "ERRO: a configuracao do app nao resolve -- app NAO foi trocado, nada migrado"
-  ecoa_compose "$saida_preflight"
+  ecoa_compose "$saida_preflight" preflight --so-config
   log "      Em geral e variavel ausente no env do ambiente. O nome dela esta acima."
   registra preflight_falhou "$(decorrido)"
   exit 1
