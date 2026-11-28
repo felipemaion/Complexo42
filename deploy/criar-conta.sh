@@ -19,6 +19,8 @@
 # Saídas: 0 criada ou já existia, 1 o Auth recusou, 2 uso errado ou entrada inválida.
 set -euo pipefail
 umask 077
+# A chave passa por variáveis deste shell: um `bash -x` a imprimiria no rastro. Daqui em diante, sem rastro.
+{ set +x; } 2> /dev/null
 
 APP_CONTAINER=${APP_CONTAINER:-}
 # Checagem explícita, e NÃO `: "${VAR:?}"` (ver a nota do deploy/migra.sh sobre `set -e` e `trap`).
@@ -35,10 +37,11 @@ printf '%s' "$EMAIL" | grep -Eq '^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.[a-z]{2
 
 KEY=$(sed -n 's/^SERVICE_ROLE_KEY=//p' "$SEGREDOS" | head -n1)
 # Tem de ser a de serviço: com a anon, o Auth recusaria, mas o erro chegaria tarde e confuso.
-PAPEL=$(KEY="$KEY" python3 -c '
-import base64, json, os
+# A chave vai ao python3 por stdin: no ambiente (`KEY=... python3`) ela ficaria em /proc/<pid>/environ.
+PAPEL=$(printf '%s' "$KEY" | python3 -c '
+import base64, json, sys
 try:
-    p = os.environ["KEY"].split(".")[1]
+    p = sys.stdin.read().split(".")[1]
     print(json.loads(base64.urlsafe_b64decode(p + "=" * (-len(p) % 4))).get("role", ""))
 except Exception:
     print("")' 2> /dev/null || true)

@@ -15,6 +15,8 @@
 # Saídas: 0 ok, 1 falha (o banco recusou: nada gravado), 2 uso errado ou entrada inválida.
 set -euo pipefail
 umask 077
+# A chave passa por variáveis deste shell: um `bash -x` a imprimiria no rastro. Daqui em diante, sem rastro.
+{ set +x; } 2> /dev/null
 
 DB_CONTAINER=${DB_CONTAINER:-}
 DB_USER=${DB_USER:-supabase_admin}
