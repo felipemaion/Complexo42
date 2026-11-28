@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(62);
+select plan(68);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp', 'br.mg');
@@ -110,10 +110,19 @@ select is(
   'sem troca pela coordenação, o campo é vazio'
 );
 select is(
-  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('root_mgr')])), 0,
-  'ninguém lê a própria linha por esta função'
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('root_mgr')])), 1,
+  'a coordenação nacional lê a própria linha (#318)'
+);
+select pg_temp.login('plain');
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('plain')])), 0,
+  'pessoa comum não lê nem a própria linha por esta função (a tela é da coordenação)'
 );
 select pg_temp.login('sp_mgr');
+select is(
+  (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('sp_mgr')])), 1,
+  'o delegado lê a própria linha (#318)'
+);
 select is(
   (select count(*)::int from public.coordination_chosen_houses(array[pg_temp.person('p_sp'), pg_temp.person('p_mg')])), 1,
   'o delegado lê só quem está no escopo da concessão'
@@ -201,12 +210,12 @@ delete from public.house_members where profile_id = pg_temp.person('root_mgr') a
 insert into public.house_members (profile_id, house_key, join_method, accepted_at) values (pg_temp.person('root_mgr'), 'casa-y', 'self', now());
 set local role authenticated;
 select pg_temp.login('root_mgr');
-select is((select count(*)::int from public.coordination_other_house_results(null, null)), 2, 'limite nulo: vale o máximo (todas as pessoas do alcance)');
+select is((select count(*)::int from public.coordination_other_house_results(null, null)), 3, 'limite nulo: vale o máximo (todas as pessoas do alcance, a própria coordenação inclusive)');
 select is((select count(*)::int from public.coordination_other_house_results(null, -5)), 1, 'limite negativo: vira 1');
-select is((select count(*)::int from public.coordination_other_house_results(null, 1000)), 2, 'limite acima de 201: limitado ao máximo, sem erro');
+select is((select count(*)::int from public.coordination_other_house_results(null, 1000)), 3, 'limite acima de 201: limitado ao máximo, sem erro');
 select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('p_none')), 0, 'vínculo aberto mas não aceito fica fora do filtro');
 select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('plain')), 0, 'vínculo encerrado fica fora do filtro');
-select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('root_mgr')), 0, 'a coordenação não aparece para si mesma');
+select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('root_mgr')), 1, 'a coordenação aparece para si mesma, como qualquer pessoa do alcance (#318)');
 select is((select count(*)::int from public.coordination_other_house_results(null, 10) where profile_id = pg_temp.person('p_sp2')), 1, 'e quem escolheu outra casa continua aparecendo');
 
 -- Só o papel de gestor revogado, com a concessão viva: perde.
@@ -234,7 +243,9 @@ select pg_temp.login('mg_mgr');
 select throws_ok($$ select public.log_questionnaire_view(pg_temp.person('p_sp')) $$, '42501', null, 'gestor sem concessão NÃO abre');
 select pg_temp.login('sp_mgr');
 select throws_ok($$ select public.log_questionnaire_view(pg_temp.person('p_mg')) $$, '42501', null, 'delegado NÃO abre o resultado de quem é de fora do escopo');
-select throws_ok($$ select public.log_questionnaire_view(pg_temp.person('sp_mgr')) $$, '42501', null, 'ninguém registra a visualização do próprio resultado');
+select pg_temp.login('plain');
+select throws_ok($$ select public.log_questionnaire_view(pg_temp.person('plain')) $$, '42501', null, 'pessoa comum NÃO registra nem o próprio resultado (não é da coordenação)');
+select pg_temp.login('sp_mgr');
 select throws_ok($$ select public.log_questionnaire_view(null) $$, '42501', null, 'alvo nulo é recusado');
 select throws_ok($$ select public.log_questionnaire_view(gen_random_uuid()) $$, '42501', null, 'alvo inexistente é recusado (sem dizer se existe)');
 select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed'), 0, 'as recusas não geraram evento');
@@ -252,6 +263,13 @@ select is((select count(*)::int from public.audit_log where event = 'questionnai
 select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('p_sp')) $$, 'abrir de novo, logo em seguida, não dá erro');
 select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed' and actor_id = pg_temp.person('root_mgr') and target_id = pg_temp.person('p_sp')), 1,
   '... e não repete o evento (mesmo ator e alvo em 10 minutos)');
+-- A própria coordenação abre o próprio resultado como qualquer outro (#318): registra o acesso, uma vez em 10 minutos.
+select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('root_mgr')) $$, 'a coordenação nacional abre o próprio resultado');
+select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed' and actor_id = pg_temp.person('root_mgr') and target_id = pg_temp.person('root_mgr')), 1,
+  '... e o acesso fica registrado, como o de qualquer outro');
+select lives_ok($$ select public.log_questionnaire_view(pg_temp.person('root_mgr')) $$, 'recarregar o próprio resultado não dá erro');
+select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed' and actor_id = pg_temp.person('root_mgr') and target_id = pg_temp.person('root_mgr')), 1,
+  '... e não repete o evento (mesmo ator e alvo em 10 minutos)');
 reset role;
 update public.audit_log set created_at = created_at where false;
 set local role authenticated;
@@ -263,13 +281,14 @@ select results_eq(
      where event = 'questionnaire_result_viewed' order by created_at, id $$,
   $$ values (pg_temp.person('sp_mgr'), pg_temp.person('p_sp'), null::text, null::text, null::text, null::int, null::uuid, null::uuid),
             (pg_temp.person('root_mgr'), pg_temp.person('p_mg'), null, null, null, null, null, null),
-            (pg_temp.person('root_mgr'), pg_temp.person('p_sp'), null, null, null, null, null, null) $$,
+            (pg_temp.person('root_mgr'), pg_temp.person('p_sp'), null, null, null, null, null, null),
+            (pg_temp.person('root_mgr'), pg_temp.person('root_mgr'), null, null, null, null, null, null) $$,
   'o evento guarda só quem viu e de quem (nada de conteúdo, casa, totem, notas nem termo)');
 
 -- Quem lê o evento: só a coordenação nacional.
 set local role authenticated;
 select pg_temp.login('root_mgr');
-select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed'), 3, 'a coordenação nacional lê os eventos');
+select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed'), 4, 'a coordenação nacional lê os eventos');
 select pg_temp.login('sp_mgr');
 select is((select count(*)::int from public.audit_log where event = 'questionnaire_result_viewed'), 0,
   'o delegado NÃO lê os eventos (nem os que ele mesmo gerou), embora gerencie a pessoa vista');

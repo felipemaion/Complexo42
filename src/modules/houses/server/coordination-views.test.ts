@@ -123,7 +123,7 @@ describe("listResults", () => {
 
   it("lista nome, casa sugerida, casa escolhida e datas (nada de totem nem nota), do mais novo ao mais antigo", async () => {
     const { client, log, rpcCalls } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: chosen } });
-    const out = await listResults(client, deps, VIEWER, {});
+    const out = await listResults(client, deps, {});
     expect(out).toEqual({
       rows: [
         { profileId: U1, name: "Ana Teste", houseId: HOUSE_A, createdAt: "2026-11-27T10:00:00Z", chosenHouseId: HOUSE_A, chosenAt: "2026-11-27T11:00:00Z", changedByCoordinationAt: null },
@@ -140,14 +140,14 @@ describe("listResults", () => {
 
   it("quem ainda não aceitou casa fica com a casa escolhida vazia", async () => {
     const { client } = fake({ questionnaire_results: { data: [resultRows[0]] }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: [{ profile_id: U1, house_key: null, chosen_at: null, changed_by_coordination_at: null }] } });
-    const out = await listResults(client, deps, VIEWER, {});
+    const out = await listResults(client, deps, {});
     expect(out.rows[0]).toMatchObject({ chosenHouseId: null, chosenAt: null, changedByCoordinationAt: null });
   });
 
   it("filtro \"escolheu outra casa\": o banco filtra (todas as pessoas do alcance), sem ler a tabela de resultados", async () => {
     const other = [{ profile_id: U2, house_key: HOUSE_B, created_at: "2026-11-26T10:00:00Z" }];
     const { client, log, rpcCalls } = fake({ profiles: { data: profiles } }, { coordination_other_house_results: { data: other }, coordination_chosen_houses: { data: chosen } });
-    const out = await listResults(client, deps, VIEWER, { otherHouse: true, houseId: HOUSE_B });
+    const out = await listResults(client, deps, { otherHouse: true, houseId: HOUSE_B });
     expect(out.rows.map((row) => row.profileId)).toEqual([U2]);
     expect(rpcCalls[0]).toEqual({ fn: "coordination_other_house_results", args: { p_house: HOUSE_B, p_limit: maxResultRows + 1 } });
     expect(log.some((entry) => entry[0] === "from" && entry[1] === "questionnaire_results")).toBe(false);
@@ -156,7 +156,7 @@ describe("listResults", () => {
   it("filtro \"escolheu outra casa\" com mais linhas que a página: mostra a página e avisa que truncou (e sem filtro de casa manda nulo)", async () => {
     const many = manyRows(maxResultRows + 1).map((row) => ({ ...row }));
     const { client, rpcCalls } = fake({ profiles: { data: [] } }, { coordination_other_house_results: { data: many }, coordination_chosen_houses: { data: [] } });
-    const out = await listResults(client, deps, VIEWER, { otherHouse: true });
+    const out = await listResults(client, deps, { otherHouse: true });
     expect(out.rows).toHaveLength(maxResultRows);
     expect(out.truncated).toBe(true);
     expect(rpcCalls[0]).toEqual({ fn: "coordination_other_house_results", args: { p_house: null, p_limit: maxResultRows + 1 } });
@@ -164,35 +164,45 @@ describe("listResults", () => {
 
   it("erro do banco no filtro: falha sem vazar mensagem", async () => {
     const { client } = fake({}, { coordination_other_house_results: { error: { code: "42501", message: "detalhe interno" } } });
-    await expect(listResults(client, deps, VIEWER, { otherHouse: true })).rejects.toThrow("results_read_failed");
+    await expect(listResults(client, deps, { otherHouse: true })).rejects.toThrow("results_read_failed");
   });
 
   it("erro ao ler a casa escolhida: a tela falha (erro visível), sem mostrar a coluna vazia como se fosse verdade", async () => {
     const { client } = fake({ questionnaire_results: { data: resultRows }, profiles: { data: profiles } }, { coordination_chosen_houses: { error: { code: "42501", message: "detalhe interno" } } });
-    await expect(listResults(client, deps, VIEWER, {})).rejects.toThrow("results_read_failed");
+    await expect(listResults(client, deps, {})).rejects.toThrow("results_read_failed");
   });
 
-  it("não lista a própria pessoa (quem vê não abre o próprio resultado por aqui)", async () => {
-    const { client, log } = fake({ questionnaire_results: { data: [] } });
-    await listResults(client, deps, VIEWER, {});
-    expect(log).toContainEqual(["neq", "profile_id", VIEWER]);
+  it("lista também a própria pessoa: nenhum filtro tira quem está vendo (#318)", async () => {
+    const own = { profile_id: VIEWER, house_key: HOUSE_A, created_at: "2026-11-27T10:00:00Z" };
+    const { client, log } = fake({ questionnaire_results: { data: [own, ...resultRows] }, profiles: { data: profiles } }, { coordination_chosen_houses: { data: chosen } });
+    const out = await listResults(client, deps, {});
+    expect(out.rows.map((r) => r.profileId)).toContain(VIEWER);
+    expect(log.filter((entry) => entry[0] === "neq")).toEqual([]);
+  });
+
+  it("o filtro \"escolheu outra casa\" também não tira a própria pessoa (o banco decide pelo alcance)", async () => {
+    const own = { profile_id: VIEWER, house_key: HOUSE_A, created_at: "2026-11-27T10:00:00Z" };
+    const { client, log } = fake({ profiles: { data: profiles } }, { coordination_other_house_results: { data: [own] }, coordination_chosen_houses: { data: chosen } });
+    const out = await listResults(client, deps, { otherHouse: true });
+    expect(out.rows.map((r) => r.profileId)).toEqual([VIEWER]);
+    expect(log.filter((entry) => entry[0] === "neq")).toEqual([]);
   });
 
   it("filtra pela casa no banco", async () => {
     const { client, log } = fake({ questionnaire_results: { data: [resultRows[1]] }, profiles: { data: profiles } });
-    await listResults(client, deps, VIEWER, { houseId: HOUSE_B });
+    await listResults(client, deps, { houseId: HOUSE_B });
     expect(log).toContainEqual(["eq", "house_key", HOUSE_B]);
   });
 
   it("ignora filtro de casa que não é da config (não vai ao banco)", async () => {
     const { client, log } = fake({ questionnaire_results: { data: [] }, profiles: { data: [] } });
-    await listResults(client, deps, VIEWER, { houseId: "casa-inventada" });
+    await listResults(client, deps, { houseId: "casa-inventada" });
     expect(log.some((entry) => entry[0] === "eq" && entry[1] === "house_key")).toBe(false);
   });
 
   it("mais linhas que a página: mostra só a página e avisa que truncou (filtre por casa)", async () => {
     const { client, log } = fake({ questionnaire_results: { data: manyRows(maxResultRows + 1) }, profiles: { data: [] } });
-    const out = await listResults(client, deps, VIEWER, {});
+    const out = await listResults(client, deps, {});
     expect(out.rows).toHaveLength(maxResultRows);
     expect(out.truncated).toBe(true);
     expect(log).toContainEqual(["limit", maxResultRows + 1]);
@@ -200,7 +210,7 @@ describe("listResults", () => {
 
   it("os nomes são buscados em lotes pequenos (a URL não estoura com centenas de ids)", async () => {
     const { client, log } = fake({ questionnaire_results: { data: manyRows(120) }, profiles: { data: [] } });
-    await listResults(client, deps, VIEWER, {});
+    await listResults(client, deps, {});
     const sizes = log.filter((e) => e[0] === "in" && e[1] === "id").map((e) => (e[2] as string[]).length);
     expect(sizes).toEqual([50, 50, 20]);
   });
@@ -210,23 +220,23 @@ describe("listResults", () => {
       questionnaire_results: { data: [resultRows[0]] },
       profiles: { data: [{ id: U1, display_name_enc: encName(U2, "Outra") }] },
     });
-    expect((await listResults(client, deps, VIEWER, {})).rows[0]?.name).toBeNull();
+    expect((await listResults(client, deps, {})).rows[0]?.name).toBeNull();
   });
 
   it("erro ao buscar os nomes: a tela falha (erro visível), em vez de mostrar todo mundo sem nome", async () => {
     const { client } = fake({ questionnaire_results: { data: [resultRows[0]] }, profiles: { error: { code: "XX", message: "segredo" } } });
-    await expect(listResults(client, deps, VIEWER, {})).rejects.toThrow("names_read_failed:failed");
+    await expect(listResults(client, deps, {})).rejects.toThrow("names_read_failed:failed");
   });
 
   it("sem resultados visíveis (RLS): lista vazia, sem consultar nomes", async () => {
     const { client, log } = fake({ questionnaire_results: { data: [] } });
-    expect(await listResults(client, deps, VIEWER, {})).toEqual({ rows: [], truncated: false });
+    expect(await listResults(client, deps, {})).toEqual({ rows: [], truncated: false });
     expect(log.some((entry) => entry[0] === "from" && entry[1] === "profiles")).toBe(false);
   });
 
   it("erro do banco: falha sem vazar mensagem", async () => {
     const { client } = fake({ questionnaire_results: { error: { code: "XX", message: "segredo" } } });
-    await expect(listResults(client, deps, VIEWER, {})).rejects.toThrow("results_read_failed:failed");
+    await expect(listResults(client, deps, {})).rejects.toThrow("results_read_failed:failed");
   });
 });
 

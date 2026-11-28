@@ -326,7 +326,7 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   reinicia a trava e gera `house_changed` (`self`). Repetir a mesma casa devolve o mesmo
   vínculo. A primeira definição gera `house_accepted` no `audit_log`.
 - **Casa escolhida na coordenação:** `coordination_chosen_houses(pessoas)` (security definer, mesmo alcance
-  das telas de resultado, nunca a própria pessoa) devolve a casa do vínculo aberto e aceito, a data e se a
+  das telas de resultado; a própria coordenação inclusive, #318) devolve a casa do vínculo aberto e aceito, a data e se a
   troca foi da coordenação (`house_changed` posterior ao aceite). A lista e o resultado comparam com a casa
   sugerida de `questionnaire_results`; só casas e datas, nada do totem. O filtro "escolheu outra casa" é
   `coordination_other_house_results(casa, limite)`: no banco, sobre todas as pessoas do alcance (até 201,
@@ -573,7 +573,7 @@ coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, 
 que gerencia a pessoa não. `questionnaire_access_granted/revoked` (ator = a nacional, alvo = o
 gestor): só a coordenação nacional os lê; o gestor os vê no próprio arquivo.
 `questionnaire_result_viewed` (ator = quem abriu o resultado ou o caso, alvo = a pessoa vista; sem conteúdo, um por ator e alvo a cada 10 minutos,
-gravado por `log_questionnaire_view`, só para quem pode ler os dados do alvo e nunca sobre si): só a
+gravado por `log_questionnaire_view`, só para quem pode ler os dados do alvo; sobre si, só a coordenação, #318): só a
 coordenação nacional o lê; a pessoa vista o vê no próprio arquivo. `questionnaire_coordination_access()`
 diz ao menu e às telas se quem chama é a nacional e/ou delegado (só para o 404; não concede nada).
 Registros antigos da #76 (alvo = unidade de casa, sem `house_key`) ficam como estão. Nunca
