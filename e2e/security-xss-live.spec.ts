@@ -1,5 +1,4 @@
 import { expect, test, type Page } from "@playwright/test";
-import { instance } from "@config/instance";
 import { acceptTermIfAsked } from "./accept-term";
 import { chooseCity } from "./choose-city";
 import { giveHouse } from "./give-house";
@@ -18,7 +17,15 @@ test.skip(!API || !SERVICE_KEY, "precisa do Supabase local e da chave de serviç
 
 const SCRIPT_PAYLOAD = "<script>window.__xss=1</script>";
 const IMG_PAYLOAD = '<img src=x onerror="window.__xss=1">';
-const profile = instance.profile;
+// Rótulos da tela, escritos aqui: o Playwright não carrega os módulos de servidor que `config/instance` importa.
+const profile = {
+  nameLabel: "Seu nome completo",
+  whatsappLabel: "Seu WhatsApp, com DDD",
+  neighborhoodLabel: "Seu bairro (se quiser)",
+  educationDetailLabel: "Qual curso ou área? (se quiser)",
+  occupationLabel: "Sua atividade profissional (se quiser)",
+  saveButton: "Salvar meus dados",
+};
 
 const admin = (path: string, init: RequestInit) =>
   fetch(`${API}${path}`, {
