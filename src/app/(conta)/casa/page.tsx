@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import { toPublicQuestionnaire } from "@/modules/questionnaire";
 import Link from "next/link";
-import { canChangeHouse, getQuestionnaire, HouseFlow, HousePresentation, houseLockNotice, readAcceptedHouse, readHouseLock, sessionHouseClient } from "@/modules/houses";
+import { canChangeHouse, getQuestionnaire, HouseFlow, HousePresentation, houseLockNotice, readAcceptedHouse, readChangeHouse, readHouseLock, sessionHouseClient } from "@/modules/houses";
 import { requireUserBeforeHouse } from "@/server/auth/session";
 
 export const metadata: Metadata = { title: instance.houseSelection.title };
@@ -22,6 +22,9 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
   const now = new Date();
   const lockNotice = houseLockNotice(text.lockedUntilNotice, lockedUntil, now);
   const changing = house !== undefined && (await searchParams).trocar === "1" && canChangeHouse(lockedUntil, now);
+  // Troca de casa depois da trava (#268): a mesma comparação do "Escolher outra casa", montada no servidor a partir do que a
+  // pessoa tem guardado (resultado e respostas cifradas); o navegador só recebe o perfil, a sugerida e um token selado.
+  const change = changing && client && house ? { currentId: house.id, ...(await readChangeHouse(client, user.id)) } : undefined;
 
   return (
     <main className="mx-auto flex max-w-xl flex-col gap-6 p-6 pt-10">
@@ -53,7 +56,7 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
           houses={instance.houses}
           questionnaire={toPublicQuestionnaire(getQuestionnaire())}
           text={text}
-          startAtActivities={changing}
+          {...(change && { change })}
         />
       )}
     </main>

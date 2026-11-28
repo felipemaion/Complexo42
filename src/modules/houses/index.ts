@@ -7,6 +7,7 @@ export type { FlowContext, FlowEvent, FlowState, HouseActionResult, HouseClient,
 export { readAcceptedHouse, readHouseLock } from "./server/houses";
 export { canChangeHouse, houseLockNotice } from "./domain/house-lock";
 export { getQuestionnaire } from "./server/questionnaire";
+export { readChangeHouse } from "./server/change-house-session";
 export { sessionHouseClient } from "./server/session";
 export { requireCoordinationScreen, coordinationViewDeps, readCoordinationLinks } from "./server/coordination-session";
 export { canSeeResults, choseOtherHouse, listCases, listDelegationCandidates, listDelegations, listResults, openCase, openResult } from "./server/coordination-views";

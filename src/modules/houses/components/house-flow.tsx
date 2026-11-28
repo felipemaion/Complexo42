@@ -12,8 +12,8 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { InstanceConfig } from "@/modules/instance";
 import { IntensityScale } from "@/modules/questionnaire/components/intensity-scale";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
-import type { PublicQuestionnaire } from "@/modules/questionnaire";
-import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "../domain/flow";
+import type { ChartAxis, HouseByPoles, PublicQuestionnaire } from "@/modules/questionnaire";
+import { changeHouseFlow, formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "../domain/flow";
 import { refusalMessage } from "../domain/refusal";
 import { acceptHouseAction, recordConsentAction, submitAnswersAction } from "../server/actions";
 import type { HouseErrorCode } from "../types";
@@ -24,17 +24,20 @@ type Props = {
   houses: readonly HouseView[];
   questionnaire: PublicQuestionnaire;
   text: InstanceConfig["houseSelection"];
-  /** Troca de casa depois do prazo (ADR 0016): começa na lista de atividades, sem refazer o questionário. */
-  startAtActivities?: boolean;
+  /**
+   * Troca de casa depois do prazo (ADR 0016, #268): começa na comparação das casas, com a casa atual em destaque. O servidor
+   * monta o resto do que está guardado (sugerida, perfil, token selado); o navegador não manda respostas.
+   */
+  change?: { currentId: string; suggestedId?: string; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string };
 };
 
 const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
 const primary =
   "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
 
-export function HouseFlow({ houses, questionnaire, text, startAtActivities = false }: Readonly<Props>) {
+export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Props>) {
   const router = useRouter();
-  const [state, setState] = useState<FlowState>(() => (startAtActivities ? { step: { kind: "activities" }, answers: {} } : initialFlow));
+  const [state, setState] = useState<FlowState>(() => (change ? changeHouseFlow(change) : initialFlow));
   const [error, setError] = useState<HouseErrorCode | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -179,6 +182,7 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
         <CompareHouses
           houses={houses}
           suggestedId={step.suggestedId}
+          currentId={step.currentId}
           selectedId={step.selectedId}
           chart={step.chart}
           byPoles={step.byPoles}
@@ -187,7 +191,8 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
           disabled={pending}
           onSelect={(houseId) => dispatch({ type: "house_selected", houseId })}
           onConfirm={() => dispatch({ type: "house_confirmed" })}
-          onBack={() => dispatch({ type: "back" })}
+          // Na troca de casa a comparação é a primeira tela: voltar leva à página da casa atual.
+          onBack={() => (step.currentId === undefined ? dispatch({ type: "back" }) : router.replace("/casa"))}
         />
       );
       break;
@@ -222,6 +227,12 @@ export function HouseFlow({ houses, questionnaire, text, startAtActivities = fal
               firstStepsTitle={text.firstStepsTitle}
               videosTitle={text.videosTitle}
             />
+          )}
+          {/* Troca depois da trava: o aviso da nova trava de 4 meses vem antes de aceitar (#268). */}
+          {step.returnTo && (
+            <p className="rounded-xl border-2 border-current p-4 text-lg font-semibold" data-testid="change-lock-notice">
+              {text.consentLockNotice}
+            </p>
           )}
           <button
             type="button"

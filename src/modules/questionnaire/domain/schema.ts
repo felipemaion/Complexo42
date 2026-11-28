@@ -50,7 +50,14 @@ const axisShape = {
   /** Ids dos itens que contam para este eixo. */
   itemIds: z.array(slug).min(1),
 };
-const houseAxisSchema = z.strictObject(axisShape);
+const houseAxisSchema = z.strictObject({
+  ...axisShape,
+  /**
+   * Frase geral de expectativa de cada polo do eixo (#268): para quem não tem respostas guardadas, a tela de troca de casa
+   * mostra a do polo da casa nos eixos em que a nota da pessoa está do lado oposto. Opcional; fica na config privada.
+   */
+  expectation: z.strictObject({ a: text, b: text }).optional(),
+});
 const totemAxisSchema = z.strictObject({
   ...axisShape,
   /** Letra que cada polo acrescenta ao totem. */

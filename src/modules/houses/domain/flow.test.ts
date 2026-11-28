@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "./flow";
+import { changeHouseFlow, formatProgress, initialFlow, nextFlow, type FlowContext, type FlowEvent, type FlowState } from "./flow";
 
 const ctx: FlowContext = { questionIds: ["q1", "q2", "q3"] };
 const chart = [{ key: "house1", label: "D1", poleA: "a1", poleB: "b1", score: -40 }] as const;
@@ -190,6 +190,45 @@ describe("fluxo da escolha da casa", () => {
       const compare = nextFlow(answered, { type: "choose_other" }, ctx);
       expect(nextFlow(compare, { type: "house_confirmed" }, ctx)).toBe(compare);
       expect(nextFlow(compare, { type: "back" }, ctx).step).toEqual({ kind: "presentation", houseId: "casa-a", method: "questionnaire", chart, byPoles, compareToken: "tok" });
+    });
+  });
+
+  describe("trocar de casa depois da trava: a mesma comparação, com a casa atual (#268)", () => {
+    const byPoles = { aa: "casa-a", ab: "casa-b", ba: "casa-c", bb: "casa-d" } as const;
+    const start = changeHouseFlow({ currentId: "casa-a", suggestedId: "casa-b", chart: [...chart], byPoles, compareToken: "tok" });
+    const compareStep = start.step as Extract<FlowState["step"], { kind: "compare" }>;
+
+    it("começa direto na comparação, com a casa atual, a sugerida e o token do servidor (sem respostas no navegador)", () => {
+      expect(start).toEqual({ step: { kind: "compare", currentId: "casa-a", suggestedId: "casa-b", chart, byPoles, compareToken: "tok" }, answers: {} });
+    });
+
+    it("sem resultado do questionário a comparação abre só com a casa atual", () => {
+      expect(changeHouseFlow({ currentId: "casa-a" }).step).toEqual({ kind: "compare", currentId: "casa-a" });
+    });
+
+    it("confirmar a sugerida mantém a entrada pelo questionário; outra casa é escolha direta; ambas guardam a volta à comparação", () => {
+      const selectedSuggested = nextFlow(start, { type: "house_selected", houseId: "casa-b" }, ctx);
+      const toSuggested = nextFlow(selectedSuggested, { type: "house_confirmed" }, ctx);
+      expect(toSuggested.step).toMatchObject({ kind: "presentation", houseId: "casa-b", method: "questionnaire" });
+      expect(toSuggested.step).toMatchObject({ returnTo: { ...compareStep, selectedId: "casa-b" } });
+      const toOther = nextFlow(nextFlow(start, { type: "house_selected", houseId: "casa-c" }, ctx), { type: "house_confirmed" }, ctx);
+      expect(toOther.step).toMatchObject({ kind: "presentation", houseId: "casa-c", method: "self", returnTo: { selectedId: "casa-c" } });
+    });
+
+    it("a casa atual não se confirma (trocar para a mesma casa não existe)", () => {
+      const current = nextFlow(start, { type: "house_selected", houseId: "casa-a" }, ctx);
+      expect(nextFlow(current, { type: "house_confirmed" }, ctx)).toBe(current);
+    });
+
+    it("voltar da apresentação, ou escolher outra casa, volta à comparação com a casa que estava selecionada", () => {
+      const presented = nextFlow(nextFlow(start, { type: "house_selected", houseId: "casa-c" }, ctx), { type: "house_confirmed" }, ctx);
+      const expected = { kind: "compare", currentId: "casa-a", suggestedId: "casa-b", chart, byPoles, compareToken: "tok", selectedId: "casa-c" };
+      expect(nextFlow(presented, { type: "back" }, ctx).step).toEqual(expected);
+      expect(nextFlow(presented, { type: "choose_other" }, ctx).step).toEqual(expected);
+    });
+
+    it("voltar na própria comparação não faz nada no fluxo (a tela sai para a página da casa)", () => {
+      expect(nextFlow(start, { type: "back" }, ctx)).toBe(start);
     });
   });
 
