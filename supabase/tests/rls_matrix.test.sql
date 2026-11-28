@@ -40,7 +40,7 @@ insert into declared values
   ('role_assignments', '', 'Siu'),
   ('skill_suggestions', '', 'S'),
   ('skills', '', 'S'),
-  ('unit_members', '', 'Su'),
+  ('unit_members', '', 'S'),
   ('unit_types', '', 'S'),
   ('units', '', 'Su');
 

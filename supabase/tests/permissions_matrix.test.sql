@@ -1005,15 +1005,17 @@ select set_eq(
   $$ select id from people where name in ('team_a_mon', 'spokes_a') $$,
   'coordenador da equipe A vê os papéis da sua equipe e os seus'
 );
-select lives_ok(
+select throws_ok(
   $$ update public.unit_members set member_role = 'lead'
      where profile_id = pg_temp.person('stu_a') $$,
-  'coordenador da equipe A edita vínculo da equipe A'
+  '42501', null,
+  'vínculo não é editado por UPDATE direto: o papel no grupo vai por set_team_lead'
 );
-select lives_ok(
+select throws_ok(
   $$ update public.unit_members set member_role = 'lead'
      where profile_id = pg_temp.person('stu_b') $$,
-  'tentativa na equipe B não dá erro, mas não alcança linha nenhuma'
+  '42501', null,
+  'o UPDATE direto na equipe B também é negado (sem grant)'
 );
 select lives_ok(
   $$ update public.units set name = 'Equipe A renomeada' where slug in ('team_a', 'team_b') $$,
@@ -1037,10 +1039,11 @@ select throws_ok(
   '42501', 'permission denied for table unit_members',
   'vínculo não é criado por INSERT direto (sem grant, não só pela RLS)'
 );
-select lives_ok(
+select throws_ok(
   $$ update public.unit_members set left_at = null
      where profile_id = pg_temp.person('stu_gone') $$,
-  'tentativa de reabrir vínculo encerrado não alcança linha nenhuma'
+  '42501', null,
+  'reabrir vínculo encerrado por UPDATE direto é negado'
 );
 select lives_ok(
   $$ update public.role_assignments set revoked_at = now()
@@ -1152,8 +1155,8 @@ select results_eq(
   $$ select profile_id, member_role from public.unit_members
      where profile_id in (pg_temp.person('stu_a'), pg_temp.person('stu_b'))
      order by profile_id $$,
-  $$ values (pg_temp.person('stu_a'), 'lead'), (pg_temp.person('stu_b'), 'member') $$,
-  'só o vínculo da equipe A foi editado'
+  $$ values (pg_temp.person('stu_a'), 'member'), (pg_temp.person('stu_b'), 'member') $$,
+  'nenhum vínculo foi editado pela API'
 );
 select set_eq(
   $$ select slug from public.units where name = 'Equipe A renomeada' $$,
@@ -1436,10 +1439,10 @@ select is_empty(
                           pg_temp.person('stu_pend'), pg_temp.person('stu_susp')) $$,
   'coordenador NÃO vê vínculo de quem está na espera, bloqueado, pendente ou suspenso'
 );
--- Sem WHERE, só a política de UPDATE filtra (a de SELECT não entra).
-select lives_ok(
+select throws_ok(
   $$ update public.unit_members set member_role = 'lead' $$,
-  'coordenador altera vínculos em massa: os de quem não está ativo não são alcançados'
+  '42501', null,
+  'coordenador não altera vínculos em massa: sem grant de UPDATE'
 );
 
 reset role;
