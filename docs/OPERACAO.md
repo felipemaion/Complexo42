@@ -884,6 +884,56 @@ complexo42stg01 ALL=(root) NOPASSWD: /opt/complexo42/deploy.sh --config /etc/com
 > quem está nele roda `docker run -v /:/host`. Aqui o usuário executa **um**
 > script, de caminho fixo, que ele não pode reescrever.
 
+#### Script instalado no servidor não é código implantado
+
+**Mesclar não o atualiza. O deploy não o atualiza. O CI verde não diz nada
+sobre ele.** Dois arquivos deste repositório existem no servidor como **cópia
+instalada**, fora do alcance do pipeline — é o preço de o deploy ser executado
+por um `sudo` de caminho fixo, que é justamente o que impede o usuário de
+deploy de reescrever o que ele mesmo executa.
+
+| Caminho no servidor | Origem | Atualiza como |
+|---|---|---|
+| `/opt/complexo42/deploy.sh` | `deploy/deploy.sh` | **cópia à mão, como root** |
+| `/opt/complexo42/migra.sh` | `deploy/migra.sh` | **cópia à mão, como root** |
+
+E estes **só existem no servidor** — não têm origem no repositório, então para
+eles a pergunta "está igual à `main`?" não faz sentido:
+
+| Caminho | O que é |
+|---|---|
+| `/usr/local/sbin/complexo42-deploy-staging` | wrapper do root (trecho acima) |
+| `/etc/sudoers.d/complexo42-deploy-staging` | a regra única do sudo |
+| `/etc/complexo42/<ambiente>.conf` | configuração do ambiente, 600 |
+| `/etc/complexo42/infra-<projeto>.manifesto` | manifesto da ADR 0015, escrito pelo deploy |
+
+**Conferência, sem número fixo em documentação.** Valor transcrito envelhece
+em silêncio: no dia em que um PR tocar um desses scripts, o número aqui passa
+a estar errado — e número errado numa conferência é pior que nenhum. O comando
+abaixo calcula o esperado a partir da `main` e diz **qual** dos dois lados está
+atrasado:
+
+```sh
+for f in deploy.sh migra.sh; do
+  inst=$(sudo md5sum "/opt/complexo42/$f" | cut -c1-12)
+  main=$(curl -fsSL "https://raw.githubusercontent.com/felipemaion/Complexo42/main/deploy/$f" | md5sum | cut -c1-12)
+  [ "$inst" = "$main" ] && e=ok || e="DESATUALIZADO"
+  printf '%-10s instalado=%s  main=%s  %s\n' "$f" "$inst" "$main" "$e"
+done
+```
+
+**Isto já custou caro.** O PR que fez o `migra.sh` avisar o PostgREST para
+reler o esquema foi mesclado, o deploy rodou, o CI ficou verde — e o aviso não
+acontecia, porque a cópia instalada seguia sendo a anterior. O corpo daquele PR
+chegou a afirmar que "o `migra.sh` viaja na imagem": **as migrations viajam na
+imagem; o script, não.** Rodar a conferência acima leva um segundo e responde
+o que nenhum check responde.
+
+> **Depois de qualquer PR que toque `deploy/deploy.sh` ou `deploy/migra.sh`:**
+> reinstalar a cópia no servidor, com cópia de segurança antes e conferência de
+> md5 depois. Enquanto isso não acontece, a mudança **não existe** em lugar
+> nenhum que importe.
+
 ### A sincronia da infra (ADR 0015)
 
 O compose do Supabase, o `kong.yml` e o `initdb/` **viajam na imagem** e o
