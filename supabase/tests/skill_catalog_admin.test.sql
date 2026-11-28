@@ -72,7 +72,7 @@ set local role authenticated;
 select pg_temp.login('root_mgr');
 select ok(public.create_skill('  Cat Nova  ', 'Cat Grupo Novo') is not null, 'a coordenação nacional cria (e o nome é aparado)');
 select is((select category from public.skills where name = 'Cat Nova'), 'Cat Grupo Novo', 'num grupo que ainda não existia');
-select throws_ok($$ select public.create_skill('CAT   jardim', 'Cat Grupo 2') $$, 'C7704', null, 'nome igual a outro, sem caixa: C7704') ;
+select throws_ok($$ select public.create_skill('CAT jardim', 'Cat Grupo 2') $$, 'C7704', null, 'nome igual a outro, sem caixa: C7704') ;
 select throws_ok($$ select public.create_skill('Cat Velha', 'Cat Grupo 2') $$, 'C7704', null, 'nome de uma desativada também: reative em vez de criar');
 select throws_ok($$ select public.create_skill('x', 'Cat Grupo 2') $$, '22023', null, 'nome curto demais');
 

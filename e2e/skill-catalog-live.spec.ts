@@ -92,15 +92,15 @@ test("a coordenação nacional cria, renomeia e mescla; quem não é nacional re
   await expect(page.getByRole("alert")).toBeVisible();
 
   // Renomear.
-  let row = page.getByTestId("catalog-skill").filter({ hasText: first });
-  await row.getByLabel("Nome").fill(renamed);
+  let row = page.locator(`[data-testid="catalog-skill"][data-name="${first}"]`);
+  await row.getByLabel("Nome", { exact: true }).fill(renamed);
   await row.getByRole("button", { name: "Renomear", exact: true }).click();
   await expect(page.getByText("Mudança registrada.")).toBeVisible();
   const [kept] = await skillsByName(renamed);
   expect(kept).toBeDefined();
 
   // Mesclar a segunda na renomeada: a segunda fica desativada.
-  row = page.getByTestId("catalog-skill").filter({ hasText: second });
+  row = page.locator(`[data-testid="catalog-skill"][data-name="${second}"]`);
   await row.getByLabel(/Mesclar nesta habilidade/).selectOption({ label: renamed });
   await row.getByRole("button", { name: "Mesclar" }).click();
   await expect(page.getByText("Mudança registrada.")).toBeVisible();

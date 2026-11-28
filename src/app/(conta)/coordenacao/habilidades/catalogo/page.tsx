@@ -79,7 +79,7 @@ export default async function SkillCatalogPage({
           </form>
           <ul className="flex flex-col gap-4">
             {items.map((skill) => (
-              <li key={skill.id} className="flex flex-col gap-2 border-t border-line pt-3" data-testid="catalog-skill">
+              <li key={skill.id} className="flex flex-col gap-2 border-t border-line pt-3" data-testid="catalog-skill" data-name={skill.name}>
                 <p className="text-lg font-semibold">
                   {skill.name}
                   {!skill.active && <span className="ml-2 font-normal text-ink-muted">({c.inactive})</span>}
