@@ -49,7 +49,6 @@ const rows: OwnDataRows = {
       joined_at: "2026-11-19T11:30:00+00:00",
       accepted_at: "2026-11-19T11:30:00+00:00",
       left_at: null,
-      locked_until: "2027-03-19T11:30:00+00:00",
     },
   ],
   questionnaire_consents: [{ term_version: "termo-1", consented_at: "2026-11-19T11:20:00+00:00" }],
@@ -154,7 +153,6 @@ describe("buildOwnDataExport", () => {
           entrouEm: "2026-11-19T11:30:00+00:00",
           aceitaEm: "2026-11-19T11:30:00+00:00",
           saiuEm: null,
-          trocaLiberadaEm: "2027-03-19T11:30:00+00:00",
         },
       ],
       resultadoDoQuestionario: {

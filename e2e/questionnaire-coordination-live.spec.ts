@@ -221,12 +221,12 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   await rootContext.close();
 });
 
-test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troca fica no audit_log (ADR 0016)", async ({ browser }) => {
+test("a coordenação nacional troca a casa da pessoa com a janela fechada e a troca fica no audit_log (ADR 0016)", async ({ browser }) => {
   test.setTimeout(120_000);
   const root = await createPerson("raiz-troca", undefined, true);
   await makeManager(root.id, "br");
   const person = await createPerson("troca");
-  // A pessoa responde na tela e aceita a casa sugerida: a trava de 4 meses nasce no banco.
+  // A pessoa responde na tela e aceita a casa sugerida (janela fechada: a primeira escolha é livre).
   const personContext = await browser.newContext();
   const personPage = await personContext.newPage();
   await signIn(personPage, person.email);
@@ -237,13 +237,11 @@ test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troc
     await personPage.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
   }
   await personPage.getByRole("button", { name: "Aceitar" }).click();
-  await expect(personPage.getByTestId("house-lock-notice")).toBeVisible();
+  await expect(personPage.getByTestId("house-lock-notice")).toHaveCount(0);
   await personContext.close();
-  const [before] = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key,locked_until`)).json()) as {
+  const [before] = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key`)).json()) as {
     house_key: string;
-    locked_until: string;
   }[];
-  expect(new Date(before!.locked_until).getTime()).toBeGreaterThan(Date.now() + 100 * 24 * 3600 * 1000);
 
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -269,11 +267,44 @@ test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troc
   await expect(page.getByTestId("result-chosen").first()).toBeVisible();
   await context.close();
 
-  const open = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key,locked_until`)).json()) as {
+  const open = (await (await admin(`/rest/v1/house_members?profile_id=eq.${person.id}&left_at=is.null&select=house_key`)).json()) as {
     house_key: string;
-    locked_until: string;
   }[];
-  expect(open).toEqual([{ house_key: target.id, locked_until: before!.locked_until }]);
+  expect(open).toEqual([{ house_key: target.id }]);
   const audit = await (await admin(`/rest/v1/audit_log?event=eq.house_changed&target_id=eq.${person.id}&select=actor_id,reason,house_key`)).json();
   expect(audit).toEqual([{ actor_id: root.id, reason: "coordination", house_key: target.id }]);
+});
+
+test("a coordenação nacional abre e fecha a janela de transferência; a pessoa vê o link só com ela aberta (ADR 0016)", async ({ browser }) => {
+  test.setTimeout(120_000);
+  const root = await createPerson("raiz-janela", undefined, true);
+  await makeManager(root.id, "br");
+  const state = await createPerson("sp-janela", undefined, true);
+  await makeManager(state.id, "br.sp");
+  const set = (open: boolean) => admin("/rest/v1/house_transfer_window?singleton=eq.true", { method: "PATCH", body: JSON.stringify({ is_open: open }) });
+  expect((await set(false)).ok).toBe(true);
+
+  // Gestor de estado: sem o atalho no menu e a página é recusada (só a coordenação nacional).
+  const stateContext = await browser.newContext();
+  const statePage = await stateContext.newPage();
+  await signIn(statePage, state.email);
+  await statePage.goto("/coordenacao");
+  await expect(statePage.getByRole("link", { name: "Janela de transferência de casa" })).toHaveCount(0);
+  expect((await statePage.goto("/coordenacao/casas/janela"))?.status()).toBe(404);
+  await stateContext.close();
+
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await signIn(page, root.email);
+  await page.goto("/coordenacao");
+  await page.getByRole("link", { name: "Janela de transferência de casa" }).click();
+  await expect(page.getByTestId("window-status")).toHaveAttribute("data-open", "false");
+  await page.getByRole("button", { name: "Abrir a janela" }).click();
+  await expect(page.getByTestId("window-status")).toHaveAttribute("data-open", "true");
+  await page.getByRole("button", { name: "Fechar a janela" }).click();
+  await expect(page.getByTestId("window-status")).toHaveAttribute("data-open", "false");
+  await context.close();
+
+  const audit = (await (await admin(`/rest/v1/audit_log?actor_id=eq.${root.id}&event=in.(house_window_opened,house_window_closed)&select=event&order=id`)).json()) as { event: string }[];
+  expect(audit.map((a) => a.event)).toEqual(["house_window_opened", "house_window_closed"]);
 });

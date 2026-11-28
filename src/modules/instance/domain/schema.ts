@@ -158,6 +158,7 @@ export const instanceConfigSchema = z.strictObject({
     intro: text,
     nameLabel: text,
     nameHint: text,
+    completeNameNotice: text,
     whatsappLabel: text,
     whatsappHint: text,
     /** Localização em três passos (#175): estado, cidade (com busca) e distrito. */
@@ -344,10 +345,9 @@ export const instanceConfigSchema = z.strictObject({
     inviteMessage: text,
     /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */
     rateLimitedWait: text.refine((v) => v.includes("{minutes}"), "use {minutes}"),
-    consentLockNotice: text,
     /** Aviso de tela (fora do termo): as respostas ficam guardadas cifradas, para a troca de casa. */
     consentStoredNotice: text,
-    lockedUntilNotice: text.refine((v) => v.includes("{date}"), "use {date}"),
+    transferClosedNotice: text,
     changeHouseLink: text,
     /** Depois da casa aceita: o próximo passo é o perfil (via /inicio), ADR 0017. */
     continueLink: text,
@@ -362,10 +362,12 @@ export const instanceConfigSchema = z.strictObject({
       stale_consent: text,
       /** A coordenação encerrou a casa da pessoa: a volta é com ela. */
       removed_by_coordination: text,
-      house_locked: text,
+      window_closed: text,
       house_conflict: text,
       /** Pedido de análise renovado há pouco (no máximo um por hora). */
       rate_limited: text,
+      /** A Server Action rejeitou: o app foi atualizado ou a conexão caiu (#315). */
+      app_updated: text,
       failed: text,
     }),
   }),
@@ -377,6 +379,8 @@ export const instanceConfigSchema = z.strictObject({
     linkResults: text,
     linkQueue: text,
     linkDelegations: text,
+    linkWindow: text,
+    window: z.strictObject({ title: text, intro: text, statusOpen: text, statusClosed: text, openButton: text, closeButton: text, failed: text }),
     backLink: text,
     noName: text,
     results: z.strictObject({

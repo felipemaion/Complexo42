@@ -48,9 +48,14 @@ export default async function CoordinationHome() {
         </>
       )}
       {questionnaire.national && (
-        <Link href="/coordenacao/casas/delegacoes" className={big}>
-          {links.linkDelegations}
-        </Link>
+        <>
+          <Link href="/coordenacao/casas/delegacoes" className={big}>
+            {links.linkDelegations}
+          </Link>
+          <Link href="/coordenacao/casas/janela" className={big}>
+            {links.linkWindow}
+          </Link>
+        </>
       )}
       <Link href={HOME_PATH} className="text-center text-lg underline">
         {text.homeBackLink}

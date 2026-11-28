@@ -341,9 +341,10 @@ export async function revokeQuestionnaireAccess(client: HouseClient, input: unkn
 }
 
 /**
- * A coordenação troca a casa de uma pessoa a qualquer momento (ADR 0016). Só `{ profileId, houseId }`,
- * com a casa da config; o banco confere o alcance sobre a pessoa, que a casa esteja ativa e mantém a
- * trava de 4 meses da pessoa (`coordination_set_house`). A troca vai para o audit_log com quem trocou.
+ * A coordenação nacional troca a casa de uma pessoa a qualquer momento, com a janela aberta ou fechada
+ * (ADR 0016). Só `{ profileId, houseId }`, com a casa da config; o banco confere que quem chama é a
+ * coordenação nacional e que a casa está ativa (`coordination_set_house`). A troca vai para o audit_log
+ * com quem trocou.
  */
 export async function changeHouse(client: HouseClient, input: unknown, houseIds: readonly string[]): Promise<CoordinationResult> {
   const parsed = z
@@ -354,5 +355,16 @@ export async function changeHouse(client: HouseClient, input: unknown, houseIds:
     p_profile: parsed.data.profileId,
     p_house_key: parsed.data.houseId,
   });
+  return error ? { ok: false, error: errorOf(error) } : { ok: true };
+}
+
+/**
+ * Abre ou fecha a janela de transferência de casa (ADR 0016). Só `{ open }`; o banco confere que quem
+ * chama é a coordenação nacional (`set_house_transfer_window`) e grava a abertura e o fechamento no audit_log.
+ */
+export async function setTransferWindow(client: HouseClient, input: unknown): Promise<CoordinationResult> {
+  const parsed = z.strictObject({ open: z.boolean() }).safeParse(input);
+  if (!parsed.success) return { ok: false, error: "invalid" };
+  const { error } = await client.rpc("set_house_transfer_window", { p_open: parsed.data.open });
   return error ? { ok: false, error: errorOf(error) } : { ok: true };
 }

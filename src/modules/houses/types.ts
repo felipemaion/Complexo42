@@ -11,9 +11,11 @@ export type HouseErrorCode =
   | "not_active"
   | "stale_consent"
   | "removed_by_coordination"
-  | "house_locked"
+  | "window_closed"
   | "house_conflict"
   | "rate_limited"
+  /** Só no navegador: a Server Action rejeitou (deploy no meio do fluxo ou rede caída, #315). */
+  | "app_updated"
   | "failed";
 
 export type HouseActionResult = { ok: true } | { ok: false; error: HouseErrorCode };
