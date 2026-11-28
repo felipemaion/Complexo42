@@ -1,0 +1,17 @@
+# Variaveis que o app EXIGE em producao (REQUIRED_IN_PRODUCTION, src/server/env.ts).
+# Uma por linha, so o NOME. O deploy le esta lista DA IMAGEM e confere que cada
+# nome chega ao container pelo compose do servidor -- que e copia instalada e nao
+# e sincronizada por ninguem. Sem esta conferencia, variavel que o compose do
+# servidor nao lista nao aparece em lugar nenhum: o app sobe saudavel e recusa
+# todo login (staging, 2026-11-28, reason=missing_key).
+#
+# NAO edite a mao: a guarda do CI (scripts/check-env-compose.py) compara esta
+# lista com o env.ts e falha se divergirem.
+DB_HEALTH_URL
+SUPABASE_URL
+SUPABASE_ANON_KEY
+SITE_URL
+TURNSTILE_SITE_KEY
+TURNSTILE_SECRET_KEY
+FIELD_ENCRYPTION_KEY
+BLIND_INDEX_KEY

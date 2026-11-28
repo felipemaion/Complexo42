@@ -54,15 +54,34 @@ done
 # Checagem estatica (nao precisa de Docker): le o bloco de cada servico no YAML.
 COMPOSE="$AQUI/docker-compose.supabase.yml"
 bloco(){ awk -v s="  $1:" '$0==s{d=1;next} d&&/^  [a-z#]/{exit} d' "$COMPOSE"; }
+# `bloco X | grep -q` e uma CORRIDA com `set -o pipefail`, e ela nos custou um
+# CI vermelho: `grep -q` sai no primeiro acerto e fecha o pipe; se o awk ainda
+# tiver linhas para escrever, morre de SIGPIPE (141) e o pipefail transforma
+# isso em falha do teste. O bloco do `auth` tem 163 linhas e o acerto esta na
+# nona -- com o `rest`, de 24 linhas, o awk termina antes e nunca falha. O
+# sintoma era "auth sem AUTH_ADMIN_PASSWORD" com o compose correto, so no
+# Linux, so as vezes. Guardar em variavel tira o pipe, e a corrida, do caminho.
 for svc in rest auth; do
-  if bloco "$svc" | grep -q 'POSTGRES_PASSWORD'; then
+  b=$(bloco "$svc")
+  if grep -q 'POSTGRES_PASSWORD' <<< "$b"; then
     falha "o bloco do $svc no compose cita POSTGRES_PASSWORD"
   else
     ok "o bloco do $svc no compose nao cita POSTGRES_PASSWORD"
   fi
 done
-bloco rest | grep -q 'AUTHENTICATOR_PASSWORD' && ok "rest usa AUTHENTICATOR_PASSWORD" || falha "rest sem AUTHENTICATOR_PASSWORD"
-bloco auth | grep -q 'AUTH_ADMIN_PASSWORD'    && ok "auth usa AUTH_ADMIN_PASSWORD"    || falha "auth sem AUTH_ADMIN_PASSWORD"
+b=$(bloco rest)
+grep -q 'AUTHENTICATOR_PASSWORD' <<< "$b" && ok "rest usa AUTHENTICATOR_PASSWORD" || falha "rest sem AUTHENTICATOR_PASSWORD"
+b=$(bloco auth)
+grep -q 'AUTH_ADMIN_PASSWORD' <<< "$b"    && ok "auth usa AUTH_ADMIN_PASSWORD"    || falha "auth sem AUTH_ADMIN_PASSWORD"
+
+# Guarda contra a volta do padrao: este teste nao pode voltar a canalizar um
+# bloco para `grep -q`. Falha aqui e barata; a corrida custa um CI vermelho que
+# nao reproduz na maquina de quem escreveu.
+if grep -qE 'bloco [a-z"$]+ *\| *grep -q' "$0"; then
+  falha 'voltou o pipe de bloco para grep -q: corrida de SIGPIPE com pipefail'
+else
+  ok "nenhum bloco canalizado para grep -q"
+fi
 
 # Checagem no config renderizado, quando ha Docker: compara VALOR, nao nome --
 # e o teste que pega interpolacao errada. Fora do servidor o Docker costuma

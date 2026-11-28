@@ -25,6 +25,7 @@ import yaml
 
 PADRAO_ENV_TS = "src/server/env.ts"
 PADRAO_COMPOSE = "deploy/docker-compose.app.yml"
+PADRAO_LISTA = "deploy/obrigatorias-em-producao.txt"
 
 
 def obrigatorias(caminho: str) -> list[str]:
@@ -36,6 +37,44 @@ def obrigatorias(caminho: str) -> list[str]:
     nomes = re.findall(r'"([A-Z_][A-Z0-9_]*)"', m.group(1))
     if not nomes:
         sys.exit(f"ERRO: REQUIRED_IN_PRODUCTION em {caminho} esta vazia -- isso nao e esperado")
+    return nomes
+
+
+def lista_do_arquivo(caminho: str) -> list[str]:
+    """Le a lista que VIAJA NA IMAGEM e que o deploy confere no servidor.
+
+    O deploy nao tem TypeScript a mao: ele le este arquivo da imagem. Por isso o
+    arquivo existe, e por isso o CI confere que ele e igual ao env.ts -- lista
+    duplicada que ninguem compara volta a divergir, e divergir aqui significa
+    deploy conferindo a lista errada.
+    """
+    try:
+        # newline="" desliga a traducao de fim de linha: em modo texto normal o
+        # Python transforma "\r\n" em "\n" e o CR DESAPARECE na leitura -- o CI
+        # aprovaria um arquivo em CRLF que o deploy, lendo bytes, recusa. O
+        # proprio teste de CRLF pegou isso.
+        with open(caminho, encoding="utf-8", newline="") as f:
+            texto = f.read()
+    except OSError as e:
+        sys.exit(f"ERRO: nao consegui ler {caminho}: {e}")
+    nomes = []
+    # A linha vai CRUA para o fullmatch, sem strip: o deploy le a MESMA linha
+    # crua. Com strip aqui, "FIELD_ENCRYPTION_KEY " (espaco no fim) ou um CRLF
+    # passariam no CI e o deploy recusaria o arquivo -- ou, na versao anterior
+    # dele, descartaria o nome em silencio e deixaria de conferir a variavel.
+    # Apontado na revisao do PR que criou este arquivo.
+    for bruta in texto.split("\n"):
+        if bruta == "" or bruta.startswith("#"):
+            continue
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]*", bruta):
+            sys.exit(
+                f"ERRO: {caminho}: linha nao e nome de variavel: {bruta!r}\n"
+                "      Espaco, TAB ou CR no fim contam. O deploy le a linha crua:\n"
+                "      divergir aqui faz a conferencia do servidor conferir menos."
+            )
+        nomes.append(bruta)
+    if not nomes:
+        sys.exit(f"ERRO: {caminho} nao tem nome nenhum -- o deploy nao conferiria nada")
     return nomes
 
 
@@ -99,6 +138,7 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--env-ts", default=PADRAO_ENV_TS)
     p.add_argument("--compose", default=PADRAO_COMPOSE)
+    p.add_argument("--lista", default=PADRAO_LISTA)
     args = p.parse_args()
 
     exigidas = obrigatorias(args.env_ts)
@@ -109,6 +149,25 @@ def main() -> int:
     print("repassadas pelo compose: ", ", ".join(sorted(passadas)))
 
     erro = False
+
+    # ── estado 0: a lista que o DEPLOY le e a mesma do env.ts? ──
+    # O deploy confere o compose do SERVIDOR contra esta lista, lida da imagem.
+    # Lista divergente do env.ts faria o deploy conferir outra coisa: exigencia
+    # nova no app passaria batida, ou exigencia que saiu do app barraria deploy.
+    da_lista = lista_do_arquivo(args.lista)
+    so_no_env_ts = sorted(set(exigidas) - set(da_lista))
+    so_na_lista = sorted(set(da_lista) - set(exigidas))
+    if so_no_env_ts or so_na_lista:
+        print(f"ERRO: {args.lista} divergiu do REQUIRED_IN_PRODUCTION do env.ts.")
+        if so_no_env_ts:
+            print("      exigidas no env.ts e fora da lista:", ", ".join(so_no_env_ts))
+        if so_na_lista:
+            print("      na lista e fora do env.ts:", ", ".join(so_na_lista))
+        print("      A lista e o que o deploy le DA IMAGEM para conferir o compose")
+        print("      do servidor. Divergente, ela confere a coisa errada.")
+        erro = True
+    else:
+        print(f"ok: {args.lista} bate com o env.ts ({len(da_lista)} nomes)")
 
     # ── estado 1: obrigatoria e ausente ──
     faltando = sorted(set(exigidas) - set(passadas))
