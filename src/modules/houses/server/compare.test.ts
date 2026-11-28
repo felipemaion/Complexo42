@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { parseQuestionnaire } from "@/modules/questionnaire";
 import type { CipherContext, HouseClient } from "../types";
-import { compareHouse, openCompareToken, sealCompareToken, type AverageCache, type CompareContext, type RateLimiter } from "./compare";
+import { compareHouse, openCompareToken, sealCompareToken, sealScoresToken, type AverageCache, type CompareContext, type RateLimiter } from "./compare";
 
 const ids = ["h1a", "h1b", "h1c", "h2a", "h2b", "h2c", "t1a", "t2a"];
 const phrase = (id: string) => ({ a: `Espera ${id} a`, b: `Espera ${id} b` });
@@ -12,8 +12,8 @@ const questionnaire = parseQuestionnaire(
     consentTerm: "t",
     items: ids.map((id) => ({ id, text: "x", a: { text: "x" }, b: { text: "x" }, ...(id.startsWith("h") ? { expectation: phrase(id) } : {}) })),
     axes: {
-      house1: { label: "D1", poleLabels: { a: "a1", b: "b1" }, itemIds: ["h1a", "h1b", "h1c"] },
-      house2: { label: "D2", poleLabels: { a: "a2", b: "b2" }, itemIds: ["h2a", "h2b", "h2c"] },
+      house1: { label: "D1", poleLabels: { a: "a1", b: "b1" }, itemIds: ["h1a", "h1b", "h1c"], expectation: { a: "Eixo 1 a", b: "Eixo 1 b" } },
+      house2: { label: "D2", poleLabels: { a: "a2", b: "b2" }, itemIds: ["h2a", "h2b", "h2c"], expectation: { a: "Eixo 2 a", b: "Eixo 2 b" } },
       totem1: { label: "D3", poleLabels: { a: "a3", b: "b3" }, itemIds: ["t1a"], letters: { a: "X", b: "Y" } },
       totem2: { label: "D4", poleLabels: { a: "a4", b: "b4" }, itemIds: ["t2a"], letters: { a: "V", b: "W" } },
     },
@@ -176,7 +176,7 @@ describe("compareHouse", () => {
     const { client, ctx } = setup(members(3), { tokenSeconds: 1800 });
     const token = await tokenFor("u-1", 1000);
     expect(await compareHouse(client, { houseId: "casa-a", token }, { ...ctx, nowSeconds: 1000 + 1799 })).toMatchObject({ ok: true });
-    expect(await compareHouse(client, { houseId: "casa-a", token }, { ...ctx, nowSeconds: 1000 + 1801 })).toEqual({ ok: false, error: "failed" });
+    expect(await compareHouse(client, { houseId: "casa-a", token }, { ...ctx, nowSeconds: 1000 + 1801 })).toEqual({ ok: false, error: "expired" });
   });
 
   it("o token sela só as respostas e nunca o id em claro: o conteúdo é cifrado para a pessoa", async () => {
@@ -227,5 +227,54 @@ describe("compareHouse", () => {
   it("a assinatura que falha (sem chave do servidor) falha fechado", async () => {
     const { client, ctx } = setup(members(3), { sign: vi.fn(() => { throw new Error("sem chave"); }) });
     expect(await compareHouse(client, { houseId: "casa-a", token: await tokenFor() }, ctx)).toMatchObject({ ok: true, average: { status: "unavailable" } });
+  });
+});
+
+describe("compareHouse com o token de notas (sem respostas guardadas, #268)", () => {
+  const scoresToken = (userId = "u-1", at = 1000) => sealScoresToken({ house1: -80, house2: 20, totem1: 10, totem2: -10 }, userId, at, encrypt);
+
+  it("usa as frases gerais por eixo, dos eixos do lado oposto ao da casa, da nota mais forte para a mais leve", async () => {
+    const { client, ctx } = setup(members(3));
+    const out = await compareHouse(client, { houseId: "casa-d", token: await scoresToken() }, ctx); // casa-d = b/b: eixo 1 (-80) e eixo 2 (+20)
+    expect(out).toMatchObject({ ok: true, expectations: [{ text: "Eixo 1 b", answer: -5 }] });
+  });
+
+  it("a média e os limites são os mesmos do token de respostas (média real, rate limit, token de outra pessoa recusado)", async () => {
+    const { client, ctx } = setup(members(3, -50, 30));
+    const ok = await compareHouse(client, { houseId: "casa-a", token: await scoresToken() }, ctx);
+    expect(ok).toMatchObject({ ok: true, average: { status: "ok", scores: { house1: -50, house2: 30 } } });
+    expect(await compareHouse(client, { houseId: "casa-a", token: await scoresToken("u-2") }, ctx)).toEqual({ ok: false, error: "failed" });
+    const limited = setup(members(3), { limiter: { allow: () => false } });
+    expect(await compareHouse(limited.client, { houseId: "casa-a", token: await scoresToken() }, limited.ctx)).toEqual({ ok: false, error: "rate_limited" });
+  });
+
+  it("o token de notas não vira respostas (openCompareToken só abre token de respostas) e o de respostas segue valendo", async () => {
+    expect(await openCompareToken(await scoresToken(), "u-1", 1000, 1800, decrypt)).toBeNull();
+    expect(await openCompareToken(await tokenFor(), "u-1", 1000, 1800, decrypt)).toEqual(answers);
+  });
+
+  it("token vencido ou com nota fora do intervalo é recusado", async () => {
+    const { client, ctx } = setup(members(3));
+    expect(await compareHouse(client, { houseId: "casa-a", token: await scoresToken("u-1", -900) }, ctx)).toEqual({ ok: false, error: "expired" });
+    const bad = await sealScoresToken({ house1: 900, house2: 0, totem1: 0, totem2: 0 }, "u-1", 1000, encrypt);
+    expect(await compareHouse(client, { houseId: "casa-a", token: bad }, ctx)).toEqual({ ok: false, error: "failed" });
+  });
+});
+
+describe("compareHouse: token vencido pede para recarregar (follow-up #270)", () => {
+  it("token legítimo e vencido → erro expired (a tela manda recarregar); inválido ou de outra pessoa continua failed", async () => {
+    const { client, ctx } = setup(members(3));
+    const expired = await sealCompareToken(answers as never, "u-1", -900, encrypt);
+    expect(await compareHouse(client, { houseId: "casa-a", token: expired }, ctx)).toEqual({ ok: false, error: "expired" });
+    const expiredScores = await sealScoresToken({ house1: 10, house2: 10 }, "u-1", -900, encrypt);
+    expect(await compareHouse(client, { houseId: "casa-a", token: expiredScores }, ctx)).toEqual({ ok: false, error: "expired" });
+    expect(await compareHouse(client, { houseId: "casa-a", token: await sealCompareToken(answers as never, "u-2", -900, encrypt) }, ctx)).toEqual({ ok: false, error: "failed" });
+    expect(await compareHouse(client, { houseId: "casa-a", token: "lixo" }, ctx)).toEqual({ ok: false, error: "failed" });
+  });
+
+  it("vencido não gasta o limite nem consulta o banco", async () => {
+    const { client, calls, ctx } = setup(members(3), { limiter: { allow: () => { throw new Error("não deveria contar"); } } });
+    await compareHouse(client, { houseId: "casa-a", token: await sealCompareToken(answers as never, "u-1", -900, encrypt) }, ctx);
+    expect(calls).toEqual([]);
   });
 });

@@ -389,6 +389,7 @@ questionário, JSON item → intensidade (-5, -3, -1, 1, 3, 5), cifrado no servi
 banco só confere o formato `v<n>.<iv>.<ct>`, até 4 KB). Gravado só por `record_questionnaire_result` (parâmetro novo, coberto pela
 assinatura do servidor). **Sem grant de leitura** para `authenticated`: a própria pessoa o lê por `own_questionnaire_answers_enc()`
 (definer; só o servidor decifra). Apaga com a conta (cascata) e entra em "Baixar meus dados" (formato 10). Um resultado reescrito sem respostas novas (decidido pela coordenação, ou o caminho legado `record_totem_pending`, que com os pesos 1-3-5 não roda em respostas novas) as apaga (trigger). Tamanho real: 26 respostas cifradas ocupam menos de 1 KB (teto 4 KB).
+Na tela "Trocar de casa" (#268) o servidor lê o resultado e `own_questionnaire_answers_enc()`, decifra e sela o token da comparação; sem respostas guardadas o token leva só as notas dos eixos da casa (frases gerais por eixo, `axes.<eixo>.expectation` da config privada, opcional).
 
 ### `questionnaire_consents` (ADR 0008 §2.1)
 `profile_id` (FK `profiles`, `on delete cascade`), `term_version` (FK

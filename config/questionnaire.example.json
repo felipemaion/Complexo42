@@ -159,7 +159,11 @@
         "q01",
         "q05",
         "q09"
-      ]
+      ],
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o polo Polo 1a do eixo Dimensão 1.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o polo Polo 1b do eixo Dimensão 1."
+      }
     },
     "house2": {
       "label": "Dimensão 2",
@@ -171,7 +175,11 @@
         "q02",
         "q06",
         "q10"
-      ]
+      ],
+      "expectation": {
+        "a": "[EXEMPLO] Nesta casa, espera-se o polo Polo 2a do eixo Dimensão 2.",
+        "b": "[EXEMPLO] Nesta casa, espera-se o polo Polo 2b do eixo Dimensão 2."
+      }
     },
     "totem1": {
       "label": "Dimensão 3",

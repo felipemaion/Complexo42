@@ -70,6 +70,14 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   substitui as respostas (e um resultado decidido pela coordenação as apaga); somem com a conta; entram em "Baixar meus dados".
   **Totem pendente (legado):** o caminho `record_totem_pending` reescreve o resultado sem respostas e por isso as **apaga**; com os pesos 1-3-5 o empate de totem não acontece mais em respostas novas (a soma nunca é zero), então isso só valeria para um caminho que não roda; fica fixado em pgTAP. A coordenação continua sem ver respostas individuais. Não vão para o log (R11). Quem respondeu antes desta mudança fica sem
   respostas guardadas (a troca de casa usa então frases gerais por eixo).
+- **Troca de casa (#268):** depois da trava de 4 meses, "Trocar de casa" abre a MESMA tela de comparação de "Escolher outra
+  casa" (#240), com a casa atual e a sugerida pelo último questionário em destaque. O **servidor** monta tudo a partir do guardado:
+  lê o resultado e as respostas cifradas da própria pessoa (função `own_questionnaire_answers_enc`), decifra e sela o **mesmo
+  token** cifrado e com validade da comparação; o navegador não manda respostas e a comparação segue com o limite por pessoa. Com
+  respostas guardadas, o "o que se espera" é **por pergunta**; sem elas (quem respondeu antes de #256) é **por eixo**: o token
+  leva só as notas dos eixos da casa e o servidor devolve a frase geral (`axes.<eixo>.expectation`, config privada) dos eixos em
+  que a nota está do lado oposto ao da casa, da mais forte para a mais leve. Sem resultado nenhum, a tela mostra as casas e o
+  aviso, sem gráfico nem expectativas. O totem nunca aparece. Confirmar outra casa leva à apresentação, com o aviso da nova trava.
 - O esquema Zod rejeita item em dois eixos, item sem eixo, eixo com número par de itens, casas
   repetidas e letras iguais nos dois polos de um eixo do totem.
 
@@ -82,6 +90,8 @@ casa. Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
 **Na página inicial da pessoa** (#203): a casa aceita (ou, sem ela, a sugerida pelo questionário) com nome, cor, descrição
 curta e o gráfico dos eixos 1 e 2 com as zonas; sem casa nem resultado, um convite para o questionário. O servidor
 nunca pede o totem a essa leitura (`readOwnHouseCard`; regra em `domain/home-card.ts`).
+
+**Medalha do totem** (#266, só coordenação): no **detalhe** do resultado de cada pessoa, o brasão da casa **escolhida** e a medalha do totem aparecem em destaque, lado a lado e do mesmo tamanho, com o nome de cada um embaixo (`public/totens/`, WebP e PNG em 512 e 128, gerada por `scripts/otimizar-totens.mjs`; sem casa escolhida, só a medalha; sem medalha para o código, só o brasão). A **lista** de resultados continua sem totem e sem pedi-lo ao banco: o totem só aparece ao abrir a pessoa, o que registra o acesso (`log_questionnaire_view`). A pessoa nunca vê a medalha nem o nome do totem (guarda em `tests/totem-medal-privacy.test.ts` e E2E), e `/totens/` exige login (o proxy não o exclui, ao contrário de `/casas/`).
 
 **Gráfico de aranha** (SVG próprio, sem biblioteca): os polos "a" de todos os eixos vêm primeiro e
 depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frente (meia volta). Cada

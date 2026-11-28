@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { instance } from "@config/instance";
 import example from "@config/questionnaire.example.json";
 import { parseQuestionnaire } from "./schema";
-import { totemCodes, totemLabel } from "./totem";
+import { totemCodes, totemLabel, totemName } from "./totem";
 
 const config = parseQuestionnaire(example, instance.houses.map((house) => house.id));
 
@@ -71,5 +71,14 @@ describe("totemLabels no esquema", () => {
     const raw = clone() as unknown as Record<string, unknown>;
     delete raw.totemLabels;
     expect(fields(raw)).toEqual(["totemLabels"]);
+  });
+});
+
+describe("totemName", () => {
+  it("só o nome (alt da medalha); código sem nome vira o código; sem totem, vazio", () => {
+    expect(totemName(config, "XV")).toBe("Totem Um");
+    expect(totemName(config, "ZZ")).toBe("ZZ");
+    expect(totemName(config, null)).toBe("");
+    expect(totemName(config, "")).toBe("");
   });
 });

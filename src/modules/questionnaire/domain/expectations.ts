@@ -1,4 +1,4 @@
-import type { Answer, Answers } from "./score";
+import type { Answer, Answers, AxisScores } from "./score";
 import type { QuestionnaireConfig } from "./schema";
 
 /*
@@ -54,4 +54,31 @@ export function missingExpectations(config: QuestionnaireConfig): string[] {
   }
   const order = new Map(config.items.map((item, index) => [item.id, index]));
   return [...missing].sort((x, y) => (order.get(x) ?? 0) - (order.get(y) ?? 0));
+}
+
+export type AxisExpectation = { axis: "house1" | "house2"; text: string; answer: Answer };
+
+/** Força da nota do eixo (-100..100) na escala 1-3-5 das respostas, com o sinal do lado (negativo = polo a). */
+function intensityOf(score: number): Answer {
+  const strength = Math.abs(score) < 34 ? 1 : Math.abs(score) < 67 ? 3 : 5;
+  return (score < 0 ? -strength : strength) as Answer;
+}
+
+/**
+ * Sem respostas guardadas (quem respondeu antes de #256): a frase geral de cada EIXO da casa em que a nota da pessoa está do
+ * lado oposto ao da casa, da nota mais forte para a mais leve (empate: eixo 1 antes do 2). Só os eixos da casa; o totem nunca
+ * entra. Eixo sem frase na config não entra: nada de frase inventada.
+ */
+export function axisExpectations(config: QuestionnaireConfig, scores: Pick<AxisScores, "house1" | "house2"> & Record<string, unknown>, houseId: string): AxisExpectation[] {
+  const poles = polesOf(config, houseId);
+  if (!poles) return [];
+  const found: AxisExpectation[] = [];
+  (["house1", "house2"] as const).forEach((axis, axisIndex) => {
+    const pole = poles[axisIndex]!;
+    const score = scores[axis];
+    const phrase = config.axes[axis].expectation?.[pole];
+    if (score === 0 || phrase === undefined) return;
+    if ((score < 0 ? "a" : "b") !== pole) found.push({ axis, text: phrase, answer: intensityOf(score) });
+  });
+  return found.sort((x, y) => Math.abs(y.answer) - Math.abs(x.answer) || Math.abs(scores[y.axis]) - Math.abs(scores[x.axis]));
 }

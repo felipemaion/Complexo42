@@ -18,6 +18,16 @@ test.skip(!API || !SERVICE, "precisa do Supabase local e da chave service_role")
 
 // O exemplo de config/ (sem QUESTIONNAIRE_PATH, é o que o app carrega).
 const questionnaire = JSON.parse(readFileSync("config/questionnaire.example.json", "utf8")) as QuestionnaireConfig;
+
+/** REGRA DURA: o totem nunca aparece para a pessoa. Nem a medalha (/totens/) nem o nome, nas telas dela. */
+async function expectNoTotem(page: Page) {
+  const names = Object.values(questionnaire.totemLabels).map((label) => label.name);
+  const sources = [await page.content(), ...(await Promise.all(["/casa", "/inicio"].map(async (path) => (await page.request.get(path)).text())))];
+  for (const source of sources) {
+    expect(source).not.toContain("/totens/");
+    for (const name of names) expect(source).not.toContain(name);
+  }
+}
 const SAO_PAULO = 3550308;
 
 const admin = (path: string, init: RequestInit = {}) =>
@@ -246,6 +256,8 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   // O totem é interno: não aparece na tela da casa.
   await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);
 
+  await expectNoTotem(page);
+
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
@@ -303,6 +315,88 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   expect(await houseRows(member.id)).toEqual([expect.objectContaining({ join_method: "self", house_key: opposite })]);
+  await expectNoTotem(page);
+});
+
+// Troca de casa depois da trava (#268): a MESMA tela de comparação do "Escolher outra casa", montada no servidor a partir do que
+// está guardado. Com respostas guardadas a expectativa é por pergunta; sem elas (respondeu antes), pelo eixo.
+async function answerAndAccept(page: Page, memberId: string) {
+  await page.goto("/casa");
+  await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+  for (let index = 0; index < questionnaire.items.length; index += 1) {
+    await page.getByTestId("scale--5").click();
+    await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
+  }
+  await expect(page.getByText("Sugerimos esta casa para você")).toBeVisible();
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  // Trava vencida (4 meses passaram): só então o link de troca aparece.
+  const unlocked = await admin(`/rest/v1/house_members?profile_id=eq.${memberId}&left_at=is.null`, {
+    method: "PATCH",
+    body: JSON.stringify({ locked_until: new Date(Date.now() - 60_000).toISOString() }),
+  });
+  expect(unlocked.ok).toBe(true);
+  await page.goto("/casa");
+  await page.getByTestId("change-house-link").click();
+}
+
+test("trocar de casa depois da trava: tela de comparação com a casa atual e expectativas por pergunta (#268)", async ({ page }) => {
+  const member = await createMember("trc");
+  await signIn(page, member.email);
+  await answerAndAccept(page, member.id);
+  const requests = recordRequests(page);
+  await expect(page.getByTestId("compare-houses")).toBeVisible();
+  await expect(page.locator('[data-testid^="compare-house-"]')).toHaveCount(4);
+  await expect(page.getByTestId("current-badge")).toHaveCount(1);
+  await expect(page.getByTestId("suggested-badge")).toHaveCount(1);
+  // Nada do totem na tela; as frases de expectativa não estão na página antes de comparar.
+  expect(await page.content()).not.toContain("[EXEMPLO] Nesta casa");
+  const current = page.locator('[data-testid^="compare-house-"]', { has: page.getByTestId("current-badge") });
+  const other = page.locator('[data-testid^="compare-house-"]', { hasNot: page.getByTestId("current-badge") }).first();
+  // A casa atual não se confirma.
+  await current.click();
+  await expect(page.getByTestId("compare-confirm")).toBeDisabled();
+  await other.click();
+  await expect(page.getByTestId("expectations")).toBeVisible();
+  await expect(page.getByTestId("compare-confirm")).toBeEnabled();
+  // A comparação manda a casa e o token selado, nunca respostas.
+  const compareBodies = actionBodies(requests).filter((body) => JSON.stringify(body).includes("token"));
+  expect(compareBodies.length).toBeGreaterThan(0);
+  expect(JSON.stringify(compareBodies)).not.toContain("answers");
+  await page.getByTestId("compare-confirm").click();
+  // A confirmação traz o aviso da nova trava de 4 meses.
+  await expect(page.getByTestId("change-lock-notice")).toBeVisible();
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  const rows = await houseRows(member.id);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.join_method).toBe("self");
+});
+
+test("trocar de casa sem respostas guardadas (respondeu antes): o que se espera vem por eixo (#268)", async ({ page }) => {
+  const member = await createMember("trs");
+  await signIn(page, member.email);
+  await page.goto("/casa");
+  await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+  for (let index = 0; index < questionnaire.items.length; index += 1) {
+    await page.getByTestId("scale--5").click();
+    await page.getByRole("button", { name: /^(Próxima|Ver o resultado)$/ }).click();
+  }
+  await page.getByRole("button", { name: "Aceitar" }).click();
+  await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
+  // Como quem respondeu antes de guardarmos as respostas: o resultado fica, as respostas não.
+  expect((await admin(`/rest/v1/questionnaire_results?profile_id=eq.${member.id}`, { method: "PATCH", body: JSON.stringify({ answers_enc: null }) })).ok).toBe(true);
+  expect((await admin(`/rest/v1/house_members?profile_id=eq.${member.id}&left_at=is.null`, { method: "PATCH", body: JSON.stringify({ locked_until: new Date(Date.now() - 60_000).toISOString() }) })).ok).toBe(true);
+  await page.goto("/casa");
+  await page.getByTestId("change-house-link").click();
+  await expect(page.getByTestId("compare-houses")).toBeVisible();
+  await expect(page.getByTestId("current-badge")).toHaveCount(1);
+  // Escolhe a casa oposta à atual nos dois eixos (a que contradiz todas as respostas "muito a"): as frases são as dos EIXOS.
+  const oppositeByAxes = page.getByTestId(`compare-house-${questionnaire.houseByPoles.bb}`);
+  await oppositeByAxes.click();
+  const expectations = page.getByTestId("expectation");
+  await expect(expectations.first()).toContainText("[EXEMPLO] Nesta casa, espera-se o polo");
+  expect(await expectations.count()).toBeLessThanOrEqual(2);
 });
 
 test("sabe → atividade → apresentação → escolher outra → aceitar (self), sem termo", async ({ page }) => {

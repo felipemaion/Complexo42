@@ -8,12 +8,12 @@
 // fabricadas.
 import "server-only";
 import { z } from "zod";
-import { houseExpectations, type Answer, type QuestionnaireConfig } from "@/modules/questionnaire";
+import { axisExpectations, houseExpectations, type Answer, type QuestionnaireConfig } from "@/modules/questionnaire";
 import type { CipherContext, HouseClient } from "../types";
-import { openCompareToken } from "./compare-token";
+import { openCompareBasis } from "./compare-token";
 import { scoresContext } from "./houses";
 
-export { openCompareToken, sealCompareToken } from "./compare-token";
+export { openCompareToken, sealCompareToken, sealScoresToken } from "./compare-token";
 
 /** Agregado guardado em memória por casa: só a conta e as somas (nada por pessoa). `failedAt`: falha recente (cache curto). */
 export type HouseAverage = { at: number; n: number; sums: { house1: number; house2: number }; failed?: boolean };
@@ -49,7 +49,7 @@ export type AverageView = { status: "ok"; scores: { house1: number; house2: numb
 
 export type HouseComparison =
   | { ok: true; expectations: { text: string; answer: Answer }[]; average: AverageView }
-  | { ok: false; error: "failed" | "rate_limited" };
+  | { ok: false; error: "failed" | "rate_limited" | "expired" };
 
 // ---------------------------------------------------------------------------------------
 // Média
@@ -119,9 +119,16 @@ async function averageOf(client: HouseClient, houseId: string, ctx: CompareConte
 export async function compareHouse(client: HouseClient, input: unknown, ctx: CompareContext): Promise<HouseComparison> {
   const parsed = z.strictObject({ houseId: z.string().refine((id) => ctx.houseIds.includes(id)), token: z.string().max(8192) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "failed" };
-  const answers = await openCompareToken(parsed.data.token, ctx.userId, ctx.nowSeconds, ctx.tokenSeconds, ctx.decrypt);
-  if (!answers) return { ok: false, error: "failed" };
+  const basis = await openCompareBasis(parsed.data.token, ctx.userId, ctx.nowSeconds, ctx.tokenSeconds, ctx.decrypt);
+  if (!basis) return { ok: false, error: "failed" };
+  // Vencido: a tela pede para recarregar; não gasta o limite nem consulta o banco.
+  if (basis.kind === "expired") return { ok: false, error: "expired" };
   if (!ctx.limiter.allow(ctx.userId, ctx.nowSeconds)) return { ok: false, error: "rate_limited" };
-  const expectations = houseExpectations(ctx.questionnaire, answers, parsed.data.houseId).map(({ text, answer }) => ({ text, answer }));
+  // Com respostas guardadas, a expectativa é por pergunta; sem elas, a frase geral do eixo (#268).
+  const found =
+    basis.kind === "answers"
+      ? houseExpectations(ctx.questionnaire, basis.answers, parsed.data.houseId)
+      : axisExpectations(ctx.questionnaire, basis.scores, parsed.data.houseId);
+  const expectations = found.map(({ text, answer }) => ({ text, answer }));
   return { ok: true, expectations, average: await averageOf(client, parsed.data.houseId, ctx) };
 }

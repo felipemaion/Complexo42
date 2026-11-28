@@ -15,7 +15,7 @@ type Text = InstanceConfig["houseSelection"];
 
 type Comparison =
   | { status: "loading" }
-  | { status: "failed" }
+  | { status: "failed"; expired?: boolean }
   | {
       status: "ready";
       expectations: { text: string; answer: number }[];
@@ -24,7 +24,9 @@ type Comparison =
 
 type Props = {
   houses: readonly HouseView[];
-  suggestedId: string;
+  suggestedId: string | undefined;
+  /** Troca de casa (#268): a casa em que a pessoa está hoje (em destaque; não se confirma). */
+  currentId: string | undefined;
   selectedId: string | undefined;
   chart: readonly ChartAxis[] | undefined;
   byPoles: HouseByPoles | undefined;
@@ -42,7 +44,7 @@ const primary =
   "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
 const colorOf = (color: HouseView["color"]) => `light-dark(${color.light}, ${color.dark})`;
 
-export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles, compareToken, text, disabled, onSelect, onConfirm, onBack }: Readonly<Props>) {
+export function CompareHouses({ houses, suggestedId, currentId, selectedId, chart, byPoles, compareToken, text, disabled, onSelect, onConfirm, onBack }: Readonly<Props>) {
   const t = text.compare;
   // A comparação da casa selecionada (servidor). Resultado de outra casa não aparece: a chave da casa vai junto.
   const [loaded, setLoaded] = useState<{ houseId: string; comparison: Comparison } | null>(null);
@@ -50,9 +52,9 @@ export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles,
     if (selectedId === undefined) return;
     let cancelled = false;
     void (async () => {
-      const response = compareToken ? await compareHouseAction({ houseId: selectedId, token: compareToken }) : ({ ok: false } as const);
+      const response = compareToken ? await compareHouseAction({ houseId: selectedId, token: compareToken }) : ({ ok: false, error: "failed" } as const);
       if (cancelled) return;
-      setLoaded({ houseId: selectedId, comparison: response.ok ? { status: "ready", expectations: [...response.expectations], average: response.average } : { status: "failed" } });
+      setLoaded({ houseId: selectedId, comparison: response.ok ? { status: "ready", expectations: [...response.expectations], average: response.average } : { status: "failed", ...(response.error === "expired" && { expired: true }) } });
     })();
     return () => {
       cancelled = true;
@@ -95,6 +97,7 @@ export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles,
                 <HouseShield houseId={house.id} name={house.name} size={64} />
                 <span className="flex flex-col gap-1">
                   <span className="text-xl font-bold">{house.name}</span>
+                  {house.id === currentId && <span className="text-base font-semibold" data-testid="current-badge">{t.currentBadge}</span>}
                   {house.id === suggestedId && <span className="text-base font-semibold" data-testid="suggested-badge">{t.suggestedBadge}</span>}
                   {isSelected && <span className="text-base font-semibold">{t.selectedBadge}</span>}
                   <span className="text-lg font-normal">{house.description}</span>
@@ -149,8 +152,8 @@ export function CompareHouses({ houses, suggestedId, selectedId, chart, byPoles,
               )}
             </div>
           )}
-          {comparison.status === "failed" && <p role="alert" className="text-lg">{t.expectUnavailable}</p>}
-          <button type="button" className={primary} onClick={onConfirm} disabled={disabled}>
+          {comparison.status === "failed" && <p role="alert" className="text-lg" data-testid={comparison.expired ? "compare-expired" : undefined}>{comparison.expired ? t.expiredReload : t.expectUnavailable}</p>}
+          <button type="button" className={primary} onClick={onConfirm} disabled={disabled || selected.id === currentId} data-testid="compare-confirm">
             {t.confirmButton}
           </button>
         </section>
