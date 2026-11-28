@@ -29,9 +29,6 @@
   --c-secondary-ink: color-mix(in oklab, var(--brand-secondary) 65%, black);
   --c-link: var(--c-primary-ink);
   --c-focus: var(--brand-primary);
-  /* Nome antigo, ainda usado como var(--color-primary) nas telas que os próximos PRs da #324 migram
-     (perfil, coordenação). Sai quando a lista de tests/design-tokens.test.ts zerar. */
-  --color-primary: var(--c-primary);
 
   --c-danger: #a4251c;
   --c-danger-soft: #fdecea;

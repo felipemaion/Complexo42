@@ -4,6 +4,7 @@
 // movem, Enter escolhe, Esc fecha; no celular, itens grandes. No máximo `max` escolhidas.
 import { useId, useMemo, useState } from "react";
 import { normalizeSkillText } from "../domain/skill-name";
+import { fieldClass } from "@/modules/ui";
 
 type Skill = { id: string; name: string; category: string; aliases: readonly string[] };
 
@@ -60,10 +61,10 @@ export function SkillSearchPicker({ skills, selected, max, text }: Readonly<Prop
     <div className="flex flex-col gap-3">
       <ul className="flex flex-wrap gap-2" aria-label={text.skillLabel}>
         {chosen.map((id) => (
-          <li key={id} className="flex items-center gap-2 rounded-xl border-2 border-current px-3 py-2 text-lg" data-testid="chosen-skill">
+          <li key={id} className="flex items-center gap-2 rounded-full border-2 border-primary-ink bg-surface px-3 py-1 text-lg" data-testid="chosen-skill">
             <input type="hidden" name="h" value={id} />
             {byId.get(id)?.name ?? id}
-            <button type="button" className="min-h-10 min-w-10 text-xl" aria-label={`${text.removeSkill} ${byId.get(id)?.name ?? ""}`} onClick={() => setChosen((previous) => previous.filter((other) => other !== id))}>
+            <button type="button" className="min-h-target min-w-target text-xl" aria-label={`${text.removeSkill} ${byId.get(id)?.name ?? ""}`} onClick={() => setChosen((previous) => previous.filter((other) => other !== id))}>
               ×
             </button>
           </li>
@@ -86,16 +87,16 @@ export function SkillSearchPicker({ skills, selected, max, text }: Readonly<Prop
               setActive(0);
             }}
             onKeyDown={onKeyDown}
-            className="min-h-12 w-full rounded-xl border-2 border-field bg-transparent px-3 text-lg"
+            className={fieldClass()}
           />
-          <ul id={listId} role="listbox" hidden={!(open && options.length > 0)} className="absolute z-10 mt-1 w-full rounded-xl border-2 border-current bg-canvas">
+          <ul id={listId} role="listbox" hidden={!(open && options.length > 0)} className="absolute z-10 mt-1 w-full overflow-hidden rounded-control border-2 border-field bg-surface shadow-card">
             {options.map((skill, index) => (
               <li
                 key={skill.id}
                 role="option"
                 aria-selected={index === active}
                 tabIndex={-1}
-                className={`min-h-12 cursor-pointer px-3 py-3 text-lg ${index === active ? "font-bold" : ""}`}
+                className={`min-h-target cursor-pointer px-3 py-3 text-lg ${index === active ? "bg-soft font-bold" : ""}`}
                 onMouseDown={(event) => {
                   event.preventDefault();
                   pick(skill.id);
