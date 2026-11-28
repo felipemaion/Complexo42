@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(71);
+select plan(73);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp');
@@ -118,6 +118,8 @@ select set_eq(
   'o conjunto novo substitui o anterior'
 );
 select is(public.set_my_skills(pg_temp.sks(1, 10)), 10, 'dez habilidades cabem');
+select is(public.set_my_skills(pg_temp.sks(1, 10)), 10, 'repetir o mesmo conjunto de 10 (tudo mantido) não estoura o limite (#340)');
+select is(public.set_my_skills(pg_temp.sks(2, 11)), 10, 'trocar por outro conjunto de 10 que mantém 9 delas (#340)');
 select throws_ok($$ select public.set_my_skills(pg_temp.sks(1, 11)) $$, 'C7701', null, 'onze não cabem');
 select is((select count(*)::int from public.profile_skills where profile_id = pg_temp.person('p_a')), 10,
   'a recusa não mexe no que já estava gravado');
