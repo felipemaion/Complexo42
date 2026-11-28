@@ -64,6 +64,9 @@ export default async function CoordinationHome() {
           <Link href="/coordenacao/habilidades" className={big}>
             {instance.skills.queue.menuLink}
           </Link>
+          <Link href="/coordenacao/habilidades/catalogo" className={big}>
+            {instance.skills.catalog.menuLink}
+          </Link>
         </>
       )}
       </div>
