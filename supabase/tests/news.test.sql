@@ -44,6 +44,7 @@ insert into public.units (id, type_id, parent_id, slug, name, path)
 select '00000000-0000-0000-0000-00000000e003', t.id, pg_temp.root(), 'ntb', 'Filha B', 'x' from public.unit_types as t where t.key = 'ntest';
 insert into public.unit_members (profile_id, unit_id) values
   (pg_temp.person('ma'),   pg_temp.ua()),
+  (pg_temp.person('reg'),  pg_temp.ua()), -- o gestor da A também é membro da A (precisa ver a novidade para arquivá-la)
   (pg_temp.person('wl'),   pg_temp.ua()),
   (pg_temp.person('susp'), pg_temp.ua()),
   (pg_temp.person('mb'),   pg_temp.ub());

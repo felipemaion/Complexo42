@@ -425,6 +425,14 @@ export const instanceConfigSchema = z.strictObject({
       backLink: text,
     }),
   }),
+  /** Novidades da página inicial (#307): o cartão da janela de troca de casa e o rótulo do link das publicadas. */
+  news: z.strictObject({
+    title: text,
+    windowOpenTitle: text,
+    windowOpenBody: text,
+    windowOpenLink: text,
+    linkLabel: text,
+  }),
   /** Habilidades da pessoa (#15). `{max}` e `{count}` são trocados na tela. */
   skills: z.strictObject({
     homeLink: text,

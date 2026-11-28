@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
-import { coordinationViewDeps, OwnHouse, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
+import { coordinationViewDeps, NewsSection, OwnHouse, readNewsFeed, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH, firstName, loadOwnProfile, needsFullNameNotice, SocialLinkList } from "@/modules/profiles";
 import { PASSWORD_PATH, PROFILE_PATH } from "@/server/auth/routes";
@@ -27,6 +27,8 @@ export default async function SignedInHome({ searchParams }: Props) {
   const text = instance.auth;
   const deps = coordinationViewDeps();
   const houseClient = await sessionHouseClient();
+  // Novidades (#307): as publicadas para o nível da pessoa e o cartão da janela de troca, quando aberta.
+  const newsFeed = houseClient ? await readNewsFeed(houseClient) : [];
   const houseCard = houseClient && await readOwnHouseCard(houseClient, user.id, { crypto: deps.crypto, questionnaire: deps.questionnaire, houseIds: instance.houses.map((house) => house.id) });
   const action = buttonClass("secondary", "lg");
   // Saudação com o primeiro nome (#324); sem nome legível, o título genérico. A área de novidades (#307) vem aqui depois.
@@ -47,6 +49,7 @@ export default async function SignedInHome({ searchParams }: Props) {
           {instance.profile.completeNameNotice}
         </p>
       )}
+      <NewsSection entries={newsFeed} text={instance.news} />
       {/* No computador, a casa à esquerda e as ações à direita (#324); no celular, uma coluna. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className={cardClass()}>

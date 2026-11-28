@@ -396,6 +396,13 @@ export const instance = parseInstanceConfig({
   },
   // Habilidades da pessoa (#15, decisão de 28/11): sem nível, até 10, o que ela faz no dia a dia; quem não acha a sua sugere uma e a
   // coordenação nacional aprova. `{max}`, `{count}` são trocados na tela.
+  news: {
+    title: "Novidades",
+    windowOpenTitle: "A troca de casa está aberta",
+    windowOpenBody: "Por enquanto dá para trocar de casa. A coordenação avisa quando fechar.",
+    windowOpenLink: "Trocar de casa",
+    linkLabel: "Saiba mais",
+  },
   skills: {
     homeLink: "Minhas habilidades",
     title: "Minhas habilidades",

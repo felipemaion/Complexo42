@@ -1,10 +1,12 @@
 export { HouseFlow } from "./components/house-flow";
 export { OwnHouse } from "./components/own-house-card";
+export { NewsSection } from "./components/news-section";
 export { HousePresentation, type HouseView } from "./components/house-presentation";
 export { formatProgress, initialFlow, nextFlow } from "./domain/flow";
 export type { FlowContext, FlowEvent, FlowState, HouseActionResult, HouseClient, HouseErrorCode, JoinMethod, Step } from "./types";
 // Só no servidor (server-only): a página lê a casa aceita e o questionário.
 export { readAcceptedHouse, readTransferWindow } from "./server/houses";
+export { readNewsFeed } from "./server/news";
 export { getQuestionnaire } from "./server/questionnaire";
 export { readChangeHouse } from "./server/change-house-session";
 export { sessionHouseClient } from "./server/session";
