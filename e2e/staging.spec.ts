@@ -137,7 +137,7 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   await expect(results).toHaveCount(2);
   // O nome-payload da segunda pessoa aparece na lista como texto, sem executar nada.
   const payloadRow = coordinator.getByTestId("result-row").filter({ hasText: XSS_NAME });
-  await expect(payloadRow).toHaveCount(1);
+  expect(await payloadRow.count(), `linhas da lista: ${JSON.stringify(await coordinator.getByTestId("result-row").allInnerTexts())}`).toBe(1);
   await expectInert(coordinator, coordinatorDialogs);
   await results.first().click();
   await expect(coordinator.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
