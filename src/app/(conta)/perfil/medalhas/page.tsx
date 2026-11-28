@@ -50,7 +50,7 @@ export default async function BadgePrefsPage({ searchParams }: Readonly<{ search
           {text.prefs.saveButton}
         </button>
       </form>
-      <Link href={HOME_PATH} className={textLinkClass}>
+      <Link href={HOME_PATH} className={textLinkClass()}>
         {text.prefs.backLink}
       </Link>
     </PageShell>

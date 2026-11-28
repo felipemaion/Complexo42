@@ -113,7 +113,7 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
             {result.people.map((person) => (
               <li key={person.id} className={`${cardClass()} gap-2`} data-testid="person-result" data-person-id={person.id}>
                 <p className="text-xl font-semibold">
-                  <Link href={`/pessoas/${person.id}`} className={textLinkClass}>
+                  <Link href={`/pessoas/${person.id}`} className={textLinkClass()}>
                     {person.name ?? text.unreadableName}
                   </Link>
                 </p>

@@ -17,6 +17,7 @@ const AT = new Date("2026-11-20T01:30:00Z"); // 22h30 de 19/11 em Brasília
 const VIEWER = "7d1c0a2b-9e8f-4a6b-8c5d-3e2f1a0b9c8d";
 
 const rows: OwnDataRows = {
+  badge_prefs: [{ badge_kind: "totem", position: 1, shown: true }],
   profile: {
     display_name_enc: "enc:nome",
     municipality_code: 3550308,
@@ -199,6 +200,7 @@ describe("buildOwnDataExport", () => {
       ],
       termosDeConsentimento: [{ versao: "v1", aceitoEm: "2026-11-19T11:00:00+00:00" }],
       termosDoQuestionario: [{ versao: "termo-1", aceitoEm: "2026-11-19T11:20:00+00:00" }],
+      medalhasDoPerfil: [{ tipo: "totem", posicao: 1, aparece: true }],
       habilidades: [{ nome: "Teatro", grupo: "Artes" }],
       sugestoesDeHabilidade: [{ nome: "Cestaria", estado: "open", sugeridaEm: "2026-11-28T10:00:00+00:00", decididaEm: null }],
       papeis: [
@@ -318,6 +320,7 @@ describe("buildOwnDataExport", () => {
   it("quem ainda não tem perfil recebe perfil e contato nulos e listas vazias", async () => {
     const out = await build({
       rows: {
+        badge_prefs: [],
         profile: null,
         contact: null,
         profile_photo: null,
@@ -347,6 +350,7 @@ describe("buildOwnDataExport", () => {
       casas: [],
       termosDeConsentimento: [],
       termosDoQuestionario: [],
+      medalhasDoPerfil: [],
       habilidades: [],
       sugestoesDeHabilidade: [],
       resultadoDoQuestionario: null,

@@ -208,6 +208,7 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  medalhasDoPerfil: { tipo: string; posicao: number; aparece: boolean }[];
   habilidades: { nome: string; grupo: string }[];
   sugestoesDeHabilidade: { nome: string; estado: string; sugeridaEm: string; decididaEm: string | null }[];
   /** Casa sugerida e totem (ADR 0014). O totem é interno: só aparece neste arquivo. */

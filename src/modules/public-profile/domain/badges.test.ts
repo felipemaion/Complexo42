@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { completeBadgePrefs, defaultBadgePrefs, parseBadgeForm } from "./badges";
 
-const form = (entries: Record<string, string>) => ({ get: (name: string) => entries[name] ?? null });
+const form = (entries: Readonly<Record<string, string | undefined>>) => ({ get: (name: string) => entries[name] ?? null });
 
 describe("parseBadgeForm", () => {
   it("ordena pela posição e respeita a caixa mostrar", () => {
