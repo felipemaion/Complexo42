@@ -37,6 +37,10 @@ export default async function CoordinationHome() {
           {text.allowlist.menuLink}
         </Link>
       )}
+      {/* Busca de pessoas por habilidade (#23): o banco decide quem vê quem; a tela é só atalho. */}
+      <Link href="/coordenacao/pessoas" className={big}>
+        {instance.skills.search.menuLink}
+      </Link>
       {(questionnaire.national || questionnaire.delegate) && (
         <>
           <Link href="/coordenacao/casas/resultados" className={big}>
@@ -54,6 +58,9 @@ export default async function CoordinationHome() {
           </Link>
           <Link href="/coordenacao/casas/janela" className={big}>
             {links.linkWindow}
+          </Link>
+          <Link href="/coordenacao/habilidades" className={big}>
+            {instance.skills.queue.menuLink}
           </Link>
         </>
       )}

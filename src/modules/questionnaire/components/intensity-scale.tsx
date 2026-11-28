@@ -54,12 +54,14 @@ export function IntensityScale({ legend, intensities, poleA, poleB, value, onCha
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    // Largura limitada (#324): no computador a escala não se espalha pela tela e as pontas ficam perto dos círculos.
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <div className="flex justify-between gap-4 text-lg font-semibold">
         <span className="max-w-[45%] text-left">{toDisplaySentence(poleA)}</span>
         <span className="max-w-[45%] text-right">{toDisplaySentence(poleB)}</span>
       </div>
-      <div role="radiogroup" aria-labelledby={legendId} className="flex items-center justify-between gap-1">
+      {/* Cada círculo ocupa um sexto da largura (#324): cabe em 360 px com alvo de 44 px ou mais, sem rolar de lado. */}
+      <div role="radiogroup" aria-labelledby={legendId} className="flex items-center gap-0.5">
         <span id={legendId} className="sr-only">
           {legend}
         </span>
@@ -85,12 +87,12 @@ export function IntensityScale({ legend, intensities, poleA, poleB, value, onCha
               onMouseLeave={() => setPreviewIndex(null)}
               onFocus={() => setPreviewIndex(index)}
               onBlur={() => setPreviewIndex(null)}
-              className="flex min-h-14 min-w-11 items-center justify-center"
+              className="flex min-h-14 min-w-0 flex-1 items-center justify-center"
             >
               <span
-                style={{ width: diameterPx[index], height: diameterPx[index] }}
-                className={`block rounded-full border-4 ${isPoleA ? "border-[var(--color-primary)]" : "border-[var(--color-secondary)]"} ${
-                  isChecked ? (isPoleA ? "bg-[var(--color-primary)]" : "bg-[var(--color-secondary)]") : "bg-transparent"
+                style={{ width: `min(${diameterPx[index]}px, 100%)`, aspectRatio: "1" }}
+                className={`block rounded-full border-4 transition-colors ${isPoleA ? "border-primary-ink" : "border-secondary-ink"} ${
+                  isChecked ? (isPoleA ? "bg-primary-ink" : "bg-secondary-ink") : "bg-transparent"
                 }`}
               />
             </button>

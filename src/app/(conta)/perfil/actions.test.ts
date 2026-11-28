@@ -10,6 +10,7 @@ vi.mock("@/modules/profiles", () => ({
   saveOwnProfile: (...args: unknown[]) => saveOwnProfile(...args),
   socialLinkFormEntriesMax: 20,
   socialLinkInputMaxLength: 2048,
+  backgroundSentField: "backgroundSent",
   neighborhoodSentField: "neighborhoodSent",
   socialLinksSentField: "socialLinksSent",
 }));
@@ -25,7 +26,7 @@ vi.mock("next/navigation", () => ({
 const { saveProfileAction } = await import("./actions");
 
 const fields = { displayName: "Maria Aparecida", whatsapp: "(11) 98765-4321", stateCode: "SP", municipalityCode: "3550308", district: "", neighborhood: "Vila Exemplo" };
-const values = { ...fields, socialLinks: [] };
+const values = { ...fields, socialLinks: [], educationLevel: "", educationDetail: "", occupation: "" };
 function formData() {
   const data = new FormData();
   for (const [key, value] of Object.entries(fields)) data.set(key, value);
@@ -98,6 +99,29 @@ describe("saveProfileAction", () => {
     await saveProfileAction({ status: "idle" }, data);
     const sent = (saveOwnProfile.mock.calls[0]![2] as { socialLinks: string[] }).socialLinks;
     expect(sent[0]).toHaveLength(2049);
+  });
+
+  it("formação e atividade (#304): sem o campo escondido, o serviço recebe `undefined` (não mexe no guardado)", async () => {
+    saveOwnProfile.mockResolvedValue({ status: "failed" });
+    const data = formData();
+    data.set("educationLevel", "postgraduate");
+    data.set("occupation", "Enfermeira");
+    await saveProfileAction({ status: "idle" }, data);
+    expect(saveOwnProfile.mock.calls[0]![2]).toMatchObject({ educationLevel: undefined, educationDetail: undefined, occupation: undefined });
+  });
+
+  it("formação e atividade (#304): com o campo escondido, o que foi digitado vai ao serviço, mesmo vazio", async () => {
+    saveOwnProfile.mockResolvedValue({ status: "failed" });
+    const data = formData();
+    data.set("backgroundSent", "1");
+    data.set("educationLevel", "postgraduate");
+    data.set("educationDetail", "Saúde Pública");
+    data.set("occupation", "");
+    expect(await saveProfileAction({ status: "idle" }, data)).toMatchObject({
+      status: "failed",
+      values: { educationLevel: "postgraduate", educationDetail: "Saúde Pública", occupation: "" },
+    });
+    expect(saveOwnProfile.mock.calls[0]![2]).toMatchObject({ educationLevel: "postgraduate", educationDetail: "Saúde Pública", occupation: "" });
   });
 
   it("salvo: segue para a página inicial", async () => {

@@ -29,6 +29,8 @@ const testOnlySecrets = Object.fromEntries(
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
+  // Só roda contra o staging de mentira, pelo playwright.staging.config.ts (scripts/staging-ci.sh, #319).
+  testIgnore: "**/staging.spec.ts",
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,

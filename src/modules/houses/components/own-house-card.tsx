@@ -20,7 +20,7 @@ export function OwnHouse({ card, houses, text, totem = null }: Readonly<Props>) 
   if (card.kind === "invite") {
     return (
       <section aria-labelledby="own-house-title" className="flex flex-col gap-3" data-testid="own-house-invite">
-        <h2 id="own-house-title" className="text-xl font-semibold">
+        <h2 id="own-house-title" className="text-xl font-bold">
           {text.acceptedTitle}
         </h2>
         <p className="text-lg">{text.inviteMessage}</p>
@@ -30,8 +30,8 @@ export function OwnHouse({ card, houses, text, totem = null }: Readonly<Props>) 
   const house = houses.find((candidate) => candidate.id === card.houseId);
   if (!house) return null;
   return (
-    <section aria-labelledby="own-house-title" className="flex flex-col gap-3" data-testid="own-house">
-      <h2 id="own-house-title" className="text-xl font-semibold">
+    <section aria-labelledby="own-house-title" className="flex flex-col gap-4" data-testid="own-house">
+      <h2 id="own-house-title" className="text-xl font-bold">
         {card.isAccepted ? text.acceptedTitle : text.suggestedTitle}
       </h2>
       {totem ? (
@@ -39,7 +39,7 @@ export function OwnHouse({ card, houses, text, totem = null }: Readonly<Props>) 
       ) : (
         <HouseHero houseId={house.id} name={house.name} />
       )}
-      <p className="text-lg">{house.description}</p>
+      <p className="text-lg text-ink-muted">{house.description}</p>
       {card.chart && (
         <SpiderChart
           chart={card.chart}

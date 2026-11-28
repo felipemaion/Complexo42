@@ -50,7 +50,7 @@
 
 ## M1 · Cadastro do aluno
 
-- #15 Habilidades: seleção a partir do catálogo — `bloqueada, frontend, backend`
+- #15 Habilidades: seleção a partir do catálogo, sem nível, até 10, com sugestão de habilidade nova aprovada pela coordenação nacional — `frontend, backend`
 - #87 Infra: provedores de login no Auth auto-hospedado (Google OAuth + relay SMTP) — `bloqueada, seguranca, backend, infra`
 - #302 Janela de transferência de casa (substitui a trava de 4 meses) — `backend, frontend, seguranca`
 - #303 Medalha da casa e do totem no perfil, visível aos membros — `backend, frontend, seguranca`
@@ -68,7 +68,7 @@
 ## M2 · Busca e painel da coordenação
 
 - #22 Delegação de papéis por escopo (nacional → estadual → monitor) + audit_log — `bloqueada, seguranca, backend`
-- #23 Busca de pessoas por habilidade (prioridade do gestor nacional) — `bloqueada, frontend, backend`
+- #23 Busca de pessoas por habilidade (prioridade do gestor nacional): E/OU, UF e equipe, no escopo, sem contato, 60 por hora — `frontend, backend`
 - #25 Gestão do catálogo de habilidades (admin) — `bloqueada, frontend, backend`
 - #305 Perfil público visível a todos os membros logados — `backend, frontend, seguranca`
 - #307 Área de novidades na tela inicial — `frontend, backend`

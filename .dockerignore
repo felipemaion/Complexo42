@@ -30,12 +30,14 @@ supabase/tests
 deploy/*.test.sh
 deploy/backup.sh
 deploy/bootstrap-coordenacao.sh
+deploy/criar-conta.sh
 deploy/email-hmac.mjs
 deploy/deploy.sh
 deploy/enviar-backup.sh
 deploy/env.example
 deploy/gen-secrets.sh
 deploy/migra.sh
+deploy/questionario-banco.sh
 deploy/restore-test.sh
 # O compose do APP tambem fica fora: e o arquivo que o proprio deploy.sh usa
 # para subir o container. Sincroniza-lo no meio de um deploy seria trocar o
@@ -49,3 +51,5 @@ tests
 *.md
 Dockerfile
 .dockerignore
+# Exceções dos scanners de segurança (#153): só o CI as lê.
+security

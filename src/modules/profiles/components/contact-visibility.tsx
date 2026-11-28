@@ -2,6 +2,7 @@
 // de um formulário que vai para a server action; quem valida e grava é o servidor. Funciona
 // sem JavaScript (o formulário é um POST comum), e a escolha atual fica marcada.
 import { contactKinds, contactScopes, describeContactView, type ContactKind, type ContactScope, type ContactView, type ContactViewText, type ContactVisibility } from "../domain/contact";
+import { buttonClass } from "@/modules/ui";
 
 export type ContactVisibilityText = ContactViewText & {
   kinds: Record<ContactKind, string>;
@@ -12,8 +13,9 @@ export type ContactVisibilityText = ContactViewText & {
   viewsNote: string;
 };
 
-const button =
-  "block w-full rounded-xl border-2 border-current px-5 py-4 text-left text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+// A escolha atual em destaque com a cor da marca; as outras como alternativas (#324).
+const button = buttonClass("choice", "lg");
+const currentButton = buttonClass("choiceSelected", "lg");
 
 type ChoicesProps = {
   visibility: ContactVisibility;
@@ -27,7 +29,7 @@ export function ContactVisibilityChoices({ visibility, action, text }: ChoicesPr
       {contactKinds.map((kind) => (
         <form key={kind} action={action} className="flex flex-col gap-3" data-testid={`contact-kind-${kind}`}>
           <fieldset className="flex flex-col gap-3">
-            <legend className="mb-2 text-2xl font-bold">{text.kinds[kind]}</legend>
+            <legend className="mb-2 text-xl font-bold sm:text-2xl">{text.kinds[kind]}</legend>
             <input type="hidden" name="kind" value={kind} />
             {contactScopes.map((scope) => {
               const current = visibility[kind] === scope;
@@ -38,14 +40,14 @@ export function ContactVisibilityChoices({ visibility, action, text }: ChoicesPr
                   name="scope"
                   value={scope}
                   aria-pressed={current}
-                  className={`${button} ${current ? "bg-neutral-900 text-white" : ""}`}
+                  className={current ? currentButton : button}
                 >
                   <span aria-hidden="true">{current ? "● " : "○ "}</span>
                   {text.scopes[scope]}
                 </button>
               );
             })}
-            <p className="text-lg" aria-live="polite">
+            <p className="text-lg text-ink-muted" aria-live="polite">
               {text.explain[visibility[kind]]}
             </p>
           </fieldset>
@@ -70,7 +72,7 @@ export function ContactViewsList({ views, text }: { views: readonly ContactView[
               <li key={`${view.viewedAt}-${index}`}>{describeContactView(view, text)}</li>
             ))}
           </ul>
-          <p className="text-base">{text.viewsNote}</p>
+          <p className="text-base text-ink-muted">{text.viewsNote}</p>
         </>
       )}
     </section>

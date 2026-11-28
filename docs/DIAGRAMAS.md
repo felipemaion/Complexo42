@@ -212,6 +212,13 @@ erDiagram
         text social_links_enc "cifrado"
         timestamptz updated_at
     }
+    profile_background {
+        uuid profile_id PK, FK
+        text education_level_enc "cifrado"
+        text education_detail_enc "cifrado"
+        text occupation_enc "cifrado"
+        timestamptz updated_at
+    }
     contact_visibility {
         uuid profile_id PK, FK
         text kind PK
@@ -229,12 +236,23 @@ erDiagram
         uuid profile_id PK, FK
         uuid skill_id PK, FK
     }
+    skill_suggestions {
+        uuid id PK
+        uuid profile_id FK
+        text name "texto livre da pessoa; vira nome do catálogo se aprovado"
+        text status "open, approved ou rejected"
+        uuid decided_by FK "coordenação nacional"
+        timestamptz decided_at
+        timestamptz created_at
+    }
     profiles ||--o| access_waitlist_hmac : "espera"
     profiles |o--o{ access_allowlist : "adicionou"
     profiles ||--o| profile_contacts : "contato"
+    profiles ||--o| profile_background : "formação e atividade"
     profiles ||--o{ contact_visibility : "quem vê"
     profiles ||--o{ consent_acceptances : "aceitou o termo"
     profiles ||--o{ profile_skills : "tem"
+    profiles ||--o{ skill_suggestions : "sugere"
     skills ||--o{ profile_skills : "usada em"
 ```
 

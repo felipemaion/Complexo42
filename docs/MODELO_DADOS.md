@@ -14,8 +14,8 @@
 |---|---|---|---|
 | Nome completo (**obrigatório**; o esquema ainda aceita uma palavra só, o sobrenome vem na #312) | `profiles.display_name_enc` | AES-256-GCM | Escopo do monitor/gestor; colegas de equipe; todo membro logado no perfil público (#305) |
 | Foto do rosto (**opcional**, #308; ADR 0006, revisão de 2026-11-28). **Finalidade:** a coordenação e os colegas reconhecerem a pessoa pessoalmente. Só a miniatura (~256 px, WebP, ~20 KB, sem EXIF; original descartado); coluna e armazenamento definidos na #308 | a definir na #308 | AES-256-GCM ou armazenamento sem URL pública | Só membros logados; some com a conta e entra em "Baixar meus dados" |
-| Formação acadêmica (nível mais alto; "qual?" opcional, texto livre) (#304). **Finalidade:** encaixar a pessoa num eixo da casa e achar quem pode ajudar | a definir na #304 | AES-256-GCM | Coordenação do escopo; o dono escolhe se aparece no perfil público (#305) |
-| Atividade profissional (texto livre, separada da formação) (#304). **Finalidade:** idem | a definir na #304 | AES-256-GCM | Coordenação do escopo; o dono escolhe se aparece no perfil público (#305) |
+| Formação acadêmica (#304): nível mais alto, em **lista fechada** (fundamental, médio, superior incompleto, superior completo, pós-graduação), e "qual?" opcional em texto livre (só em superior e pós). **Opcional.** **Finalidade:** encaixar a pessoa num eixo da casa e achar quem pode ajudar | `profile_background.education_level_enc`, `education_detail_enc` | AES-256-GCM | O dono; a coordenação do escopo (monitor/gestor, `app.can_view_background`). Fora do perfil público: o dono escolher mostrar é a #305 |
+| Atividade profissional (#304): texto livre de 2 a 80 caracteres, separado da formação. **Opcional.** **Finalidade:** idem | `profile_background.occupation_enc` | AES-256-GCM | Idem |
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Redes sociais (máx. 5 URLs https) | `profile_contacts.social_links_enc` | AES-256-GCM | Coordenação do escopo (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Portfólio (máx. 3 links https) | `portfolio_items.url_enc` | AES-256-GCM | Escopo, porta-voz da equipe (ADR 0007 §5) |
@@ -284,6 +284,23 @@ hífen, apóstrofo e ponto), sem espaços nas pontas, espaços internos colapsad
 decifra; hoje nenhuma tela de terceiros o mostra. Vai no arquivo de exportação (`bairro`) e some
 com a conta (cascata).
 
+### `profile_background` (#304)
+1:1 com `profiles` (`profile_id` PK, FK `on delete cascade`), no molde de `profile_contacts`: formação e atividade ficam fora de `profiles` para que listagens de perfis nunca as tragam por engano.
+
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `education_level_enc` | text null | 🔒 nível: um de `elementary`, `high_school`, `college_incomplete`, `college_complete`, `postgraduate`. A lista é validada no servidor (Zod); o banco só confere o formato cifrado |
+| `education_detail_enc` | text null | 🔒 "qual?" (curso ou área), texto livre de 2 a 80 caracteres; só guardado quando o nível é superior ou pós |
+| `occupation_enc` | text null | 🔒 atividade profissional, texto livre de 2 a 80 caracteres, independente da formação |
+| `updated_at` | timestamptz | gravado pelo trigger |
+
+AAD de cada valor: `profile_background.<coluna>.<profile_id>`. Tudo opcional: vazio vira `null`. RLS: o dono
+lê e grava a própria linha (`app.can_edit_profile`); monitor e gestor do escopo leem a de membro `active`
+(`app.can_view_background`, a mesma regra do contato); porta-voz, admin técnico e quem está fora do escopo não leem.
+Sem busca nem filtro por formação ou atividade: se a busca de membros (#23) precisar filtrar por nível, será
+preciso rever a cifra de `education_level` (lista fechada, onde um índice cego bastaria). Vai no arquivo de
+exportação (`formacaoEAtividade`) e some com a conta (cascata).
+
 ### `unit_types`, `units` e `unit_members` (ADR 0005)
 `unit_types`: `id`, `key`, `label`, `level`, `is_team` (os membros são colegas de equipe, ADR 0010)
 (rótulos configuráveis por instância). A interface lê o rótulo daqui (`readUnitTypeLabels`, módulo `instance`), nunca de texto fixo (R17).
@@ -505,16 +522,35 @@ apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo 
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
 `supabase/migrations/20261119130100_access_functions.sql`.
 
-### `skills` e `profile_skills` (#8)
+### `skills`, `profile_skills` e `skill_suggestions` (#8, #15)
 `skills`: `id`, `name` (único), `category`, `aliases` (text[], sinônimos para a busca), `active`.
-Índice GIN em `aliases`. A **busca por habilidade roda no banco** (texto puro, indexado); só os
-nomes da página exibida são decifrados no servidor (ADR 0003 §6). Leitura só de perfil ativo
-(`app.is_active_member`); ninguém grava pela API (catálogo entra por seed ou migration).
-`profile_skills`: `profile_id` (cascade com o perfil), `skill_id`; chave (`profile_id`,
-`skill_id`) e índice `(skill_id, profile_id)`. Lê quem pode ver o perfil (`app.can_view_profile`).
-Sem `level`: o nível (só "tenho" ou três graus) segue em aberto com o stakeholder; sem
-limite por pessoa nem opção "outra" até a #15, que também grava e inclui as habilidades no
-arquivo de exportação dos dados da pessoa.
+Índice GIN em `aliases`. Os **sinônimos ficam sem caixa e sem acento** (gatilho, `app.norm_text`, que usa
+`extensions.unaccent`); a busca normaliza o termo do mesmo jeito. A **busca por habilidade roda no banco**
+(texto puro, indexado); só os nomes da página exibida são decifrados no servidor (ADR 0003 §6). Leitura só
+de perfil ativo (`app.is_active_member`); ninguém grava pela API (o catálogo entra por seed, migration ou
+pela aprovação de uma sugestão).
+
+`profile_skills`: `profile_id` (cascade com o perfil), `skill_id`; chave (`profile_id`, `skill_id`) e índice
+`(skill_id, profile_id)`. **Sem nível** (só "tenho") e **no máximo 10 por pessoa**, conferido no banco
+(gatilho que trava o perfil, erro `C7701`) e na função. Lê quem pode ver o perfil (`app.can_view_profile`), o
+que mantém a busca da #23 para a coordenação nacional. A pessoa grava só pelo conjunto inteiro,
+`set_my_skills(ids)` (só habilidade ativa; a que ela já tem e foi desativada pode ficar); nenhum INSERT,
+UPDATE ou DELETE direto.
+
+`skill_suggestions` (#15): `id`, `profile_id` (cascade), `name`, `status` (`open`, `approved`, `rejected`),
+`decided_by` (set null), `decided_at`, `created_at`. **`name` é texto livre da pessoa. Finalidade:** virar o
+nome de uma habilidade do catálogo, visível a todos os membros, depois da aprovação; antes, só a pessoa e a
+coordenação nacional o leem. Sem caractere de controle nem invisível (`\p{Cc}`, `\p{Cf}`), 2 a 80 caracteres.
+Fica no lugar da opção "outra". A pessoa sugere por `suggest_skill(nome)`: no máximo **3 abertas** e **5 em
+24 horas** (de qualquer estado, para rejeitar não liberar sugestão sem fim) e nunca um nome que já exista
+(`C7702`, `C7703`, `C7704`). **Só a coordenação nacional decide**, por `decide_skill_suggestion(id, aprovar,
+grupo)`: aprovar cria a habilidade (ou usa a de mesmo nome), a marca para quem sugeriu se ainda couber no
+limite e grava `skill_suggestion_decided` no `audit_log` (ator e alvo, sem o texto); se casar com uma habilidade desativada, a reativa (`skill_reactivated` no `audit_log`). Há um índice único no nome normalizado de `skills`. A fila mostra nome e data,
+sem quem sugeriu.
+
+"Baixar meus dados" traz as habilidades (nome e grupo) e as sugestões da pessoa (nome, estado e datas); a
+exclusão da conta apaga as duas (cascade). A tela da pessoa é `/perfil/habilidades` (busca e marcação múltipla,
+"x de 10", "Sugerir habilidade"); a fila é `/coordenacao/habilidades` (só a nacional).
 
 **Catálogo PROVISÓRIO** (47 habilidades em 8 grupos, até o stakeholder aprovar): vai por migration
 (`..._estrutura_instancia.sql`), no local e no servidor. Para trocar, crie uma migration nova (upsert pelo nome).
@@ -601,7 +637,8 @@ em todos os eventos (veja "Excluir minha conta"). Limpeza (retenção, LGPD) pre
 forma explícita; nenhum teste ou migration atual limpa o log.
 
 ### "Baixar meus dados" (#20, LGPD art. 18)
-A pessoa baixa, pelo botão da página inicial, um JSON com tudo o que a plataforma guarda sobre
+A pessoa baixa, pelo botão da página inicial **ou da tela de espera** (#130, parte 1: quem está `waitlisted` também tem o direito
+de acesso; a rota exige só a sessão, sem o portão de acesso, e o banco lê só as linhas dela), um JSON com tudo o que a plataforma guarda sobre
 ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT dela; a função
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
 encerrados, aceites do termo do questionário, o resultado do questionário (casa, **totem** e **notas por eixo**, cifrados e decifrados pelo servidor; formato 9 do arquivo), os pedidos de

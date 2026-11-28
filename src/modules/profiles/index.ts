@@ -1,8 +1,13 @@
 export {
   ProfileInputError,
   accessStatuses,
+  educationLevels,
+  educationLevelsWithDetail,
+  type EducationLevel,
+  parseProfileBackgroundInput,
   parseProfileContactInput,
   parseProfileInput,
+  profileBackgroundInputSchema,
   profileContactInputSchema,
   profileInputSchema,
   profileLimits,
@@ -10,6 +15,7 @@ export {
   serializeSocialLinks,
 } from "./domain/schema";
 export {
+  backgroundSentField,
   consentNotYetGiven,
   neighborhoodSentField,
   parseProfileForm,
@@ -27,7 +33,7 @@ export {
   socialLinkViews,
   type SocialLinkView,
 } from "./domain/social";
-export { isFullName, needsFullNameNotice } from "./domain/full-name";
+export { firstName, isFullName, needsFullNameNotice } from "./domain/full-name";
 export { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./domain/whatsapp";
 export { filterMunicipalities, hasDistrictChoice } from "./domain/localities";
 export {
@@ -74,6 +80,7 @@ export type {
   DistrictOption,
   MunicipalityOption,
   OwnProfile,
+  ProfileBackgroundInput,
   ProfileContactInput,
   ProfileDbClient,
   ProfileFormState,
