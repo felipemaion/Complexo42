@@ -118,7 +118,9 @@ sudo APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
   `select role, revoked_at, granted_by from public.role_assignments where role = 'manager'`
   deve trazer uma linha com `revoked_at` e `granted_by` nulos, e `select event, reason from public.audit_log
   where event in ('allowlist_imported','role_granted') order by id desc limit 5` mostra o rastro.
-- Saídas: `0` ok, `1` falha (nada concedido), `2` uso errado, `3` perfil bloqueado ou suspenso.
+- Saídas: `0` ok, `1` falha (nada concedido), `2` uso errado, `3` perfil bloqueado ou suspenso, ou na espera
+  sem registro deste e-mail na fila (a mensagem diz qual dos dois).
+- E-mails com caracteres não ASCII (acentos, IDN) são **recusados** pelo script (saída `2`).
 
 ## Questionário das casas (ADR 0014)
 

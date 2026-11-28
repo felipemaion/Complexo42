@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(40);
+select plan(44);
 
 create function pg_temp.h(p_tag text) returns text language sql as $$
   select encode(sha256(convert_to(p_tag, 'UTF8')), 'hex')
@@ -28,13 +28,15 @@ insert into people values
   ('caio', '00000000-0000-0000-0000-0000000000d3', 'caio@exemplo.org', true),        -- na espera
   ('dani', '00000000-0000-0000-0000-0000000000d4', 'dani@exemplo.org', true),        -- bloqueada
   ('edu',  '00000000-0000-0000-0000-0000000000d5', 'edu@exemplo.org', false),        -- e-mail não confirmado
-  ('fabi', '00000000-0000-0000-0000-0000000000d6', 'fabi@exemplo.org', true);        -- ativa
+  ('fabi', '00000000-0000-0000-0000-0000000000d6', 'fabi@exemplo.org', true),        -- ativa
+  ('gui',  '00000000-0000-0000-0000-0000000000d7', 'gui@exemplo.org', true);         -- na espera, sem HMAC na fila
 insert into auth.users (id, email, email_confirmed_at)
 select id, email, case when confirmed then now() end from people;
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version)
 select id, pg_temp.enc(name), 3550308, 'v1' from people;
 update public.profiles set access_status = 'active', status = 'active'
 where id in (select id from people where name in ('ana', 'bia', 'edu', 'fabi'));
+update public.profiles set access_status = 'waitlisted' where id = (select id from people where name = 'gui');
 update public.profiles set access_status = 'waitlisted' where id = (select id from people where name = 'caio');
 update public.profiles set access_status = 'blocked' where id = (select id from people where name = 'dani');
 insert into public.access_waitlist_hmac (profile_id, email_hmac)
@@ -147,8 +149,14 @@ select is(
   (select count(*)::int from public.audit_log
    where event = 'access_granted' and reason = 'manual' and target_id = pg_temp.person('caio') and actor_id is null),
   1, 'auditoria: access_granted, motivo manual');
--- O papel só vale para quem é membro de verdade (termo, perfil completo e casa aceita):
--- sem isso, a pessoa liberada ainda não importa a lista.
+-- O papel só vale para quem é membro de verdade (termo, perfil completo e casa aceita). Aqui o termo
+-- e o perfil completo estão em dia e só a casa falta: o 42501 abaixo é por causa da casa.
+insert into public.consent_acceptances (user_id, version) values (pg_temp.person('caio'), 'v1') on conflict do nothing;
+select is(
+  (select count(*)::int from public.consent_acceptances where user_id = pg_temp.person('caio') and version = 'v1'),
+  1, 'caio aceitou o termo vigente');
+select isnt((select profile_completed_at from public.profiles where id = pg_temp.person('caio')), null,
+  'o perfil de caio está completo');
 select set_config('request.jwt.claims',
   json_build_object('sub', pg_temp.person('caio'), 'role', 'authenticated')::text, true);
 set local role authenticated;
@@ -156,6 +164,13 @@ select throws_ok(
   format($$ select public.import_allowlist(array[%L], 'manual') $$, pg_temp.h('qualquer')),
   '42501', null, 'o papel só passa a valer depois de termo, perfil e casa (membro ativo)');
 reset role;
+
+-- Na espera, mas sem a linha da fila para ESTE HMAC (ex.: entrou por outro e-mail): não é liberada,
+-- e o resultado diz que está na espera (não "bloqueada ou suspensa").
+select is(
+  app.bootstrap_root_manager(pg_temp.h('gui@exemplo.org'), 'gui@exemplo.org', true)->>'role',
+  'waitlisted', 'conta na espera sem HMAC na fila: resultado próprio');
+select is(pg_temp.roles(pg_temp.person('gui')), 0, 'e sem papel');
 
 -- ---------------------------------------------------------------------------------------
 -- Bloqueada, e-mail não confirmado: nada de papel
