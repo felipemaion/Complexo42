@@ -160,4 +160,45 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
     await coordinator.goto(path);
     await expectInert(coordinator, coordinatorDialogs);
   }
+
+  // #155: exportar, excluir e varrer de novo. Antes de excluir, o banco inteiro sem o texto em claro das duas pessoas; o
+  // script devolve só `esquema.tabela.coluna` (nunca o valor), e o teste falha com esse resultado.
+  const trechosFile = process.env.E2E_STAGING_TRECHOS_FILE;
+  const scan = () => {
+    if (trechosFile) execFileSync("bash", ["scripts/staging-ci/varredura.sh", trechosFile], { env: { ...process.env, DB: DB_CONTAINER }, encoding: "utf8" });
+  };
+  scan();
+
+  // "Baixar meus dados": o arquivo da 2ª pessoa traz o nome dela (decifrado só na resposta), e nada da coordenação.
+  await member.goto("/inicio");
+  const [file] = await Promise.all([member.waitForEvent("download"), member.getByRole("button", { name: "Baixar meus dados" }).click()]);
+  const chunks: Buffer[] = [];
+  for await (const chunk of await file.createReadStream()) chunks.push(chunk as Buffer);
+  const exported = Buffer.concat(chunks).toString("utf8");
+  const data = JSON.parse(exported);
+  expect(data.perfil.nome).toBe(XSS_NAME);
+  expect(data.conta.emailDeLogin).toBe(memberEmail);
+  expect(data.contato.whatsapp).toContain(memberWhatsapp);
+  for (const other of [coordinatorEmail, "Coordenação Staging", coordinatorWhatsapp]) expect(exported).not.toContain(other);
+
+  // "Excluir minha conta": a 2ª pessoa se exclui pela interface (login de menos de 10 minutos, a palavra EXCLUIR).
+  await member.goto("/excluir-conta");
+  await member.getByLabel(/escreva EXCLUIR/).fill("EXCLUIR");
+  await member.getByRole("button", { name: "Excluir minha conta para sempre" }).click();
+  await expect(member).toHaveURL(`${baseURL}/conta-excluida`);
+  await expectInert(member, memberDialogs);
+
+  // A coordenação passa a ver só o resultado dela, e nada da pessoa excluída sobra no banco: nem em `auth.*` (o e-mail agora
+  // também não pode estar lá). A varredura do job (scripts/staging-ci.sh) roda de novo, com este arquivo.
+  await coordinator.goto("/coordenacao/casas/resultados");
+  await expect(coordinator.locator('a[href^="/coordenacao/casas/resultados/"]')).toHaveCount(1);
+  await expect(coordinator.getByTestId("result-row").filter({ hasText: XSS_NAME })).toHaveCount(0);
+  if (trechosFile) {
+    writeFileSync(
+      trechosFile,
+      [`claro:${XSS_NAME}`, `claro:${memberWhatsapp}`, `claro:${memberEmail}`, "claro:Coordenação Staging", `claro:${coordinatorWhatsapp}`, `email:${coordinatorEmail}`].join("\n") + "\n",
+      { mode: 0o600 },
+    );
+  }
+  scan();
 });
