@@ -25,8 +25,10 @@
   --c-on-primary: #ffffff;
   --c-link: var(--brand-primary);
   --c-focus: var(--brand-primary);
-  /* Nome antigo, ainda usado como bg-[var(--color-primary)] nas páginas que os próximos PRs da #324 migram. */
+  /* Nomes antigos, ainda usados como var(--color-primary) e var(--color-secondary) nas telas que os próximos
+     PRs da #324 migram (questionário, casa, coordenação). Saem quando a lista de tests/design-tokens.test.ts zerar. */
   --color-primary: var(--c-primary);
+  --color-secondary: var(--brand-secondary);
 
   --c-danger: #a4251c;
   --c-danger-soft: #fdecea;

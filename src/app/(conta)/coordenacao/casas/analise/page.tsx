@@ -4,6 +4,7 @@ import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
 import { listCases, requireCoordinationScreen } from "@/modules/houses";
 import { fill, shortDate } from "../format";
+import { TableScroll } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.queue.title };
 
@@ -37,6 +38,7 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
       {rows.length === 0 ? (
         <p className="text-lg">{text.queue.empty}</p>
       ) : (
+        <TableScroll label={text.queue.title}>
         <table className="w-full text-left text-lg">
           <thead>
             <tr>
@@ -64,6 +66,7 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
       <Link href={COORDINATION_PATH} className="text-center text-lg underline">
         {text.backLink}

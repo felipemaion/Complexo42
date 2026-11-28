@@ -79,6 +79,15 @@ describe("tokens visuais (#324)", () => {
     expect(contrastRatio(instance.colors.primary, "#f4f6f9")).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("toda variável var(--color-…) usada no código existe em globals.css", () => {
+    // O alias de um nome antigo some e a cor fica vazia sem erro nenhum (revisão do #328: polo B do questionário).
+    const css = readFileSync(join(root, "src/app/globals.css"), "utf8");
+    const used = new Set(
+      componentFiles(join(root, "src")).flatMap((file) => [...readFileSync(join(root, file), "utf8").matchAll(/var\((--color-[a-z-]+)\)/g)].map((m) => m[1])),
+    );
+    expect([...used].filter((name) => !css.includes(`${name}:`))).toEqual([]);
+  });
+
   it("nenhum componente novo usa cor ou fonte fixa", () => {
     expect(filesWithHardcodedStyle.filter((file) => !isPending(file))).toEqual([]);
   });

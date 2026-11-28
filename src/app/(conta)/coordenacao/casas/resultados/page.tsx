@@ -5,6 +5,7 @@ import { COORDINATION_PATH } from "@/modules/access";
 import { choseOtherHouse, listResults, requireCoordinationScreen } from "@/modules/houses";
 import { HouseWithShield } from "@/modules/houses/components/house-shield";
 import { fill, houseName, shortDate } from "../format";
+import { TableScroll } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.results.title };
 
@@ -53,6 +54,7 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
       {rows.length === 0 ? (
         <p className="text-lg">{text.results.empty}</p>
       ) : (
+        <TableScroll label={text.results.title}>
         <table className="w-full text-left text-lg">
           <thead>
             <tr>
@@ -85,6 +87,7 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
             ))}
           </tbody>
         </table>
+        </TableScroll>
       )}
       <Link href={COORDINATION_PATH} className="text-center text-lg underline">
         {text.backLink}

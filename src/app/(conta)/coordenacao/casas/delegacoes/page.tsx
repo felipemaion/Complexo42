@@ -5,6 +5,7 @@ import { COORDINATION_PATH } from "@/modules/access";
 import { listDelegationCandidates, listDelegations, requireCoordinationScreen } from "@/modules/houses";
 import { errorText as lookupErrorText, shortDate } from "../format";
 import { grantDelegationAction, revokeDelegationAction } from "./actions";
+import { TableScroll } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.delegations.title };
 
@@ -44,6 +45,7 @@ export default async function DelegationsPage({
         {grants.length === 0 ? (
           <p className="text-lg">{text.delegations.empty}</p>
         ) : (
+          <TableScroll label={text.delegations.title}>
           <table className="w-full text-left text-lg">
             <thead>
               <tr>
@@ -71,6 +73,7 @@ export default async function DelegationsPage({
               ))}
             </tbody>
           </table>
+          </TableScroll>
         )}
       </section>
       <section className="flex flex-col gap-3" aria-labelledby="new-grant-title">
