@@ -119,8 +119,9 @@ async function expectInert(page: Page, dialogs: string[]) {
 test("Google pela borda: o botão chega ao accounts.google.com com o callback do site", async ({ page }) => {
   let google: URL | undefined;
   await page.route("https://accounts.google.com/**", (route) => {
-    // Só a primeira navegação: a página de mentira ainda pede o favicon ao mesmo host, sem parâmetros.
-    if (!google && route.request().isNavigationRequest()) google = new URL(route.request().url());
+    // Só o pedido de login (o que leva client_id): a página de mentira ainda pede o favicon ao mesmo host.
+    const url = new URL(route.request().url());
+    if (!google && url.searchParams.has("client_id")) google = url;
     return route.fulfill({ status: 200, contentType: "text/html", body: "<p>Google de mentira</p>" });
   });
   await page.goto("/entrar");
