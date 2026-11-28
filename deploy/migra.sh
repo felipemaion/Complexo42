@@ -43,6 +43,35 @@ exige() { [ -n "${!1:-}" ] || { log "ERRO: falta $1 ($2)"; exit 2; }; }
 exige DB_CONTAINER "container do banco do ambiente"
 psqlc() { docker exec -i "$DB_CONTAINER" psql -U "$DB_USER" -d "$DB_NOME" -v ON_ERROR_STOP=1 "$@"; }
 
+# Avisa o PostgREST para reler o esquema. Ele monta o cache de relacoes NA
+# PARTIDA e nao repara em DDL depois disso: migration aplicada com o PostgREST
+# ja de pe fica INVISIVEL para a API, que devolve 404 com
+# `PGRST205 "Could not find the table ... in the schema cache"` -- enquanto o
+# `/ready` dele segue em 200, porque so diz que o processo esta vivo.
+#
+# Nao e teoria: o staging passou 19 horas com o cache em 2 relacoes de 23
+# (2026-11-27 07:09 -> 2026-11-28 02:31, quando o PostgREST subiu antes do banco
+# terminar de migrar). Toda leitura de perfil dava 404, o login quebrava DEPOIS
+# de autenticar com sucesso, e nenhum health check acusou.
+#
+# O canal e o `db-channel` do PostgREST, `pgrst` por padrao -- conferido no log
+# do container: "listening for database notifications on the pgrst channel".
+# Por isso basta o NOTIFY: nao e preciso reiniciar container nenhum.
+#
+# Roda em TODA saida de sucesso, inclusive quando nada estava pendente -- o
+# cache pode estar velho sem existir migration nova, que foi exatamente o caso
+# acima. NOTIFY nao altera dado, nao tranca nada e custa um ida-e-volta.
+#
+# Falhar aqui e FATAL de proposito: sem o aviso, a API serve esquema velho e o
+# app quebra depois de o deploy ter dito "ok" -- o pior resultado possivel.
+avisa_postgrest() {
+  if ! psqlc -q -c "notify pgrst, 'reload schema';"; then
+    log "ERRO: nao consegui avisar o PostgREST (notify pgrst) -- a API ficaria com esquema velho"
+    exit 1
+  fi
+  log "PostgREST avisado para reler o esquema"
+}
+
 TMP=$(mktemp -d)
 CRIADO=
 limpar() {
@@ -103,7 +132,11 @@ for f in $ARQUIVOS; do
   case "$APLICADAS" in *" $versao "*) continue ;; esac
   PENDENTES="$PENDENTES $f"
 done
-if [ -z "$PENDENTES" ] && [ -z "$ADOTAR" ]; then log "nada pendente"; exit 0; fi
+if [ -z "$PENDENTES" ] && [ -z "$ADOTAR" ]; then
+  # Avisa mesmo sem migration nova: o cache do PostgREST pode estar velho por
+  # ele ter subido antes do banco terminar de migrar.
+  log "nada pendente"; avisa_postgrest; exit 0
+fi
 
 # ── uma sessão só do psql: é o que faz o advisory lock valer ──
 # O lock protege a chamada direta deste script; o flock do deploy.sh já
@@ -133,6 +166,8 @@ if ! psqlc -q < "$TMP/apply.sql"; then
   log "ERRO: migrations falharam -- a que falhou nao deixou nada gravado"
   exit 1
 fi
+
+avisa_postgrest
 
 log "fim"
 exit 0

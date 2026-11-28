@@ -1011,6 +1011,27 @@ de dentro dele, apaga o container, e aplica no banco **só as pendentes**,
 comparando com `supabase_migrations.schema_migrations` — a mesma tabela que o
 CLI do Supabase usa.
 
+**No fim, o `migra.sh` avisa o PostgREST para reler o esquema**
+(`notify pgrst, 'reload schema'`). Isso não é zelo: o PostgREST monta o cache
+de relações **na partida** e não repara em DDL depois disso. Migration
+aplicada com ele já de pé fica **invisível para a API**, que responde `404`
+com `PGRST205 "Could not find the table ... in the schema cache"` — e o
+`/ready` dele segue em `200`, porque só diz que o processo está vivo.
+
+Foi assim que o staging passou **19 horas** com o cache em 2 relações de 23
+(2026-11-27 07:09 → 2026-11-28 02:31): o PostgREST subiu antes de o banco
+terminar de migrar, toda leitura de perfil deu `404`, e **o login quebrava
+depois de autenticar com sucesso** — pelo Google e pelo link por e-mail, os
+dois, porque os dois terminam na mesma leitura. Nenhum health check acusou.
+
+O aviso vai em **toda saída de sucesso, inclusive quando nada estava
+pendente**: o cache pode estar velho sem existir migration nova, que é
+exatamente o caso acima. E falhar nele é **fatal de propósito** — sem o aviso
+a API serve esquema velho e o app quebra depois de o deploy dizer "ok".
+O canal é o `db-channel` do PostgREST, `pgrst` por padrão; o container loga
+`listening for database notifications on the "pgrst" channel` na partida, e
+por isso o `NOTIFY` basta: não é preciso reiniciar nada.
+
 **Uma transação por migration.** Falhou, nada *dela* fica gravado, e as
 anteriores que passaram continuam valendo. Sem isso, uma falha no meio deixa
 o schema num estado que nenhum arquivo descreve. A seguinte nem é tentada.
