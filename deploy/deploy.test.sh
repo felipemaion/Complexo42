@@ -38,7 +38,16 @@ esac
 [ "$1 $2" = "inspect -f" ] && { printf '%s\n' "${STUB_ANTERIOR-$ANTERIOR_PADRAO}"; exit 0; }
 case "$1" in
   create) exit 0 ;;
-  cp) # entrega o /app/deploy que a "imagem" carrega. `cp -R origem destino`
+  cp) # Um ARQUIVO so: a lista de obrigatorias que o preflight le da imagem.
+      # Vem antes do caso geral porque o caso geral copiaria o diretorio.
+      case "$2" in
+        *obrigatorias-em-producao.txt)
+          # STUB_LISTA vazia = imagem SEM a lista: o `docker cp` falha, como
+          # falharia de verdade numa imagem anterior a guarda.
+          [ -n "${STUB_LISTA:-}" ] || exit 1
+          printf '%s\n' "$STUB_LISTA" > "$3"; exit 0 ;;
+      esac
+      # entrega o /app/deploy que a "imagem" carrega. `cp -R origem destino`
       # com destino inexistente ja cria o destino -- nao precisa de mkdir, e
       # um mkdir mal escrito aqui suja o diretorio de trabalho do teste.
       cp -R "$STUB_INFRA_IMAGEM" "$3"; exit 0 ;;
@@ -52,6 +61,12 @@ esac
 case "$*" in *"config -q"*)
   [ -n "${STUB_CONFIG_SAIDA:-}" ] && printf '%s\n' "$STUB_CONFIG_SAIDA"
   exit "${STUB_CONFIG:-0}" ;;
+esac
+# `config` SEM -q: o compose resolvido que o preflight 2 le. Depois do
+# `config -q`, que e mais especifico.
+case "$*" in *" config")
+  printf '%s\n' "${STUB_CONFIG_RESOLVIDO-$RESOLVIDO_PADRAO}"
+  exit 0 ;;
 esac
 # O ensaio ANTES do `up -d` generico: ele tambem casa com *"up -d"*.
 case "$*" in
@@ -72,6 +87,16 @@ ANT=ghcr.io/felipemaion/complexo42@sha256:$(printf '9%.0s' $(seq 1 64))
 export PATH="$BASE/bin:$PATH" STUB_CHAMADAS="$BASE/chamadas" STUB_CONTA="$BASE/conta" ANTERIOR_PADRAO="$ANT"
 # Ensaio como o compose de verdade imprime: TODOS os servicos, o banco entre
 # eles e inalterado. A trava do banco exige que ele apareca.
+# A lista que a "imagem" carrega e o compose resolvido do caminho feliz saem da
+# LISTA DE VERDADE do repositorio: teste que carrega a sua propria copia da
+# lista passa a conferir a copia, nao o contrato.
+STUB_LISTA=$(grep -E '^[A-Z][A-Z0-9_]*$' "$AQUI/obrigatorias-em-producao.txt")
+export STUB_LISTA
+RESOLVIDO_PADRAO="services:
+  app:
+    environment:
+$(printf '%s\n' "$STUB_LISTA" | sed 's/^/      /; s/$/: valor-qualquer/')"
+export RESOLVIDO_PADRAO
 export ENSAIO_PADRAO=$'Container complexo42stg-db-1  Running\nContainer complexo42stg-rest-1  Running\nContainer complexo42stg-kong-1  Recreate'
 export STUB_MIGRA="$BASE/migra-recebeu"
 
@@ -558,6 +583,74 @@ grep -q 'rollback' "$BASE/saida" && r=1 || r=0
 verifica "e NAO fala de rollback: nao houve troca para desfazer" $r
 grep -qE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" && r=1 || r=0
 verifica "e o app NAO e trocado" $r
+
+echo "== as obrigatorias CHEGAM ao container (preflight 2)"
+# `config -q` responde "o compose resolve". Nao responde "o app recebe o que
+# exige": variavel que o compose do SERVIDOR nao lista nao aparece em lugar
+# nenhum. Foi o login do staging em 2026-11-28.
+: > "$STUB_MIGRA"
+roda "$DIG"; verifica "caminho feliz: as obrigatorias chegam" $?
+grep -qE 'as [0-9]+ obrigatorias chegam ao container' "$BASE/saida" && r=0 || r=1
+verifica "e o deploy diz quantas conferiu" $r
+
+# Uma ausente: o nome dela tem de aparecer, e nada pode ser migrado ou trocado.
+export STUB_CONFIG_RESOLVIDO="services:
+  app:
+    environment:
+      DB_HEALTH_URL: http://rest:3001/ready
+      SUPABASE_URL: http://kong:8000"
+: > "$STUB_MIGRA"
+roda "$DIG"; verifica "obrigatoria ausente no compose derruba o deploy" $(( $? == 0 ? 1 : 0 ))
+grep -q 'BLIND_INDEX_KEY' "$BASE/saida" && r=0 || r=1
+verifica "e diz o NOME da que falta" $r
+grep -q 'obrigatoria_ausente' "$LOG" && r=0 || r=1
+verifica "e registra obrigatoria_ausente" $r
+[ -s "$STUB_MIGRA" ] && r=1 || r=0
+verifica "e as migrations NAO rodam" $r
+grep -qE -- '-p complexo42stg-app .* up -d' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e o app NAO e trocado" $r
+
+# Presente com valor VAZIO e o mesmo que ausente: foi assim que o compose do
+# servidor "tinha" a variavel sem entregar nada.
+export STUB_CONFIG_RESOLVIDO="services:
+  app:
+    environment:
+$(printf '%s\n' "$STUB_LISTA" | sed 's/^/      /; s/$/: valor/' | sed 's/^      BLIND_INDEX_KEY: valor/      BLIND_INDEX_KEY: ""/')"
+roda "$DIG"; verifica "obrigatoria com valor VAZIO conta como ausente" $(( $? == 0 ? 1 : 0 ))
+grep -q 'BLIND_INDEX_KEY' "$BASE/saida" && r=0 || r=1
+verifica "e tambem diz o nome dela" $r
+unset STUB_CONFIG_RESOLVIDO
+
+echo "== o preflight 2 nao imprime VALOR de variavel"
+export STUB_CONFIG_RESOLVIDO="services:
+  app:
+    environment:
+      DB_HEALTH_URL: http://rest:3001/ready
+      FIELD_ENCRYPTION_KEY: SEGREDO-que-nao-pode-sair-no-log"
+roda "$DIG" > /dev/null 2>&1
+grep -q 'SEGREDO-que-nao-pode-sair-no-log' "$BASE/saida" && r=1 || r=0
+verifica "o valor nao vai para a saida" $r
+grep -q 'SEGREDO-que-nao-pode-sair-no-log' "$LOG" && r=1 || r=0
+verifica "nem para o log do root" $r
+unset STUB_CONFIG_RESOLVIDO
+
+echo "== imagem sem a lista: recusa no normal, segue no break-glass"
+# No modo normal a imagem vem de um build da main, que SEMPRE traz a lista:
+# faltar e sinal de imagem errada. No break-glass a imagem vem por tag e pode
+# ser antiga -- ali recusar custaria o restabelecimento do servico.
+STUB_LISTA_GUARDADA=$STUB_LISTA
+export STUB_LISTA=
+: > "$STUB_MIGRA"
+roda "$DIG"; verifica "imagem sem a lista derruba o deploy normal" $(( $? == 0 ? 1 : 0 ))
+grep -q 'obrigatorias-em-producao.txt' "$BASE/saida" && r=0 || r=1
+verifica "e diz qual arquivo falta na imagem" $r
+[ -s "$STUB_MIGRA" ] && r=1 || r=0
+verifica "e nada e migrado" $r
+
+roda emergencia:sha-abc1234; verifica "no break-glass o deploy SEGUE sem a lista" $?
+grep -q 'ALERTA' "$BASE/saida" && r=0 || r=1
+verifica "e avisa que a conferencia nao foi feita" $r
+export STUB_LISTA=$STUB_LISTA_GUARDADA
 
 echo "== nem o ENSAIO do Supabase leva valor do env para o log"
 # Mesmo --env-file, mesma forma de erro: apontado na revisao do #284.
