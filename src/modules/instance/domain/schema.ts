@@ -183,6 +183,16 @@ export const instanceConfigSchema = z.strictObject({
     /** Bairro (#179): texto livre, opcional. */
     neighborhoodLabel: text,
     neighborhoodHint: text,
+    photoEnabled: z.boolean(),
+    photoTitle: text,
+    photoRules: text,
+    photoNotice: text,
+    photoChoose: text,
+    photoSend: text,
+    photoReplaceHint: text,
+    photoRemove: text,
+    photoAlt: text,
+    photoStatus: z.strictObject({ ok: text, removida: text, tipo: text, grande: text, ilegivel: text, limite: text, erro: text }),
     backgroundTitle: text,
     backgroundHint: text,
     educationLevelLabel: text,
@@ -394,6 +404,27 @@ export const instanceConfigSchema = z.strictObject({
       failed: text,
     }),
   }),
+  /** Perfil público (#305). */
+  publicProfile: z.strictObject({
+    title: text,
+    badgesTitle: text,
+    noBadges: text,
+    photoAlt: text,
+    unreadableName: text,
+    backLink: text,
+    badgeKinds: z.strictObject({ house: text, totem: text }),
+    prefs: z.strictObject({
+      homeLink: text,
+      title: text,
+      intro: text,
+      showLabel: text,
+      orderLabel: text,
+      saveButton: text,
+      saved: text,
+      errors: z.strictObject({ invalid: text, forbidden: text, failed: text }),
+      backLink: text,
+    }),
+  }),
   /** Habilidades da pessoa (#15). `{max}` e `{count}` são trocados na tela. */
   skills: z.strictObject({
     homeLink: text,
@@ -415,8 +446,10 @@ export const instanceConfigSchema = z.strictObject({
     statusApproved: text,
     statusRejected: text,
     backLink: text,
-    errors: z.strictObject({ forbidden: text, invalid: text, limit: text, not_found: text, too_many_open: text, daily_limit: text, exists: text, failed: text }),
+    errors: z.strictObject({ forbidden: text, invalid: text, limit: text, not_found: text, too_many_open: text, daily_limit: text, exists: text, merge_invalid: text, failed: text }),
     queue: z.strictObject({ menuLink: text, title: text, intro: text, empty: text, categoryLabel: text, approveButton: text, rejectButton: text, decided: text, backLink: text }),
+    /** Gestão do catálogo pela coordenação nacional (#25). */
+    catalog: z.strictObject({ menuLink: text, title: text, intro: text, done: text, createTitle: text, nameLabel: text, groupLabel: text, groupHint: text, createButton: text, renameGroupLabel: text, renameGroupButton: text, renameButton: text, moveButton: text, mergeLabel: text, mergeChoose: text, mergeButton: text, deactivateButton: text, reactivateButton: text, inactive: text, queueLink: text }),
     /** Busca de pessoas por habilidade (#23). `{count}` é trocado na tela. */
     search: z.strictObject({
       menuLink: text,

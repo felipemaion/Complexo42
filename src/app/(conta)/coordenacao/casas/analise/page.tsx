@@ -4,7 +4,7 @@ import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
 import { listCases, requireCoordinationScreen } from "@/modules/houses";
 import { fill, shortDate } from "../format";
-import { TableScroll } from "@/modules/ui";
+import { noticeClass, PageShell, TableScroll, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.queue.title };
 
@@ -17,21 +17,21 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
   const text = instance.questionnaireCoordination;
   const axisName = (key: string) => (key in deps.questionnaire.axes ? deps.questionnaire.axes[key as keyof typeof deps.questionnaire.axes].label : key);
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.queue.title}</h1>
-      <p className="text-lg">{text.queue.intro}</p>
+    <PageShell width="wide">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.queue.title}</h1>
+      <p className="max-w-prose text-lg text-ink-muted">{text.queue.intro}</p>
       {resolved && (
-        <p role="status" className="rounded-xl border-2 border-current p-3 text-lg" data-testid="resolved-notice">
+        <p role="status" className={noticeClass("info")} data-testid="resolved-notice">
           {text.queue.resolvedNotice}
         </p>
       )}
       {truncated && (
-        <p role="status" className="rounded-xl border-2 border-current p-3 text-lg" data-testid="truncated">
+        <p role="status" className={noticeClass("info")} data-testid="truncated">
           {fill(text.queue.truncated, { count: rows.length })}
         </p>
       )}
       {unreadable > 0 && (
-        <p role="status" className="rounded-xl border-2 border-current p-3 text-lg" data-testid="unreadable">
+        <p role="status" className={noticeClass("info")} data-testid="unreadable">
           {fill(text.queue.unreadableList, { count: unreadable })}
         </p>
       )}
@@ -42,15 +42,15 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
         <table className="w-full text-left text-lg">
           <thead>
             <tr>
-              <th className="py-2">{text.queue.columnPerson}</th>
-              <th className="py-2">{text.queue.columnDate}</th>
-              <th className="py-2">{text.queue.columnAxes}</th>
-              <th className="py-2" />
+              <th className="py-2 pr-4 text-base font-semibold text-ink-muted">{text.queue.columnPerson}</th>
+              <th className="py-2 pr-4 text-base font-semibold text-ink-muted">{text.queue.columnDate}</th>
+              <th className="py-2 pr-4 text-base font-semibold text-ink-muted">{text.queue.columnAxes}</th>
+              <th className="py-2 pr-4 text-base font-semibold text-ink-muted" />
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.requestId} className="border-t border-current/30" data-testid="case-row">
+              <tr key={row.requestId} className="border-t border-line" data-testid="case-row">
                 <td className="py-2">{row.name ?? text.noName}</td>
                 <td className="py-2">{shortDate(row.createdAt)}</td>
                 <td className="py-2">
@@ -58,7 +58,7 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
                   {row.kind === "totem" && ` (${text.queue.kindTotem})`}
                 </td>
                 <td className="py-2 text-right">
-                  <Link href={`/coordenacao/casas/analise/${row.requestId}`} prefetch={false} className="underline">
+                  <Link href={`/coordenacao/casas/analise/${row.requestId}`} prefetch={false} className="text-link underline">
                     {text.queue.openLink}
                   </Link>
                 </td>
@@ -68,9 +68,9 @@ export default async function QueuePage({ searchParams }: Readonly<{ searchParam
         </table>
         </TableScroll>
       )}
-      <Link href={COORDINATION_PATH} className="text-center text-lg underline">
+      <Link href={COORDINATION_PATH} className={`${textLinkClass()} self-center`}>
         {text.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

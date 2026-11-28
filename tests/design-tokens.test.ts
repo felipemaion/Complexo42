@@ -20,19 +20,6 @@ const hardcodedStyle = new RegExp(
   ].join("|"),
 );
 
-// Telas que os próximos PRs da #324 passam para os tokens, um grupo por PR: arquivo ou pasta (termina em /).
-// Ao migrar, tire a linha daqui: o segundo teste falha se uma linha não casar mais com nada, para a lista só
-// diminuir.
-const pendingMigration = new Set([
-  "src/app/(conta)/coordenacao/casas/analise/[id]/page.tsx",
-  "src/app/(conta)/coordenacao/casas/delegacoes/page.tsx",
-  "src/app/(conta)/coordenacao/casas/janela/page.tsx",
-  "src/app/(conta)/coordenacao/casas/resultados/[id]/page.tsx",
-  "src/app/(conta)/coordenacao/casas/resultados/page.tsx",
-  "src/modules/access/components/member-block-form.tsx",
-  "src/modules/access/components/waitlist-queue.tsx",
-]);
-
 function componentFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const path = join(dir, entry.name);
@@ -40,9 +27,6 @@ function componentFiles(dir: string): string[] {
     return entry.name.endsWith(".tsx") ? [relative(root, path)] : [];
   });
 }
-
-const covers = (entry: string, file: string) => (entry.endsWith("/") ? file.startsWith(entry) : file === entry);
-const isPending = (file: string) => [...pendingMigration].some((entry) => covers(entry, file));
 
 const filesWithHardcodedStyle = componentFiles(join(root, "src"))
   .filter((file) => hardcodedStyle.test(readFileSync(join(root, file), "utf8")))
@@ -76,12 +60,8 @@ describe("tokens visuais (#324)", () => {
     expect([...used].filter((name) => !css.includes(`${name}:`))).toEqual([]);
   });
 
-  it("nenhum componente novo usa cor ou fonte fixa", () => {
-    expect(filesWithHardcodedStyle.filter((file) => !isPending(file))).toEqual([]);
-  });
-
-  it("a lista de telas a migrar só diminui", () => {
-    expect([...pendingMigration].filter((entry) => !filesWithHardcodedStyle.some((file) => covers(entry, file)))).toEqual([]);
+  it("nenhum componente usa cor ou fonte fixa", () => {
+    expect(filesWithHardcodedStyle).toEqual([]);
   });
 
   it("o padrão pega cor e fonte fixas e deixa passar os tokens", () => {

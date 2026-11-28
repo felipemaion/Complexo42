@@ -3,13 +3,14 @@ import Link from "next/link";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
 import { requireCoordinationScreen } from "@/modules/houses";
-import { listOpenSuggestions, skillNameLimits } from "@/modules/skills";
+import { listOpenSuggestions, skillErrorText, skillNameLimits } from "@/modules/skills";
 import { decideSuggestionAction } from "./actions";
+import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.skills.queue.title };
 
-const field = "min-h-12 w-full rounded-xl border-2 border-current bg-transparent px-3 text-lg";
-const button = "min-h-12 flex-1 rounded-xl border-2 border-current px-4 text-lg font-semibold";
+const field = fieldClass();
+const button = `${buttonClass("secondary")} flex-1`;
 
 // Sugestões de habilidade para decidir (#15): só a coordenação nacional (os outros recebem 404). Aprovar pede o
 // grupo e põe a habilidade no catálogo; rejeitar só encerra. A fila mostra nome e data, sem quem sugeriu.
@@ -20,27 +21,27 @@ export default async function SkillSuggestionsPage({
   const query = await searchParams;
   const suggestions = await listOpenSuggestions(client);
   const text = instance.skills;
-  const errorText = query.erro ? (text.errors[query.erro as keyof typeof text.errors] ?? text.errors.failed) : null;
+  const errorText = skillErrorText(text.errors, query.erro);
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.queue.title}</h1>
-      <p className="text-lg">{text.queue.intro}</p>
+    <PageShell width="wide">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.queue.title}</h1>
+      <p className="max-w-prose text-lg text-ink-muted">{text.queue.intro}</p>
       {query.decidida === "1" && (
-        <p role="status" className="rounded-xl border-2 border-current p-3 text-lg">
+        <p role="status" className={noticeClass("success")}>
           {text.queue.decided}
         </p>
       )}
       {errorText && (
-        <p role="alert" className="rounded-xl border-2 border-danger p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {errorText}
         </p>
       )}
       {suggestions.length === 0 ? (
         <p className="text-lg">{text.queue.empty}</p>
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {suggestions.map((suggestion) => (
-            <li key={suggestion.id} className="flex flex-col gap-3 rounded-xl border-2 border-current p-4" data-testid="suggestion-row">
+            <li key={suggestion.id} className={cardClass()} data-testid="suggestion-row">
               <p className="text-xl font-semibold">{suggestion.name}</p>
               <form action={decideSuggestionAction} className="flex flex-col gap-3">
                 <input type="hidden" name="sugestao" value={suggestion.id} />
@@ -61,9 +62,9 @@ export default async function SkillSuggestionsPage({
           ))}
         </ul>
       )}
-      <Link href={COORDINATION_PATH} className="text-center text-lg underline">
+      <Link href={COORDINATION_PATH} className={`${textLinkClass()} self-center`}>
         {text.queue.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

@@ -10,6 +10,17 @@
 # Uso: ./restore-test.sh <arquivo.age> <identidade-age>
 #      ./restore-test.sh --do-remoto <identidade-age>
 #
+# INITDB_DIR=<dir do deploy>/initdb (padrão: ./initdb ao lado deste script, se existir): o banco
+# descartável nasce com o MESMO initdb do servidor. Sem ele faltam os papéis (anon, authenticated...)
+# que as políticas de RLS citam, e o pg_restore para no primeiro `create policy ... to authenticated`.
+# E o initdb já cria o schema `auth` (vazio): por isso `--clean --if-exists`, que derruba o que o dump
+# traz antes de recriar, sem erro para o que não existe. Um volume novo do servidor tem o mesmo initdb.
+#
+# MINIMOS="perfis=1 unidades=1 ..." (opcional) reprova se alguma contagem de controle vier abaixo
+# do mínimo: um banco restaurado vazio não é "restauração ok". REGISTRO=<arquivo> (opcional,
+# ex.: data/logs/backup.log) recebe uma linha com o resultado, o tempo e as contagens (sem dado
+# pessoal: só números).
+#
 # O modo --do-remoto BAIXA o backup mais novo do destino fora da VPS e restaura
 # esse arquivo. É o teste que vale: um arquivo local restaurável não prova que
 # a cópia remota existe, chegou inteira e pode ser recuperada.
@@ -33,11 +44,21 @@ fi
 # testa outra coisa. Fixada por digest, como no compose.
 IMAGEM=${IMAGEM:-supabase/postgres:17.12.0.001@sha256:2543d8fb3889ff2ee514af39496f67c30edd1f1e0da923a560e7930d2f59ca16}
 AGE_IMAGEM=${AGE_IMAGEM:-}
+MINIMOS=${MINIMOS:-}
+REGISTRO=${REGISTRO:-}
+INITDB_DIR=${INITDB_DIR:-}
+[ -z "$INITDB_DIR" ] && [ -d "$AQUI/initdb" ] && INITDB_DIR=$AQUI/initdb
 NOME=restore-test-$$
 SENHA=$(head -c 30 /dev/urandom | od -An -tx1 | tr -d ' \n')
 
 [ -r "$ARQ" ]   || { echo "ERRO: nao consigo ler $ARQ" >&2; exit 2; }
 [ -r "$IDENT" ] || { echo "ERRO: nao consigo ler a identidade" >&2; exit 2; }
+for par in $MINIMOS; do
+  [[ $par =~ ^[a-z_]+=[0-9]+$ ]] || { echo "ERRO: MINIMOS mal formado ($par); use rotulo=numero" >&2; exit 2; }
+done
+
+# Uma linha por teste no registro (o mesmo log do backup), para o resultado mensal ficar anotado.
+registra() { [ -z "$REGISTRO" ] || printf '%s restore-test %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$REGISTRO"; }
 
 decifrador() {
   if command -v age > /dev/null 2>&1; then
@@ -62,8 +83,22 @@ limpar() {
 trap limpar EXIT
 
 echo "== subindo Postgres descartavel"
+INITDB=()
+# Com o initdb os papéis existem, e a restauração é a de PRODUÇÃO: donos e privilégios incluídos
+# (docs/OPERACAO.md, "Restaurar em produção"). Sem ele, só dá para restaurar sem donos nem GRANTs.
+SEM_PAPEIS=()
+if [ -n "$INITDB_DIR" ]; then
+  [ -d "$INITDB_DIR" ] || { echo "ERRO: INITDB_DIR nao e diretorio" >&2; exit 2; }
+  # As senhas dos papéis são descartáveis como o banco: ninguém se conecta com elas.
+  INITDB=(-v "$(cd "$INITDB_DIR" && pwd):/docker-entrypoint-initdb.d:ro"
+          -e AUTHENTICATOR_PASSWORD="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+          -e AUTH_ADMIN_PASSWORD="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')")
+else
+  echo "   AVISO: sem INITDB_DIR; restauracao sem donos nem privilegios (nao e a de producao)" >&2
+  SEM_PAPEIS=(--no-owner --no-privileges)
+fi
 docker run -d --name "$NOME" -e POSTGRES_PASSWORD="$SENHA" \
-  -e POSTGRES_DB=postgres "$IMAGEM" \
+  -e POSTGRES_DB=postgres "${INITDB[@]+"${INITDB[@]}"}" "$IMAGEM" \
   postgres -c listen_addresses=* > /dev/null
 
 # Esperar o banco aceitar conexão de verdade (o mesmo erro da armadilha 52:
@@ -83,8 +118,8 @@ INICIO=$(date +%s)
 set +e
 decifrador < "$ARQ" \
   | docker exec -i -e PGPASSWORD="$SENHA" "$NOME" \
-      pg_restore -U supabase_admin -d postgres --no-owner --no-privileges \
-      --exit-on-error > /tmp/restore-$$.log 2>&1
+      pg_restore -U supabase_admin -d postgres "${SEM_PAPEIS[@]+"${SEM_PAPEIS[@]}"}" \
+      --clean --if-exists --exit-on-error > /tmp/restore-$$.log 2>&1
 ESTADO=("${PIPESTATUS[@]}")
 set -e
 FIM_T=$(date +%s)
@@ -92,24 +127,43 @@ SEGUNDOS=$((FIM_T - INICIO))
 
 if [ "${ESTADO[0]}" -ne 0 ]; then
   echo "ERRO: falha ao decifrar (chave errada?)" >&2
-  rm -f /tmp/restore-$$.log; exit 1
+  registra "FALHOU decifrar"; rm -f /tmp/restore-$$.log; exit 1
 fi
 if [ "${ESTADO[1]}" -ne 0 ]; then
   echo "ERRO: pg_restore falhou:" >&2
   tail -20 /tmp/restore-$$.log >&2
-  rm -f /tmp/restore-$$.log; exit 1
+  registra "FALHOU pg_restore"; rm -f /tmp/restore-$$.log; exit 1
 fi
 rm -f /tmp/restore-$$.log
 
 echo "== contagens de controle"
-docker exec -e PGPASSWORD="$SENHA" "$NOME" \
-  psql -h 127.0.0.1 -U supabase_admin -d postgres -At -F' ' -c "
+CONTAGENS=$(docker exec -e PGPASSWORD="$SENHA" "$NOME" \
+  psql -h 127.0.0.1 -U supabase_admin -d postgres -At -F' ' -v ON_ERROR_STOP=1 -c "
     select 'perfis',    count(*) from public.profiles
     union all select 'unidades', count(*) from public.units
     union all select 'vinculos', count(*) from public.unit_members
+    union all select 'casas',    count(*) from public.house_members
     union all select 'papeis',   count(*) from public.role_assignments
     union all select 'municipios', count(*) from public.municipalities;
-  " | while read -r rotulo n; do printf '   %-12s %s\n' "$rotulo" "$n"; done
+  ") || { echo "ERRO: as contagens falharam (tabela ausente no restaurado?)" >&2; registra "FALHOU contagens"; exit 1; }
+printf '%s\n' "$CONTAGENS" | while read -r rotulo n; do printf '   %-12s %s\n' "$rotulo" "$n"; done
+RESUMO=$(printf '%s\n' "$CONTAGENS" | tr ' ' '=' | tr '\n' ' ')
 
+# Restaurou, mas restaurou o QUÊ? Abaixo do mínimo, o teste reprova.
+ABAIXO=
+for par in $MINIMOS; do
+  rotulo=${par%%=*}; minimo=${par#*=}
+  n=$(printf '%s\n' "$CONTAGENS" | awk -v r="$rotulo" '$1 == r { print $2 }')
+  if [ -z "$n" ]; then
+    echo "ERRO: MINIMOS cita '$rotulo', que nao e contagem de controle" >&2; exit 2
+  fi
+  [ "$n" -ge "$minimo" ] || ABAIXO="$ABAIXO $rotulo=$n<$minimo"
+done
+if [ -n "$ABAIXO" ]; then
+  echo "ERRO: contagem abaixo do minimo:$ABAIXO" >&2
+  registra "FALHOU minimos$ABAIXO segundos=$SEGUNDOS"; exit 1
+fi
+
+registra "ok segundos=$SEGUNDOS $RESUMO"
 echo
-echo "RESTAURACAO OK em ${SEGUNDOS}s — anote o tempo na issue #84"
+echo "RESTAURACAO OK em ${SEGUNDOS}s"

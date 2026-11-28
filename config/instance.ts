@@ -174,6 +174,26 @@ export const instance = parseInstanceConfig({
     districtNone: "Não sei ou prefiro não dizer",
     neighborhoodLabel: "Seu bairro (se quiser)",
     neighborhoodHint: "Só o nome do bairro. Não informe rua nem número. Pode deixar em branco.",
+    // Foto do perfil (#308). DESLIGADA por padrão: o Felipe liga junto com o termo v2 (#311), que cobre a foto.
+    photoEnabled: false,
+    photoTitle: "Sua foto (se quiser)",
+    photoRules: "Envie uma foto sua, de rosto, como as de documento (estilo 3x4). Não pode ser desenho, anime nem imagem feita por inteligência artificial.",
+    photoNotice:
+      "A foto serve para a coordenação e os colegas reconhecerem você pessoalmente. Só quem está logado e já faz parte vê. Guardamos só uma miniatura pequena, sem os dados escondidos da foto. Você pode trocar ou remover quando quiser. A foto é opcional.",
+    photoChoose: "Escolher a foto (JPEG, PNG ou WebP, até 2 MB)",
+    photoSend: "Enviar a foto",
+    photoReplaceHint: "Enviar outra foto troca a que está guardada.",
+    photoRemove: "Remover a minha foto",
+    photoAlt: "Sua foto de perfil",
+    photoStatus: {
+      ok: "Pronto! Sua foto foi guardada.",
+      removida: "Pronto! Sua foto foi removida.",
+      tipo: "Esse arquivo não serve. Envie uma foto em JPEG, PNG ou WebP.",
+      grande: "A foto é grande demais. Escolha uma de até 2 MB.",
+      ilegivel: "Não conseguimos abrir essa foto. Tente outra.",
+      limite: "Muitas tentativas seguidas. Tente de novo mais tarde.",
+      erro: "Não foi possível guardar agora. Tente de novo em alguns minutos.",
+    },
     backgroundTitle: "Formação e atividade (se quiser)",
     backgroundHint:
       "Ajuda a coordenação a encaixar você num eixo da casa e a achar quem pode ajudar. Só você e a coordenação do seu grupo veem. Tudo é opcional.",
@@ -353,6 +373,27 @@ export const instance = parseInstanceConfig({
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },
+  // Perfil público (#305, decisão de 28/11): foto, nome e medalhas, visível aos membros ativos; o dono escolhe quais medalhas e a ordem.
+  publicProfile: {
+    title: "Perfil",
+    badgesTitle: "Medalhas",
+    noBadges: "Esta pessoa não mostra medalhas.",
+    photoAlt: "Foto da pessoa",
+    unreadableName: "Nome indisponível",
+    backLink: "Voltar",
+    badgeKinds: { house: "Casa", totem: "Totem" },
+    prefs: {
+      homeLink: "Minhas medalhas",
+      title: "Minhas medalhas",
+      intro: "Escolha quais medalhas os outros membros veem no seu perfil e em que ordem. Número menor aparece primeiro.",
+      showLabel: "Mostrar no meu perfil",
+      orderLabel: "Posição",
+      saveButton: "Salvar medalhas",
+      saved: "Medalhas salvas.",
+      errors: { invalid: "Não entendi a escolha. Confira as posições e tente de novo.", forbidden: "Só quem está ativo escolhe as medalhas.", failed: "Não foi possível salvar agora. Tente de novo." },
+      backLink: "Voltar ao perfil",
+    },
+  },
   // Habilidades da pessoa (#15, decisão de 28/11): sem nível, até 10, o que ela faz no dia a dia; quem não acha a sua sugere uma e a
   // coordenação nacional aprova. `{max}`, `{count}` são trocados na tela.
   skills: {
@@ -382,7 +423,8 @@ export const instance = parseInstanceConfig({
       not_found: "Essa habilidade não está mais disponível. Recarregue a página.",
       too_many_open: "Você já tem 3 sugestões em análise. Espere a coordenação responder.",
       daily_limit: "Você já enviou muitas sugestões hoje. Tente amanhã.",
-      exists: "Essa habilidade já existe ou já foi sugerida por você.",
+      exists: "Essa habilidade já existe (talvez desativada) ou já foi sugerida por você.",
+      merge_invalid: "Mesclagem inválida: escolha outra habilidade, que esteja ativa.",
       failed: "Não foi possível agora. Tente de novo.",
     },
     queue: {
@@ -395,6 +437,29 @@ export const instance = parseInstanceConfig({
       rejectButton: "Rejeitar",
       decided: "Decisão registrada.",
       backLink: "Voltar para a coordenação",
+    },
+    // Gestão do catálogo pela coordenação nacional (#25).
+    catalog: {
+      menuLink: "Catálogo de habilidades",
+      title: "Catálogo de habilidades",
+      intro: "Crie, renomeie, mude de grupo, desative ou mescle habilidades. Quem já marcou uma habilidade a mantém: renomear não muda nada para a pessoa; desativar só tira a habilidade da busca e da escolha de quem ainda não a tem; mesclar passa quem tinha a repetida para a que fica. Tudo fica registrado.",
+      done: "Mudança registrada.",
+      createTitle: "Nova habilidade",
+      nameLabel: "Nome",
+      groupLabel: "Grupo",
+      groupHint: "Escolha um grupo da lista ou escreva um novo.",
+      createButton: "Criar habilidade",
+      renameGroupLabel: "Novo nome do grupo (muda todas as habilidades dele)",
+      renameGroupButton: "Renomear grupo",
+      renameButton: "Renomear",
+      moveButton: "Mudar de grupo",
+      mergeLabel: "Mesclar nesta habilidade (a repetida fica desativada)",
+      mergeChoose: "Escolha a que fica",
+      mergeButton: "Mesclar",
+      deactivateButton: "Desativar",
+      reactivateButton: "Reativar",
+      inactive: "desativada",
+      queueLink: "Ver as sugestões de habilidade",
     },
     // Busca de pessoas por habilidade (#23): só nome, turma, município e habilidades; contato é outra tela (#48).
     search: {

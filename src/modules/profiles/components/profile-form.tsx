@@ -114,6 +114,9 @@ export function ProfileForm({
 }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" } as ProfileFormState);
   const [values, setValues] = useState<ProfileFormValues>(initial);
+  // O que foi enviado no último envio (#349): a resposta com erro só devolve os valores do servidor se a pessoa não
+  // editou depois do envio. Com uma rede lenta ela continua digitando, e trocar o campo pelo texto enviado apagaria a edição.
+  const [sent, setSent] = useState<ProfileFormValues | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const addLinkRef = useRef<HTMLButtonElement>(null);
   // Para onde vai o foco depois de pôr ou tirar um link: a caixa nova, ou o botão de acrescentar.
@@ -121,12 +124,12 @@ export function ProfileForm({
   const [editingNeighborhood, setEditingNeighborhood] = useState(!neighborhoodUnreadable);
   const [linkFocus, setLinkFocus] = useState<{ target: number | "add" } | null>(null);
 
-  // Depois de cada resposta com erro: volta o que a pessoa digitou e leva o foco para o resumo.
+  // Depois de cada resposta com erro: volta o que o servidor recebeu (se a pessoa não mexeu desde o envio) e leva o foco para o resumo.
   // (Ajuste durante o render: é o padrão do React para estado derivado de uma resposta.)
   const [answered, setAnswered] = useState(state);
   if (answered !== state) {
     setAnswered(state);
-    if (state.status !== "idle") setValues(state.values);
+    if (state.status !== "idle" && (sent === null || JSON.stringify(sent) === JSON.stringify(values))) setValues(state.values);
   }
   useEffect(() => {
     if (state.status !== "idle") summaryRef.current?.focus();
@@ -177,6 +180,7 @@ export function ProfileForm({
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
+        setSent(values);
         startTransition(() => formAction(data));
       }}
       noValidate

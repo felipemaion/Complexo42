@@ -7,11 +7,12 @@ import { sessionHouseClient } from "@/modules/houses";
 import { listMunicipalities, listSearchSkills, listTeams, maxSearchSkills, parseSearchParams, searchPeople, searchQueryString, SkillSearchPicker } from "@/modules/skills";
 import { requireUserClient } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
+import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.skills.search.title };
 
-const field = "min-h-12 w-full rounded-xl border-2 border-field bg-transparent px-3 text-lg";
-const button = "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
+const field = fieldClass();
+const button = buttonClass("secondary", "lg");
 
 // Busca de pessoas por habilidade (#23): o gestor, principalmente o nacional, acha quem tem as habilidades (todas ou
 // qualquer uma), por UF e equipe, só dentro do escopo dele (o banco decide). Filtros na URL. A lista mostra nome, equipe,
@@ -45,19 +46,19 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
   const { after, ...kept } = filters;
   void after;
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.title}</h1>
-      <p className="text-lg">{text.intro}</p>
-      <form method="get" className="flex flex-col gap-4">
+    <PageShell width="wide">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.title}</h1>
+      <p className="max-w-prose text-lg text-ink-muted">{text.intro}</p>
+      <form method="get" className={cardClass()}>
         <SkillSearchPicker skills={catalog} selected={filters.skillIds} max={maxSearchSkills} text={{ skillLabel: text.skillLabel, removeSkill: text.removeSkill }} />
         <fieldset className="flex flex-col gap-2">
           <legend className="text-lg font-semibold">{text.modeLabel}</legend>
           <label className="flex min-h-12 items-center gap-3 text-lg">
-            <input type="radio" name="modo" value="todas" defaultChecked={filters.mode === "all"} className="h-6 w-6" />
+            <input type="radio" name="modo" value="todas" defaultChecked={filters.mode === "all"} className="size-6 accent-primary" />
             {text.modeAll}
           </label>
           <label className="flex min-h-12 items-center gap-3 text-lg">
-            <input type="radio" name="modo" value="qualquer" defaultChecked={filters.mode === "any"} className="h-6 w-6" />
+            <input type="radio" name="modo" value="qualquer" defaultChecked={filters.mode === "any"} className="size-6 accent-primary" />
             {text.modeAny}
           </label>
         </fieldset>
@@ -78,7 +79,7 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
             </select>
           </label>
         ) : (
-          <p className="text-base">{text.municipalityHint}</p>
+          <p className="text-base text-ink-muted">{text.municipalityHint}</p>
         )}
         <label className="flex flex-col gap-1 text-lg font-semibold">
           {text.teamFilterLabel}
@@ -92,26 +93,30 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
           </select>
         </label>
         <label className="flex min-h-12 items-center gap-3 text-lg">
-          <input type="checkbox" name="sem" value="1" defaultChecked={filters.noTeam === true} className="h-6 w-6" />
+          <input type="checkbox" name="sem" value="1" defaultChecked={filters.noTeam === true} className="size-6 accent-primary" />
           {text.noTeamLabel}
         </label>
-        <button type="submit" className={button}>
+        <button type="submit" className={buttonClass("primary", "lg")}>
           {text.submitButton}
         </button>
       </form>
       {result === null && <p className="text-lg">{text.choose}</p>}
       {result && !result.ok && (
-        <p role="alert" className="rounded-xl border-2 border-danger p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {text.errors[result.error]}
         </p>
       )}
       {result?.ok && result.people.length === 0 && <p className="text-lg">{text.noResults}</p>}
       {result?.ok && result.people.length > 0 && (
         <>
-          <ul className="flex flex-col gap-3">
+          <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {result.people.map((person) => (
-              <li key={person.id} className="flex flex-col gap-2 rounded-xl border-2 border-current p-4" data-testid="person-result" data-person-id={person.id}>
-                <p className="text-xl font-semibold">{person.name ?? text.unreadableName}</p>
+              <li key={person.id} className={`${cardClass()} gap-2`} data-testid="person-result" data-person-id={person.id}>
+                <p className="text-xl font-semibold">
+                  <Link href={`/pessoas/${person.id}`} className={textLinkClass()}>
+                    {person.name ?? text.unreadableName}
+                  </Link>
+                </p>
                 <p className="text-lg">
                   {[person.municipality, person.state].filter(Boolean).join(" / ")} · {text.teamLabel}: {person.team ?? text.noTeam}
                 </p>
@@ -123,7 +128,7 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
                     </span>
                   ))}
                 </p>
-                <p className="text-base">{text.inCommon.replace("{count}", String(person.commonCount))}</p>
+                <p className="text-base text-ink-muted">{text.inCommon.replace("{count}", String(person.commonCount))}</p>
               </li>
             ))}
           </ul>
@@ -134,9 +139,9 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
           )}
         </>
       )}
-      <Link href={COORDINATION_PATH} className="text-center text-lg underline">
+      <Link href={COORDINATION_PATH} className={`${textLinkClass()} self-center`}>
         {text.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

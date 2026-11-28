@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 11;
+export const exportFormatVersion = 12;
 
 const timestamp = z.string().min(1);
 
@@ -52,6 +52,10 @@ export const ownDataRowsSchema = z.object({
       updated_at: timestamp,
     })
     .nullable(),
+  /** Miniatura da foto (#308), cifrada (base64 do WebP); nulo se nunca enviou. */
+  profile_photo: z.object({ photo_enc: z.string(), updated_at: timestamp }).nullable(),
+  /** Medalhas do perfil público (#305): tipo, posição e se aparece. Vazio se a pessoa nunca escolheu (vale o padrão). */
+  badge_prefs: z.array(z.object({ badge_kind: z.string(), position: z.number().int(), shown: z.boolean() })).default([]),
   /** Formação e atividade profissional (#304), cifradas; nulo se nunca informou. */
   background: z
     .object({
@@ -182,6 +186,8 @@ export type OwnDataExport = {
     atualizadoEm: string;
   } | null;
   contato: { whatsapp: string | null; redesSociais: string[] | null; atualizadoEm: string } | null;
+  /** A miniatura da foto (#308) em base64 (WebP), para a pessoa ter a imagem; nulo se nunca enviou. */
+  foto: { formato: "image/webp"; dadosBase64: string | null; atualizadoEm: string } | null;
   /** Formação e atividade (#304); nulo se nunca informou. O nível é a chave da lista (ex.: `college_complete`). */
   formacaoEAtividade: {
     nivelDeFormacao: string | null;
@@ -202,6 +208,7 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  medalhasDoPerfil: { tipo: string; posicao: number; aparece: boolean }[];
   habilidades: { nome: string; grupo: string }[];
   sugestoesDeHabilidade: { nome: string; estado: string; sugeridaEm: string; decididaEm: string | null }[];
   /** Casa sugerida e totem (ADR 0014). O totem é interno: só aparece neste arquivo. */
@@ -330,6 +337,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
   const p = rows.profile;
   const c = rows.contact;
   const b = rows.background;
+  const ph = rows.profile_photo;
   const houseName = (key: string | null) => (key === null ? null : (input.houseNames[key] ?? key));
   let links: string[] | null = null;
   if (c?.social_links_enc) {
@@ -368,6 +376,11 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       whatsapp: await open(c.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
       redesSociais: links,
       atualizadoEm: c.updated_at,
+    },
+    foto: ph && {
+      formato: "image/webp",
+      dadosBase64: await open(ph.photo_enc, "profile_photos", "photo_enc"),
+      atualizadoEm: ph.updated_at,
     },
     formacaoEAtividade: b && {
       nivelDeFormacao: await open(b.education_level_enc, "profile_background", "education_level_enc"),
@@ -419,6 +432,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     ),
     termosDeConsentimento: rows.consent_acceptances.map((c) => ({ versao: c.version, aceitoEm: c.accepted_at })),
     termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),
+    medalhasDoPerfil: rows.badge_prefs.map((b) => ({ tipo: b.badge_kind, posicao: b.position, aparece: b.shown })),
     habilidades: rows.skills.map((s) => ({ nome: s.name, grupo: s.category })),
     sugestoesDeHabilidade: rows.skill_suggestions.map((q) => ({ nome: q.name, estado: q.status, sugeridaEm: q.created_at, decididaEm: q.decided_at })),
     papeis: rows.roles.map((r) => ({

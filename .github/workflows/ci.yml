@@ -180,6 +180,9 @@ jobs:
           if [ "$(cat "$RUNNER_TEMP/build.exit" 2>/dev/null)" != 0 ]; then
             tail -50 "$RUNNER_TEMP/build.log"; exit 1
           fi
+      # O `age` do backup (#84): só o caso normal faz backup e restauração.
+      - if: matrix.reverter == ''
+        run: sudo apt-get install -y --no-install-recommends age
       - name: Monta o staging e percorre o caminho inteiro
         env:
           STAGING_IMAGEM: complexo42:staging
@@ -212,11 +215,12 @@ jobs:
           npm audit --omit=dev --json > "$RUNNER_TEMP/audit.json" || true
           node scripts/audit-gate.mjs "$RUNNER_TEMP/audit.json" security/npm-audit-exceptions.json | tee -a "$GITHUB_STEP_SUMMARY"
 
-  # Semgrep (#153), SÓ EM RELATÓRIO até a triagem do ruído inicial: não reprova o build. Regras
-  # p/typescript e p/nextjs do registro público, sem conta e sem métricas. Imagem fixada por digest.
-  # Supressão, quando houver, é na linha (`nosemgrep: <regra>` com o motivo), nunca a regra inteira.
+  # Semgrep (#153): regras p/typescript e p/nextjs do registro público, sem conta e sem métricas, por
+  # imagem fixada por digest. Reprova achado ERROR (scripts/semgrep-gate.py); WARNING e INFO só
+  # relatam. A triagem inicial deu zero achados em 328 arquivos. Supressão é na linha
+  # (`nosemgrep: <regra> -- motivo`), nunca a regra inteira.
   semgrep:
-    name: Código (Semgrep, relatório)
+    name: Código (Semgrep)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -224,24 +228,13 @@ jobs:
         with: { persist-credentials: false }
       - name: Semgrep p/typescript + p/nextjs
         run: |
+          set -euo pipefail
           docker run --rm -v "$PWD:/src" -w /src \
             semgrep/semgrep:1.184.0@sha256:cc1b68266f267878b39739373ea9985b9a78e5d64497dd875c8de100b22695ed \
             semgrep scan --config p/typescript --config p/nextjs --metrics=off --disable-version-check \
               --json --output semgrep.json --quiet
-          set -o pipefail
-          python3 - <<'RESUMO' | tee -a "$GITHUB_STEP_SUMMARY"
-          import json
-          saida = json.load(open("semgrep.json"))
-          achados, varridos = saida["results"], saida["paths"]["scanned"]
-          # Zero arquivos varridos não é "zero achados": é não ter medido. Isso reprova.
-          if not varridos:
-              raise SystemExit("ERRO: o Semgrep não varreu nenhum arquivo")
-          print(f"### Semgrep (relatório, não reprova): {len(achados)} achado(s) em {len(varridos)} arquivo(s)")
-          if achados:
-              print("| regra | severidade | arquivo:linha |\n|---|---|---|")
-              for r in achados:
-                  print(f"| {r['check_id'].split('.')[-1]} | {r['extra']['severity']} | {r['path']}:{r['start']['line']} |")
-          RESUMO
+          bash scripts/semgrep-gate.test.sh
+          python3 scripts/semgrep-gate.py semgrep.json | tee -a "$GITHUB_STEP_SUMMARY"
 
   database:
     name: Banco (migrations + testes de RLS)

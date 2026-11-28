@@ -76,9 +76,14 @@ instalado (`..._estrutura_instancia.sql`, idempotente, sem sobrescrever o que o 
   config. Casa nova na config = migration nova;
 - o catálogo **provisório** de habilidades (47, até o stakeholder aprovar; trocar = migration nova).
 
+- os **27 estados** (UF, slug em minúsculas e nome fixos, filhos da raiz; #365), com o vínculo de quem já estava ativo
+  sem estado (`app.attach_active_members_to_state()`, que grava a contagem em `audit_log`). **Sem a unidade do estado
+  ninguém ganha vínculo e a coordenação não lê o nome de outra pessoa** (`can_view_profile` exige um vínculo aberto
+  no escopo de quem lê): a lista de resultados mostrava "sem nome" para todos, menos para a própria coordenação.
+
 Sem isso o banco fica sem raiz e o bootstrap da primeira coordenação recusa ("a instância não tem
-unidade raiz"). A árvore **abaixo** da raiz (estados, regiões, equipes) depende da instalação: no
-ambiente local vem do seed; no servidor, o operador a cria (`insert` em `public.units`; o trigger calcula o `path`).
+unidade raiz"). A árvore **abaixo dos estados** (regiões e equipes) depende da instalação: no ambiente local vem do
+seed; no servidor, o operador a cria (`insert` em `public.units`; o trigger calcula o `path`).
 
 Trocar a **chave** de uma casa (como em 2026-11, de `casa-exemplo-N` para os ids reais) é por
 migration (`app.rename_house_key`): ela leva junto vínculos, papéis, resultados e o log de auditoria
@@ -449,7 +454,7 @@ processo com o **nome** da variável no log, nunca o valor.
 | `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra**: o app recusa subir. Exigência reposta junto com a anterior |
 | `QUESTIONNAIRE_PATH` | **obrigatória em produção** (#313); caminho, dentro do container, do JSON real do questionário (ex.: `/app/questionario/questionnaire.json`, da pasta `./questionario` montada só leitura). Sem ela o app **recusa subir**: antes servia em silêncio o exemplo fictício, com a chave de exemplo |
 | `FIELD_ENCRYPTION_KEY_VERSION`, `FIELD_ENCRYPTION_PREVIOUS_KEYS` | rotação de chave (ADR 0003 §5); vazio é o normal |
-| `QUESTIONNAIRE_SIGNING_KEY` | assina o resultado do questionário (ADR 0014). **Ausente no staging** em 2026-11-28 |
+| `QUESTIONNAIRE_SIGNING_KEY` | **obrigatória em produção** (#290); assina o resultado do questionário (ADR 0014). Sem ela o resultado não grava, e o app **recusa subir**. No staging desde 2026-11-28 (`secrets/env` e `app.server_secrets`, as duas pontas); o `gen-secrets.sh` a gera para todo ambiente novo |
 
 > **As duas primeiras ficaram 9 dias no `secrets/env` sem chegar ao container.**
 > O `gen-secrets.sh` as gerava, o `env.example` as documentava, e o
@@ -494,11 +499,11 @@ processo com o **nome** da variável no log, nunca o valor.
 >
 > **O `QUESTIONNAIRE_SIGNING_KEY` foi gerado e instalado no `secrets/env` do
 > staging em 2026-11-28**, junto com a mesma chave em `app.server_secrets`
-> (ADR 0014 exige as duas pontas). Ele segue repassado pelo compose e tolerado
-> vazio, de propósito: sem ele o questionário falha ao gravar o resultado, mas
-> o resto do app funciona, e exigi-lo na subida trocaria uma tela quebrada
-> pelo ambiente inteiro fora — produção é outro ambiente, com o seu próprio
-> `secrets/env`.
+> (ADR 0014 exige as duas pontas), e **entrou nas obrigatórias** (#290) quando a
+> produção ainda não existia: o `gen-secrets.sh` a gera para todo ambiente novo,
+> então não há ambiente que a exigência derrube. O app recusa subir sem ela, e a
+> guarda do deploy (`obrigatorias-em-producao.txt`) confere que o compose do
+> servidor a repassa.
 
 `GET /api/healthz` responde `{status, version, db, schema, terms}` com
 `Cache-Control: no-store`, e dá **200 só quando as três sondas passam**:
@@ -720,18 +725,26 @@ Diretórios com modo 700, arquivos 600.
 > Backup que nunca foi restaurado não conta.
 
 ```bash
-./deploy/restore-test.sh <arquivo.age> <chave-privada>
+INITDB_DIR=<dir do deploy>/initdb REGISTRO=<dir do deploy>/data/logs/backup.log \
+  MINIMOS="perfis=<n> unidades=1 casas=<n> papeis=1 municipios=5000" \
+  ./deploy/restore-test.sh <arquivo.age> <chave-privada>
 ```
 
-Sobe um Postgres descartável com a **mesma imagem** do ambiente, decifra,
-restaura, imprime as contagens de controle (perfis, unidades, vínculos, papéis,
-municípios) e o **tempo em segundos**, e apaga o container no fim. Não toca o
-banco do ambiente.
+Sobe um Postgres descartável com a **mesma imagem** e o **mesmo `initdb`** do ambiente (sem os papéis
+do `initdb`, o `pg_restore` para na primeira política `to authenticated`), decifra, restaura, mede o
+**tempo** e confere as contagens de controle (perfis, unidades, vínculos de unidade e de casa, papéis,
+municípios). **Reprova** se alguma vier abaixo do `MINIMOS`: banco restaurado vazio não é restauração
+ok. Use mínimos um pouco abaixo dos números de produção. O resultado, o tempo e as contagens (só
+números) vão numa linha do `REGISTRO`, e o container é apagado no fim. Não toca o banco do ambiente.
 
-A chave privada entra só durante o teste e sai com quem a trouxe: o script não
-a copia nem a imprime. No servidor, apague a cópia temporária ao terminar.
+A chave privada entra só durante o teste e sai com quem a trouxe: o script não a copia nem a
+imprime. No servidor, apague a cópia temporária ao terminar.
 
-Rodar **antes do primeiro dado real** e **todo mês**, anotando o tempo na #84.
+**Quando:** antes do primeiro dado real e **todo mês**, com o backup remoto (`--do-remoto`, abaixo),
+pelos mantenedores que guardam a chave. É manual de propósito: automatizar no servidor exigiria a
+chave privada lá, e quem cifra não pode decifrar (ADR 0003 §7); mudar isso pede ADR. Quem prova os
+**scripts** a cada PR é o job "Staging de mentira" do CI, que faz backup e restauração com um par
+`age` descartável e exige que um mínimo impossível reprove.
 
 ### Restaurar em produção: reaplicar as exclusões de conta (#18)
 
@@ -741,6 +754,16 @@ restaurar, guarde os ids:
 
 ```sql
 select distinct target_id from public.audit_log where event = 'account_deleted';
+```
+
+**Restaurar** (app parado, banco num volume novo, que já nasce com o `initdb`): o mesmo comando que o
+`restore-test.sh` roda e o CI prova a cada PR, com donos e privilégios. Sem `--clean --if-exists`, o
+`pg_restore` para no `create schema auth` que o `initdb` já fez.
+
+```bash
+age -d -i <chave-privada> <arquivo.age> \
+  | docker compose -f docker-compose.supabase.yml --env-file <segredos> exec -T db \
+      pg_restore -U supabase_admin -d postgres --clean --if-exists --exit-on-error
 ```
 
 Depois de restaurar, como `supabase_admin` (o `postgres` deve ser NOLOGIN; veja "Senhas por papel"), apague cada id da lista
@@ -886,8 +909,8 @@ systemctl list-timers complexo42-backup.timer   # confere o próximo disparo
 journalctl -u complexo42-backup.service -n 50   # confere a última execução
 ```
 
-Falha gera alerta pela #85; para isso cada script sai com código ≠ 0 em
-qualquer erro.
+Falha gera alerta pelo vigia (abaixo): ele avisa quando o `.age` mais novo passa de 26 h. Cada script
+sai com código ≠ 0 em qualquer erro, para o `journalctl` mostrar a causa.
 
 #### 6. Testar a restauração a partir do Drive
 
@@ -900,6 +923,122 @@ bom; só o `--do-remoto` prova que a cópia fora da VPS existe, chegou inteira e
 pode ser recuperada — ele baixa o `.age` mais novo do Drive, restaura num
 Postgres descartável e apaga o que baixou no fim.
 
+
+## Vigia e alertas (#85)
+
+Dois olhos, porque o servidor não consegue avisar que caiu:
+
+- **De fora**, o monitor de uptime (passo do Felipe, abaixo) consulta o `/api/healthz` de cada ambiente
+  a cada 5 min. Um workflow diário do GitHub (`.github/workflows/vigia-externo.yml`, PR de workflow #367, merge do
+  Felipe) confere de novo o healthz e o certificado: é o reforço, e pega também o vigia do servidor ter parado.
+- **De dentro**, o `deploy/vigia.sh` roda a cada 5 min e mede: disco ≥ 80% (`/`, a raiz de dados do
+  Docker e `data/logs`), memória de cada container ≥ 90% do `mem_limit`, container `unhealthy` ou
+  reiniciando, backup mais novo com mais de 26 h e certificado a menos de 15 dias. Não conseguir medir
+  (Docker fora) também alerta.
+
+**Sem alerta falso:** só na 2ª medição ruim seguida; um e-mail na transição (ALERTA, RESOLVIDO) e um
+LEMBRETE a cada 6 h se o problema continuar. Nunca um e-mail a cada 5 minutos. Tudo vai também para o
+registro (`/var/log/complexo42-vigia/<ambiente>.log`) e para o `journalctl`.
+
+O e-mail sai pelo **mesmo relay SMTP do GoTrue** (as `SMTP_*` do ambiente), por `curl`, com a senha em
+arquivo temporário em `/run` (nunca em argumento). **Com `ALERTA_PARA` vazio, nada é enviado**: o vigia só
+registra. Dá para instalar antes de o remetente existir.
+
+Roda com **usuário próprio**, não como root: o `complexo42-vigia`, no grupo `docker` (para o `docker ps`
+e o `docker stats`), lendo um arquivo **só com as `SMTP_*`**, nunca o `secrets/env` inteiro. O estado, o
+log e o arquivo temporário da senha ficam nos diretórios que o systemd cria para ele; o da senha em
+`/run` (memória), que funciona mesmo com o disco cheio, que é justamente o caso a pegar.
+
+```bash
+# uma vez, e a cada mudança do script: cópia à mão, como root
+sudo install -m 0755 deploy/vigia.sh /opt/complexo42/vigia.sh
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin --groups docker complexo42-vigia
+# só as SMTP_* do ambiente, legíveis só pelo vigia
+sudo sh -c 'umask 077; grep "^SMTP_" <dir do deploy>/secrets/env > /etc/complexo42/vigia-<ambiente>.smtp'
+sudo chown complexo42-vigia: /etc/complexo42/vigia-<ambiente>.smtp
+# a pasta dos backups é 700 do root: o vigia só precisa LISTAR (data dos .age), não ler
+sudo setfacl -m u:complexo42-vigia:rx <dir dos backups> <dir dos backups>/diario
+```
+
+```ini
+# /etc/complexo42/vigia-<ambiente>.conf  (root:root, 644: não tem segredo)
+AMBIENTE=<ambiente>
+ESTADO_DIR=/var/lib/complexo42-vigia/<ambiente>
+REGISTRO=/var/log/complexo42-vigia/<ambiente>.log
+ENV_FILE=/etc/complexo42/vigia-<ambiente>.smtp
+DISCOS=/ /var/lib/docker <dir do deploy>/data/logs
+PROJETOS=<projeto do Supabase> <projeto do app>
+BACKUP_DIR=<dir dos backups>        # vazio: não confere (staging sem backup)
+CERT_HOST=<domínio do ambiente>
+ALERTA_DE=                          # o remetente verificado no relay (passo do Felipe)
+ALERTA_PARA=                        # vazio: só registra; vários separados por vírgula
+```
+
+```ini
+# /etc/systemd/system/complexo42-vigia@.service
+[Unit]
+Description=Vigia do Complexo42 (%i)
+[Service]
+Type=oneshot
+User=complexo42-vigia
+Group=complexo42-vigia
+SupplementaryGroups=docker
+EnvironmentFile=/etc/complexo42/vigia-%i.conf
+StateDirectory=complexo42-vigia/%i
+LogsDirectory=complexo42-vigia
+RuntimeDirectory=complexo42-vigia-%i
+ExecStart=/opt/complexo42/vigia.sh
+
+# /etc/systemd/system/complexo42-vigia@.timer
+[Unit]
+Description=Vigia do Complexo42 a cada 5 min (%i)
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+[Install]
+WantedBy=timers.target
+```
+
+```bash
+sudo systemctl enable --now complexo42-vigia@<ambiente>.timer
+journalctl -u complexo42-vigia@<ambiente> -n 20    # o que ele viu (também com o disco cheio)
+```
+
+Com o disco cheio, o vigia **não fica mudo**: sem estado gravável, alerta já na 1ª medição ruim; o log
+e o estado falham sem abortar (o estado é gravado por arquivo novo + `mv`, nunca truncado no lugar), e
+tudo sai também no `journalctl`. A troca da senha do relay pede regravar o `.smtp`.
+
+**Rotação dos logs** (pedido da revisão do #103): o `app.log` e o `backup.log` crescem sem limite. No host:
+
+```
+# /etc/logrotate.d/complexo42-<ambiente>
+<dir do deploy>/data/logs/*.log /var/log/complexo42-vigia/*.log {
+  weekly
+  rotate 8
+  compress
+  missingok
+  notifempty
+  copytruncate
+}
+```
+
+### Passos do Felipe (nada disso está feito)
+
+1. **Monitor de uptime:** criar a conta grátis no UptimeRobot (sem cartão) e dois monitores HTTP, um
+   por ambiente, em `https://<ambiente>/api/healthz`, a cada 5 min, alertando os mantenedores por
+   e-mail. Anotar o link da página de status **no runbook privado**: ele leva ao endereço do servidor,
+   que não entra neste repositório.
+2. **Remetente:** verificar no relay SMTP um endereço de alerta do domínio (ex.: `alertas@…`) e pôr em
+   `ALERTA_DE`; os destinatários vão em `ALERTA_PARA`.
+3. **Vigia externo:** cadastrar o segredo `VIGIA_URLS` no repositório (origens separadas por espaço).
+   Sem ele, o workflow diário só avisa que não há nada a conferir.
+
+### Teste (Oracle, no staging)
+
+Derrubar o app (`docker compose … stop app`) e cronometrar: o monitor externo tem de alertar **em até
+10 min** (2 falhas seguidas de 5 min). Subir de novo e conferir o aviso de volta. Para o vigia do host,
+encher um disco de teste não é preciso: o `deploy/vigia.test.sh` prova a lógica no CI. No servidor, basta
+conferir no `journalctl -u complexo42-vigia@<ambiente>` que ele registra as medições e que, com `ALERTA_PARA` preenchido, o e-mail chega.
 
 ## Deploy do app (#81)
 
@@ -1026,6 +1165,7 @@ deploy de reescrever o que ele mesmo executa.
 | `/opt/complexo42/bootstrap-coordenacao.sh` e `email-hmac.mjs` | `deploy/` (mesmos nomes) | **cópia à mão, como root** (só no bootstrap, #295) |
 | `/opt/complexo42/questionario-banco.sh` | `deploy/questionario-banco.sh` | **cópia à mão, como root** (#319) |
 | `/opt/complexo42/criar-conta.sh` | `deploy/criar-conta.sh` | **cópia à mão, como root** (#332) |
+| `/opt/complexo42/vigia.sh` | `deploy/vigia.sh` | **cópia à mão, como root** (#85) |
 
 E estes **só existem no servidor** — não têm origem no repositório, então para
 eles a pergunta "está igual à `main`?" não faz sentido:
@@ -1041,12 +1181,12 @@ eles a pergunta "está igual à `main`?" não faz sentido:
 em silêncio: no dia em que um PR tocar um desses scripts, o número aqui passa
 a estar errado — e número errado numa conferência é pior que nenhum. O comando
 abaixo calcula o esperado a partir da `main` e diz **qual** dos dois lados está
-atrasado. **Cobre os seis** scripts de operador: um que ficasse fora da lista
+atrasado. **Cobre os sete** scripts de operador: um que ficasse fora da lista
 seria conferido por ninguém, que é exatamente como a cópia velha do `migra.sh`
 sobreviveu a três PRs.
 
 ```sh
-for f in deploy.sh migra.sh bootstrap-coordenacao.sh email-hmac.mjs questionario-banco.sh criar-conta.sh; do
+for f in deploy.sh migra.sh bootstrap-coordenacao.sh email-hmac.mjs questionario-banco.sh criar-conta.sh vigia.sh; do
   inst=$(sudo md5sum "/opt/complexo42/$f" | cut -c1-12)
   main=$(curl -fsSL "https://raw.githubusercontent.com/felipemaion/Complexo42/main/deploy/$f" | md5sum | cut -c1-12)
   [ "$inst" = "$main" ] && e=ok || e="DESATUALIZADO"
@@ -1058,10 +1198,10 @@ done
 > vazia em vez de dizer o que houve. Num servidor que nunca precisou do
 > bootstrap, `bootstrap-coordenacao.sh` e `email-hmac.mjs` **não existem** — e
 > isso é legítimo. Ler "sem resposta" como "ok" é o erro a evitar: confira se as
-> seis linhas saíram.
+> sete linhas saíram.
 
 O modo não é o mesmo para todos: `deploy.sh`, `migra.sh`,
-`bootstrap-coordenacao.sh`, `questionario-banco.sh` e `criar-conta.sh` são `0755` (executados); `email-hmac.mjs` é `0644`
+`bootstrap-coordenacao.sh`, `questionario-banco.sh`, `criar-conta.sh` e `vigia.sh` são `0755` (executados); `email-hmac.mjs` é `0644`
 (lido pelo `node -e` dentro do container do app, nunca executado no host).
 
 **Isto já custou caro.** O PR que fez o `migra.sh` avisar o PostgREST para

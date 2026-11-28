@@ -5,6 +5,7 @@ import { instance } from "@config/instance";
 import { AllowlistAddEmailForm, AllowlistUploadForm, COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { requireUserClient } from "@/server/auth/session";
 import { addAllowlistEmailAction, importAllowlistAction } from "./actions";
+import { cardClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.coordination.allowlist.title };
 
@@ -16,15 +17,22 @@ export default async function AllowlistUploadPage() {
   if (!(await readCoordinationMenu(client, user.id)).allowlist) redirect(COORDINATION_PATH);
   const text = instance.coordination;
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.allowlist.title}</h1>
-      <p className="text-lg">{text.allowlist.intro}</p>
-      <p className="text-lg">{text.allowlist.privacyNote}</p>
-      <AllowlistAddEmailForm action={addAllowlistEmailAction} text={text.allowlist.addEmail} />
-      <AllowlistUploadForm action={importAllowlistAction} text={text.allowlist} />
-      <Link href={COORDINATION_PATH} className="text-center text-lg underline">
+    <PageShell width="content">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.allowlist.title}</h1>
+      <p className="max-w-prose text-lg text-ink-muted">{text.allowlist.intro}</p>
+      <p className={noticeClass("info")}>{text.allowlist.privacyNote}</p>
+      {/* Um e-mail ou a lista inteira: lado a lado no computador (#324). */}
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+        <div className={cardClass()}>
+          <AllowlistAddEmailForm action={addAllowlistEmailAction} text={text.allowlist.addEmail} />
+        </div>
+        <div className={cardClass()}>
+          <AllowlistUploadForm action={importAllowlistAction} text={text.allowlist} />
+        </div>
+      </div>
+      <Link href={COORDINATION_PATH} className={`${textLinkClass()} self-center`}>
         {text.backLink}
       </Link>
-    </main>
+    </PageShell>
   );
 }

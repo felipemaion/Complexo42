@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import { states } from "@config/states";
-import { formatBrazilianWhatsapp, listDistricts, listMunicipalitiesByState, loadOwnProfile, needsFullNameNotice, ProfileForm } from "@/modules/profiles";
+import { formatBrazilianWhatsapp, listDistricts, listMunicipalitiesByState, hasOwnPhoto, loadOwnProfile, needsFullNameNotice, parsePhotoStatus, PHOTO_STATUS_PARAM, PhotoSection, ProfileForm } from "@/modules/profiles";
 import { usesGoogleSignIn } from "@/server/auth/password-flows";
 import { requireUserClient } from "@/server/auth/session";
 import { setPasswordAction } from "../senha/actions";
@@ -14,7 +14,9 @@ export const metadata: Metadata = { title: instance.profile.title };
 
 // Formulário do perfil (#12): criar ou mudar nome, WhatsApp e localização. O texto da própria
 // pessoa só é decifrado aqui, no servidor, para preencher os campos.
-export default async function ProfilePage() {
+type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+export default async function ProfilePage({ searchParams }: Props) {
   const { user, client } = await requireUserClient();
   const own = await loadOwnProfile(client, user.id);
   // Quem já tem perfil abre o formulário com as listas da própria cidade; quem começa, vazias.
@@ -22,6 +24,9 @@ export default async function ProfilePage() {
     ? await Promise.all([listMunicipalitiesByState(client, own.stateCode), listDistricts(client, own.municipalityCode)])
     : [[], []];
   const text = instance.profile;
+  const photoStatus = parsePhotoStatus((await searchParams)[PHOTO_STATUS_PARAM]);
+  // Foto (#308): só consulta se a chave estiver ligada (desligada por padrão).
+  const hasPhoto = text.photoEnabled && own !== null ? await hasOwnPhoto(client, user.id) : false;
   // Senha opcional (ADR 0018): só para quem não entra pelo Google; a troca e a remoção ficam em /senha.
   const { data: authUser } = await client.auth.getUser();
   const offerPassword = !usesGoogleSignIn(authUser.user);
@@ -59,6 +64,7 @@ export default async function ProfilePage() {
         text={text}
       />
       </div>
+      {own && <PhotoSection enabled={text.photoEnabled} profileId={user.id} hasPhoto={hasPhoto} status={photoStatus} text={text} />}
       {offerPassword && (
         <section aria-labelledby="criar-senha" className={cardClass()}>
           <h2 id="criar-senha" className="text-2xl font-bold">

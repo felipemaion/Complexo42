@@ -13,6 +13,7 @@ import {
   type MemberBlockState,
 } from "../domain/member-block";
 import type { MemberBlockAction, MemberBlockReason } from "../types";
+import { buttonClass, fieldClass, noticeClass } from "@/modules/ui";
 
 export type MemberBlockText = {
   emailLabel: string;
@@ -35,9 +36,8 @@ type Props = {
   text: MemberBlockText;
 };
 
-const big =
-  "block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2";
-const field = "w-full rounded-lg border-2 border-current px-4 py-3 text-lg";
+const big = buttonClass("secondary", "lg");
+const field = fieldClass();
 
 export function MemberBlockForm({ action, text }: Props) {
   const [state, formAction, pending] = useActionState(action, { status: "idle" });
@@ -53,7 +53,7 @@ export function MemberBlockForm({ action, text }: Props) {
         <input type="hidden" name={MEMBER_BLOCK_FIELDS.email} value={email} />
         <input type="hidden" name={MEMBER_BLOCK_FIELDS.action} value={wordOf(requested)} />
         <input type="hidden" name={MEMBER_BLOCK_FIELDS.reason} value={reason ?? ""} />
-        <button type="submit" name={MEMBER_BLOCK_FIELDS.step} value="confirmar" disabled={pending} className={`${big} bg-neutral-900 text-white`}>
+        <button type="submit" name={MEMBER_BLOCK_FIELDS.step} value="confirmar" disabled={pending} className={buttonClass("danger", "lg")}>
           {text.confirmButton[requested]}
         </button>
         <button type="submit" name={MEMBER_BLOCK_FIELDS.step} value="cancelar" disabled={pending} className={big}>
@@ -66,12 +66,12 @@ export function MemberBlockForm({ action, text }: Props) {
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {state.status === "done" && (
-        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg" data-testid="member-block-done">
+        <p role="status" className={noticeClass("success")} data-testid="member-block-done">
           {text.done[state.action]}
         </p>
       )}
       {state.status === "error" && (
-        <p role="alert" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="alert" className={noticeClass("error")}>
           {text.errors[state.error]}
         </p>
       )}
@@ -83,7 +83,7 @@ export function MemberBlockForm({ action, text }: Props) {
         <legend className="font-semibold">{text.actionLabel}</legend>
         {(["block", "unblock"] as const).map((option) => (
           <label key={option} className="flex items-center gap-3">
-            <input type="radio" name={MEMBER_BLOCK_FIELDS.action} value={wordOf(option)} defaultChecked={option === "block"} className="h-6 w-6" />
+            <input type="radio" name={MEMBER_BLOCK_FIELDS.action} value={wordOf(option)} defaultChecked={option === "block"} className="size-6 accent-primary" />
             {text.actions[option]}
           </label>
         ))}
