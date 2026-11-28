@@ -37,6 +37,9 @@ services:
       # widget DESTE ambiente, criadas no painel da Cloudflare (docs/OPERACAO.md).
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?obrigatorio}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?obrigatorio}
+      # CSP (#152): "1" só avisa no console do navegador, para a estreia no
+      # staging; vazio (padrão) bloqueia. Não deixe "1" em produção (docs/OPERACAO.md).
+      CSP_REPORT_ONLY: ${CSP_REPORT_ONLY:-}
     # Sistema de arquivos só leitura; gravável apenas /tmp (memória) e os logs.
     read_only: true
     tmpfs: [/tmp]
