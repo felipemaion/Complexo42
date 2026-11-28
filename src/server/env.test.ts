@@ -17,6 +17,8 @@ const AUTH_MISSING = [
   "SITE_URL: obrigatória em produção",
   "TURNSTILE_SITE_KEY: obrigatória em produção",
   "TURNSTILE_SECRET_KEY: obrigatória em produção",
+  "FIELD_ENCRYPTION_KEY: obrigatória em produção",
+  "BLIND_INDEX_KEY: obrigatória em produção",
 ];
 
 describe("parseEnv", () => {
@@ -66,19 +68,25 @@ describe("chaves de criptografia (#45)", () => {
     return result.ok ? [] : result.problems;
   };
 
-  // O contrato voltou a "opcionais na subida" em 2026-11-28, depois de a versão
-  // exigente derrubar o staging: a imagem chegou pelo deploy e o compose do
-  // SERVIDOR, que é cópia instalada, não repassava as chaves. A exigência volta
-  // quando o compose do servidor as repassar -- a ordem de operações importa
-  // mais que a regra. Este teste guarda o estado de HOJE, não o desejado.
-  it("são opcionais na subida POR ORA: produção sem as chaves sobe", () => {
+  // Contrato exigente, reposto em 2026-11-28 depois de o compose do SERVIDOR
+  // passar a repassar as duas chaves (conferido dentro do container). Não existe
+  // app útil sem elas -- a checagem de acesso cifra, então SEM CHAVE NINGUÉM
+  // ENTRA. Opcional na subida produziu um staging que subia saudável, respondia
+  // 200 no /api/healthz e recusava todo login com `missing_key`. Recusar subir é
+  // mais honesto que servir um app em que só o login está quebrado.
+  //
+  // A ida e volta do #283/#285 foi ordem de operações, não dúvida sobre a regra:
+  // antes de voltar a exigir, o ambiente precisa ter o que a exigência pede.
+  it("produção SEM as chaves de cifra não sobe: sem chave ninguém entra", () => {
     const semCifra = Object.fromEntries(
       Object.entries(prod).filter(([k]) => k !== "FIELD_ENCRYPTION_KEY" && k !== "BLIND_INDEX_KEY"),
     );
-    expect(parseEnv(semCifra).ok).toBe(true);
+    const problems = fail(semCifra);
+    expect(problems).toContain("FIELD_ENCRYPTION_KEY: obrigatória em produção");
+    expect(problems).toContain("BLIND_INDEX_KEY: obrigatória em produção");
   });
 
-  it("e fora de produção também: desenvolvimento sobe sem elas", () => {
+  it("e fora de produção seguem opcionais: desenvolvimento sobe sem elas", () => {
     expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
   });
 

@@ -395,8 +395,8 @@ processo com o **nome** da variável no log, nunca o valor.
 | `DB_HEALTH_URL` | obrigatória em produção; no servidor, `http://rest:3001/ready` (admin do PostgREST) |
 | `HEALTH_TIMEOUT_MS` | tempo máximo de **cada** sonda do healthz (padrão 2000; as duas correm em paralelo) |
 | `LOG_DIR` | onde fica o `app.log` (padrão `data/logs`) |
-| `FIELD_ENCRYPTION_KEY` | **obrigatória em produção**; cifra de campo (ADR 0003). Sem ela **ninguém entra**. A exigência está **desarmada** (#285) até o compose do servidor repassar a chave |
-| `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra**. Exigência **desarmada** (#285), como a anterior |
+| `FIELD_ENCRYPTION_KEY` | **obrigatória em produção**; cifra de campo (ADR 0003). Sem ela **ninguém entra**: o app recusa subir. Exigência reposta em 2026-11-28, depois de o compose do servidor repassar a chave |
+| `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra**: o app recusa subir. Exigência reposta junto com a anterior |
 | `FIELD_ENCRYPTION_KEY_VERSION`, `FIELD_ENCRYPTION_PREVIOUS_KEYS` | rotação de chave (ADR 0003 §5); vazio é o normal |
 | `QUESTIONNAIRE_SIGNING_KEY` | assina o resultado do questionário (ADR 0014). **Ausente no staging** em 2026-11-28 |
 
