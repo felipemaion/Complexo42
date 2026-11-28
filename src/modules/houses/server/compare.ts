@@ -49,7 +49,7 @@ export type AverageView = { status: "ok"; scores: { house1: number; house2: numb
 
 export type HouseComparison =
   | { ok: true; expectations: { text: string; answer: Answer }[]; average: AverageView }
-  | { ok: false; error: "failed" | "rate_limited" };
+  | { ok: false; error: "failed" | "rate_limited" | "expired" };
 
 // ---------------------------------------------------------------------------------------
 // Média
@@ -121,6 +121,8 @@ export async function compareHouse(client: HouseClient, input: unknown, ctx: Com
   if (!parsed.success) return { ok: false, error: "failed" };
   const basis = await openCompareBasis(parsed.data.token, ctx.userId, ctx.nowSeconds, ctx.tokenSeconds, ctx.decrypt);
   if (!basis) return { ok: false, error: "failed" };
+  // Vencido: a tela pede para recarregar; não gasta o limite nem consulta o banco.
+  if (basis.kind === "expired") return { ok: false, error: "expired" };
   if (!ctx.limiter.allow(ctx.userId, ctx.nowSeconds)) return { ok: false, error: "rate_limited" };
   // Com respostas guardadas, a expectativa é por pergunta; sem elas, a frase geral do eixo (#268).
   const found =

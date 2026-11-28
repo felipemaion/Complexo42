@@ -14,6 +14,8 @@ const tokenBody = z.union([
 
 /** Sobre o que a comparação se apoia: as respostas (expectativa por pergunta) ou, sem elas, as notas dos eixos da casa. */
 export type CompareBasis = { kind: "answers"; answers: Answers } | { kind: "scores"; scores: { house1: number; house2: number } };
+/** Token legítimo (desta pessoa, íntegro) mas vencido: a tela pede para recarregar. */
+export type ExpiredBasis = { kind: "expired" };
 
 type Encrypt = (plaintext: string, context: CipherContext) => Promise<string>;
 type Decrypt = (value: string, context: CipherContext) => Promise<string>;
@@ -29,10 +31,11 @@ export async function sealScoresToken(scores: { house1: number; house2: number }
 }
 
 /** Abre o token: a base da comparação, ou null se não é desta pessoa, foi adulterado, tem formato errado ou venceu. */
-export async function openCompareBasis(token: string, userId: string, nowSeconds: number, tokenSeconds: number, decrypt: Decrypt): Promise<CompareBasis | null> {
+export async function openCompareBasis(token: string, userId: string, nowSeconds: number, tokenSeconds: number, decrypt: Decrypt): Promise<CompareBasis | ExpiredBasis | null> {
   try {
     const body = tokenBody.parse(JSON.parse(await decrypt(token, tokenContext(userId))));
-    if (nowSeconds - body.t > tokenSeconds || nowSeconds - body.t < -30) return null;
+    if (nowSeconds - body.t < -30) return null;
+    if (nowSeconds - body.t > tokenSeconds) return { kind: "expired" };
     return "a" in body ? { kind: "answers", answers: body.a } : { kind: "scores", scores: body.s };
   } catch {
     return null;

@@ -176,7 +176,7 @@ describe("compareHouse", () => {
     const { client, ctx } = setup(members(3), { tokenSeconds: 1800 });
     const token = await tokenFor("u-1", 1000);
     expect(await compareHouse(client, { houseId: "casa-a", token }, { ...ctx, nowSeconds: 1000 + 1799 })).toMatchObject({ ok: true });
-    expect(await compareHouse(client, { houseId: "casa-a", token }, { ...ctx, nowSeconds: 1000 + 1801 })).toEqual({ ok: false, error: "failed" });
+    expect(await compareHouse(client, { houseId: "casa-a", token }, { ...ctx, nowSeconds: 1000 + 1801 })).toEqual({ ok: false, error: "expired" });
   });
 
   it("o token sela só as respostas e nunca o id em claro: o conteúdo é cifrado para a pessoa", async () => {
@@ -255,7 +255,7 @@ describe("compareHouse com o token de notas (sem respostas guardadas, #268)", ()
 
   it("token vencido ou com nota fora do intervalo é recusado", async () => {
     const { client, ctx } = setup(members(3));
-    expect(await compareHouse(client, { houseId: "casa-a", token: await scoresToken("u-1", -900) }, ctx)).toEqual({ ok: false, error: "failed" });
+    expect(await compareHouse(client, { houseId: "casa-a", token: await scoresToken("u-1", -900) }, ctx)).toEqual({ ok: false, error: "expired" });
     const bad = await sealScoresToken({ house1: 900, house2: 0, totem1: 0, totem2: 0 }, "u-1", 1000, encrypt);
     expect(await compareHouse(client, { houseId: "casa-a", token: bad }, ctx)).toEqual({ ok: false, error: "failed" });
   });

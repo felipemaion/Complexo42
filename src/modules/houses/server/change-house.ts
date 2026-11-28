@@ -17,7 +17,11 @@ export type ChangeHouseContext = {
   nowSeconds: number;
   encrypt(plaintext: string, context: CipherContext): Promise<string>;
   decrypt(value: string, context: CipherContext): Promise<string>;
+  /** Só o CÓDIGO do motivo quando o resultado não pôde ser lido (nunca mensagem, id nem valor): vira log no servidor. */
+  onFailure?(reason: ChangeHouseFailure): void;
 };
+
+export type ChangeHouseFailure = "read_failed" | "result_unreadable";
 
 /** Vazio quando não há resultado legível: a tela mostra só as casas, sem gráfico nem expectativas. */
 export type ChangeHouseView = { suggestedId?: string; chart?: ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string };
@@ -42,12 +46,20 @@ export async function loadChangeHouse(client: HouseClient, ctx: ChangeHouseConte
   let scores: z.infer<typeof scoresSchema>;
   try {
     const { data, error } = await client.from("questionnaire_results").select("house_key, scores_enc").eq("profile_id", ctx.userId).maybeSingle();
-    if (error) return {};
+    if (error) {
+      ctx.onFailure?.("read_failed");
+      return {};
+    }
     const row = resultRow.parse(data);
-    if (!row || !ctx.houseIds.includes(row.house_key)) return {};
+    if (!row) return {};
+    if (!ctx.houseIds.includes(row.house_key)) {
+      ctx.onFailure?.("result_unreadable");
+      return {};
+    }
     suggestedId = row.house_key;
     scores = scoresSchema.parse(JSON.parse(await ctx.decrypt(row.scores_enc, scoresContext(ctx.userId))));
   } catch {
+    ctx.onFailure?.("result_unreadable");
     return {};
   }
   const answers = await savedAnswers(client, ctx);

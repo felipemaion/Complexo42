@@ -2,6 +2,7 @@
 // roda no servidor (a página); nunca recebe nada do navegador além da sessão.
 import "server-only";
 import { instance } from "@config/instance";
+import { log } from "@/server/log";
 import { decryptField, encryptField } from "@/server/crypto";
 import { loadChangeHouse, type ChangeHouseView } from "./change-house";
 import { getQuestionnaire } from "./questionnaire";
@@ -16,8 +17,11 @@ export async function readChangeHouse(client: HouseClient, userId: string): Prom
       nowSeconds: Math.floor(Date.now() / 1000),
       encrypt: encryptField,
       decrypt: decryptField,
+      // Só o código do motivo (R11): nada da pessoa, da casa nem do valor no log.
+      onFailure: (reason) => log.warn("change_house_unreadable", { reason }),
     });
   } catch {
+    log.warn("change_house_failed", {});
     // Sem chave de cifra ou erro inesperado: a tela abre só com as casas, sem comparação.
     return {};
   }
