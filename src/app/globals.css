@@ -23,12 +23,15 @@
   --c-field: #6b7584;
   --c-primary: var(--brand-primary);
   --c-on-primary: #ffffff;
-  --c-link: var(--brand-primary);
+  /* Tons da marca para traço e texto sobre o fundo (círculos da escala, polos do gráfico): no claro, a
+     secundária escurecida chega a 4,5:1; no escuro, a primária clareada. */
+  --c-primary-ink: var(--brand-primary);
+  --c-secondary-ink: color-mix(in oklab, var(--brand-secondary) 65%, black);
+  --c-link: var(--c-primary-ink);
   --c-focus: var(--brand-primary);
-  /* Nomes antigos, ainda usados como var(--color-primary) e var(--color-secondary) nas telas que os próximos
-     PRs da #324 migram (questionário, casa, coordenação). Saem quando a lista de tests/design-tokens.test.ts zerar. */
+  /* Nome antigo, ainda usado como var(--color-primary) nas telas que os próximos PRs da #324 migram
+     (perfil, coordenação). Sai quando a lista de tests/design-tokens.test.ts zerar. */
   --color-primary: var(--c-primary);
-  --color-secondary: var(--brand-secondary);
 
   --c-danger: #a4251c;
   --c-danger-soft: #fdecea;
@@ -47,8 +50,9 @@
     --c-ink-muted: #aab3c1;
     --c-line: #2d3440;
     --c-field: #7f8898;
-    /* A marca escura não contrasta com o fundo escuro: links e foco usam um tom claro dela. */
-    --c-link: color-mix(in oklab, var(--brand-primary) 40%, white);
+    /* A marca escura não contrasta com o fundo escuro: links, foco e traços usam um tom claro dela. */
+    --c-primary-ink: color-mix(in oklab, var(--brand-primary) 40%, white);
+    --c-secondary-ink: var(--brand-secondary);
     --c-focus: var(--brand-secondary);
 
     --c-danger: #ff9b92;
@@ -70,6 +74,8 @@
   --color-field: var(--c-field);
   --color-primary: var(--c-primary);
   --color-on-primary: var(--c-on-primary);
+  --color-primary-ink: var(--c-primary-ink);
+  --color-secondary-ink: var(--c-secondary-ink);
   --color-link: var(--c-link);
   --color-focus: var(--c-focus);
   --color-danger: var(--c-danger);
