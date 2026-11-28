@@ -16,3 +16,9 @@ export function totemLabel(config: QuestionnaireConfig, code: string | null): st
   const label = config.totemLabels[code];
   return label ? `${label.name} (${code})` : code;
 }
+
+/** Só o nome do totem (alt da medalha); código sem nome no mapa vira o código, e sem totem, vazio. */
+export function totemName(config: QuestionnaireConfig, code: string | null): string {
+  if (code === null || code === "") return "";
+  return config.totemLabels[code]?.name ?? code;
+}

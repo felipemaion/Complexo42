@@ -69,6 +69,13 @@ test.describe("login", () => {
     await expect(page).toHaveURL(/\/entrar\?next=%2Finicio$/);
   });
 
+  test("as medalhas dos totens (/totens/) exigem login, ao contrário dos escudos (/casas/)", async ({ request }) => {
+    const medal = await request.get("/totens/pr-128.png", { maxRedirects: 0 });
+    expect(medal.status()).toBe(307);
+    expect(new URL(medal.headers()["location"]!, "http://origem.invalid").pathname).toBe("/entrar");
+    expect((await request.get("/casas/app-logo-128.png", { maxRedirects: 0 })).status()).toBe(200);
+  });
+
   test("negado por padrão: rota desconhecida sem sessão também vai para /entrar", async ({ page }) => {
     await page.goto("/rota-que-nao-existe");
     await expect(page).toHaveURL(/\/entrar\?next=/);
