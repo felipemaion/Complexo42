@@ -8,7 +8,7 @@ import type { InstanceConfig } from "@/modules/instance";
 import { answerValues, type ChartAxis, type HouseByPoles } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { compareHouseAction } from "../server/actions";
-import { HouseShield } from "./house-shield";
+import { CompareHouseGrid } from "./compare-grid";
 import type { HouseView } from "./house-presentation";
 
 type Text = InstanceConfig["houseSelection"];
@@ -42,7 +42,6 @@ type Props = {
 const big = "min-h-14 w-full rounded-xl border-2 border-current px-5 py-3 text-left text-lg font-semibold";
 const primary =
   "min-h-14 w-full rounded-xl bg-[var(--color-primary)] px-5 py-3 text-lg font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40";
-const colorOf = (color: HouseView["color"]) => `light-dark(${color.light}, ${color.dark})`;
 
 export function CompareHouses({ houses, suggestedId, currentId, selectedId, chart, byPoles, compareToken, text, disabled, onSelect, onConfirm, onBack }: Readonly<Props>) {
   const t = text.compare;
@@ -79,39 +78,13 @@ export function CompareHouses({ houses, suggestedId, currentId, selectedId, char
       </button>
       <h2 className="text-2xl font-bold">{t.title}</h2>
       <p className="text-lg">{t.intro}</p>
-      <ul className="flex flex-col gap-3">
-        {houses.map((house) => {
-          const isSelected = house.id === selectedId;
-          return (
-            <li key={house.id}>
-              <button
-                type="button"
-                className="flex w-full items-start gap-4 rounded-xl border-2 px-4 py-3 text-left"
-                style={{ borderColor: colorOf(house.color), borderWidth: isSelected ? 4 : 2 }}
-                aria-pressed={isSelected}
-                data-testid={`compare-house-${house.id}`}
-                data-suggested={house.id === suggestedId ? "true" : undefined}
-                onClick={() => onSelect(house.id)}
-                disabled={disabled}
-              >
-                <HouseShield houseId={house.id} name={house.name} size={64} />
-                <span className="flex flex-col gap-1">
-                  <span className="text-xl font-bold">{house.name}</span>
-                  {house.id === currentId && <span className="text-base font-semibold" data-testid="current-badge">{t.currentBadge}</span>}
-                  {house.id === suggestedId && <span className="text-base font-semibold" data-testid="suggested-badge">{t.suggestedBadge}</span>}
-                  {isSelected && <span className="text-base font-semibold">{t.selectedBadge}</span>}
-                  <span className="text-lg font-normal">{house.description}</span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+      <CompareHouseGrid houses={houses} suggestedId={suggestedId} currentId={currentId} selectedId={selectedId} text={t} disabled={disabled} onSelect={onSelect} />
       {selected && (
         <section className="flex flex-col gap-4" aria-labelledby="compare-detail-title" data-testid="compare-detail">
           <h3 id="compare-detail-title" className="text-xl font-bold">
             {selected.name}
           </h3>
+          <p className="text-lg" data-testid="compare-description">{selected.description}</p>
           {comparison.status === "loading" && <p role="status" className="text-lg">{t.loading}</p>}
           {chart && chart.length > 0 && (
             <div className="flex flex-col gap-2">
