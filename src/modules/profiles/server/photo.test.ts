@@ -2,7 +2,7 @@
 // decifra com o JWT de quem pede (a RLS decide); remove a própria. O banco é testado em
 // supabase/tests/profile_photo.test.sql.
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { decryptWith, encryptWith, type FieldContext } from "@/server/crypto/field";
 import { importKeyring } from "@/server/crypto/keys";
 import { createLogger } from "@/server/log";
@@ -61,9 +61,9 @@ describe("savePhoto", () => {
     const { client, calls } = fakeClient();
     const { deps: d, lines } = deps();
     expect(await savePhoto(client, USER, await jpeg(), d)).toEqual({ status: "saved" });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.fn).toBe("save_own_photo");
-    const enc = calls[0]!.args.p_photo_enc as string;
+    // Primeiro reserva a cota (antes do sharp), depois grava.
+    expect(calls.map((call) => call.fn)).toEqual(["reserve_photo_upload", "save_own_photo"]);
+    const enc = calls[1]!.args.p_photo_enc as string;
     const plain = await d.decrypt(enc, { table: "profile_photos", column: "photo_enc", rowId: USER });
     const webp = Buffer.from(plain, "base64");
     expect((await sharp(webp).metadata()).format).toBe("webp");
@@ -81,11 +81,20 @@ describe("savePhoto", () => {
     expect(calls).toEqual([]);
   });
 
-  it("imagem quebrada: unreadable", async () => {
+  it("imagem quebrada: unreadable, mas JÁ consumiu a cota (não grava nada)", async () => {
     const { client, calls } = fakeClient();
     const broken = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("lixo")]);
     expect(await savePhoto(client, USER, broken, deps().deps)).toEqual({ status: "unreadable" });
-    expect(calls).toEqual([]);
+    expect(calls.map((call) => call.fn)).toEqual(["reserve_photo_upload"]);
+  });
+
+  it("cota esgotada: recusa ANTES de converter (o sharp nem é chamado)", async () => {
+    const { client, calls } = fakeClient({ rpcError: { code: "PT429", message: "too_many_attempts" } });
+    const thumbnail = vi.spyOn(await import("./photo-image"), "makePhotoThumbnail");
+    expect(await savePhoto(client, USER, await jpeg(), deps().deps)).toEqual({ status: "too_many_attempts" });
+    expect(thumbnail).not.toHaveBeenCalled();
+    expect(calls.map((call) => call.fn)).toEqual(["reserve_photo_upload"]);
+    thumbnail.mockRestore();
   });
 
   it.each([

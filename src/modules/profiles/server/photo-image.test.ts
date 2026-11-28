@@ -91,6 +91,29 @@ describe("makePhotoThumbnail", () => {
     expect((await sharp(result.webp).metadata()).orientation).toBeUndefined();
   });
 
+  it("WebP animado: usa só o primeiro quadro, e a saída é estática (nada de pilha de quadros)", async () => {
+    const frame = (background: string) => sharp({ create: { width: 300, height: 400, channels: 3, background } }).png().toBuffer();
+    const animated = await sharp([await frame("#ff0000"), await frame("#0000ff"), await frame("#00ff00")], { join: { animated: true } })
+      .webp({ loop: 0, delay: [100, 100, 100] })
+      .toBuffer();
+    // A entrada de fato é animada (senão o teste não provaria nada).
+    expect((await sharp(animated, { animated: true }).metadata()).pages).toBe(3);
+
+    const result = await makePhotoThumbnail(animated);
+    if (!result.ok) throw new Error(result.reason);
+    const meta = await sharp(result.webp, { animated: true }).metadata();
+    expect(meta.pages ?? 1).toBe(1);
+    expect([meta.width, meta.height]).toEqual([photoLimits.width, photoLimits.height]);
+    const { data, info } = await sharp(result.webp).raw().toBuffer({ resolveWithObject: true });
+    const center = (info.height / 2 * info.width + info.width / 2) * info.channels;
+    expect(data[center]).toBeGreaterThan(data[center + 2]!); // primeiro quadro: vermelho
+  });
+
+  it("GIF (animado ou não) não é aceito: o tipo é recusado pelos bytes", async () => {
+    const gif = await sharp({ create: { width: 10, height: 10, channels: 3, background: "#fff" } }).gif().toBuffer();
+    expect(await makePhotoThumbnail(gif)).toEqual({ ok: false, reason: "type" });
+  });
+
   it("recusa o que não é JPEG, PNG ou WebP, mesmo com nome ou tipo enganoso", async () => {
     for (const input of [Buffer.from("<script>alert(1)</script>"), Buffer.from("GIF89a......"), Buffer.alloc(0), Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>")]) {
       expect(await makePhotoThumbnail(input)).toEqual({ ok: false, reason: "type" });

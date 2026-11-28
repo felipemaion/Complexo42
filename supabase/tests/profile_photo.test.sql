@@ -5,7 +5,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(24);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -98,12 +98,16 @@ select is((select count(*)::int from public.profile_photos), 0, 'a linha sumiu')
 -- Limite: 10 envios por hora por pessoa (PT429)
 select pg_temp.login('00000000-0000-0000-0000-0000000000e4');
 select lives_ok(
-  $$ select public.save_own_photo(pg_temp.enc('n' || n)) from generate_series(1, 10) as n $$,
-  '10 envios na mesma hora passam'
+  $$ select public.reserve_photo_upload() from generate_series(1, 10) as n $$,
+  '10 reservas de envio na mesma hora passam'
 );
 select throws_ok(
-  $$ select public.save_own_photo(pg_temp.enc('onze')) $$,
-  'PT429', 'too_many_attempts', 'o 11º envio na hora é recusado'
+  $$ select public.reserve_photo_upload() $$,
+  'PT429', 'too_many_attempts', 'a 11ª reserva na hora é recusada (antes de qualquer conversão)'
+);
+select lives_ok(
+  $$ select public.save_own_photo(pg_temp.enc('depois')) $$,
+  'gravar não consome cota: quem já reservou grava mesmo com a cota cheia'
 );
 
 -- Anônimo
@@ -116,6 +120,10 @@ select throws_ok(
 select throws_ok(
   $$ select public.save_own_photo('v1.AAAAAAAAAAAAAAAA.xxxxxxxxxxxxxxxxxxxxxx') $$,
   '42501', null, 'anônimo NÃO grava'
+);
+select throws_ok(
+  $$ select public.reserve_photo_upload() $$,
+  '42501', null, 'anônimo NÃO reserva envio'
 );
 
 -- Exclusão da conta: a foto vai junto (cascata)
