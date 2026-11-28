@@ -26,7 +26,7 @@
 #   CERT_HOST     domínio do certificado (vazio: não confere)  CERT_DIAS (15)
 #   ENV_FILE      arquivo só com as SMTP_* (não o secrets/env)  ALERTA_DE, ALERTA_PARA (vírgulas)
 #   LEMBRETE_HORAS (6)
-# Saídas: 0 rodou (com ou sem alerta), 2 configuração faltando.
+# Saídas: 0 rodou (com ou sem alerta), 2 configuração faltando ou inválida (comentário no fim da linha).
 set -euo pipefail
 umask 077
 { set +x; } 2> /dev/null
@@ -46,6 +46,18 @@ LEMBRETE_HORAS=${LEMBRETE_HORAS:-6}
 ALERTA_DE=${ALERTA_DE:-}
 ALERTA_PARA=${ALERTA_PARA:-}
 ENV_FILE=${ENV_FILE:-}
+# O EnvironmentFile do systemd NÃO corta comentário no fim da linha (`ALERTA_PARA=  # vazio...` vira o
+# valor "# vazio..."), e o vigia mandaria e-mail para lixo (#371). Então: nenhum valor com `#`, e os de um
+# valor só, sem espaço. DISCOS e PROJETOS são listas por espaço. Recusar é sair 2: o timer fica em falha,
+# visível no `systemctl` e no journal, em vez de alertar para endereço inventado.
+invalida=
+for v in AMBIENTE ESTADO_DIR REGISTRO DISCOS PROJETOS BACKUP_DIR CERT_HOST ENV_FILE ALERTA_DE ALERTA_PARA \
+         DISCO_LIMITE MEM_LIMITE BACKUP_MAX_HORAS CERT_DIAS LEMBRETE_HORAS; do
+  case "${!v}" in *'#'*) invalida="$invalida $v" ; continue ;; esac
+  case "$v" in DISCOS|PROJETOS) continue ;; esac
+  case "${!v}" in *[[:space:]]*) invalida="$invalida $v" ;; esac
+done
+[ -z "$invalida" ] || { echo "configuração inválida (comentário ou espaço no valor):$invalida" >&2; exit 2; }
 # Relógio injetável só para o teste; em produção, o de sempre.
 AGORA=${VIGIA_AGORA:-$(date +%s)}
 

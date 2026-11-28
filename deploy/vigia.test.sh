@@ -161,5 +161,36 @@ echo 40 > "$BASE/uso-_dados"; roda
 # --- configuração faltando: sai 2 -----------------------------------------------------------
 ( unset AMBIENTE; bash "$SCRIPT" > /dev/null 2>&1; [ $? = 2 ] ); verifica "sem AMBIENTE: sai 2" $?
 
+# --- comentário no fim da linha (#371): o EnvironmentFile do systemd o deixa no valor -----------
+# Lê o .conf como o systemd lê (KEY=valor, o valor inteiro depois do "=", sem os espaços do começo).
+conf_como_systemd() {
+  local linha chave valor
+  while IFS= read -r linha; do
+    case "$linha" in ''|'#'*) continue ;; esac
+    chave=${linha%%=*}; valor=${linha#*=}; valor=${valor#"${valor%%[![:space:]]*}"}
+    printf '%s\0%s\0' "$chave" "$valor"
+  done < "$1"
+}
+roda_com_conf() { # roda_com_conf <arquivo .conf>: o vigia só com o que o arquivo define
+  local -a env=(); local k v
+  while IFS= read -r -d '' k && IFS= read -r -d '' v; do env+=("$k=$v"); done < <(conf_como_systemd "$1")
+  env -i PATH="$PATH" STUB="$STUB" "${env[@]}" bash "$SCRIPT" > "$BASE/saida-conf" 2>&1; RC=$?
+}
+printf 'AMBIENTE=teste\nESTADO_DIR=%s\nREGISTRO=%s\nALERTA_DE=                 # o remetente\nALERTA_PARA=               # vazio: só registra\n' \
+  "$BASE/estado" "$BASE/vigia.log" > "$BASE/com-comentario.conf"
+: > "$BASE/emails"
+roda_com_conf "$BASE/com-comentario.conf"
+{ [ "$RC" = 2 ] && grep -q 'ALERTA_DE ALERTA_PARA' "$BASE/saida-conf" && [ ! -s "$BASE/emails" ]; }
+verifica "comentário no fim da linha do .conf: sai 2, nomeia ALERTA_DE e ALERTA_PARA, não envia" $?
+printf 'AMBIENTE=teste\nESTADO_DIR=%s\nREGISTRO=%s\nCERT_HOST=site.exemplo.org outro\n' "$BASE/estado" "$BASE/vigia.log" > "$BASE/com-espaco.conf"
+roda_com_conf "$BASE/com-espaco.conf"; { [ "$RC" = 2 ] && grep -q 'CERT_HOST' "$BASE/saida-conf"; }
+verifica "valor único com espaço: sai 2" $?
+printf '# comentário em linha própria\nAMBIENTE=teste\nESTADO_DIR=%s\nREGISTRO=%s\nDISCOS=/ /dados\nALERTA_PARA=\n' "$BASE/estado" "$BASE/vigia.log" > "$BASE/limpo.conf"
+roda_com_conf "$BASE/limpo.conf"; [ "$RC" = 0 ]; verifica "comentário em linha própria e DISCOS com espaço: roda" $?
+# O modelo do docs/OPERACAO.md não pode ter comentário no fim de linha (é ele que se copia).
+modelo=$(awk '/^# \/etc\/complexo42\/vigia-<ambiente>\.conf/{f=1;next} f&&/^```/{exit} f' "$AQUI/../docs/OPERACAO.md")
+{ [ -n "$modelo" ] && ! printf '%s\n' "$modelo" | grep -E '^[A-Z_]+=.*#' ; } > /dev/null
+verifica "modelo do .conf no OPERACAO.md sem comentário no fim da linha" $?
+
 printf '\n%s acertos, %s falhas\n' "$acertos" "$falhas"
 [ "$falhas" = 0 ]
