@@ -491,16 +491,28 @@ processo com o **nome** da variável no log, nunca o valor.
 > pelo ambiente inteiro fora — produção é outro ambiente, com o seu próprio
 > `secrets/env`.
 
-`GET /api/healthz` responde `{status, version, db, schema}` com
-`Cache-Control: no-store`, e dá **200 só quando as duas sondas passam**:
+`GET /api/healthz` responde `{status, version, db, schema, terms}` com
+`Cache-Control: no-store`, e dá **200 só quando as três sondas passam**:
 
 | Campo | Sonda | O que prova |
 |---|---|---|
 | `db` | `DB_HEALTH_URL` (`rest:3001/ready`) | o processo do PostgREST está de pé |
 | `schema` | `SUPABASE_URL` + `/rest/v1/profiles?select=id&limit=1`, com a chave anon | a **API de dados conhece o esquema de hoje** |
+| `terms` | `SUPABASE_URL` + `/rest/v1/rpc/term_versions_check`, com a chave anon | o banco **tem as versões do termo da config** (#222): a do termo do questionário em `app.questionnaire_term_versions` e a do termo geral igual a `app.current_consent_version()` |
 
-Qualquer estado diferente de `ok` nas duas dá 503 (`degraded`). O motivo da
+Qualquer estado diferente de `ok` nas três dá 503 (`degraded`). O motivo da
 falha (`timeout`, `network`, `http_error`) vai só para o log.
+
+> **`terms` (#222).** Em 2026-11-28 o staging subiu com a tabela de versões do termo vazia e o
+> aceite do termo do questionário era recusado em silêncio (`questionnaire_consent_refused`).
+> `public.term_versions_check(versão do questionário, versão do termo geral)` só lê e devolve
+> `ok`, `questionnaire_missing` ou `consent_mismatch`; o corpo do healthz mostra só `ok` ou
+> `degraded`, nunca a versão, e o motivo vai ao log (`healthz_terms_missing`). O conserto é
+> inserir a versão por migration (ou, numa versão nova do termo geral, redefinir
+> `app.current_consent_version()`). A tabela segue sem acesso pela API; a função é executável por
+> `anon` porque o healthz roda sem login. Sem o arquivo do questionário legível, `terms` fica
+> degradado. **Checklist de deploy:** versão nova do termo do questionário = migration com a versão
+> **antes** da imagem; o healthz acusa se esquecer.
 
 > **Por que duas sondas, e não uma.** Elas falham por motivos diferentes, e a
 > primeira não vê a falha da segunda. O `/ready` responde **200 com o cache de

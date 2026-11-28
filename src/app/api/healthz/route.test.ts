@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
+// O arquivo real do questionário só existe no servidor; aqui só importa a versão do termo dele (#222).
+vi.mock("@/modules/houses/server/questionnaire", () => ({ getQuestionnaire: () => ({ consentTermVersion: "termo-teste" }) }));
 vi.mock("@/server/log", () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 afterEach(() => {
@@ -26,7 +28,7 @@ function setup(fetchImpl: (url: string) => Promise<Response>) {
   vi.stubEnv("QUESTIONNAIRE_PATH", "/app/questionario/questionnaire.json");
   vi.stubEnv("TURNSTILE_SITE_KEY", `0x${"a".repeat(22)}`);
   vi.stubEnv("TURNSTILE_SECRET_KEY", `0x${"b".repeat(33)}`);
-  vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => (url.includes("/rpc/term_versions_check") ? new Response(JSON.stringify("ok")) : fetchImpl(url, init as RequestInit))));
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("/rpc/term_versions_check") ? new Response(JSON.stringify("ok")) : fetchImpl(url))));
 }
 
 /**
