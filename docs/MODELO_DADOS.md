@@ -560,7 +560,7 @@ coordenação nacional o leem. Sem caractere de controle nem invisível (`\p{Cc}
 Fica no lugar da opção "outra". A pessoa sugere por `suggest_skill(nome)`: no máximo **3 abertas** e **5 em
 24 horas** (de qualquer estado, para rejeitar não liberar sugestão sem fim) e nunca um nome que já exista
 (`C7702`, `C7703`, `C7704`). **Só a coordenação nacional decide**, por `decide_skill_suggestion(id, aprovar,
-grupo)`: aprovar cria a habilidade (ou usa a de mesmo nome), a marca para quem sugeriu se ainda couber no
+grupo)`: aprovar usa a habilidade **ativa** de mesmo nome ou com o nome como sinônimo (a que recebeu uma mesclagem ou renomeação), senão cria, e a marca para quem sugeriu se ainda couber no
 limite e grava `skill_suggestion_decided` no `audit_log` (ator e alvo, sem o texto); se casar com uma habilidade desativada, a reativa (`skill_reactivated` no `audit_log`). Há um índice único no nome normalizado de `skills`. A fila mostra nome e data,
 sem quem sugeriu.
 
