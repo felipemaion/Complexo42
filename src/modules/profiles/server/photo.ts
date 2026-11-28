@@ -33,7 +33,8 @@ export type SavePhotoResult = {
 
 /**
  * Converte, cifra e grava a foto de `userId` (quem está logado; o banco confere de novo com
- * `auth.uid()`). O limite de 10 envios por hora é do banco (`PT429` vira `too_many_attempts`).
+ * `auth.uid()`). O limite de 10 envios por hora é do banco e se paga ANTES de converter (`PT429` vira
+ * `too_many_attempts`).
  */
 export async function savePhoto(
   client: ProfileDbClient,
@@ -43,8 +44,16 @@ export async function savePhoto(
 ): Promise<SavePhotoResult> {
   const rowId = uuid.parse(userId);
   if (bytes.length > photoLimits.maxUploadBytes) return { status: "too_large" };
+  // Barato e sem CPU: o tipo vem dos primeiros bytes. O que não é JPEG/PNG/WebP nem consome cota.
+  if (detectPhotoType(bytes) === null) return { status: "invalid_type" };
+
+  // A cota é reservada ANTES do sharp: imagem pesada ou quebrada gasta CPU na conversão, então tem de
+  // consumir a cota mesmo sem chegar a gravar (`reserve_photo_upload`: 10 por hora, PT429).
+  const reserved = await client.rpc("reserve_photo_upload");
+  if (reserved.error) return photoRpcFailure(reserved.error, deps);
+
   const thumbnail = await makePhotoThumbnail(bytes);
-  if (!thumbnail.ok) return { status: thumbnail.reason === "type" ? "invalid_type" : "unreadable" };
+  if (!thumbnail.ok) return { status: "unreadable" };
 
   let photoEnc: string;
   try {
@@ -56,6 +65,11 @@ export async function savePhoto(
 
   const { error } = await client.rpc("save_own_photo", { p_photo_enc: photoEnc });
   if (!error) return { status: "saved" };
+  return photoRpcFailure(error, deps);
+}
+
+/** Erro do banco (reserva ou gravação) vira o resultado da tela; só o código vai ao log (R11). */
+function photoRpcFailure(error: unknown, deps: PhotoDeps): SavePhotoResult {
   const code = errorCode(error);
   if (code === "PT429") {
     deps.log.warn("photo_save_rate_limited", { reason: code });

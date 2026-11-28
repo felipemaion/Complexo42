@@ -23,9 +23,10 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: securityHeaders.map((header) => ({ ...header })) }];
   },
   // Foto do perfil (#308): o sharp carrega o binario da plataforma (@img/sharp-*) em tempo de execucao, e o
-  // rastreio do `standalone` nao o enxerga sozinho. Sem isto a imagem sobe sem o sharp e o envio falha.
+  // rastreio do `standalone` nao o enxerga sozinho. So a rota de envio converte imagem (o sharp e importado sob
+  // demanda em photo-image.ts), entao so ela leva o binario; as demais rotas nao dependem dele.
   outputFileTracingIncludes: {
-    "/**": ["./node_modules/sharp/**/*", "./node_modules/@img/**/*"],
+    "/perfil/foto": ["./node_modules/sharp/**/*", "./node_modules/@img/**/*"],
   },
   experimental: {
     // Envio da lista de autorizados (#26): arquivo de até 1,5 MB (allowlistLimits.maxBytes)

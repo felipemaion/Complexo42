@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { instance } from "@config/instance";
 import { loadPhoto } from "@/modules/profiles";
 import { requireUserClient } from "@/server/auth/session";
 
@@ -16,6 +17,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Context = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, context: Context): Promise<NextResponse> {
+  // Chave desligada (o padrão): nada de foto em lugar nenhum, nem a leitura.
+  if (!instance.profile.photoEnabled) return new NextResponse(null, { status: 404, headers: NO_STORE });
   const { id } = await context.params;
   if (!UUID.test(id)) return new NextResponse(null, { status: 404, headers: NO_STORE });
   const { client } = await requireUserClient();

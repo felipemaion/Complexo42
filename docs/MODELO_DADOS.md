@@ -312,12 +312,13 @@ exportação (`formacaoEAtividade`) e some com a conta (cascata).
 O servidor recebe JPEG, PNG ou WebP (confere pelos bytes, até 2 MB e um teto de pixels contra bomba de
 descompressão), aplica a orientação, recorta em 3:4, reduz, converte para WebP **sem metadados** e descarta o
 original (nunca vai ao banco, ao disco nem ao log). Só a função `save_own_photo(p_photo_enc)` grava (o dono não
-tem INSERT/UPDATE direto): ela confere `app.can_edit_profile` e limita a **10 envios por hora** por pessoa
-(`PT429`, contador em `app.photo_upload_attempts`, sem dado da imagem). RLS: o dono lê e **apaga** a própria
-linha; todo membro ativo lê a de perfil ativo (`app.can_view_photo`); ninguém mais. A leitura é só pela rota
-`/foto/<id>` do servidor, com o JWT de quem pede (R14): decifra e devolve `image/webp` com
+tem INSERT/UPDATE direto): ela confere `app.can_edit_profile` e o formato. O limite de **10 envios por hora** por
+pessoa é de `reserve_photo_upload()` (`PT429`, contador em `app.photo_upload_attempts`, sem dado da imagem), que o
+servidor chama **antes** de converter: até a imagem pesada ou quebrada consome a cota. RLS: o dono lê e **apaga** a
+própria linha; todo membro ativo lê a de perfil ativo (`app.can_view_photo`); ninguém mais. A leitura é só pela
+rota `/foto/<id>` do servidor, com o JWT de quem pede (R14): decifra e devolve `image/webp` com
 `Cache-Control: private, no-store` e `X-Robots-Tag: noindex`; sem permissão responde 404, igual a "sem foto".
-Os envios (`/perfil/foto`) respondem 404 enquanto `profile.photoEnabled` for `false`. Vai no arquivo de
+Com `profile.photoEnabled` em `false`, o envio (`/perfil/foto`), a remoção e a leitura (`/foto/<id>`) respondem 404: nada de foto em lugar nenhum. Vai no arquivo de
 exportação (`foto`, base64) e some com a conta (cascata).
 
 ### `unit_types`, `units` e `unit_members` (ADR 0005)

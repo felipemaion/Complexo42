@@ -6,8 +6,10 @@
 --    descarta o original (módulo de perfis, conversão da imagem); o banco só confere o formato cifrado e
 --    um teto de tamanho (a miniatura tem até ~40 KB; 64 K caracteres com folga para o envelope).
 -- 2. Só `public.save_own_photo(p_photo_enc)` grava: confere `app.can_edit_profile` (a própria pessoa, não
---    bloqueada), o formato e o limite de 10 envios por hora por pessoa (`PT429`, contador em
---    `app.photo_upload_attempts`, sem dado da imagem). A API não tem INSERT nem UPDATE na tabela.
+--    bloqueada) e o formato. A API não tem INSERT nem UPDATE na tabela. O limite de 10 envios por hora por
+--    pessoa é de `public.reserve_photo_upload()` (`PT429`, contador em `app.photo_upload_attempts`, sem dado
+--    da imagem): o servidor a chama ANTES de converter a imagem, então até a foto pesada ou inválida (que
+--    gasta CPU no sharp e nunca chega a `save_own_photo`) consome a cota.
 -- 3. RLS (R5, R15): a própria pessoa lê e APAGA a sua; todo membro ativo (casa aceita) lê a de perfil ativo,
 --    por `app.can_view_photo`. Quem está na espera, sem casa ou bloqueado lê só a própria. A leitura sai
 --    pela rota `/foto/<id>` do servidor, com o JWT de quem pede (R14); nunca por URL pública.
@@ -82,7 +84,9 @@ create policy profile_photos_delete on public.profile_photos
   for delete to authenticated
   using (profile_id = (select auth.uid()) and app.can_edit_profile(profile_id));
 
-create or replace function public.save_own_photo(p_photo_enc text)
+-- Reserva um envio ANTES de converter a imagem: confere a permissão e o limite de 10 por hora por pessoa e
+-- registra a tentativa (PT429 com 10 na última hora). O lock evita que envios simultâneos passem do teto.
+create or replace function public.reserve_photo_upload()
 returns void
 language plpgsql
 volatile
@@ -94,15 +98,9 @@ declare
   max_per_hour constant integer := 10;
 begin
   if caller is null or not app.can_edit_profile(caller) then
-    raise exception 'sem permissão para gravar a foto' using errcode = 'insufficient_privilege';
+    raise exception 'sem permissão para enviar a foto' using errcode = 'insufficient_privilege';
   end if;
-  if p_photo_enc is null or not app.is_encrypted_value(p_photo_enc, 65536) then
-    raise exception 'foto cifrada inválida' using errcode = 'check_violation';
-  end if;
-
-  -- Limite por pessoa e hora, antes de gravar (PT429, como o do WhatsApp repetido). O lock evita que
-  -- envios simultâneos passem do teto.
-  perform pg_advisory_xact_lock(hashtextextended('save_own_photo:' || caller::text, 0));
+  perform pg_advisory_xact_lock(hashtextextended('reserve_photo_upload:' || caller::text, 0));
   if (
     select count(*) from app.photo_upload_attempts as a
     where a.profile_id = caller and a.attempted_at > now() - interval '1 hour'
@@ -112,6 +110,31 @@ begin
   insert into app.photo_upload_attempts (profile_id) values (caller);
   -- Limpeza oportunista das tentativas com mais de uma hora (de todos).
   delete from app.photo_upload_attempts where attempted_at < now() - interval '1 hour';
+end;
+$$;
+
+comment on function public.reserve_photo_upload() is
+  'Reserva um envio de foto (#308): confere permissão e o limite de 10 por hora (PT429) e registra a tentativa. O servidor chama antes de converter a imagem.';
+
+revoke execute on function public.reserve_photo_upload() from public, anon;
+grant execute on function public.reserve_photo_upload() to authenticated;
+
+create or replace function public.save_own_photo(p_photo_enc text)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  caller uuid := (select auth.uid());
+begin
+  if caller is null or not app.can_edit_profile(caller) then
+    raise exception 'sem permissão para gravar a foto' using errcode = 'insufficient_privilege';
+  end if;
+  if p_photo_enc is null or not app.is_encrypted_value(p_photo_enc, 65536) then
+    raise exception 'foto cifrada inválida' using errcode = 'check_violation';
+  end if;
 
   insert into public.profile_photos (profile_id, photo_enc)
   values (caller, p_photo_enc)
@@ -120,7 +143,7 @@ end;
 $$;
 
 comment on function public.save_own_photo(text) is
-  'Grava (ou troca) a miniatura cifrada da própria pessoa (#308): confere permissão, formato e o limite de 10 por hora (PT429).';
+  'Grava (ou troca) a miniatura cifrada da própria pessoa (#308): confere permissão e formato. O limite de envios é de reserve_photo_upload().';
 
 revoke execute on function public.save_own_photo(text) from public, anon;
 grant execute on function public.save_own_photo(text) to authenticated;
