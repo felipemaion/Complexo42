@@ -1,3 +1,4 @@
+export { skillErrorText } from "./domain/error-text";
 export { maxSkillsPerPerson, normalizeSkillText, parseSkillName, skillNameLimits } from "./domain/skill-name";
 export {
   createSkill,
