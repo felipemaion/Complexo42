@@ -3,9 +3,9 @@
 import { appLogo, shieldAssets, type ShieldAssets } from "@/modules/instance/domain/house-shield";
 
 /** `fluid`: o tamanho vem do CSS (className), com `size` como tamanho intrínseco (sem layout shift) e `sizes` para o srcset. */
-type PictureProps = { assets: ShieldAssets; alt: string; size: number; eager?: boolean; testId?: string; fluid?: { className: string; sizes: string } };
+export type PictureProps = { assets: ShieldAssets; alt: string; size: number; eager?: boolean; testId?: string; fluid?: { className: string; sizes: string } };
 
-function ShieldPicture({ assets, alt, size, eager = false, testId, fluid }: Readonly<PictureProps>) {
+export function ShieldPicture({ assets, alt, size, eager = false, testId, fluid }: Readonly<PictureProps>) {
   const sizes = fluid?.sizes ?? `${size}px`;
   return (
     <picture>

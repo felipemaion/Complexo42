@@ -151,6 +151,11 @@ test("resultados, fila, delegação e 404 (ADR 0014, #174)", async ({ browser })
   // A lista não mostra totem nem nota (só nome, casa e data): eles só aparecem ao abrir, que registra o acesso.
   await expect(page.locator("th", { hasText: "Totem" })).toHaveCount(0);
   await expect(page.locator(`tr:has(a[href="/coordenacao/casas/resultados/${first.id}"])`)).not.toContainText(/\b[A-Z]{2}\b/);
+  // Nem a medalha (/totens/) nem o nome de um totem na lista (o totem só aparece ao abrir a pessoa).
+  const listHtml = await page.content();
+  expect(listHtml).not.toContain("/totens/");
+  for (const label of Object.values(questionnaire.totemLabels)) expect(listHtml).not.toContain(label.name);
+  await expect(page.getByTestId("totem-medal")).toHaveCount(0);
 
   // Abrir: gráfico completo (4 eixos, 8 raios, com os nomes da config) e totem; o acesso é registrado.
   expect(await viewedEvents(first.id)).toEqual([]);
@@ -253,6 +258,8 @@ test("a coordenação troca a casa da pessoa dentro da trava de 4 meses e a troc
   // A casa sugerida e a escolhida têm o escudo ao lado do nome.
   await expect(page.getByTestId("result-house").getByTestId("house-shield")).toBeVisible();
   await expect(page.getByTestId("result-chosen").getByTestId("house-shield")).toBeVisible();
+  // Destaque do resultado: o brasão da casa ESCOLHIDA (e a medalha do totem, quando o código tem uma).
+  await expect(page.getByTestId("result-hero").getByTestId("house-shield")).toBeVisible();
   await expect(page.getByTestId("result-chosen")).toContainText("trocada pela coordenação");
   await page.goto("/coordenacao/casas/resultados?outra=1");
   const differing = page.getByTestId("result-chosen").filter({ hasText: "trocada pela coordenação" });
