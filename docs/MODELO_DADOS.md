@@ -788,3 +788,9 @@ Toda política RLS usa as funções `app.can_*`, e toda mudança atualiza
   ativo só `(profile_id, house_key)` da casa **aceita e vigente** de pessoas ativas; nunca vínculo, datas, forma de entrada,
   resultado nem totem. A RLS de `house_members` não muda (só a própria pessoa e a coordenação leem a tabela). O servidor
   valida a chave contra as casas da config. É a medalha da casa do perfil público (#305).
+
+  **A própria linha (#318):** a RLS (`app.can_read_questionnaire_data`) deixa a pessoa ler o próprio resultado só
+  enquanto ela está em onboarding (`app.is_onboarding_member()`: liberada pela lista), não "qualquer membro". As
+  funções `coordination_chosen_houses`, `coordination_other_house_results` e `log_questionnaire_view` incluem quem
+  chama apenas se for da coordenação (`app.manages_root()` ou `app.holds_questionnaire_grant()`); quem não é
+  não recebe a própria linha nem grava auditoria sobre si.
