@@ -131,20 +131,14 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   await joinThroughQuestionnaire(member, request, memberEmail, XSS_NAME, baseURL!);
   await expectInert(member, memberDialogs);
 
-  // DIAGNÓSTICO TEMPORÁRIO (#365): o que o banco guarda sobre as duas pessoas, e o que a coordenação consegue ler.
-  const sql = (query: string) => execFileSync("docker", ["exec", "-i", DB_CONTAINER!, "psql", "-U", "supabase_admin", "-d", "postgres", "-At", "-c", query], { encoding: "utf8" }).trim();
-  console.log(`DIAG#365 perfis: ${sql("select left(id::text,8), access_status, status, profile_completed_at is not null, display_name_enc is not null, left(display_name_enc,12), municipality_code, state_code from public.profiles order by created_at")}`);
-  console.log(`DIAG#365 vinculos: ${sql("select left(m.profile_id::text,8), u.path::text, m.left_at is null from public.unit_members m join public.units u on u.id=m.unit_id")}`);
-  console.log(`DIAG#365 papeis: ${sql("select left(r.profile_id::text,8), r.role, u.path::text from public.role_assignments r join public.units u on u.id=r.unit_id")}`);
   // A coordenação nacional vê os resultados do banco novo: o dela (#318) e o da pessoa.
   await coordinator.goto("/coordenacao/casas/resultados");
   const results = coordinator.locator('a[href^="/coordenacao/casas/resultados/"]');
   await expect(results).toHaveCount(2);
-  // A lista mostra a linha da 2ª pessoa (o nome dela é o payload, ou "sem nome" quando a coordenação não o decifra, ver #365):
-  // de qualquer modo nada pode executar nem entrar como elemento. Se o nome aparecer, aparece como texto.
+  // O nome da 2ª pessoa (o payload) aparece na lista como TEXTO, sem executar nada. Sem os estados por migration (#365) a
+  // coordenação não lia o nome de ninguém além do dela, e a linha mostrava "sem nome".
+  await expect(coordinator.getByTestId("result-row").filter({ hasText: XSS_NAME })).toHaveCount(1);
   await expectInert(coordinator, coordinatorDialogs);
-  const rowTexts = await coordinator.getByTestId("result-row").allInnerTexts();
-  if (rowTexts.some((text) => text.includes("Pessoa"))) expect(rowTexts.join("\n")).toContain(XSS_NAME);
   await results.first().click();
   await expect(coordinator.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
   await expectInert(coordinator, coordinatorDialogs);
