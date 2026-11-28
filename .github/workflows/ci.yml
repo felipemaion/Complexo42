@@ -180,6 +180,9 @@ jobs:
           if [ "$(cat "$RUNNER_TEMP/build.exit" 2>/dev/null)" != 0 ]; then
             tail -50 "$RUNNER_TEMP/build.log"; exit 1
           fi
+      # O `age` do backup (#84): só o caso normal faz backup e restauração.
+      - if: matrix.reverter == ''
+        run: sudo apt-get install -y --no-install-recommends age
       - name: Monta o staging e percorre o caminho inteiro
         env:
           STAGING_IMAGEM: complexo42:staging
