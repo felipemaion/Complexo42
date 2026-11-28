@@ -40,7 +40,7 @@ insert into public.skills (category, name, aliases) values
   -- 1. Comunicação e oratória
   ('Comunicação e oratória', 'Falar em público', array['oratória', 'discurso', 'palestra']),
   ('Comunicação e oratória', 'Debate', array['argumentação', 'contraponto']),
-  ('Comunicação e oratória', 'Gravar vídeos falando para a câmera', array['vídeo selfie', 'porta-voz', 'apresentador']),
+  ('Comunicação e oratória', 'Gravar vídeos falando para a câmera', array['vídeo curto','porta-voz', 'apresentador']),
   ('Comunicação e oratória', 'Entrevistas e podcasts', array['podcast', 'entrevistador', 'live']),
   ('Comunicação e oratória', 'Mediação de conversa ou evento', array['moderador', 'mestre de cerimônias']),
   ('Comunicação e oratória', 'Comunicação em outro idioma', array['inglês', 'espanhol', 'libras']),
