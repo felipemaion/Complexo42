@@ -1,15 +1,25 @@
 import { z } from "zod";
-import { profileContactInputSchema, profileInputSchema, profileLimits } from "./schema";
+import { educationLevelsWithDetail, profileBackgroundInputSchema, profileContactInputSchema, profileInputSchema, profileLimits } from "./schema";
 import { normalizeSocialLink, socialLinkInputMaxLength } from "./social";
 import { brazilianWhatsappToE164, whatsappInputMaxLength } from "./whatsapp";
-import type { ProfileContactInput, ProfileInput } from "../types";
+import type { ProfileBackgroundInput, ProfileContactInput, ProfileInput } from "../types";
 
 /**
  * O que chega do formulário do perfil (issue #12), campo a campo, como texto. Validado aqui no
  * servidor (a máscara do navegador é só conforto) e convertido nos schemas de
  * `./schema.ts`, que são o contrato do que é cifrado e gravado.
  */
-export const profileFormFields = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"] as const;
+export const profileFormFields = [
+  "displayName",
+  "whatsapp",
+  "municipalityCode",
+  "district",
+  "neighborhood",
+  "socialLinks",
+  "educationLevel",
+  "educationDetail",
+  "occupation",
+] as const;
 export type ProfileFormField = (typeof profileFormFields)[number];
 
 /**
@@ -37,6 +47,12 @@ export const socialLinksSentField = "socialLinksSent";
  */
 export const neighborhoodSentField = "neighborhoodSent";
 
+/**
+ * Campo escondido que o formulário envia junto de formação e atividade (#304). Sem ele, o envio não
+ * trouxe esses campos (formulário antigo): o servidor não mexe no que está guardado.
+ */
+export const backgroundSentField = "backgroundSent";
+
 const field = z.string().max(200).optional();
 const formSchema = z.object({
   displayName: field,
@@ -44,6 +60,9 @@ const formSchema = z.object({
   municipalityCode: field,
   district: field,
   neighborhood: field,
+  educationLevel: field,
+  educationDetail: field,
+  occupation: field,
   /**
    * As caixas de link, na ordem da tela (vazias são ignoradas). `undefined` = o envio não trouxe
    * os links (não veio do formulário atual): o servidor mantém os que já estão guardados.
@@ -60,6 +79,10 @@ export type ParsedProfileForm =
       keepSocialLinks: boolean;
       /** O envio não trouxe o bairro: manter o cifrado guardado. */
       keepNeighborhood: boolean;
+      /** Formação e atividade já validadas (#304). */
+      background: ProfileBackgroundInput;
+      /** O envio não trouxe formação e atividade: manter a linha guardada, sem gravar. */
+      keepBackground: boolean;
     }
   | {
       ok: false;
@@ -86,7 +109,7 @@ function checkSocialLinks(entries: readonly string[]): { links: string[]; bad: n
 export function parseProfileForm(raw: unknown): ParsedProfileForm {
   const form = formSchema.safeParse(raw);
   if (!form.success) return { ok: false, fields: [...profileFormFields] };
-  const { displayName, whatsapp, municipalityCode, district, neighborhood, socialLinks } = form.data;
+  const { displayName, whatsapp, municipalityCode, district, neighborhood, socialLinks, educationLevel, educationDetail, occupation } = form.data;
   const invalid = new Set<ProfileFormField>();
 
   const code = /^\d{7}$/.test(municipalityCode?.trim() ?? "") ? Number(municipalityCode) : null;
@@ -112,6 +135,21 @@ export function parseProfileForm(raw: unknown): ParsedProfileForm {
     }
   }
 
+  // Formação e atividade (#304): em branco = apagar de propósito. O "qual?" que não vale para o nível
+  // escolhido (a caixa está sempre na tela) é descartado antes de validar, para não dar erro à toa.
+  const level = educationLevel?.trim() || null;
+  const background = profileBackgroundInputSchema.safeParse({
+    educationLevel: level,
+    educationDetail: level !== null && (educationLevelsWithDetail as readonly string[]).includes(level) ? educationDetail?.trim() || null : null,
+    occupation: occupation?.trim() || null,
+  });
+  if (!background.success) {
+    for (const issue of background.error.issues) {
+      const name = issue.path[0];
+      if (name === "educationLevel" || name === "educationDetail" || name === "occupation") invalid.add(name);
+    }
+  }
+
   const e164 = (whatsapp?.length ?? 0) <= whatsappInputMaxLength ? brazilianWhatsappToE164(whatsapp ?? "") : null;
   const social = checkSocialLinks(socialLinks ?? []);
   if (social.bad.length > 0 || social.tooMany) invalid.add("socialLinks");
@@ -121,9 +159,17 @@ export function parseProfileForm(raw: unknown): ParsedProfileForm {
     for (const issue of contact.error.issues) invalid.add(issue.path[0] === "socialLinks" ? "socialLinks" : "whatsapp");
   }
 
-  if (invalid.size > 0 || !profile.success || !contact.success) {
+  if (invalid.size > 0 || !profile.success || !contact.success || !background.success) {
     const fields = profileFormFields.filter((name) => invalid.has(name));
     return social.bad.length > 0 ? { ok: false, fields, badLinks: social.bad } : { ok: false, fields };
   }
-  return { ok: true, profile: profile.data, contact: contact.data, keepSocialLinks: socialLinks === undefined, keepNeighborhood: neighborhood === undefined };
+  return {
+    ok: true,
+    profile: profile.data,
+    contact: contact.data,
+    background: background.data,
+    keepSocialLinks: socialLinks === undefined,
+    keepNeighborhood: neighborhood === undefined,
+    keepBackground: educationLevel === undefined && educationDetail === undefined && occupation === undefined,
+  };
 }

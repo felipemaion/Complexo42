@@ -174,6 +174,22 @@ export const instance = parseInstanceConfig({
     districtNone: "Não sei ou prefiro não dizer",
     neighborhoodLabel: "Seu bairro (se quiser)",
     neighborhoodHint: "Só o nome do bairro. Não informe rua nem número. Pode deixar em branco.",
+    backgroundTitle: "Formação e atividade (se quiser)",
+    backgroundHint:
+      "Ajuda a coordenação a encaixar você num eixo da casa e a achar quem pode ajudar. Só você e a coordenação do seu grupo veem. Tudo é opcional.",
+    educationLevelLabel: "Sua formação (o nível mais alto)",
+    educationLevelNone: "Prefiro não dizer",
+    educationLevels: {
+      elementary: "Ensino fundamental",
+      high_school: "Ensino médio",
+      college_incomplete: "Superior incompleto",
+      college_complete: "Superior completo",
+      postgraduate: "Pós-graduação",
+    },
+    educationDetailLabel: "Qual curso ou área? (se quiser)",
+    educationDetailHint: "Para superior e pós-graduação. Exemplo: Engenharia civil. Pode deixar em branco.",
+    occupationLabel: "Sua atividade profissional (se quiser)",
+    occupationHint: "O que você faz hoje, em poucas palavras. Exemplo: professora de matemática. Pode deixar em branco.",
     neighborhoodUnreadable:
       "Não conseguimos abrir o seu bairro agora. Ele continua guardado: salvar os outros dados não o apaga.",
     replaceNeighborhood: "Trocar o bairro guardado",
@@ -196,6 +212,9 @@ export const instance = parseInstanceConfig({
       whatsapp: "Confira o WhatsApp: DDD e celular com 9 dígitos, como (11) 91234-5678.",
       municipalityCode: "Escolha a sua cidade na lista.",
       district: "Escolha o distrito na lista ou deixe em branco.",
+      educationLevel: "Escolha um nível de formação da lista ou \"Prefiro não dizer\".",
+      educationDetail: "Confira o curso ou a área: de 2 a 80 caracteres, sem símbolos estranhos. Ou deixe em branco.",
+      occupation: "Confira a atividade profissional: de 2 a 80 caracteres, sem símbolos estranhos. Ou deixe em branco.",
       neighborhood: "Confira o bairro: de 2 a 60 caracteres, só letras, números, espaço, hífen, apóstrofo e ponto. Ou deixe em branco.",
       socialLinks:
         "Confira os links: cada um precisa ser um endereço que começa com https://, como https://instagram.com/seunome, sem repetir.",

@@ -58,6 +58,14 @@ test.describe("redes sociais com o Supabase local", () => {
     await page.getByLabel("Seu WhatsApp, com DDD").fill(phone);
     await chooseCity(page, "Osasco");
 
+    // Formação e atividade (#304): opcionais; nível em lista fechada, "qual?" e atividade em texto livre.
+    const level = page.getByLabel("Sua formação (o nível mais alto)");
+    await expect(level).toHaveValue("");
+    await level.selectOption({ label: "Superior completo" });
+    await page.getByLabel("Qual curso ou área? (se quiser)").fill("Engenharia Civil");
+    const occupation = page.getByLabel("Sua atividade profissional (se quiser)");
+    await occupation.fill("a");
+
     // Uma caixa já aparece; mais uma pelo botão grande, que leva o foco para a caixa nova.
     const add = page.getByRole("button", { name: "Pôr mais um link" });
     expect((await add.boundingBox())?.height).toBeGreaterThanOrEqual(56);
@@ -74,7 +82,12 @@ test.describe("redes sociais com o Supabase local", () => {
     await expect(page.getByLabel("Link 2", { exact: true })).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByLabel("Link 1", { exact: true })).toHaveAttribute("aria-invalid", "false");
     await expect(page.getByLabel("Link 1", { exact: true })).toHaveValue("instagram.com/pessoa.redes");
+    // Atividade de 1 letra: recusada pelo servidor, com a mensagem do campo e o que foi digitado de volta.
+    await expect(occupation).toHaveAttribute("aria-invalid", "true");
+    await expect(occupation).toHaveAccessibleDescription(/Confira a atividade profissional/);
+    await expect(level).toHaveValue("college_complete");
 
+    await occupation.fill("Professora de matemática");
     await page.getByLabel("Link 2", { exact: true }).fill("https://www.youtube.com/@pessoa.redes");
     await save.click();
     // Perfil novo nasce pendente (fora da lista de autorizados): vai para a espera.
@@ -85,6 +98,14 @@ test.describe("redes sociais com o Supabase local", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].social_links_enc).toMatch(/^v\d+\./);
     expect(rows[0].social_links_enc).not.toContain("pessoa.redes");
+
+    // Formação e atividade: só cifradas no banco (R13), nem o nível nem o texto aparecem.
+    const background = await (await admin(`/rest/v1/profile_background?profile_id=eq.${profileId}`)).json();
+    expect(background).toHaveLength(1);
+    for (const column of ["education_level_enc", "education_detail_enc", "occupation_enc"]) {
+      expect(background[0][column]).toMatch(/^v\d+\./);
+    }
+    expect(JSON.stringify(background)).not.toMatch(/college|Engenharia|Professora/);
 
     // Liberada, como a coordenação faria.
     const res = await admin(`/rest/v1/profiles?id=eq.${profileId}`, {
@@ -115,9 +136,24 @@ test.describe("redes sociais com o Supabase local", () => {
     await page.goto("/perfil");
     await expect(page.getByLabel("Link 1", { exact: true })).toHaveValue("https://instagram.com/pessoa.redes");
     await expect(page.getByLabel("Link 2", { exact: true })).toHaveValue("https://www.youtube.com/@pessoa.redes");
+    // Formação e atividade voltam preenchidas (decifradas no servidor) e sobrevivem a salvar só o nome.
+    await expect(page.getByLabel("Sua formação (o nível mais alto)")).toHaveValue("college_complete");
+    await expect(page.getByLabel("Qual curso ou área? (se quiser)")).toHaveValue("Engenharia Civil");
+    await expect(page.getByLabel("Sua atividade profissional (se quiser)")).toHaveValue("Professora de matemática");
     await page.getByLabel("Seu nome").fill("Pessoa Redes Nova");
     await page.getByRole("button", { name: "Salvar meus dados" }).click();
     await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
+    await page.goto("/perfil");
+    await expect(page.getByLabel("Sua atividade profissional (se quiser)")).toHaveValue("Professora de matemática");
+    // Nível "Prefiro não dizer" apaga de propósito: o "qual?" some junto (só vale em superior e pós).
+    await page.getByLabel("Sua formação (o nível mais alto)").selectOption({ label: "Prefiro não dizer" });
+    await page.getByRole("button", { name: "Salvar meus dados" }).click();
+    await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
+    await page.goto("/perfil");
+    await expect(page.getByLabel("Sua formação (o nível mais alto)")).toHaveValue("");
+    await expect(page.getByLabel("Qual curso ou área? (se quiser)")).toHaveValue("");
+    await expect(page.getByLabel("Sua atividade profissional (se quiser)")).toHaveValue("Professora de matemática");
+    await page.goto("/inicio");
     await expect(page.getByRole("list", { name: "Suas redes sociais" }).getByRole("link")).toHaveCount(2);
 
     // Até 5 caixas: depois da 5ª, o botão de pôr mais some.

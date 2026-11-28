@@ -42,11 +42,12 @@ function deps(): { deps: ProfileDeps; lines: string[] } {
 type Call = { fn: string; args: Record<string, unknown> };
 /** Falso do cliente do Supabase: só o formato usado aqui (a tipagem real é do @supabase/ssr). */
 function fakeClient(
-  opts: { rpcData?: unknown; rpcError?: unknown; row?: unknown; rows?: unknown; readError?: unknown } = {},
+  opts: { rpcData?: unknown; rpcError?: unknown; row?: unknown; rows?: unknown; readError?: unknown; upsertError?: unknown } = {},
 ) {
   const calls: Call[] = [];
   const orders: { column: string; limit: number }[] = [];
   const reads: { table: string; columns: string; eq?: [string, string | number] }[] = [];
+  const upserts: { table: string; row: Record<string, unknown>; options: unknown }[] = [];
   const client = {
     rpc: async (fn: string, args: Record<string, unknown>) => {
       calls.push({ fn, args });
@@ -55,6 +56,10 @@ function fakeClient(
       return { data: "rpcData" in opts ? opts.rpcData : "saved", error: null };
     },
     from: (table: string) => ({
+      upsert: async (row: Record<string, unknown>, options: unknown) => {
+        upserts.push({ table, row, options });
+        return { error: opts.upsertError ?? null };
+      },
       select: (columns: string) => ({
         // `.eq(...)` pode terminar a consulta (listas) ou seguir para `.maybeSingle()` (uma linha).
         eq: (column: string, value: string | number) => {
@@ -73,7 +78,7 @@ function fakeClient(
       }),
     }),
   };
-  return { client: client as unknown as ProfileDbClient, calls, reads, orders };
+  return { client: client as unknown as ProfileDbClient, calls, reads, orders, upserts };
 }
 
 // Fragmentos longos: "4321" curto aparece por acaso no ciphertext/HMAC aleatório (teste instável).
@@ -119,6 +124,65 @@ describe("saveOwnProfile", () => {
     await expect(d.decrypt(sent, { table: "profiles", column: "display_name_enc", rowId: USER })).rejects.toThrow();
     await saveOwnProfile(client, USER, { ...form, neighborhood: "  " }, d);
     expect(calls[1]!.args.p_neighborhood_enc).toBeNull();
+  });
+
+  describe("formação e atividade (#304)", () => {
+    const withBackground = { ...form, educationLevel: "postgraduate", educationDetail: "Saúde Pública", occupation: "Enfermeira" };
+    const aad = (column: string) => ({ table: "profile_background", column, rowId: USER });
+
+    it("depois de salvar o perfil, grava a linha 1:1 cifrada, com o AAD da coluna e do id da pessoa", async () => {
+      const { client, calls, upserts } = fakeClient();
+      const { deps: d, lines } = deps();
+      expect(await saveOwnProfile(client, USER, withBackground, d)).toEqual({ status: "saved" });
+      expect(calls).toHaveLength(1);
+      expect(upserts).toHaveLength(1);
+      const { table, row, options } = upserts[0]!;
+      expect(table).toBe("profile_background");
+      expect(options).toEqual({ onConflict: "profile_id" });
+      expect(row.profile_id).toBe(USER);
+      expect(await d.decrypt(row.education_level_enc as string, aad("education_level_enc"))).toBe("postgraduate");
+      expect(await d.decrypt(row.education_detail_enc as string, aad("education_detail_enc"))).toBe("Saúde Pública");
+      expect(await d.decrypt(row.occupation_enc as string, aad("occupation_enc"))).toBe("Enfermeira");
+      await expect(d.decrypt(row.occupation_enc as string, aad("education_detail_enc"))).rejects.toThrow();
+      // Nada em texto puro vai ao banco nem ao log (R11, R13).
+      expect(JSON.stringify(upserts)).not.toMatch(/Enfermeira|Saúde|postgraduate/);
+      expect(lines).toEqual([]);
+    });
+
+    it("em branco vai nulo (apaga de propósito); nível sem \"qual?\" descarta o texto", async () => {
+      const { client, upserts } = fakeClient();
+      await saveOwnProfile(client, USER, { ...form, educationLevel: "", educationDetail: "", occupation: "" }, deps().deps);
+      expect(upserts[0]!.row).toEqual({ profile_id: USER, education_level_enc: null, education_detail_enc: null, occupation_enc: null });
+      await saveOwnProfile(client, USER, { ...withBackground, educationLevel: "high_school" }, deps().deps);
+      expect(upserts[1]!.row.education_detail_enc).toBeNull();
+    });
+
+    it("envio sem os campos (formulário antigo): não toca na linha guardada", async () => {
+      const { client, upserts } = fakeClient();
+      expect(await saveOwnProfile(client, USER, form, deps().deps)).toEqual({ status: "saved" });
+      expect(upserts).toEqual([]);
+    });
+
+    it("WhatsApp repetido ou perfil recusado: nada de formação é gravado", async () => {
+      const { client, upserts } = fakeClient({ rpcData: "duplicate_whatsapp" });
+      expect(await saveOwnProfile(client, USER, withBackground, deps().deps)).toEqual({ status: "duplicate_whatsapp" });
+      expect(upserts).toEqual([]);
+    });
+
+    it("falha ao gravar a linha: devolve failed, logando só o código (R11)", async () => {
+      const { client } = fakeClient({ upsertError: { code: "42501", message: "Enfermeira" } });
+      const { deps: d, lines } = deps();
+      expect(await saveOwnProfile(client, USER, withBackground, d)).toEqual({ status: "failed" });
+      expect(lines.join("\n")).toContain("42501");
+      expect(lines.join("\n")).not.toContain("Enfermeira");
+    });
+
+    it("campo inválido: recusa antes de cifrar ou chamar o banco", async () => {
+      const { client, calls, upserts } = fakeClient();
+      expect(await saveOwnProfile(client, USER, { ...withBackground, educationLevel: "doutorado" }, deps().deps)).toEqual({ status: "invalid", fields: ["educationLevel"] });
+      expect(calls).toEqual([]);
+      expect(upserts).toEqual([]);
+    });
   });
 
   describe("bairro guardado (#179): envio sem o campo não o apaga", () => {
@@ -287,8 +351,39 @@ describe("loadOwnProfile", () => {
       neighborhoodUnreadable: false,
       socialLinks: [],
       socialLinksUnreadable: false,
+      educationLevel: "",
+      educationDetail: "",
+      occupation: "",
     });
     expect(reads[0]).toMatchObject({ table: "profiles", eq: ["id", USER] });
+    expect(reads[0]!.columns).toContain("profile_background(education_level_enc, education_detail_enc, occupation_enc)");
+  });
+
+  it("formação e atividade (#304): decifra com o AAD de profile_background; nível fora da lista ou ilegível vira vazio", async () => {
+    const { deps: d, lines } = deps();
+    const enc = (column: string, value: string, rowId = USER) => d.encrypt(value, { table: "profile_background", column, rowId });
+    const base = {
+      display_name_enc: await d.encrypt(NAME, { table: "profiles", column: "display_name_enc", rowId: USER }),
+      municipality_code: SP,
+      state_code: "SP",
+      district_code: null,
+      neighborhood_enc: null,
+      profile_completed_at: "2026-11-19T12:00:00+00:00",
+      profile_contacts: null,
+    };
+    const row = {
+      ...base,
+      profile_background: {
+        education_level_enc: await enc("education_level_enc", "college_complete"),
+        education_detail_enc: await enc("education_detail_enc", "Engenharia"),
+        occupation_enc: await enc("occupation_enc", "Pedreira"),
+      },
+    };
+    expect(await loadOwnProfile(fakeClient({ row }).client, USER, d)).toMatchObject({ educationLevel: "college_complete", educationDetail: "Engenharia", occupation: "Pedreira" });
+    const odd = { ...base, profile_background: { education_level_enc: await enc("education_level_enc", "doutorado"), education_detail_enc: await enc("education_detail_enc", "Engenharia", "outra"), occupation_enc: null } };
+    expect(await loadOwnProfile(fakeClient({ row: odd }).client, USER, d)).toMatchObject({ educationLevel: "", educationDetail: "", occupation: "" });
+    expect(lines.join("\n")).toContain("education_detail_enc");
+    expect(lines.join("\n")).not.toContain("Engenharia");
   });
 
   it("bairro que não decifra: campo vazio, neighborhoodUnreadable, log sem o valor", async () => {
@@ -325,6 +420,9 @@ describe("loadOwnProfile", () => {
       neighborhoodUnreadable: false,
       socialLinks: [],
       socialLinksUnreadable: false,
+      educationLevel: "",
+      educationDetail: "",
+      occupation: "",
     });
     expect(lines).toHaveLength(1);
     expect(lines[0]).not.toContain(copied);
