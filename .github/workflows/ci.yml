@@ -228,7 +228,8 @@ jobs:
             semgrep/semgrep:1.184.0@sha256:cc1b68266f267878b39739373ea9985b9a78e5d64497dd875c8de100b22695ed \
             semgrep scan --config p/typescript --config p/nextjs --metrics=off --disable-version-check \
               --json --output semgrep.json --quiet
-          python3 - <<'RESUMO' >> "$GITHUB_STEP_SUMMARY"
+          set -o pipefail
+          python3 - <<'RESUMO' | tee -a "$GITHUB_STEP_SUMMARY"
           import json
           achados = json.load(open("semgrep.json"))["results"]
           print(f"### Semgrep (relatório, não reprova): {len(achados)} achado(s)")
@@ -284,7 +285,7 @@ jobs:
           bash scripts/check-trivyignore.test.sh
           python3 scripts/check-trivyignore.py security/trivyignore.yaml
           trivy() { "$RUNNER_TEMP/trivy" image --quiet --ignorefile security/trivyignore.yaml --severity HIGH,CRITICAL "$@" complexo42:ci; }
-          { echo '### Trivy (imagem, alto/crítico)'; echo '```'; trivy --format table --exit-code 0; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo '### Trivy (imagem, alto/crítico)'; echo '```'; trivy --format table --exit-code 0; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
           trivy --format table --ignore-unfixed --exit-code 1
       # As migrations viajam na imagem (#81) e o .dockerignore exclui `supabase`:
       # sem este passo, uma mudanca nele quebraria o deploy calada, porque o
