@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { sessionHouseClient } from "@/modules/houses";
-import { listSearchSkills, maxSearchSkills, parseSearchParams, searchPeople, searchQueryString, SkillSearchPicker } from "@/modules/skills";
+import { listMunicipalities, listSearchSkills, listTeams, maxSearchSkills, parseSearchParams, searchPeople, searchQueryString, SkillSearchPicker } from "@/modules/skills";
 import { requireUserClient } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
 
@@ -24,7 +24,7 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
   if (!client) notFound();
   const text = instance.skills.search;
   const filters = parseSearchParams(await searchParams);
-  const catalog = await listSearchSkills(client);
+  const [catalog, teams, municipalities] = await Promise.all([listSearchSkills(client), listTeams(client), filters.state ? listMunicipalities(client, filters.state) : Promise.resolve([])]);
   const skillName = new Map(catalog.map((skill) => [skill.id, skill.name]));
   const result =
     filters.skillIds.length > 0
@@ -64,6 +64,32 @@ export default async function PeopleSearchPage({ searchParams }: Readonly<{ sear
         <label className="flex flex-col gap-1 text-lg font-semibold">
           {text.stateLabel}
           <input name="uf" type="text" maxLength={2} defaultValue={filters.state ?? ""} autoComplete="off" className={field} />
+        </label>
+        {filters.state ? (
+          <label className="flex flex-col gap-1 text-lg font-semibold">
+            {text.municipalityLabel}
+            <select name="mun" defaultValue={filters.municipality === undefined ? "" : String(filters.municipality)} className={field}>
+              <option value="">{text.municipalityAny}</option>
+              {municipalities.map((m) => (
+                <option key={m.code} value={m.code}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="text-base">{text.municipalityHint}</p>
+        )}
+        <label className="flex flex-col gap-1 text-lg font-semibold">
+          {text.teamFilterLabel}
+          <select name="equipe" defaultValue={filters.unit ?? ""} className={field}>
+            <option value="">{text.teamAny}</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="flex min-h-12 items-center gap-3 text-lg">
           <input type="checkbox" name="sem" value="1" defaultChecked={filters.noTeam === true} className="h-6 w-6" />

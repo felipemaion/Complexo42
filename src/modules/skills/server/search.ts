@@ -79,6 +79,31 @@ export async function listSearchSkills(client: HouseClient): Promise<SearchSkill
     .map(({ id, name, category, aliases }) => ({ id, name, category, aliases }));
 }
 
+export type MunicipalityOption = { code: number; name: string };
+export type TeamOption = { id: string; name: string };
+
+/** Os municípios de uma UF (tabela pública), por nome; UF fora do formato devolve vazio sem consultar. */
+export async function listMunicipalities(client: HouseClient, state: string): Promise<MunicipalityOption[]> {
+  if (!/^[A-Z]{2}$/.test(state)) return [];
+  const { data, error } = await client.from("municipalities").select("code,name").eq("state_code", state).order("name", { ascending: true });
+  if (error) return [];
+  const parsed = z.array(z.object({ code: z.number(), name: z.string() })).safeParse(data ?? []);
+  return parsed.success ? parsed.data : [];
+}
+
+/** As equipes (unidades de tipo equipe) que a RLS deixa a pessoa ver, por nome. */
+export async function listTeams(client: HouseClient): Promise<TeamOption[]> {
+  const types = await client.from("unit_types").select("id,is_team");
+  if (types.error) return [];
+  const teamTypes = z.array(z.object({ id: z.string(), is_team: z.boolean() })).safeParse(types.data ?? []);
+  const ids = teamTypes.success ? teamTypes.data.filter((t) => t.is_team).map((t) => t.id) : [];
+  if (ids.length === 0) return [];
+  const { data, error } = await client.from("units").select("id,name").in("type_id", ids).order("name", { ascending: true }).limit(300);
+  if (error) return [];
+  const parsed = z.array(z.object({ id: z.string(), name: z.string() })).safeParse(data ?? []);
+  return parsed.success ? parsed.data : [];
+}
+
 export async function searchPeople(client: HouseClient, raw: unknown, decrypt: Decrypt): Promise<SearchResult> {
   const parsed = input.safeParse(raw);
   if (!parsed.success) return { ok: false, error: "invalid" };

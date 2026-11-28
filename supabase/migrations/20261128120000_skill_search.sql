@@ -8,7 +8,9 @@
 -- Paginação por cursor (em comum, id), até 50 por página. Limite de 60 buscas por hora por pessoa (54000) e cada
 -- busca grava `skills_searched` (só o ator: nem o termo nem as habilidades vão para o log).
 
-create index profiles_active_location_idx on public.profiles (state_code, municipality_code) where access_status = 'active';
+-- O predicado é o de `app.is_active_profile` (liberado E conta ativa), o que a função filtra: o índice cobre só o que ela pode devolver.
+-- O motor da busca é o índice de habilidade; este ajuda quando UF ou município cortam muito.
+create index profiles_active_location_idx on public.profiles (state_code, municipality_code) where access_status = 'active' and status = 'active';
 
 alter table public.audit_log drop constraint audit_log_event_check;
 alter table public.audit_log add constraint audit_log_event_check check (event in (
@@ -71,6 +73,8 @@ begin
     return;
   end if;
 
+  -- Trava por pessoa: duas buscas ao mesmo tempo não contam as mesmas linhas e passam juntas do limite (como em view_contact).
+  perform pg_advisory_xact_lock(hashtextextended('search_people_by_skills:' || caller::text, 0));
   if (select count(*) from public.audit_log as a
       where a.actor_id = caller and a.event = 'skills_searched' and a.created_at > now() - interval '1 hour') >= 60 then
     raise exception 'limite de buscas por hora' using errcode = 'program_limit_exceeded';
