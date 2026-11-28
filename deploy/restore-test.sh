@@ -84,6 +84,9 @@ trap limpar EXIT
 
 echo "== subindo Postgres descartavel"
 INITDB=()
+# Com o initdb os papéis existem, e a restauração é a de PRODUÇÃO: donos e privilégios incluídos
+# (docs/OPERACAO.md, "Restaurar em produção"). Sem ele, só dá para restaurar sem donos nem GRANTs.
+SEM_PAPEIS=()
 if [ -n "$INITDB_DIR" ]; then
   [ -d "$INITDB_DIR" ] || { echo "ERRO: INITDB_DIR nao e diretorio" >&2; exit 2; }
   # As senhas dos papéis são descartáveis como o banco: ninguém se conecta com elas.
@@ -91,7 +94,8 @@ if [ -n "$INITDB_DIR" ]; then
           -e AUTHENTICATOR_PASSWORD="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
           -e AUTH_ADMIN_PASSWORD="$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')")
 else
-  echo "   AVISO: sem INITDB_DIR; o banco descartavel nao tem os papeis do servidor" >&2
+  echo "   AVISO: sem INITDB_DIR; restauracao sem donos nem privilegios (nao e a de producao)" >&2
+  SEM_PAPEIS=(--no-owner --no-privileges)
 fi
 docker run -d --name "$NOME" -e POSTGRES_PASSWORD="$SENHA" \
   -e POSTGRES_DB=postgres "${INITDB[@]+"${INITDB[@]}"}" "$IMAGEM" \
@@ -114,7 +118,7 @@ INICIO=$(date +%s)
 set +e
 decifrador < "$ARQ" \
   | docker exec -i -e PGPASSWORD="$SENHA" "$NOME" \
-      pg_restore -U supabase_admin -d postgres --no-owner --no-privileges \
+      pg_restore -U supabase_admin -d postgres "${SEM_PAPEIS[@]+"${SEM_PAPEIS[@]}"}" \
       --clean --if-exists --exit-on-error > /tmp/restore-$$.log 2>&1
 ESTADO=("${PIPESTATUS[@]}")
 set -e

@@ -751,14 +751,14 @@ restaurar, guarde os ids:
 select distinct target_id from public.audit_log where event = 'account_deleted';
 ```
 
-**Restaurar** (app parado, banco num volume novo, que já nasce com o `initdb`): os mesmos flags que o
-`restore-test.sh` usa e o CI prova a cada PR. Sem `--clean --if-exists`, o `pg_restore` para no
-`create schema auth` que o `initdb` já fez.
+**Restaurar** (app parado, banco num volume novo, que já nasce com o `initdb`): o mesmo comando que o
+`restore-test.sh` roda e o CI prova a cada PR, com donos e privilégios. Sem `--clean --if-exists`, o
+`pg_restore` para no `create schema auth` que o `initdb` já fez.
 
 ```bash
 age -d -i <chave-privada> <arquivo.age> \
   | docker compose -f docker-compose.supabase.yml --env-file <segredos> exec -T db \
-      pg_restore -U supabase_admin -d postgres --no-owner --no-privileges --clean --if-exists --exit-on-error
+      pg_restore -U supabase_admin -d postgres --clean --if-exists --exit-on-error
 ```
 
 Depois de restaurar, como `supabase_admin` (o `postgres` deve ser NOLOGIN; veja "Senhas por papel"), apague cada id da lista
