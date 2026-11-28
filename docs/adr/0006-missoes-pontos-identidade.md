@@ -168,4 +168,8 @@ Continuam sem upload as fotos de missão, de documento e de comprovante.
   quando quiser; some junto da conta (cascata) e entra em "Baixar meus dados". Detalhes em
   `docs/LGPD_E_SEGURANCA.md`.
 - **Opcional** por ora (decisão do Felipe, 2026-11-28).
-- Implementação: #308; o termo e `MODELO_DADOS.md` mudam antes do código.
+- **Implementação (#308):** como o servidor não roda o `storage` (ADR 0009), a miniatura (192 x 256 px) vai
+  **cifrada no banco** (`profile_photos.photo_enc`) e só sai pela rota `/foto/<id>`, que exige sessão de
+  membro ativo. O envio tem limite de tamanho, de pixels e de 10 por hora por pessoa. Ela fica **desligada
+  por padrão** (`profile.photoEnabled` em `config/instance.ts`) até o termo v2 (#311) cobrir a foto e o
+  jurídico confirmar a questão de dado biométrico; o Felipe liga junto com o termo.
