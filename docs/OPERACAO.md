@@ -720,18 +720,26 @@ Diretórios com modo 700, arquivos 600.
 > Backup que nunca foi restaurado não conta.
 
 ```bash
-./deploy/restore-test.sh <arquivo.age> <chave-privada>
+INITDB_DIR=<dir do deploy>/initdb REGISTRO=<dir do deploy>/data/logs/backup.log \
+  MINIMOS="perfis=<n> unidades=1 casas=<n> papeis=1 municipios=5000" \
+  ./deploy/restore-test.sh <arquivo.age> <chave-privada>
 ```
 
-Sobe um Postgres descartável com a **mesma imagem** do ambiente, decifra,
-restaura, imprime as contagens de controle (perfis, unidades, vínculos, papéis,
-municípios) e o **tempo em segundos**, e apaga o container no fim. Não toca o
-banco do ambiente.
+Sobe um Postgres descartável com a **mesma imagem** e o **mesmo `initdb`** do ambiente (sem os papéis
+do `initdb`, o `pg_restore` para na primeira política `to authenticated`), decifra, restaura, mede o
+**tempo** e confere as contagens de controle (perfis, unidades, vínculos de unidade e de casa, papéis,
+municípios). **Reprova** se alguma vier abaixo do `MINIMOS`: banco restaurado vazio não é restauração
+ok. Use mínimos um pouco abaixo dos números de produção. O resultado, o tempo e as contagens (só
+números) vão numa linha do `REGISTRO`, e o container é apagado no fim. Não toca o banco do ambiente.
 
-A chave privada entra só durante o teste e sai com quem a trouxe: o script não
-a copia nem a imprime. No servidor, apague a cópia temporária ao terminar.
+A chave privada entra só durante o teste e sai com quem a trouxe: o script não a copia nem a
+imprime. No servidor, apague a cópia temporária ao terminar.
 
-Rodar **antes do primeiro dado real** e **todo mês**, anotando o tempo na #84.
+**Quando:** antes do primeiro dado real e **todo mês**, com o backup remoto (`--do-remoto`, abaixo),
+pelos mantenedores que guardam a chave. É manual de propósito: automatizar no servidor exigiria a
+chave privada lá, e quem cifra não pode decifrar (ADR 0003 §7); mudar isso pede ADR. Quem prova os
+**scripts** a cada PR é o job "Staging de mentira" do CI, que faz backup e restauração com um par
+`age` descartável e exige que um mínimo impossível reprove.
 
 ### Restaurar em produção: reaplicar as exclusões de conta (#18)
 
