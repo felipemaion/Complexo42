@@ -59,17 +59,22 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 ## 3. Escopo
 
 ### Dentro do POC (MVP)
-1. **Cadastro e perfil**: nome, WhatsApp, município/bairro, habilidades, links de redes
-   sociais e "feitos". Consentimento LGPD, edição e exclusão da própria conta. Acesso só
+1. **Cadastro e perfil**: nome, WhatsApp, município/bairro, **formação acadêmica** (nível mais
+   alto; "qual?" opcional) e **atividade profissional** (campos separados), habilidades (sem
+   nível, até 10, do catálogo; a pessoa sugere uma nova e a coordenação aprova; o formulário
+   pergunta o que ela faz no dia a dia), **miniatura do rosto** (ADR 0006, revisão de 2026-11-28),
+   links de redes sociais e "feitos". Todo membro logado vê o **perfil público** dos outros; o
+   contato segue por consentimento (ADR 0010). Consentimento LGPD, edição e exclusão da própria conta. Acesso só
    pela **lista de autorizados**, com lista de espera (ADR 0008 §1).
 2. **Casa de formação** (ADR 0008 §2, ADR 0014): ordem de entrada termo → questionário →
    casa → perfil; sem casa a pessoa não vê nada. O questionário tem 26 perguntas (chave do
    Cortez, pesos 1-3-5, sem empate) e situa a pessoa em dois eixos (Ação×Contemplação e
-   Leis×Costumes); o totem nunca aparece para ela, só no detalhe da coordenação. Casas:
+   Leis×Costumes); cada pessoa recebe a **medalha da casa** e a do **totem** (qualquer casa com qualquer totem), que todo membro logado vê (ADR 0014, revisão de 2026-11-28); as notas dos eixos seguem internas. Casas:
    Esparta, Atenas, Alexandria e Siracusa. A sugestão não obriga: a escolha é livre, com a
    comparação 2×2 ("Compare as casas": média real dos membros com n ≥ 10 e expectativas por
-   pergunta; respostas guardadas cifradas). Trava de 4 meses para trocar de casa, que a
-   pessoa troca pela tela de comparação; a coordenação troca a qualquer momento.
+   pergunta; respostas guardadas cifradas). A troca é por **janela de
+   transferência** aberta pela coordenação nacional (ADR 0016, revisão de 2026-11-28; substitui a
+   trava de 4 meses), feita pela tela de comparação; a coordenação troca a qualquer momento.
 3. **Painel da coordenação**: lista com filtros por habilidade e região, contagem por região.
 4. **Equipes**: criar equipe, adicionar e remover membros, definir líder.
 5. **Missões** (ADR 0006): catálogo de missões com etapas e pontos (ex.: escrever um projeto
@@ -78,13 +83,22 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
    missões para a sua região.
 6. **Identidade e placar**: turma com nome, lema, cores e emblema; placar de turmas por
    escopo e período.
-7. **Medalhas** (ADR 0006 §8 e ADR 0007 §3): manual, de evento, "trabalhou com" (do
-   porta-voz), de marco, de presença, por missão ou por pontos; revogáveis.
+7. **Medalhas** (ADR 0006 §8 e ADR 0007 §3): a medalha leva o nome do **feito**, com a lista de
+   quem a recebeu e a história de cada um; só **coordenadores** (de qualquer nível) as criam; a
+   descrição é pública e a nota da avaliação fica oculta; a pessoa escolhe quais mostra e em que
+   ordem. Manual, de evento, "trabalhou com", de marco, de presença, por missão ou por pontos;
+   revogáveis.
 8. **Equipes rotativas** (ADR 0007 §2): uma equipe por vez, com histórico.
 9. **Portfólio por links** (ADR 0007 §5): até 3 itens, com prévia, sem guardar arquivos.
 10. **Avaliação reservada** (ADR 0007 §4 e ADR 0008 §3): da equipe e da casa; desligada até
     o parecer jurídico.
-11. **Núcleos** (ADR 0013, aceito, marco futuro): árvore de núcleos e subnúcleos fora do
+11. **Clãs** (decidido em 2026-11-28; ADR a escrever, #306): equipe maior, criada por um
+    coordenador, de pessoas com feitos parecidos em cidades diferentes; tamanho inicial 14
+    (configurável); o que a pessoa libera ao clã é por consentimento.
+12. **Área de novidades** na tela inicial (#307), por exemplo para avisar que a janela de troca de
+    casa abriu.
+13. **Núcleos** (ADR 0013, aceito, marco futuro; a **corte** é outro conceito, separado, que vem mais
+    adiante, e o modelo será revisto com o Cortez): árvore de núcleos e subnúcleos fora do
     território, com cargos internos, entrada por pedido aprovado, reuniões com pauta, presença
     que conta pontos e missões assumidas pelo núcleo. Pendem só as perguntas 91 a 93, com padrão conservador.
 
@@ -92,7 +106,8 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 - Chat interno: o WhatsApp continua sendo o canal de conversa.
 - Notificações por WhatsApp/SMS (pagas).
 - Aplicativo nativo: o POC é web responsivo, que pode virar PWA.
-- Upload de fotos, documentos e logos (fase 2; ver ADR 0006 §2 e §7).
+- Upload de fotos de missão, documentos e logos (fase 2; ver ADR 0006 §2 e §7). A miniatura do
+  rosto no perfil entra (ADR 0006, revisão de 2026-11-28; #308).
 - Ranking público **individual** (o placar é só entre turmas).
 - Chat/salas internas (a discussão segue no WhatsApp da turma).
 - Testes de personalidade e o módulo de formação de porta-vozes (ADR 0007 §6). O questionário
@@ -121,7 +136,7 @@ dados [?].
   meu e-mail estiver na lista de autorizados (a coordenação usa "Autorizar um e-mail").
 - RF02: Como aluno, aceito o termo de consentimento antes de preencher o perfil.
 - RF03a: Como aluno, respondo o questionário e vejo a casa sugerida; comparo as casas e escolho
-  (livre). Troco de casa só depois da trava de 4 meses.
+  (livre). Troco de casa só na janela de transferência aberta pela coordenação nacional.
 - RF03: Como aluno, preencho nome, WhatsApp, município/bairro, habilidades, redes e feitos.
 - RF04: Como aluno, edito meu perfil a qualquer momento.
 - RF05: Como aluno, excluo minha conta e meus dados são apagados de fato.

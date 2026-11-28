@@ -1,43 +1,43 @@
-# ADR 0016: Trava de 4 meses para trocar de casa
+# ADR 0016: Troca de casa (trava de 4 meses, substituída pela janela de transferência)
 
-- **Status:** Aceito em 2026-11-27, decisão da coordenação nacional.
-- **Data:** 2026-11-27
-- **Refs:** issue #209; ADR 0008 §2, ADR 0011, ADR 0014.
+- **Status:** Aceito em 2026-11-27 (trava de 4 meses). **Revisado em 2026-11-28:** a janela de
+  transferência substitui a trava (decisão do Felipe, a partir da reunião com o Cortez).
+- **Data:** 2026-11-27; revisão 2026-11-28
+- **Refs:** issues #209 e #302; ADR 0008 §2, ADR 0011, ADR 0014.
 
-## Decisão
+## Decisão (vale desde 2026-11-28)
 
-1. Definida a casa (aceita, escolhida direto ou decidida pela coordenação), a **pessoa** só a troca
-   por conta própria 4 meses depois do **mais tardio** entre o aceite do termo do questionário e o
-   aceite da casa (sem termo aceito, o aceite da casa): ninguém entra com a trava já vencida. Antes de definir (tela de sugestão), "Escolher outra casa" é livre.
-2. A **coordenação** com alcance de **gestão** sobre a pessoa (`can_manage_house_member`: gestor ou
-   monitor da unidade, ou coordenação da casa) troca a casa a qualquer momento, na tela de
-   resultado. A delegação de **leitura** dos resultados não vira poder de escrita.
-   A troca da coordenação **não** reinicia a trava; a da própria pessoa a reinicia (4 meses
-   a partir da troca).
-3. Toda troca vai para o `audit_log` (`house_changed`, ator = quem trocou, motivo `self` ou
-   `coordination`).
-4. A tela do questionário avisa, junto ao botão de aceite, que a casa só poderá ser trocada pela
-   pessoa depois de 4 meses (texto da tela, não do termo). `/inicio` e `/casa` mostram a data a
-   partir da qual a pessoa poderá trocar; vencido o prazo, `/casa` oferece "Trocar de casa" (escolha
-   direta).
+1. A troca de casa vem **de cima para baixo**: a **coordenação nacional abre uma janela de
+   transferência**. Enquanto ela está aberta, o perfil mostra "Trocar de casa" a quem quiser
+   (a tela de comparação das casas, #268). Fora da janela, a pessoa não troca sozinha.
+2. A troca **não depende** da data do aceite do termo, do questionário nem da casa.
+3. A **trava individual de 4 meses deixa de existir** (a #302 remove do código). Antes de definir a
+   casa (tela de sugestão), "Escolher outra casa" continua livre.
+4. A **coordenação** com alcance de **gestão** sobre a pessoa (`can_manage_house_member`) continua
+   trocando a casa a qualquer momento. A delegação de **leitura** não vira poder de escrita.
+   [?] A ata de 28/11 não confirma este ponto; mantido até o Cortez dizer o contrário.
+5. Toda troca vai para o `audit_log` (`house_changed`, motivo `self` ou `coordination`); abrir e
+   fechar a janela também.
+6. Na lista e no resultado da coordenação aparecem a casa **sugerida** e a **escolhida** (vínculo
+   aberto; vazia se ainda não aceitou), com destaque quando diferem, a data da escolha e se a troca
+   foi da coordenação; filtro "escolheu outra casa" no banco (`coordination_other_house_results`),
+   sobre todas as pessoas do alcance. Abrir o resultado continua auditado.
 
-5. Na lista e no resultado da coordenação aparecem a casa **sugerida** e a **escolhida** (vínculo aberto;
-   vazia se ainda não aceitou), com destaque quando diferem, a data da escolha e se a troca foi da
-   coordenação; há o filtro "escolheu outra casa", feito no banco sobre todas as pessoas do alcance
-   (`coordination_other_house_results`), não só sobre a página. Lido por `coordination_chosen_houses`, com o
-   alcance das telas de resultado; abrir o resultado continua auditado.
+**Em aberto:** quanto tempo a janela fica aberta e se só a nacional a abre.
 
-## Como é garantido
+## Estado do código até a #302
 
-No banco, não na interface: `house_members.locked_until` é preenchida por gatilho (e pelas funções) com o
-relógio do servidor; a pessoa não escreve em `house_members`; `accept_house` (security definer)
-recusa outra casa antes do prazo (`C7603`); `coordination_set_house` confere o alcance. As duas
-travam o perfil da pessoa e o vínculo aberto (`for update`), então não correm uma contra a outra; se
-a troca concorrente ainda atropelar, o erro é `C7604`. Trocas (`moved`) não contam como "tirada pela
-coordenação" (`C7602`). "Baixar meus dados" traz `locked_until` e o histórico `house_changed`.
+Ainda vale a trava anterior: `house_members.locked_until` preenchida por gatilho (4 meses do
+**mais tardio** entre o aceite do termo do questionário e o da casa), `accept_house` recusa outra
+casa antes do prazo (`C7603`; `C7604` se a casa mudou no meio da troca), a troca da pessoa a
+reinicia e a da coordenação não, o aviso de 4 meses aparece na tela do questionário e `/inicio` e
+`/casa` mostram a data. Trocas (`moved`) não contam como "tirada pela coordenação" (`C7602`).
+A #302 troca isso por uma tabela de janelas, remove `locked_until`, o gatilho, o `C7603` e os
+avisos, e `accept_house` passa a recusar a troca fora da janela.
 
 ## Consequências
 
-- Vínculos já aceitos ganham a trava na migration (4 meses do aceite do termo ou da casa).
+- Troca em massa, num período combinado pela coordenação nacional, em vez de trocas a qualquer
+  hora; a pessoa precisa esperar a próxima janela.
 - A pessoa tirada da casa pela coordenação continua sem voltar sozinha (ADR 0011).
 - A chave e as perguntas do questionário não mudam aqui.
