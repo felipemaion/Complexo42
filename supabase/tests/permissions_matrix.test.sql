@@ -1497,7 +1497,7 @@ select set_eq(
   'coordenador da casa 2 lê só a formação dos membros da casa 2'
 );
 -- Foto do perfil (#308, `app.can_view_photo`): a própria, ou a de perfil ativo para quem é membro de verdade
--- (casa aceita). Quem ainda não tem casa e quem está na espera leem só a própria.
+-- (casa aceita). Quem está na espera lê só a própria (e quem ainda não tem casa: profile_photo.test.sql).
 select pg_temp.login('stu_ah');
 select set_eq(
   $$ select profile_id from public.profile_photos $$,
@@ -1507,8 +1507,8 @@ select set_eq(
 select pg_temp.login('stu_a');
 select set_eq(
   $$ select profile_id from public.profile_photos $$,
-  array[pg_temp.person('stu_a')],
-  'quem ainda não tem casa aceita lê só a própria foto'
+  array[pg_temp.person('stu_a'), pg_temp.person('stu_ah'), pg_temp.person('stu_bh')],
+  'outro membro ativo também lê a foto de perfis ativos (e não a de quem está na espera)'
 );
 select pg_temp.login('stu_wait');
 select set_eq(
