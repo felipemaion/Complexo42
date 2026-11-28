@@ -15,7 +15,7 @@ type Text = InstanceConfig["houseSelection"];
 
 type Comparison =
   | { status: "loading" }
-  | { status: "failed" }
+  | { status: "failed"; expired?: boolean }
   | {
       status: "ready";
       expectations: { text: string; answer: number }[];
@@ -52,9 +52,9 @@ export function CompareHouses({ houses, suggestedId, currentId, selectedId, char
     if (selectedId === undefined) return;
     let cancelled = false;
     void (async () => {
-      const response = compareToken ? await compareHouseAction({ houseId: selectedId, token: compareToken }) : ({ ok: false } as const);
+      const response = compareToken ? await compareHouseAction({ houseId: selectedId, token: compareToken }) : ({ ok: false, error: "failed" } as const);
       if (cancelled) return;
-      setLoaded({ houseId: selectedId, comparison: response.ok ? { status: "ready", expectations: [...response.expectations], average: response.average } : { status: "failed" } });
+      setLoaded({ houseId: selectedId, comparison: response.ok ? { status: "ready", expectations: [...response.expectations], average: response.average } : { status: "failed", ...(response.error === "expired" && { expired: true }) } });
     })();
     return () => {
       cancelled = true;
@@ -152,7 +152,7 @@ export function CompareHouses({ houses, suggestedId, currentId, selectedId, char
               )}
             </div>
           )}
-          {comparison.status === "failed" && <p role="alert" className="text-lg">{t.expectUnavailable}</p>}
+          {comparison.status === "failed" && <p role="alert" className="text-lg" data-testid={comparison.expired ? "compare-expired" : undefined}>{comparison.expired ? t.expiredReload : t.expectUnavailable}</p>}
           <button type="button" className={primary} onClick={onConfirm} disabled={disabled || selected.id === currentId} data-testid="compare-confirm">
             {t.confirmButton}
           </button>

@@ -288,6 +288,7 @@ export const instance = parseInstanceConfig({
       intro: "Escolha uma casa para ver como o seu perfil se compara e o que se espera dela. Nada é confirmado até você escolher.",
       suggestedBadge: "Sua casa sugerida",
       currentBadge: "Sua casa atual",
+      expiredReload: "Esta comparação expirou. Recarregue a página para continuar.",
       selectedBadge: "Comparando",
       yourProfileLabel: "Seu perfil",
       chartTitle: "Seu perfil e o da casa",
