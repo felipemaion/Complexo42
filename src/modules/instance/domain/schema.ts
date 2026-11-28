@@ -404,6 +404,18 @@ export const instanceConfigSchema = z.strictObject({
       failed: text,
     }),
   }),
+  /** "Ver contato" no perfil público (#48). */
+  contactView: z.strictObject({
+    title: text,
+    note: text,
+    buttons: z.strictObject({ whatsapp: text, social: text, email: text }),
+    openWhatsapp: text,
+    socialLabel: text,
+    empty: text,
+    forbidden: text,
+    rateLimited: text,
+    failed: text,
+  }),
   /** Perfil público (#305). */
   publicProfile: z.strictObject({
     title: text,

@@ -3,7 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
-import { coordinationViewDeps, NewsSection, OwnHouse, readNewsFeed, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
+import { coordinationViewDeps, NewsSection, OwnHouse, readMemberTotems, readNewsFeed, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
+import { totemName } from "@/modules/questionnaire";
+import { log } from "@/server/log";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
 import { CONTACT_VISIBILITY_PATH, firstName, loadOwnProfile, needsFullNameNotice, SocialLinkList } from "@/modules/profiles";
 import { PASSWORD_PATH, PROFILE_PATH } from "@/server/auth/routes";
@@ -30,6 +32,16 @@ export default async function SignedInHome({ searchParams }: Props) {
   // Novidades (#307): as publicadas para o nível da pessoa e o cartão da janela de troca, quando aberta.
   const newsFeed = houseClient ? await readNewsFeed(houseClient) : [];
   const houseCard = houseClient && await readOwnHouseCard(houseClient, user.id, { crypto: deps.crypto, questionnaire: deps.questionnaire, houseIds: instance.houses.map((house) => house.id) });
+  // O totem da própria pessoa (#303): lido pela função do banco e decifrado aqui, no servidor. Se falhar, a página abre sem a medalha.
+  const totemCode = houseCard && houseCard.kind === "house" && houseClient
+    ? await readMemberTotems(houseClient, [user.id], { crypto: deps.crypto, questionnaire: deps.questionnaire, onUnreadable: (count) => log.warn("member_totems_unreadable", { count }) })
+        .then((codes) => codes.get(user.id) ?? null)
+        .catch((error: unknown) => {
+          // Só o motivo curto (`member_totems_failed:<código>`): nunca id, valor cifrado nem mensagem do banco.
+          log.warn("member_totems_failed", { reason: error instanceof Error ? error.message.slice(0, 40) : "unknown" });
+          return null;
+        })
+    : null;
   const action = buttonClass("secondary", "lg");
   // Saudação com o primeiro nome (#324); sem nome legível, o título genérico. A área de novidades (#307) vem aqui depois.
   const name = firstName(own.displayName);
@@ -57,7 +69,14 @@ export default async function SignedInHome({ searchParams }: Props) {
             {text.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
           </p>
           {/* A casa e o gráfico da pessoa, só os eixos da casa (#203). */}
-          {houseCard && <OwnHouse card={houseCard} houses={instance.houses} text={instance.houseSelection} />}
+          {houseCard && (
+            <OwnHouse
+              card={houseCard}
+              houses={instance.houses}
+              text={instance.houseSelection}
+              totem={totemCode ? { code: totemCode, name: totemName(deps.questionnaire, totemCode) } : null}
+            />
+          )}
           {/* Os próprios links de rede (#17), sempre pela lista segura do módulo de perfis. */}
           {own.socialLinks.length > 0 && (
             <section aria-labelledby="minhas-redes" className="flex flex-col gap-3">

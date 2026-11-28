@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import type { QuestionnaireConfig } from "../src/modules/questionnaire/domain/schema";
 import { acceptTermIfAsked } from "./accept-term";
@@ -66,7 +66,7 @@ async function signInByEmail(page: Page, request: APIRequestContext, email: stri
 }
 
 /** Login → termo → questionário → casa → perfil, pela interface. */
-async function joinThroughQuestionnaire(page: Page, request: APIRequestContext, email: string, name: string, baseURL: string): Promise<void> {
+async function joinThroughQuestionnaire(page: Page, request: APIRequestContext, email: string, name: string, baseURL: string): Promise<string> {
   await signInByEmail(page, request, email);
   await acceptTermIfAsked(page);
   await expect(page).toHaveURL(`${baseURL}/casa`);
@@ -84,10 +84,13 @@ async function joinThroughQuestionnaire(page: Page, request: APIRequestContext, 
   await page.getByTestId("continue-link").click();
   await expect(page).toHaveURL(`${baseURL}/perfil`);
   await page.getByLabel("Seu nome").fill(name);
-  await page.getByLabel("Seu WhatsApp, com DDD").fill(`11 9${String(Date.now()).slice(-8)}`);
+  // Devolve o trecho do WhatsApp digitado (9 + 8 dígitos): a varredura de dados em claro o procura no banco (#155).
+  const whatsapp = `9${String(Date.now()).slice(-8)}`;
+  await page.getByLabel("Seu WhatsApp, com DDD").fill(`11 ${whatsapp}`);
   await chooseCity(page, "São Paulo");
   await page.getByRole("button", { name: "Salvar meus dados" }).click();
   await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
+  return whatsapp;
 }
 
 // #156: o nome da segunda pessoa é um payload de XSS (o nome aceita qualquer texto de 2 a 80 caracteres). Nas telas
@@ -116,7 +119,7 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   expect(bootstrapCoordination()).toContain("ainda precisa entrar");
   const coordinator = await (await browser.newContext()).newPage();
   const coordinatorDialogs = watchDialogs(coordinator);
-  await joinThroughQuestionnaire(coordinator, request, coordinatorEmail, "Coordenação Staging", baseURL!);
+  const coordinatorWhatsapp = await joinThroughQuestionnaire(coordinator, request, coordinatorEmail, "Coordenação Staging", baseURL!);
   // Com perfil e casa, o mesmo comando do operador dá o papel de gestora da raiz.
   expect(bootstrapCoordination()).toContain("concedido");
 
@@ -128,8 +131,18 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
 
   const member = await (await browser.newContext()).newPage();
   const memberDialogs = watchDialogs(member);
-  await joinThroughQuestionnaire(member, request, memberEmail, XSS_NAME, baseURL!);
+  const memberWhatsapp = await joinThroughQuestionnaire(member, request, memberEmail, XSS_NAME, baseURL!);
   await expectInert(member, memberDialogs);
+
+  // Os trechos que digitamos, para o scripts/staging-ci/varredura.sh procurar em claro no banco (#155). Só dado fictício, em
+  // arquivo do diretório temporário do job; sem a variável (fora do script do job) não grava nada.
+  if (process.env.E2E_STAGING_TRECHOS_FILE) {
+    writeFileSync(
+      process.env.E2E_STAGING_TRECHOS_FILE,
+      [`claro:${XSS_NAME}`, "claro:Coordenação Staging", `claro:${memberWhatsapp}`, `claro:${coordinatorWhatsapp}`, `email:${coordinatorEmail}`, `email:${memberEmail}`].join("\n") + "\n",
+      { mode: 0o600 },
+    );
+  }
 
   // A coordenação nacional vê os resultados do banco novo: o dela (#318) e o da pessoa.
   await coordinator.goto("/coordenacao/casas/resultados");

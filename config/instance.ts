@@ -299,6 +299,18 @@ export const instance = parseInstanceConfig({
     viewsUnknownPerson: "Uma pessoa que saiu da plataforma",
     viewsNote: "Aqui aparecem os 200 acessos mais recentes. A lista completa vem no arquivo de \"Baixar meus dados\".",
   },
+  // "Ver contato" no perfil público (#48, ADR 0010): o botão só aparece a quem pode ver; cada clique é registrado.
+  contactView: {
+    title: "Contato",
+    note: "Cada vez que você vê um contato, fica registrado, e a pessoa pode saber.",
+    buttons: { whatsapp: "Ver WhatsApp", social: "Ver redes sociais", email: "Ver e-mail" },
+    openWhatsapp: "Abrir no WhatsApp",
+    socialLabel: "Redes sociais da pessoa",
+    empty: "A pessoa não cadastrou esse contato.",
+    forbidden: "Você não pode ver esse contato agora.",
+    rateLimited: "Você já viu muitos contatos nesta hora. Tente de novo mais tarde.",
+    failed: "Não foi possível ver o contato agora. Tente de novo em alguns minutos.",
+  },
   // Escolha da casa (#76): "Você sabe o que quer fazer?" → lista de atividades ou questionário.
   houseSelection: {
     title: "Sua casa de formação",

@@ -8,7 +8,7 @@ export type NewsEntry = ({ kind: "news" } & NewsItem) | { kind: "house_window" }
 /** O teto de novidades publicadas na página inicial. */
 export const newsFeedLimit = 5;
 
-// A mesma regra do banco (20261128260000): só https, domínio com ponto e sufixo de letras, sem usuário nem espaço.
+// A mesma regra do banco (20261128310000): só https, domínio com ponto e sufixo de letras, sem usuário nem espaço.
 const LINK = /^https:\/\/([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(:[0-9]{1,5})?(\/[^\s<>"]*)?$/i;
 
 /** O link só se for https com domínio válido; qualquer outra coisa vira `null` (a novidade continua, sem o link). */
