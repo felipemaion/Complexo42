@@ -222,7 +222,14 @@ const valid = {
       backLink: "t",
     },
   },
-  news: { title: "t", windowOpenTitle: "t", windowOpenBody: "t", windowOpenLink: "t", linkLabel: "t" },
+  news: {
+    title: "t", windowOpenTitle: "t", windowOpenBody: "t", windowOpenLink: "t", linkLabel: "t",
+    admin: {
+      menuLink: "t", title: "t", intro: "t", unitLabel: "t", titleLabel: "t", bodyLabel: "t", linkLabel: "t", expiresLabel: "t",
+      publishButton: "t", published: "t", listTitle: "t", empty: "t", unitsEmpty: "t", archiveButton: "t", archived: "t",
+      errors: { invalid: "t", forbidden: "t", failed: "t" }, backLink: "t",
+    },
+  },
   skills: {
     homeLink: "t", title: "t", intro: "t", searchLabel: "t", counter: "t", limitReached: "t", empty: "t", saveButton: "t", saved: "t",
     suggestTitle: "t", suggestHint: "t", suggestLabel: "t", suggestButton: "t", suggested: "t", mySuggestionsTitle: "t",

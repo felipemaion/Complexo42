@@ -39,6 +39,10 @@ export default async function CoordinationHome() {
           {text.allowlist.menuLink}
         </Link>
       )}
+      {/* Novidades da página inicial (#307): qualquer gestor, na própria unidade e nas de baixo. */}
+      <Link href="/coordenacao/novidades" className={big}>
+        {instance.news.admin.menuLink}
+      </Link>
       {/* Busca de pessoas por habilidade (#23): o banco decide quem vê quem; a tela é só atalho. */}
       <Link href="/coordenacao/pessoas" className={big}>
         {instance.skills.search.menuLink}
