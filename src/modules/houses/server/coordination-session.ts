@@ -19,10 +19,10 @@ export function coordinationViewDeps(): ViewDeps {
 export type CoordinationScreen = { user: CurrentUser; client: HouseClient; access: CoordinationAccess; deps: ViewDeps };
 
 /**
- * Entrada de uma tela. `results` (resultados e fila): a nacional ou um delegado. `delegations` e `window`
- * (janela de transferência de casa): só a nacional. Sem sessão, o `requireUser` leva ao login; sem permissão, 404.
+ * Entrada de uma tela. `results` (resultados e fila): a nacional ou um delegado. `delegations`, `window`
+ * (janela de transferência de casa) e `skills` (sugestões de habilidade): só a nacional. Sem sessão, o `requireUser` leva ao login; sem permissão, 404.
  */
-export async function requireCoordinationScreen(screen: "results" | "delegations" | "window"): Promise<CoordinationScreen> {
+export async function requireCoordinationScreen(screen: "results" | "delegations" | "window" | "skills"): Promise<CoordinationScreen> {
   const user = await requireUser();
   const client = await sessionHouseClient();
   if (!client) notFound();

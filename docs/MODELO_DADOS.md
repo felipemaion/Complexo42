@@ -501,16 +501,35 @@ apontam para `profiles(id)` (o mesmo id de `auth.users`): ninguém tem vínculo 
 As regras de cada papel (ver, ver contato, gerenciar, conceder) estão no cabeçalho de
 `supabase/migrations/20261119130100_access_functions.sql`.
 
-### `skills` e `profile_skills` (#8)
+### `skills`, `profile_skills` e `skill_suggestions` (#8, #15)
 `skills`: `id`, `name` (único), `category`, `aliases` (text[], sinônimos para a busca), `active`.
-Índice GIN em `aliases`. A **busca por habilidade roda no banco** (texto puro, indexado); só os
-nomes da página exibida são decifrados no servidor (ADR 0003 §6). Leitura só de perfil ativo
-(`app.is_active_member`); ninguém grava pela API (catálogo entra por seed ou migration).
-`profile_skills`: `profile_id` (cascade com o perfil), `skill_id`; chave (`profile_id`,
-`skill_id`) e índice `(skill_id, profile_id)`. Lê quem pode ver o perfil (`app.can_view_profile`).
-Sem `level`: o nível (só "tenho" ou três graus) segue em aberto com o stakeholder; sem
-limite por pessoa nem opção "outra" até a #15, que também grava e inclui as habilidades no
-arquivo de exportação dos dados da pessoa.
+Índice GIN em `aliases`. Os **sinônimos ficam sem caixa e sem acento** (gatilho, `app.norm_text`, que usa
+`extensions.unaccent`); a busca normaliza o termo do mesmo jeito. A **busca por habilidade roda no banco**
+(texto puro, indexado); só os nomes da página exibida são decifrados no servidor (ADR 0003 §6). Leitura só
+de perfil ativo (`app.is_active_member`); ninguém grava pela API (o catálogo entra por seed, migration ou
+pela aprovação de uma sugestão).
+
+`profile_skills`: `profile_id` (cascade com o perfil), `skill_id`; chave (`profile_id`, `skill_id`) e índice
+`(skill_id, profile_id)`. **Sem nível** (só "tenho") e **no máximo 10 por pessoa**, conferido no banco
+(gatilho que trava o perfil, erro `C7701`) e na função. Lê quem pode ver o perfil (`app.can_view_profile`), o
+que mantém a busca da #23 para a coordenação nacional. A pessoa grava só pelo conjunto inteiro,
+`set_my_skills(ids)` (só habilidade ativa; a que ela já tem e foi desativada pode ficar); nenhum INSERT,
+UPDATE ou DELETE direto.
+
+`skill_suggestions` (#15): `id`, `profile_id` (cascade), `name`, `status` (`open`, `approved`, `rejected`),
+`decided_by` (set null), `decided_at`, `created_at`. **`name` é texto livre da pessoa. Finalidade:** virar o
+nome de uma habilidade do catálogo, visível a todos os membros, depois da aprovação; antes, só a pessoa e a
+coordenação nacional o leem. Sem caractere de controle nem invisível (`\p{Cc}`, `\p{Cf}`), 2 a 80 caracteres.
+Fica no lugar da opção "outra". A pessoa sugere por `suggest_skill(nome)`: no máximo **3 abertas** e **5 em
+24 horas** (de qualquer estado, para rejeitar não liberar sugestão sem fim) e nunca um nome que já exista
+(`C7702`, `C7703`, `C7704`). **Só a coordenação nacional decide**, por `decide_skill_suggestion(id, aprovar,
+grupo)`: aprovar cria a habilidade (ou usa a de mesmo nome), a marca para quem sugeriu se ainda couber no
+limite e grava `skill_suggestion_decided` no `audit_log` (ator e alvo, sem o texto); se casar com uma habilidade desativada, a reativa (`skill_reactivated` no `audit_log`). Há um índice único no nome normalizado de `skills`. A fila mostra nome e data,
+sem quem sugeriu.
+
+"Baixar meus dados" traz as habilidades (nome e grupo) e as sugestões da pessoa (nome, estado e datas); a
+exclusão da conta apaga as duas (cascade). A tela da pessoa é `/perfil/habilidades` (busca e marcação múltipla,
+"x de 10", "Sugerir habilidade"); a fila é `/coordenacao/habilidades` (só a nacional).
 
 **Catálogo PROVISÓRIO** (47 habilidades em 8 grupos, até o stakeholder aprovar): vai por migration
 (`..._estrutura_instancia.sql`), no local e no servidor. Para trocar, crie uma migration nova (upsert pelo nome).

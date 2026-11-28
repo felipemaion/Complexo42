@@ -74,6 +74,10 @@ export const ownDataRowsSchema = z.object({
   ),
   /** Aceites do termo do questionário (versão e data; nunca as respostas). */
   questionnaire_consents: z.array(z.object({ term_version: z.string(), consented_at: timestamp })),
+  /** Habilidades que a pessoa marcou (#15): nome e grupo do catálogo. */
+  skills: z.array(z.object({ name: z.string(), category: z.string() })),
+  /** Sugestões de habilidade nova da pessoa (#15): nome (texto dela), estado e datas. */
+  skill_suggestions: z.array(z.object({ name: z.string(), status: z.string(), created_at: timestamp, decided_at: timestamp.nullable() })),
   /**
    * Resultado do questionário (ADR 0014, #172): a casa sugerida e o totem (cifrado no banco, ADR
    * 0003; o servidor decifra aqui). O totem é interno e só aparece aqui (LGPD art. 18), nunca na
@@ -182,6 +186,8 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  habilidades: { nome: string; grupo: string }[];
+  sugestoesDeHabilidade: { nome: string; estado: string; sugeridaEm: string; decididaEm: string | null }[];
   /** Casa sugerida e totem (ADR 0014). O totem é interno: só aparece neste arquivo. */
   resultadoDoQuestionario: {
     casaSugerida: string;
@@ -390,6 +396,8 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     ),
     termosDeConsentimento: rows.consent_acceptances.map((c) => ({ versao: c.version, aceitoEm: c.accepted_at })),
     termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),
+    habilidades: rows.skills.map((s) => ({ nome: s.name, grupo: s.category })),
+    sugestoesDeHabilidade: rows.skill_suggestions.map((q) => ({ nome: q.name, estado: q.status, sugeridaEm: q.created_at, decididaEm: q.decided_at })),
     papeis: rows.roles.map((r) => ({
       papel: r.role,
       unidade: r.unit_name,

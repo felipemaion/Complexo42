@@ -68,6 +68,13 @@ export default async function SignedInHome({ searchParams }: Props) {
       >
         {instance.contactVisibility.homeLink}
       </Link>
+      {/* Habilidades (#15): o que a pessoa faz no dia a dia, sem nível, até 10. */}
+      <Link
+        href="/perfil/habilidades"
+        className="block w-full rounded-xl border-2 border-current px-6 py-5 text-center text-xl font-semibold focus:outline-none focus-visible:ring-4 focus-visible:ring-offset-2"
+      >
+        {instance.skills.homeLink}
+      </Link>
       {/* Senha opcional para entrar sem e-mail (ADR 0018). */}
       <Link
         href={PASSWORD_PATH}
