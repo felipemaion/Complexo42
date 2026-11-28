@@ -26,3 +26,12 @@ export function isFullName(raw: string): boolean {
 export function needsFullNameNotice(displayName: string): boolean {
   return displayName.trim() !== "" && !isFullName(displayName);
 }
+
+/**
+ * Primeiro nome para a saudação do /inicio (#324): a primeira palavra com 2 ou mais letras. Nome vazio ou
+ * ilegível (decifra falhou) devolve null, e a página usa o título genérico.
+ */
+export function firstName(displayName: string): string | null {
+  const words = stripInvisible(displayName).trim().split(/\s+/);
+  return words.find((word) => (word.match(LETTER) ?? []).length >= minLettersPerWord) ?? null;
+}

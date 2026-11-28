@@ -27,7 +27,7 @@ export {
   socialLinkViews,
   type SocialLinkView,
 } from "./domain/social";
-export { isFullName, needsFullNameNotice } from "./domain/full-name";
+export { firstName, isFullName, needsFullNameNotice } from "./domain/full-name";
 export { brazilianWhatsappToE164, formatBrazilianWhatsapp } from "./domain/whatsapp";
 export { filterMunicipalities, hasDistrictChoice } from "./domain/localities";
 export {

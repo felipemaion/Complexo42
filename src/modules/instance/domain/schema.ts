@@ -82,8 +82,10 @@ export const instanceConfigSchema = z.strictObject({
     signupClosed: text,
     signedOut: text,
     signOutButton: text,
+    /** Título do /inicio quando o nome da pessoa não pôde ser lido (#324). */
     signedInTitle: text,
-    signedInMessage: text,
+    /** Saudação do /inicio com o primeiro nome (#324); `{name}` é trocado na tela. */
+    greeting: text.refine((v) => v.includes("{name}"), "use {name}"),
     /** Rótulo antes do e-mail mascarado de quem está logado (ex.: "Conectado como"). */
     connectedAs: text,
     navLabel: text,
@@ -342,6 +344,8 @@ export const instanceConfigSchema = z.strictObject({
     acceptedTitle: text,
     /** Link da página inicial para a escolha da casa. */
     homeLink: text,
+    /** O mesmo link para quem já tem a casa aceita (#324): leva à página da própria casa. */
+    ownHouseLink: text,
     /** Na página da pessoa, sem casa nem resultado (#203): convite para fazer o questionário. */
     inviteMessage: text,
     /** Limite de renovação com o tempo restante conhecido (#199); `{minutes}` é trocado na tela. */

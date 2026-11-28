@@ -55,8 +55,8 @@ export const instance = parseInstanceConfig({
     signupClosed: "Por enquanto, só entra quem já recebeu acesso da coordenação. Se o link não chegar, fale com quem convidou você.",
     signedOut: "Você saiu da sua conta.",
     signOutButton: "Sair",
-    signedInTitle: "Você entrou",
-    signedInMessage: "Seu acesso está funcionando. As próximas telas chegam em breve.",
+    signedInTitle: "Início",
+    greeting: "Olá, {name}",
     connectedAs: "Conectado como",
     // Navegação das páginas logadas (#205).
     navLabel: "Navegação da conta",
@@ -313,6 +313,7 @@ export const instance = parseInstanceConfig({
     submitting: "Calculando o seu resultado...",
     acceptedTitle: "Sua casa",
     homeLink: "Escolher sua casa",
+    ownHouseLink: "Sua casa",
     inviteMessage: "Você ainda não tem uma casa. Responda ao questionário para descobrir a sua.",
     rateLimitedWait: "Você acabou de enviar as suas respostas. Espere {minutes} min antes de tentar de novo, ou escolha a casa direto.",
     consentStoredNotice:
