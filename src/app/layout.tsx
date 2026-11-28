@@ -17,12 +17,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // requisição, e a CSP bloquearia os scripts dela (https://nextjs.org/docs/app/guides/content-security-policy).
   await connection();
   const theme = {
-    "--color-primary": instance.colors.primary,
-    "--color-secondary": instance.colors.secondary,
+    "--brand-primary": instance.colors.primary,
+    "--brand-secondary": instance.colors.secondary,
   } as React.CSSProperties;
   return (
     <html lang="pt-BR" style={theme}>
-      <body className="min-h-screen bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
+      {/* Fundo, texto e fonte vêm dos tokens de globals.css (#324). */}
+      <body>
         {children}
       </body>
     </html>
