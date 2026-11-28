@@ -5,7 +5,7 @@ import { instance } from "@config/instance";
 import { COORDINATION_PATH, readCoordinationMenu } from "@/modules/access";
 import { coordinationViewDeps, OwnHouse, readOwnHouseCard, sessionHouseClient } from "@/modules/houses";
 import { DELETE_ACCOUNT_PATH, MY_DATA_PATH, MY_DATA_STATUS_PARAM, parseMyDataStatus } from "@/modules/privacy";
-import { CONTACT_VISIBILITY_PATH, loadOwnProfile, needsFullNameNotice, SocialLinkList } from "@/modules/profiles";
+import { CONTACT_VISIBILITY_PATH, firstName, loadOwnProfile, needsFullNameNotice, SocialLinkList } from "@/modules/profiles";
 import { PASSWORD_PATH, PROFILE_PATH } from "@/server/auth/routes";
 import { requireUserClient } from "@/server/auth/session";
 import { buttonClass, cardClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
@@ -29,9 +29,14 @@ export default async function SignedInHome({ searchParams }: Props) {
   const houseClient = await sessionHouseClient();
   const houseCard = houseClient && await readOwnHouseCard(houseClient, user.id, { crypto: deps.crypto, questionnaire: deps.questionnaire, houseIds: instance.houses.map((house) => house.id) });
   const action = buttonClass("secondary", "lg");
+  // Saudação com o primeiro nome (#324); sem nome legível, o título genérico. A área de novidades (#307) vem aqui depois.
+  const name = firstName(own.displayName);
+  const hasAcceptedHouse = houseCard?.kind === "house" && houseCard.isAccepted;
   return (
     <PageShell width="content">
-      <h1 className="text-3xl font-bold sm:text-4xl">{text.signedInTitle}</h1>
+      <h1 className="text-3xl font-bold sm:text-4xl" data-testid="home-greeting">
+        {name ? text.greeting.replace("{name}", name) : text.signedInTitle}
+      </h1>
       {saved && (
         <p role="status" className={noticeClass("success")}>
           {instance.profile.saved}
@@ -45,7 +50,6 @@ export default async function SignedInHome({ searchParams }: Props) {
       {/* No computador, a casa à esquerda e as ações à direita (#324); no celular, uma coluna. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
         <div className={cardClass()}>
-          <p className="text-lg">{text.signedInMessage}</p>
           <p className="text-lg text-ink-muted">
             {text.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
           </p>
@@ -79,7 +83,7 @@ export default async function SignedInHome({ searchParams }: Props) {
           </Link>
           {/* Escolha da casa de formação (#76). */}
           <Link href="/casa" className={action}>
-            {instance.houseSelection.homeLink}
+            {hasAcceptedHouse ? instance.houseSelection.ownHouseLink : instance.houseSelection.homeLink}
           </Link>
           {/* Coordenação (#26): só para quem tem papel de gestor. Conforto, não segurança (R15). */}
           {coordination.waitlist && (
