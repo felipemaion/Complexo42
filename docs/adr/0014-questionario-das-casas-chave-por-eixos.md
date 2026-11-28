@@ -83,6 +83,8 @@ casa. Por serem dados pessoais, aparecem em "Baixar meus dados" (LGPD art. 18).
 curta e o gráfico dos eixos 1 e 2 com as zonas; sem casa nem resultado, um convite para o questionário. O servidor
 nunca pede o totem a essa leitura (`readOwnHouseCard`; regra em `domain/home-card.ts`).
 
+**Medalha do totem** (#266, só coordenação): no resultado de cada pessoa e na lista de resultados, a medalha do totem (`public/totens/`, WebP e PNG em 512 e 128, gerada por `scripts/otimizar-totens.mjs`) fica ao lado do escudo da casa, do mesmo tamanho, com o nome do totem como `alt`. O código do totem é aberto no servidor (leitura à parte, só das pessoas da página, no alcance da RLS); ilegível ou sem medalha, a linha sai só com o escudo. A pessoa nunca vê a medalha nem o nome do totem (guarda em `tests/totem-medal-privacy.test.ts` e E2E), e `/totens/` exige login (o proxy não o exclui, ao contrário de `/casas/`). A lista passou a ler o totem de todas as pessoas da página sem o registro de acesso do detalhe; as notas continuam só no detalhe.
+
 **Gráfico de aranha** (SVG próprio, sem biblioteca): os polos "a" de todos os eixos vêm primeiro e
 depois os polos "b", na mesma ordem, de modo que os opostos ficam frente a frente (meia volta). Cada
 raio vale a intensidade do polo (0 a 100). **Zonas das casas** (#201, protótipo aprovado): o quadrante entre os

@@ -3,9 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { instance } from "@config/instance";
 import { choseOtherHouse, openResult, requireCoordinationScreen } from "@/modules/houses";
-import { crossOrder, totemLabel } from "@/modules/questionnaire";
+import { crossOrder, totemLabel, totemName } from "@/modules/questionnaire";
 import { SpiderChart } from "@/modules/questionnaire/components/spider-chart";
 import { HouseWithShield } from "@/modules/houses/components/house-shield";
+import { HouseWithTotem } from "@/modules/houses/components/totem-medal";
 import { changeHouseAction } from "../actions";
 import { errorText as lookupErrorText, fill, houseName, shortDate } from "../../format";
 
@@ -46,7 +47,7 @@ export default async function ResultPage({
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-lg">
         <dt className="font-semibold">{text.results.houseLabel}</dt>
         <dd data-testid="result-house">
-          <HouseWithShield houseId={result.houseId} name={houseName(result.houseId)} size={32} />
+          <HouseWithTotem houseId={result.houseId} houseName={houseName(result.houseId)} totemCode={result.totem} totemName={totemName(deps.questionnaire, result.totem)} size={32} />
         </dd>
         <dt className="font-semibold">{text.results.chosenLabel}</dt>
         <dd data-testid="result-chosen" data-differs={differs ? "true" : "false"} className={differs ? "font-bold underline decoration-2" : undefined}>

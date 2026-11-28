@@ -162,13 +162,14 @@ describe("listResults", () => {
     expect(out.rows[0]).toMatchObject({ chosenHouseId: null, chosenAt: null, changedByCoordinationAt: null });
   });
 
-  it("filtro \"escolheu outra casa\": o banco filtra (todas as pessoas do alcance), sem ler a tabela de resultados", async () => {
+  it("filtro \"escolheu outra casa\": o banco filtra (todas as pessoas do alcance); a tabela de resultados só é lida para o totem", async () => {
     const other = [{ profile_id: U2, house_key: HOUSE_B, created_at: "2026-11-26T10:00:00Z" }];
     const { client, log, rpcCalls } = fake({ profiles: { data: profiles } }, { coordination_other_house_results: { data: other }, coordination_chosen_houses: { data: chosen } });
     const out = await listResults(client, deps, VIEWER, { otherHouse: true, houseId: HOUSE_B });
     expect(out.rows.map((row) => row.profileId)).toEqual([U2]);
     expect(rpcCalls[0]).toEqual({ fn: "coordination_other_house_results", args: { p_house: HOUSE_B, p_limit: maxResultRows + 1 } });
-    expect(log.some((entry) => entry[0] === "from" && entry[1] === "questionnaire_results")).toBe(false);
+    const columns = log.filter((entry) => entry[0] === "from" && entry[1] === "questionnaire_results").map((entry) => String(entry[2]));
+    expect(columns).toEqual(["profile_id,totem_enc"]);
   });
 
   it("filtro \"escolheu outra casa\" com mais linhas que a página: mostra a página e avisa que truncou (e sem filtro de casa manda nulo)", async () => {

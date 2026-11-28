@@ -18,6 +18,16 @@ test.skip(!API || !SERVICE, "precisa do Supabase local e da chave service_role")
 
 // O exemplo de config/ (sem QUESTIONNAIRE_PATH, é o que o app carrega).
 const questionnaire = JSON.parse(readFileSync("config/questionnaire.example.json", "utf8")) as QuestionnaireConfig;
+
+/** REGRA DURA: o totem nunca aparece para a pessoa. Nem a medalha (/totens/) nem o nome, nas telas dela. */
+async function expectNoTotem(page: Page) {
+  const names = Object.values(questionnaire.totemLabels).map((label) => label.name);
+  const sources = [await page.content(), ...(await Promise.all(["/casa", "/inicio"].map(async (path) => (await page.request.get(path)).text())))];
+  for (const source of sources) {
+    expect(source).not.toContain("/totens/");
+    for (const name of names) expect(source).not.toContain(name);
+  }
+}
 const SAO_PAULO = 3550308;
 
 const admin = (path: string, init: RequestInit = {}) =>
@@ -246,6 +256,8 @@ test("não sabe → termo → questionário → casa sugerida → aceitar: o ser
   // O totem é interno: não aparece na tela da casa.
   await expect(page.getByText(result.totem, { exact: true })).toHaveCount(0);
 
+  await expectNoTotem(page);
+
   // Recarregar mostra a casa aceita, não o fluxo de novo.
   await page.reload();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
@@ -303,6 +315,7 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
   await page.getByRole("button", { name: "Aceitar" }).click();
   await expect(page.getByText("Sua casa", { exact: true })).toBeVisible();
   expect(await houseRows(member.id)).toEqual([expect.objectContaining({ join_method: "self", house_key: opposite })]);
+  await expectNoTotem(page);
 });
 
 test("sabe → atividade → apresentação → escolher outra → aceitar (self), sem termo", async ({ page }) => {

@@ -4,6 +4,8 @@ import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
 import { choseOtherHouse, listResults, requireCoordinationScreen } from "@/modules/houses";
 import { HouseWithShield } from "@/modules/houses/components/house-shield";
+import { totemName } from "@/modules/questionnaire";
+import { HouseWithTotem } from "@/modules/houses/components/totem-medal";
 import { fill, houseName, shortDate } from "../format";
 
 export const metadata: Metadata = { title: instance.questionnaireCoordination.results.title };
@@ -12,7 +14,7 @@ const field = "min-h-12 rounded-xl border-2 border-current bg-transparent px-3 t
 
 // Resultados do questionário (#174, ADR 0014): pessoas ativas do escopo de quem vê (nacional: todas;
 // delegado: as da concessão), com casa, totem e data. Quem não tem permissão recebe 404; a RLS decide
-// quem aparece. A lista não traz totem nem nota; abrir uma pessoa (que os mostra) é registrado.
+// quem aparece. A lista traz a medalha do totem ao lado do escudo da casa (só aqui, para a coordenação); as notas só ao abrir a pessoa, o que é registrado.
 export default async function ResultsPage({ searchParams }: Readonly<{ searchParams: Promise<{ casa?: string | string[]; outra?: string | string[] }> }>) {
   const { client, deps, user } = await requireCoordinationScreen("results");
   const query = await searchParams;
@@ -67,7 +69,7 @@ export default async function ResultsPage({ searchParams }: Readonly<{ searchPar
             {rows.map((row) => (
               <tr key={row.profileId} className="border-t border-current/30" data-testid="result-row">
                 <td className="py-2">{row.name ?? text.noName}</td>
-                <td className="py-2"><HouseWithShield houseId={row.houseId} name={houseName(row.houseId)} size={24} /></td>
+                <td className="py-2"><HouseWithTotem houseId={row.houseId} houseName={houseName(row.houseId)} totemCode={row.totem} totemName={totemName(deps.questionnaire, row.totem)} size={24} /></td>
                 <td className={choseOtherHouse(row) ? "py-2 font-bold underline decoration-2" : "py-2"} data-testid="result-chosen" data-differs={choseOtherHouse(row) ? "true" : "false"}>
                   {row.chosenHouseId ? <HouseWithShield houseId={row.chosenHouseId} name={houseName(row.chosenHouseId)} size={24} /> : text.results.chosenNone}
                   {choseOtherHouse(row) && <span className="block text-base font-normal">{text.results.differsMark}</span>}

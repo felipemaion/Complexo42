@@ -9,12 +9,14 @@ import {
   axisKeys,
   chartAxes,
   scoreQuestionnaire,
+  totemCodes,
   type AxisScores,
   type ChartAxis,
   type QuestionnaireConfig,
 } from "@/modules/questionnaire";
 import { instance } from "@config/instance";
 import type { HouseClient } from "../types";
+import { totemContext } from "./houses";
 import {
   type AnalysisKind,
   listOpenAnalysisRequests,
@@ -95,7 +97,7 @@ const resultListRow = z.object({ profile_id: z.string(), house_key: z.string(), 
 
 /**
  * Uma pessoa na lista: nome, casa sugerida (do resultado), casa escolhida (vínculo aberto; nula se ainda
- * não aceitou), quando e se a troca foi da coordenação. Totem e notas ficam no detalhe, que registra o acesso.
+ * não aceitou), quando e se a troca foi da coordenação. O totem (para a medalha) vem de leitura à parte; as notas ficam no detalhe, que registra o acesso.
  */
 export type ResultRow = {
   profileId: string;
@@ -105,6 +107,8 @@ export type ResultRow = {
   chosenHouseId: string | null;
   chosenAt: string | null;
   changedByCoordinationAt: string | null;
+  /** Código do totem (só a coordenação o vê); nulo se ilegível ou fora da config. */
+  totem: string | null;
 };
 
 /** A casa escolhida é outra que a sugerida (só com casa escolhida). */
@@ -135,13 +139,38 @@ async function readChosenHouses(client: HouseClient, ids: readonly string[]): Pr
   return choices;
 }
 
+const totemRow = z.object({ profile_id: z.string(), totem_enc: z.string().nullable() });
+
+/**
+ * O código do totem das pessoas pedidas (para a medalha da lista). A RLS limita ao alcance de quem chama e a
+ * cifra é aberta aqui, no servidor. Falha fechada para nulo: ilegível, ausente ou fora da config não derruba a lista.
+ */
+async function readTotems(client: HouseClient, ids: readonly string[], deps: ViewDeps): Promise<Map<string, string>> {
+  const totems = new Map<string, string>();
+  if (ids.length === 0) return totems;
+  const { data, error } = await client.from("questionnaire_results").select("profile_id,totem_enc").in("profile_id", ids);
+  const parsed = z.array(totemRow).safeParse(data ?? []);
+  if (error || !parsed.success) return totems;
+  const known = new Set(totemCodes(deps.questionnaire));
+  for (const row of parsed.data) {
+    if (row.totem_enc === null) continue;
+    try {
+      const code = await deps.crypto.decrypt(row.totem_enc, totemContext(row.profile_id));
+      if (known.has(code)) totems.set(row.profile_id, code);
+    } catch {
+      // ilegível: a linha sai sem medalha
+    }
+  }
+  return totems;
+}
+
 /** Pessoas por página da lista; passando disso, mostra as mais recentes e avisa (filtre por casa). */
 export const maxResultRows = 200;
 
 /**
  * Pessoas com resultado que a RLS deixa ver a quem chama (nacional: todas as ativas; delegado: as do
- * escopo), das mais novas, SEM a própria pessoa. A lista não traz totem nem nota (nem os pede ao banco):
- * eles só aparecem ao abrir a pessoa, o que registra o acesso. `houseId` filtra pela casa (só casas da
+ * escopo), das mais novas, SEM a própria pessoa. A lista traz o código do totem (para a medalha, só aqui na coordenação)
+ * e nunca as notas, que só aparecem ao abrir a pessoa, o que registra o acesso. `houseId` filtra pela casa (só casas da
  * config); `truncated` avisa que havia mais que a página.
  */
 export async function listResults(
@@ -168,6 +197,7 @@ export async function listResults(
   const ids = page.map((row) => row.profile_id);
   const names = await readNames(client, ids, deps.crypto);
   const choices = await readChosenHouses(client, ids);
+  const totems = await readTotems(client, ids, deps);
   const rows = page.map((row) => {
     const choice = choices.get(row.profile_id);
     return {
@@ -178,6 +208,7 @@ export async function listResults(
       chosenHouseId: choice?.houseId ?? null,
       chosenAt: choice?.chosenAt ?? null,
       changedByCoordinationAt: choice?.changedByCoordinationAt ?? null,
+      totem: totems.get(row.profile_id) ?? null,
     };
   });
   return { rows, truncated: parsed.data.length > maxResultRows };
