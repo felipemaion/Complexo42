@@ -7,12 +7,15 @@ import type { AuthConfig } from "./config";
 
 /** Tempo máximo de espera: o aviso é conforto, não pode atrasar a tela de login. */
 const settingsTimeoutMs = 2000;
+/** Quanto a resposta vale: a tela de login não chama o Auth (nem loga falha) a cada render. */
+export const signupStatusTtlMs = 60_000;
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
+type Config = Pick<AuthConfig, "internalUrl" | "anonKey">;
+export type SignupStatus = (config: Config | null, fetchImpl?: Fetch) => Promise<boolean>;
 
-/** True só quando o Auth diz, com certeza, que o cadastro está fechado. Na dúvida, sem aviso. */
-export async function isSignupClosed(config: Pick<AuthConfig, "internalUrl" | "anonKey"> | null, fetchImpl: Fetch = fetch): Promise<boolean> {
-  if (!config) return false;
+/** Pergunta ao Auth. True só quando ele diz, com certeza, que o cadastro está fechado; na dúvida, sem aviso. */
+async function askAuth(config: Config, fetchImpl: Fetch): Promise<boolean> {
   try {
     const res = await fetchImpl(`${config.internalUrl}/auth/v1/settings`, {
       headers: { apikey: config.anonKey },
@@ -36,3 +39,18 @@ export async function isSignupClosed(config: Pick<AuthConfig, "internalUrl" | "a
     return false;
   }
 }
+
+/** A falha também fica guardada pela janela: com o Auth fora, um aviso no log por janela, não um por render. */
+export function createSignupStatus(opts: { ttlMs: number; now?: () => number }): SignupStatus {
+  const now = opts.now ?? Date.now;
+  let cached: { url: string; closed: boolean; expiresAt: number } | null = null;
+  return async (config: Config | null, fetchImpl: Fetch = fetch): Promise<boolean> => {
+    if (!config) return false;
+    if (cached && cached.url === config.internalUrl && now() < cached.expiresAt) return cached.closed;
+    const closed = await askAuth(config, fetchImpl);
+    cached = { url: config.internalUrl, closed, expiresAt: now() + opts.ttlMs };
+    return closed;
+  };
+}
+
+export const isSignupClosed: SignupStatus = createSignupStatus({ ttlMs: signupStatusTtlMs });

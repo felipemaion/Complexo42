@@ -163,6 +163,9 @@ test("pessoa autorizada: link mágico → perfil → casa → contato → meus d
   await page.getByRole("button", { name: "Salvar meus dados" }).click();
   await expect(page).toHaveURL(`${baseURL}/inicio?salvo=1`);
   await expect(page.getByRole("main").getByRole("status")).toBeVisible();
+  // Saudação com o primeiro nome e, com a casa aceita, o link "Sua casa" (#324).
+  await expect(page.getByTestId("home-greeting")).toHaveText("Olá, Pessoa");
+  await expect(page.getByRole("link", { name: "Sua casa", exact: true })).toBeVisible();
   // O id da conta, pelo Auth (gerar um link novo depois do login não muda a sessão aberta).
   const { id } = await (await admin("/auth/v1/admin/generate_link", { method: "POST", body: JSON.stringify({ type: "magiclink", email: person.email }) })).json();
   expect(await rows(`profiles?id=eq.${id}&select=access_status`)).toEqual([{ access_status: "active" }]);

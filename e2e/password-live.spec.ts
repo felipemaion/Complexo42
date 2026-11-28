@@ -139,7 +139,7 @@ test.describe("senha opcional com o Supabase local", () => {
     await expect(page).toHaveURL(/\/(termo|espera|perfil)$/);
     await page.goto("/inicio");
     await expect(page).toHaveURL(/\/(termo|espera|perfil)$/);
-    await expect(page.locator("body")).not.toContainText("Você entrou");
+    await expect(page.getByTestId("home-greeting")).toHaveCount(0);
   });
 
   test("esqueci a senha: o link do e-mail leva a /senha e a nova senha entra", async ({ page, request, browser, baseURL }) => {
