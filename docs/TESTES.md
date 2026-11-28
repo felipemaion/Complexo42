@@ -103,6 +103,12 @@ login, em #73. **Teste de carga nunca roda em produção**: usa o staging, no me
 | Além da margem | Subir a carga até quebrar, para saber o que quebra primeiro | Sem meta; registrar o primeiro limite |
 | Soak | Horas em carga moderada | Memória e conexões estáveis |
 
+**Busca de pessoas por habilidade (#23).** A meta é menos de 500 ms com 50 mil perfis. A medição é manual e fica **fora do
+CI**: `psql "<banco local>" -f scripts/skill-search-benchmark.sql` gera 50 mil perfis fictícios numa transação (que no fim
+desfaz tudo) e imprime o `EXPLAIN (ANALYZE, BUFFERS)` do miolo da busca (uma habilidade; duas com E, em SP). Confira o
+"Execution Time" e que o plano usa o índice de habilidade, não Seq Scan. O pgTAP só confere que os índices existem: com poucas
+linhas o planejador escolhe Seq Scan e um teste de `EXPLAIN` ficaria instável.
+
 Metas ainda a validar com o stakeholder. Medir os limites dos planos gratuitos: Workers
 (requisições por dia, CPU por requisição) e Supabase (compute, conexões, e-mails do Auth,
 egress). Banco: `EXPLAIN ANALYZE` e `pg_stat_statements`. Celular: Lighthouse CI. Saída: um

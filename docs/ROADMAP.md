@@ -68,7 +68,7 @@
 ## M2 · Busca e painel da coordenação
 
 - #22 Delegação de papéis por escopo (nacional → estadual → monitor) + audit_log — `bloqueada, seguranca, backend`
-- #23 Busca de pessoas por habilidade (prioridade do gestor nacional) — `bloqueada, frontend, backend`
+- #23 Busca de pessoas por habilidade (prioridade do gestor nacional): E/OU, UF e equipe, no escopo, sem contato, 60 por hora — `frontend, backend`
 - #25 Gestão do catálogo de habilidades (admin) — `bloqueada, frontend, backend`
 - #305 Perfil público visível a todos os membros logados — `backend, frontend, seguranca`
 - #307 Área de novidades na tela inicial — `frontend, backend`
