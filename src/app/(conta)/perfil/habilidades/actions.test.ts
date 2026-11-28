@@ -2,8 +2,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const client = { rpc: async () => ({ data: null, error: null }), from: () => ({}) };
-const setMySkills = vi.fn(async (..._a: unknown[]) => ({ ok: true as const }));
-const suggestSkill = vi.fn(async (..._a: unknown[]) => ({ ok: true as const }));
+type Outcome = { ok: boolean; error?: string };
+const setMySkills = vi.fn<(client: unknown, input: unknown) => Promise<Outcome>>(async () => ({ ok: true }));
+const suggestSkill = vi.fn<(client: unknown, input: unknown) => Promise<Outcome>>(async () => ({ ok: true }));
 const requireUserClient = vi.fn(async () => ({ user: { id: "u1" }, client: {} }));
 
 vi.mock("@/modules/houses", () => ({ sessionHouseClient: async () => client }));

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { HouseClient, HouseQuery } from "@/modules/houses";
+import type { HouseClient } from "@/modules/houses";
 import { decideSuggestion, listCatalog, listMySuggestions, listOpenSuggestions, readMySkillIds, setMySkills, suggestSkill } from "./skills";
 
+type HouseQuery = ReturnType<ReturnType<HouseClient["from"]>["select"]>;
 type Call = { fn: string; args: Record<string, unknown> };
 const ID = "8f1c2a4e-0b5d-4c3a-9e7f-1a2b3c4d5e6f";
 const ID2 = "9a1c2a4e-0b5d-4c3a-9e7f-1a2b3c4d5e70";

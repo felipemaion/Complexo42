@@ -55,6 +55,9 @@ export default async function CoordinationHome() {
           <Link href="/coordenacao/casas/janela" className={big}>
             {links.linkWindow}
           </Link>
+          <Link href="/coordenacao/habilidades" className={big}>
+            {instance.skills.queue.menuLink}
+          </Link>
         </>
       )}
       <Link href={HOME_PATH} className="text-center text-lg underline">

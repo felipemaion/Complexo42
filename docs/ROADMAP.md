@@ -50,7 +50,7 @@
 
 ## M1 · Cadastro do aluno
 
-- #15 Habilidades: seleção a partir do catálogo — `bloqueada, frontend, backend`
+- #15 Habilidades: seleção a partir do catálogo, sem nível, até 10, com sugestão de habilidade nova aprovada pela coordenação nacional — `frontend, backend`
 - #87 Infra: provedores de login no Auth auto-hospedado (Google OAuth + relay SMTP) — `bloqueada, seguranca, backend, infra`
 - #302 Janela de transferência de casa (substitui a trava de 4 meses) — `backend, frontend, seguranca`
 - #303 Medalha da casa e do totem no perfil, visível aos membros — `backend, frontend, seguranca`

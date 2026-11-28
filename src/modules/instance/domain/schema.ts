@@ -371,6 +371,30 @@ export const instanceConfigSchema = z.strictObject({
       failed: text,
     }),
   }),
+  /** Habilidades da pessoa (#15). `{max}` e `{count}` são trocados na tela. */
+  skills: z.strictObject({
+    homeLink: text,
+    title: text,
+    intro: text,
+    searchLabel: text,
+    counter: text,
+    limitReached: text,
+    empty: text,
+    saveButton: text,
+    saved: text,
+    suggestTitle: text,
+    suggestHint: text,
+    suggestLabel: text,
+    suggestButton: text,
+    suggested: text,
+    mySuggestionsTitle: text,
+    statusOpen: text,
+    statusApproved: text,
+    statusRejected: text,
+    backLink: text,
+    errors: z.strictObject({ forbidden: text, invalid: text, limit: text, not_found: text, too_many_open: text, daily_limit: text, exists: text, failed: text }),
+    queue: z.strictObject({ menuLink: text, title: text, intro: text, empty: text, categoryLabel: text, approveButton: text, rejectButton: text, decided: text, backLink: text }),
+  }),
   /**
    * Telas da coordenação do questionário (#174, ADR 0014): resultados, casos para analisar e
    * delegações. `{name}`, `{count}`, `{first}`, `{second}` e `{code}` são trocados na tela.

@@ -188,6 +188,13 @@ const valid = {
       failed: "t",
     },
   },
+  skills: {
+    homeLink: "t", title: "t", intro: "t", searchLabel: "t", counter: "t", limitReached: "t", empty: "t", saveButton: "t", saved: "t",
+    suggestTitle: "t", suggestHint: "t", suggestLabel: "t", suggestButton: "t", suggested: "t", mySuggestionsTitle: "t",
+    statusOpen: "t", statusApproved: "t", statusRejected: "t", backLink: "t",
+    errors: { forbidden: "t", invalid: "t", limit: "t", not_found: "t", too_many_open: "t", daily_limit: "t", exists: "t", failed: "t" },
+    queue: { menuLink: "t", title: "t", intro: "t", empty: "t", categoryLabel: "t", approveButton: "t", rejectButton: "t", decided: "t", backLink: "t" },
+  },
   questionnaireCoordination: {
     linkResults: "t", linkQueue: "t", linkDelegations: "t", linkWindow: "t", window: { title: "t", intro: "t", statusOpen: "t", statusClosed: "t", openButton: "t", closeButton: "t", failed: "t" }, backLink: "t", noName: "t",
     results: {

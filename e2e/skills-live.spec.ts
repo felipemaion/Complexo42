@@ -75,12 +75,12 @@ test("a pessoa marca habilidades (sem nível), o contador para em 10 e a busca i
   await expect(boxes.nth(10)).toBeDisabled();
   await page.getByRole("button", { name: "Salvar habilidades" }).click();
   await expect(page.getByText("Habilidades salvas.")).toBeVisible();
-  expect(await savedSkills(person.id)).toHaveLength(10);
+  await expect.poll(() => savedSkills(person.id)).toHaveLength(10);
   // Desmarcar uma e salvar: 9.
   await boxes.first().uncheck();
   await page.getByRole("button", { name: "Salvar habilidades" }).click();
   await expect(page.getByText("Habilidades salvas.")).toBeVisible();
-  expect(await savedSkills(person.id)).toHaveLength(9);
+  await expect.poll(() => savedSkills(person.id)).toHaveLength(9);
   // A busca ignora caixa e acento.
   await page.getByLabel("Buscar habilidade").fill("ORATORIA");
   await expect(page.getByRole("checkbox").first()).toBeVisible();

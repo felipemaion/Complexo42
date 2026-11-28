@@ -3,7 +3,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const client = { rpc: async () => ({ data: null, error: null }), from: () => ({}) };
-const decideSuggestion = vi.fn(async (..._a: unknown[]) => ({ ok: true as const }));
+type Outcome = { ok: boolean; error?: string };
+const decideSuggestion = vi.fn<(client: unknown, input: unknown) => Promise<Outcome>>(async () => ({ ok: true }));
 let national = true;
 const guard = vi.fn(async (screen: string) => {
   if (!national) throw new Error("NEXT_NOT_FOUND");

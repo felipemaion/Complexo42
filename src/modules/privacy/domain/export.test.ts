@@ -52,6 +52,8 @@ const rows: OwnDataRows = {
     },
   ],
   questionnaire_consents: [{ term_version: "termo-1", consented_at: "2026-11-19T11:20:00+00:00" }],
+  skills: [{ name: "Teatro", category: "Artes" }],
+  skill_suggestions: [{ name: "Cestaria", status: "open", created_at: "2026-11-28T10:00:00+00:00", decided_at: null }],
   questionnaire_result: {
     house_key: "casa-um",
     totem_enc: "enc:totem",
@@ -179,6 +181,8 @@ describe("buildOwnDataExport", () => {
       ],
       termosDeConsentimento: [{ versao: "v1", aceitoEm: "2026-11-19T11:00:00+00:00" }],
       termosDoQuestionario: [{ versao: "termo-1", aceitoEm: "2026-11-19T11:20:00+00:00" }],
+      habilidades: [{ nome: "Teatro", grupo: "Artes" }],
+      sugestoesDeHabilidade: [{ nome: "Cestaria", estado: "open", sugeridaEm: "2026-11-28T10:00:00+00:00", decididaEm: null }],
       papeis: [
         { papel: "spokesperson", unidade: "Equipe 1", tipo: "Equipe", casa: null, concedidoEm: "2026-11-19T13:00:00+00:00", revogadoEm: null },
         // Casa que não está mais na config: aparece pela chave.
@@ -276,6 +280,8 @@ describe("buildOwnDataExport", () => {
         memberships: [],
         house_memberships: [],
         questionnaire_consents: [],
+        skills: [],
+        skill_suggestions: [],
         questionnaire_result: null,
         house_analysis_requests: [],
         questionnaire_access_grants: [],
@@ -294,6 +300,8 @@ describe("buildOwnDataExport", () => {
       casas: [],
       termosDeConsentimento: [],
       termosDoQuestionario: [],
+      habilidades: [],
+      sugestoesDeHabilidade: [],
       resultadoDoQuestionario: null,
       acessosDelegados: [],
       pedidosDeAnalise: [],

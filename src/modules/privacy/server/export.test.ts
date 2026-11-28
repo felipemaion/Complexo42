@@ -43,6 +43,8 @@ async function dbRows() {
     memberships: [],
     house_memberships: [],
     questionnaire_consents: [],
+    skills: [],
+    skill_suggestions: [],
     questionnaire_result: null,
     house_analysis_requests: [],
     questionnaire_access_grants: [],
