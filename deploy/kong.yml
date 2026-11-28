@@ -26,12 +26,19 @@ services:
           message: "Not Found"
 
   # Endpoints do Auth que SO o servidor do app usa (pela rede interna): login por senha
-  # (/token), recuperacao, link, reenvio, troca de senha e reautenticacao. Vindo de FORA o
+  # (/token), recuperacao, link, reenvio, troca de senha, reautenticacao -- e /admin. Vindo de FORA o
   # proxy sempre acrescenta X-Forwarded-For; a chamada interna do app nao tem esse cabecalho.
   # Entao: com o cabecalho, 404. Assim o login por senha nao pode ser forcado direto no
   # Kong, contornando o Turnstile (que so protege o app), e uma conta Google nao define senha
   # por /user com o proprio JWT (ADR 0018 §3). O navegador so precisa de /verify, /authorize
   # e /callback, que seguem abertos. Medido com o Kong 3.9.4 (deploy/kong.test.sh).
+  #
+  # /admin entrou depois: de fora ele respondia 401 (o GoTrue exigindo a chave de servico),
+  # e nao 404. A chave sozinha ja barrava, mas pela logica desta rota -- o navegador nao
+  # precisa de /admin -- a defesa passa a ser o segredo MAIS o 404. O app nao chama
+  # /auth/v1/admin em lugar nenhum (conferido em src/), entao nada interno depende disto.
+  # Operacao: `admin/generate_link` continua valendo de DENTRO (sem X-Forwarded-For), pela
+  # rede interna ou por `docker exec`; de fora, pela URL publica, passa a dar 404.
   - name: auth-sensivel-so-interno
     url: http://auth:9999/
     routes:
@@ -45,6 +52,7 @@ services:
           - /auth/v1/resend
           - /auth/v1/user
           - /auth/v1/reauthenticate
+          - /auth/v1/admin
         headers:
           x-forwarded-for: ["~*.+"]
     plugins:

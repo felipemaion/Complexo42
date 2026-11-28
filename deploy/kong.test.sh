@@ -35,7 +35,9 @@ espera() { # descricao esperado codigo-real
   if [ "$3" = "$2" ] || { [ "$2" = passa ] && [ "$3" != 404 ] && [ "$3" != 000 ]; }; then echo "ok: $1 -> $3"; else echo "ERRO: $1 -> $3 (esperado $2)"; falhou=1; fi
 }
 base="localhost:$porta"
-for caminho in "/auth/v1/token?grant_type=password" /auth/v1/recover /auth/v1/otp /auth/v1/user "//auth/v1/token" "/auth/v1/%74oken"; do
+for caminho in "/auth/v1/token?grant_type=password" /auth/v1/recover /auth/v1/otp /auth/v1/user \
+               /auth/v1/admin /auth/v1/admin/users /auth/v1/admin/generate_link \
+               "//auth/v1/token" "/auth/v1/%74oken" "//auth/v1/admin/users"; do
   espera "de fora $caminho" 404 "$(codigo -H 'X-Forwarded-For: 203.0.113.9' "$base$caminho")"
   espera "interno $caminho" passa "$(codigo "$base$caminho")"
 done
