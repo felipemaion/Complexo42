@@ -26,6 +26,13 @@ insert into public.profiles (id, display_name_enc, municipality_code, consent_ve
 update public.profiles set access_status = 'active', status = 'active'
 where id in ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000f2');
 update public.profiles set access_status = 'blocked' where id = '00000000-0000-0000-0000-0000000000f3';
+insert into public.consent_acceptances (user_id, version) select id, 'v1' from public.profiles on conflict do nothing;
+-- Membro de verdade exige a casa aceita (ADR 0017).
+insert into public.houses (key, active) select 'g-' || id::text, true from public.profiles
+where id in ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000f3') on conflict do nothing;
+insert into public.house_members (profile_id, house_key, join_method, accepted_at)
+select id, 'g-' || id::text, 'self', now() from public.profiles
+where id in ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000f3') on conflict do nothing;
 
 select has_table('public', 'profile_badge_prefs', 'a tabela existe');
 select ok((select relrowsecurity from pg_class where oid = 'public.profile_badge_prefs'::regclass), 'RLS habilitada (R5)');
