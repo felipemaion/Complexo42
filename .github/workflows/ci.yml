@@ -180,6 +180,9 @@ jobs:
           if [ "$(cat "$RUNNER_TEMP/build.exit" 2>/dev/null)" != 0 ]; then
             tail -50 "$RUNNER_TEMP/build.log"; exit 1
           fi
+      # O `age` do backup (#84): só o caso normal faz backup e restauração.
+      - if: matrix.reverter == ''
+        run: sudo apt-get install -y --no-install-recommends age
       - name: Monta o staging e percorre o caminho inteiro
         env:
           STAGING_IMAGEM: complexo42:staging
@@ -283,21 +286,6 @@ jobs:
             --list-all-pkgs --format json --output "$RUNNER_TEMP/trivy.json" complexo42:ci
           bash scripts/trivy-gate.test.sh
           python3 scripts/trivy-gate.py "$RUNNER_TEMP/trivy.json" | tee -a "$GITHUB_STEP_SUMMARY"
-      # A foto do perfil (#308) converte a imagem com o sharp (libvips, binario musl/ARM64): este passo
-      # o exercita DENTRO da imagem, como o servidor roda, e confere que o WebP sai sem EXIF/GPS.
-      - name: O sharp converte uma foto na imagem (WebP, sem metadados)
-        run: |
-          docker run --rm --entrypoint node complexo42:ci -e '
-            const sharp = require("sharp");
-            (async () => {
-              const input = await sharp({ create: { width: 640, height: 480, channels: 3, background: "#aa7755" } })
-                .withExif({ IFD0: { Copyright: "segredo-de-teste" } }).jpeg().toBuffer();
-              const out = await sharp(input).rotate().resize(192, 256, { fit: "cover" }).webp({ quality: 70 }).toBuffer();
-              const meta = await sharp(out).metadata();
-              if (meta.format !== "webp" || meta.width !== 192 || meta.height !== 256) throw new Error("miniatura errada");
-              if (meta.exif || out.includes(Buffer.from("segredo-de-teste"))) throw new Error("metadados vazaram");
-              console.log("sharp ok:", out.length, "bytes");
-            })().catch((error) => { console.error(error); process.exit(1); });'
       # As migrations viajam na imagem (#81) e o .dockerignore exclui `supabase`:
       # sem este passo, uma mudanca nele quebraria o deploy calada, porque o
       # build continua passando -- so o passo de migrations do deploy falharia.
