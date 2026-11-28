@@ -173,6 +173,7 @@ monta_e_testa() {
   etapa e2e "caminho inteiro no navegador (e2e/staging.spec.ts)"
   if ! (cd "$RAIZ" && E2E_STAGING_URL=$SITE E2E_STAGING_MAILPIT_URL=http://127.0.0.1:$PORTA_MAILPIT \
         E2E_STAGING_APP_CONTAINER=$APP E2E_STAGING_DB_CONTAINER=$DB E2E_STAGING_EMAIL=$email E2E_STAGING_MEMBER_EMAIL=$email_pessoa \
+        E2E_STAGING_TRECHOS_FILE=$DIR/trechos \
         npx playwright test -c playwright.staging.config.ts); then
     mostra_logs; return 1
   fi
@@ -181,6 +182,20 @@ monta_e_testa() {
   # O par age é DESCARTÁVEL: nasce no diretório temporário do job (apagado na limpeza), a chave
   # privada só é lida pelo age, por caminho, e nada dela vai para log, saída ou artefato.
   [ -n "$REVERTER" ] && return 0
+
+  # Dado pessoal em claro (#155): o que o E2E digitou (nome, WhatsApp, e-mail) não pode estar em nenhuma coluna do banco, e toda
+  # coluna *_enc tem a forma cifrada. O `$DIR/trechos` nasce no diretório temporário do job (apagado na limpeza); a saída traz só
+  # esquema.tabela.coluna, nunca o valor, e nenhum dump é feito.
+  etapa varredura "dado pessoal em claro no banco (scripts/staging-ci/varredura.sh)"
+  DB=$DB bash "$RAIZ/scripts/staging-ci/varredura.sh" "$DIR/trechos"
+  # A varredura morde: um texto em claro plantado numa coluna comum TEM de ser achado (e a tabela de prova some).
+  psql_db -q -c "create table public.varredura_prova (t text); insert into public.varredura_prova values ('Prova De Texto Em Claro 7391')" > /dev/null
+  printf 'claro:Prova De Texto Em Claro 7391\n' > "$DIR/trechos-prova"
+  if DB=$DB bash "$RAIZ/scripts/staging-ci/varredura.sh" "$DIR/trechos-prova" > "$DIR/prova.saida" 2>&1; then
+    echo "ERRO: a varredura não achou um texto em claro plantado"; return 1
+  fi
+  grep -q 'public.varredura_prova.t' "$DIR/prova.saida" || { echo "ERRO: a varredura não apontou a coluna plantada"; return 1; }
+  psql_db -q -c "drop table public.varredura_prova" > /dev/null
   etapa backup "deploy/backup.sh e deploy/restore-test.sh (par age descartável)"
   command -v age-keygen > /dev/null || { echo "sem age-keygen no runner"; return 1; }
   local chave="$DIR/chave-age-descartavel" publica arq

@@ -209,6 +209,10 @@ const valid = {
       failed: "t",
     },
   },
+  contactView: {
+    title: "t", note: "t", buttons: { whatsapp: "t", social: "t", email: "t" }, openWhatsapp: "t", socialLabel: "t",
+    empty: "t", forbidden: "t", rateLimited: "t", failed: "t",
+  },
   publicProfile: {
     title: "t", badgesTitle: "t", noBadges: "t", photoAlt: "t", unreadableName: "t", backLink: "t",
     badgeKinds: { house: "t", totem: "t" },
