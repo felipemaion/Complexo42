@@ -43,4 +43,13 @@ describe("POST /meus-dados", () => {
     const home = await POST(new Request("http://127.0.0.1:3000/meus-dados", { method: "POST", headers: { origin: "http://127.0.0.1:3000" }, body: other }) as never);
     expect(home.headers.get("location")).toBe("http://127.0.0.1:3000/inicio?dados=erro");
   });
+
+  it("`Origin: null` com Sec-Fetch-Site same-origin baixa (o navegador após o link de login); sem o cabeçalho, 403", async () => {
+    const ok = await POST(new Request("http://127.0.0.1:3000/meus-dados", { method: "POST", headers: { origin: "null", "sec-fetch-site": "same-origin" } }) as never);
+    expect(ok.status).toBe(200);
+    const no = await POST(new Request("http://127.0.0.1:3000/meus-dados", { method: "POST", headers: { origin: "null" } }) as never);
+    expect(no.status).toBe(403);
+    const cross = await POST(new Request("http://127.0.0.1:3000/meus-dados", { method: "POST", headers: { origin: "https://mal.exemplo", "sec-fetch-site": "cross-site" } }) as never);
+    expect(cross.status).toBe(403);
+  });
 });

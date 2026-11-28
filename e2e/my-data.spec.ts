@@ -47,19 +47,11 @@ test.describe("quem está em espera baixa os próprios dados (#130)", () => {
     // Sem a lista de autorizados, a pessoa fica em espera e não alcança mais nenhuma tela de dentro.
     await expect(page).toHaveURL(`${baseURL}/espera`);
 
-    // Se o servidor recusar (limite ou erro), a tela volta para /espera?dados=...: falha com o motivo, sem esperar o tempo todo.
-    const download = page.waitForEvent("download", { timeout: 20_000 }).catch(() => null);
-    const response = page.waitForResponse((r) => r.url().endsWith("/meus-dados"), { timeout: 20_000 }).catch(() => null);
-    await page.getByRole("button", { name: "Baixar meus dados" }).click();
-    const file = await download;
-    if (!file) {
-      const probe = await page.request.post("/meus-dados", { headers: { Origin: new URL(page.url()).origin }, maxRedirects: 0 });
-      const seen = await response;
-      const seenText = seen ? `${seen.status()} cabeçalhos enviados: ${JSON.stringify(await seen.request().allHeaders())} ${JSON.stringify(seen.headers()["content-type"])} ${(await seen.text().catch(() => "")).slice(0, 200)}` : "sem resposta";
-      throw new Error(`sem download; resposta do navegador: ${seenText}; página em ${page.url()}; POST direto: ${probe.status()} ${JSON.stringify(probe.headers()["content-disposition"])} ${(await probe.text()).slice(0, 200)}`);
-    }
+    // O navegador chega a /espera sem recarregar, depois do link de login (`no-referrer`): o POST sai com `Origin: null`
+    // e `Sec-Fetch-Site: same-origin`, e o servidor precisa aceitar (#130).
+    const [file] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Baixar meus dados" }).click()]);
     const chunks: Buffer[] = [];
-    for await (const chunk of await file!.createReadStream()) chunks.push(chunk as Buffer);
+    for await (const chunk of await file.createReadStream()) chunks.push(chunk as Buffer);
     const text = Buffer.concat(chunks).toString("utf8");
     const data = JSON.parse(text);
     expect(data.conta.emailDeLogin).toBe(me.email);
