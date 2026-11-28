@@ -152,7 +152,8 @@ jobs:
   # só fica verde se o staging falhar na etapa e pelo motivo daquele dia: é o teste do teste.
   staging:
     name: Staging de mentira (${{ matrix.reverter && format('revertido {0}', matrix.reverter) || 'montagem do servidor' }})
-    runs-on: ubuntu-latest
+    # ARM64, igual ao servidor: os digests do compose do deploy são os da plataforma dele.
+    runs-on: ubuntu-24.04-arm
     timeout-minutes: 25
     strategy:
       fail-fast: false
