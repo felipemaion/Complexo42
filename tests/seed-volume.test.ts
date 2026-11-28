@@ -10,6 +10,7 @@ import {
   cleanSql,
   copyField,
   isFictionalEmail,
+  nonFictionalAccountsSql,
   parseVolumeArgs,
   readDbPort,
   volumeEmail,
@@ -239,6 +240,17 @@ describe("buildBatchSql", () => {
     const sql = await buildBatchSql([lone], { crypto, consentVersion: "v1" });
     expect(sql).not.toMatch(/copy v_houses/);
     expect(sql).not.toMatch(/copy v_teams/);
+  });
+});
+
+describe("nonFictionalAccountsSql (recusa banco com conta real)", () => {
+  it("conta as contas fora dos dois padrões fictícios, os mesmos de isFictionalEmail", () => {
+    const sql = nonFictionalAccountsSql();
+    expect(sql).toMatch(/^select count\(\*\) from auth\.users/);
+    expect(sql).toContain("exemplo\\.invalid");
+    expect(sql).toContain("perfil-ficticio-");
+    expect(sql).toContain("example\\.com");
+    expect(sql).not.toMatch(/delete|update|insert|truncate/i);
   });
 });
 

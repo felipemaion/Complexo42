@@ -36,3 +36,4 @@ export function batchRanges(count: number, size?: number): [number, number][];
 export function copyField(value: string | number | null): string;
 export function buildBatchSql(people: readonly VolumePerson[], options: { crypto: VolumeCrypto; consentVersion: string }): Promise<string>;
 export function cleanSql(): string;
+export function nonFictionalAccountsSql(): string;
