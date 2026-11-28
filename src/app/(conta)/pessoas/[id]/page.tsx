@@ -7,7 +7,7 @@ import { readPublicProfile } from "@/modules/public-profile";
 import { requireUserClient } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
 import { cardClass, PageShell } from "@/modules/ui";
-import { badgeViews } from "./badge-views";
+import { resolveBadges } from "./badge-views";
 
 export const metadata: Metadata = { title: instance.publicProfile.title, robots: { index: false, follow: false } };
 
@@ -23,13 +23,7 @@ export default async function PublicProfilePage({ params }: Readonly<{ params: P
   const person = await readPublicProfile(client, id, decryptField, { withPhoto });
   if (!person) notFound();
   const text = instance.publicProfile;
-  const views = await Promise.all(
-    person.badges.map(async (kind) => {
-      const view = badgeViews[kind];
-      return { kind, node: view ? await view(client, person.id) : null };
-    }),
-  );
-  const shown = views.filter((v) => v.node !== null);
+  const shown = await resolveBadges(client, person.id, person.badges);
   return (
     <PageShell width="form">
       <section className={cardClass()} aria-labelledby="perfil-publico-nome">
