@@ -68,8 +68,10 @@ const envSchema = z.object({
   // Assina o resultado do questionário que o app grava no banco (ADR 0014 §1). O mesmo valor fica
   // em `app.server_secrets` (docs/OPERACAO.md). Sem ela, o questionário não grava resultado.
   QUESTIONNAIRE_SIGNING_KEY: key32.optional(),
-  // Questionário real das casas (ADR 0008 §2.1, #91), instalado só no servidor. Sem ela, vale o
-  // exemplo fictício de config/questionnaire.example.json. O conteúdo é validado na subida.
+  // Questionário real das casas (ADR 0008 §2.1, #91), instalado só no servidor. OBRIGATÓRIA em
+  // produção (#313): sem ela o app serviria em silêncio o exemplo fictício de
+  // config/questionnaire.example.json, com a chave de exemplo, e a casa sairia calculada errada. Fora de
+  // produção (desenvolvimento, testes) segue opcional e vale o exemplo. O conteúdo é validado na subida.
   QUESTIONNAIRE_PATH: z.string().optional(),
   // Login (#9, ADR 0009 §1). O app fala com o Supabase pela rede interna (SUPABASE_URL, ex.:
   // http://kong:8000). O navegador só vê o /auth/v1 publicado na origem pública
@@ -122,6 +124,7 @@ const REQUIRED_IN_PRODUCTION = [
   "TURNSTILE_SECRET_KEY",
   "FIELD_ENCRYPTION_KEY",
   "BLIND_INDEX_KEY",
+  "QUESTIONNAIRE_PATH",
 ] as const;
 
 export type ServerEnv = z.infer<typeof envSchema>;

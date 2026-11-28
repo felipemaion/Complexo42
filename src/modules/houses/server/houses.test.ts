@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { HouseClient, HouseQuery } from "../types";
 import { parseQuestionnaire } from "@/modules/questionnaire";
-import { acceptHouse, readAcceptedHouse, readHouseLock, recordConsent, submitQuestionnaire } from "./houses";
+import { acceptHouse, readAcceptedHouse, readHouseLock, recordConsent, refusalDetail, submitQuestionnaire, type RefusalDetail } from "./houses";
 
 const houseIds = ["casa-a", "casa-b"];
 
 type Call = { fn: string; args: Record<string, unknown> };
 
-function fakeClient(result: { data?: unknown; error?: unknown } = {}) {
+function fakeClient(result: { data?: unknown; error?: unknown; status?: number } = {}) {
   const calls: Call[] = [];
   const filters: unknown[][] = [];
-  const response = { data: result.data ?? null, error: result.error ?? null };
+  const response = { data: result.data ?? null, error: result.error ?? null, status: result.status };
   const query: HouseQuery = {
     eq: (...a) => (filters.push(["eq", ...a]), query),
     is: (...a) => (filters.push(["is", ...a]), query),
@@ -108,6 +108,50 @@ describe("recordConsent", () => {
     expect(calls).toEqual([]);
     const denied = fakeClient({ error: { code: "42501" } });
     expect(await recordConsent(denied.client, { termVersion: "termo-1" }, "termo-1")).toEqual({ ok: false, error: "not_active" });
+  });
+});
+
+describe("motivo técnico da recusa (#313)", () => {
+  const refusal = (): { seen: RefusalDetail[]; on: (d: RefusalDetail) => void } => {
+    const seen: RefusalDetail[] = [];
+    return { seen, on: (d) => seen.push(d) };
+  };
+
+  it("refusalDetail guarda só o código do Postgres e o status HTTP, nunca a mensagem", () => {
+    expect(refusalDetail({ code: "22023", message: "termo X de Maria", details: "d", hint: "h" }, 400)).toEqual({ code: "22023", status: 400 });
+    expect(refusalDetail({ code: "PGRST202" }, 404)).toEqual({ code: "PGRST202", status: 404 });
+  });
+
+  it("descarta código fora do formato e status fora de 100-599", () => {
+    expect(refusalDetail({ code: "maria@exemplo.org" }, 99)).toEqual({});
+    expect(refusalDetail({ code: "x".repeat(40) }, 700)).toEqual({});
+    expect(refusalDetail({ code: 42 }, "400")).toEqual({});
+    expect(refusalDetail(null, undefined)).toEqual({});
+  });
+
+  it("recordConsent recusado pelo banco entrega código e status a quem registra", async () => {
+    const { client } = fakeClient({ error: { code: "22023", message: "versão desconhecida" }, status: 400 });
+    const r = refusal();
+    expect(await recordConsent(client, { termVersion: "termo-1" }, "termo-1", r.on)).toEqual({ ok: false, error: "failed" });
+    expect(r.seen).toEqual([{ code: "22023", status: 400 }]);
+    expect(JSON.stringify(r.seen)).not.toContain("versão desconhecida");
+  });
+
+  it("acceptHouse recusado pelo banco entrega código e status", async () => {
+    const { client } = fakeClient({ error: { code: "C7603", message: "detalhe interno" }, status: 400 });
+    const r = refusal();
+    expect(await acceptHouse(client, { houseId: "casa-a", joinMethod: "self" }, houseIds, "termo-1", r.on)).toEqual({ ok: false, error: "house_locked" });
+    expect(r.seen).toEqual([{ code: "C7603", status: 400 }]);
+  });
+
+  it("sucesso, entrada inválida e termo desatualizado não chamam o registro (nada foi ao banco)", async () => {
+    const ok = fakeClient({ data: "x" });
+    const r = refusal();
+    await recordConsent(ok.client, { termVersion: "termo-1" }, "termo-1", r.on);
+    await recordConsent(ok.client, { termVersion: "termo-0" }, "termo-1", r.on);
+    await recordConsent(ok.client, { lixo: 1 }, "termo-1", r.on);
+    await acceptHouse(ok.client, { houseId: "outra", joinMethod: "self" }, houseIds, "termo-1", r.on);
+    expect(r.seen).toEqual([]);
   });
 });
 

@@ -57,6 +57,10 @@ services:
       # entrou nas obrigatórias: derrubaria o ambiente inteiro em vez de uma
       # tela. Gerar e instalar a chave é ação do dono do servidor.
       QUESTIONNAIRE_SIGNING_KEY: ${QUESTIONNAIRE_SIGNING_KEY:-}
+      # Questionário real das casas (#313): caminho DENTRO do container do arquivo instalado em
+      # ./questionario (montado abaixo). `:?` porque sem ele o app serviria em silêncio o exemplo
+      # fictício, com a chave de exemplo; em produção o app também se recusa a subir sem ele.
+      QUESTIONNAIRE_PATH: ${QUESTIONNAIRE_PATH:?obrigatorio}
       # CSP (#152): "1" só avisa no console do navegador, para a estreia no
       # staging; vazio (padrão) bloqueia. Não deixe "1" em produção (docs/OPERACAO.md).
       CSP_REPORT_ONLY: ${CSP_REPORT_ONLY:-}
@@ -69,6 +73,9 @@ services:
       # Sobrevive à recriação do container. O diretório do host precisa ser do
       # uid 1000 (usuário `node` da imagem); sem permissão, o app loga só no stdout.
       - ./data/logs:/app/data/logs
+      # O questionário real (JSON da pasta privada), só leitura. `QUESTIONNAIRE_PATH` aponta para o
+      # arquivo dentro desta pasta (ex.: /app/questionario/questionnaire.json).
+      - ./questionario:/app/questionario:ro
     mem_limit: 384m
     cpus: 0.50
     networks:
