@@ -8,6 +8,11 @@
 # LEMBRETE a cada $LEMBRETE_HORAS. Nunca um e-mail a cada 5 minutos.
 # Não conseguir medir (Docker fora, por exemplo) conta como medição ruim: "não sei" não é "tudo ok".
 #
+# DISCO CHEIO é o caso que este script existe para pegar, então nada aqui pode abortar por falta de
+# espaço: log, leitura e gravação do estado não são fatais; o estado é gravado por tmp+mv (nunca
+# truncado no lugar); sem estado gravável, o alerta sai já na 1ª medição ruim; o arquivo da senha
+# fica no RUNTIME_DIRECTORY do systemd (/run, em memória), não no disco.
+#
 # O alerta sai por e-mail pelo relay SMTP do ambiente (SMTP_* do arquivo de segredos, o mesmo do
 # GoTrue). A senha vai ao curl por arquivo temporário (-K), nunca por argumento. Com ALERTA_PARA
 # vazio, nada é enviado: só registrado. É assim que se instala antes de o remetente existir.
@@ -19,7 +24,7 @@
 #   PROJETOS      projetos Compose cujos containers vigiar     MEM_LIMITE     % do mem_limit (90)
 #   BACKUP_DIR    pasta do backup.sh (vazio: não confere)      BACKUP_MAX_HORAS (26)
 #   CERT_HOST     domínio do certificado (vazio: não confere)  CERT_DIAS (15)
-#   ENV_FILE      arquivo de segredos com SMTP_*               ALERTA_DE, ALERTA_PARA (vírgulas)
+#   ENV_FILE      arquivo só com as SMTP_* (não o secrets/env)  ALERTA_DE, ALERTA_PARA (vírgulas)
 #   LEMBRETE_HORAS (6)
 # Saídas: 0 rodou (com ou sem alerta), 2 configuração faltando.
 set -euo pipefail
@@ -44,14 +49,27 @@ ENV_FILE=${ENV_FILE:-}
 # Relógio injetável só para o teste; em produção, o de sempre.
 AGORA=${VIGIA_AGORA:-$(date +%s)}
 
-mkdir -p "$ESTADO_DIR"
-registra() { printf '%s vigia %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$AMBIENTE" "$*" >> "$REGISTRO"; }
+# Tudo também vai para a saída: com o log sem espaço, o journal do systemd ainda mostra o que houve.
+registra() {
+  local linha
+  linha="$(date -u +%Y-%m-%dT%H:%M:%SZ) vigia $AMBIENTE $*"
+  printf '%s\n' "$linha"
+  { printf '%s\n' "$linha" >> "$REGISTRO"; } 2> /dev/null || true
+}
+mkdir -p "$ESTADO_DIR" 2> /dev/null || true
+# Sem estado gravável não há como lembrar a 1ª medição: aí o alerta sai já na primeira.
+ESTADO_GRAVAVEL=1
+{ : > "$ESTADO_DIR/.escrita" && rm -f "$ESTADO_DIR/.escrita"; } 2> /dev/null || ESTADO_GRAVAVEL=0
+[ "$ESTADO_GRAVAVEL" = 1 ] || registra "AVISO estado sem escrita em $ESTADO_DIR (disco cheio?): alertas sem espera nem deduplicação"
+# O arquivo da senha do SMTP mora no RUNTIME_DIRECTORY (systemd, em /run) e some na saída.
+CFG=
+trap 'rm -f -- "${CFG:-}"' EXIT
 
 # ── envio: só se ALERTA_PARA e o relay estiverem configurados ──
 envia() { # envia <assunto> <corpo>
   [ -n "$ALERTA_PARA" ] || return 0
   local host porta usuario senha url cfg r
-  local -a rcpt args
+  local -a args
   [ -r "$ENV_FILE" ] || { registra "ERRO envio: sem arquivo de segredos"; return 0; }
   host=$(sed -n 's/^SMTP_HOST=//p' "$ENV_FILE" | head -n1); porta=$(sed -n 's/^SMTP_PORT=//p' "$ENV_FILE" | head -n1)
   usuario=$(sed -n 's/^SMTP_USER=//p' "$ENV_FILE" | head -n1); senha=$(sed -n 's/^SMTP_PASS=//p' "$ENV_FILE" | head -n1)
@@ -59,26 +77,39 @@ envia() { # envia <assunto> <corpo>
   porta=${porta:-587}
   # 465 é TLS direto; o resto (587) é STARTTLS, que o --ssl-reqd torna obrigatório.
   if [ "$porta" = 465 ]; then url="smtps://$host:$porta"; else url="smtp://$host:$porta"; fi
-  cfg=$(mktemp)
+  if ! cfg=$(mktemp "${RUNTIME_DIRECTORY:-${TMPDIR:-/tmp}}/vigia-smtp.XXXXXX" 2> /dev/null); then
+    registra "ERRO envio: sem onde guardar a senha do SMTP ($1)"; return 0
+  fi
+  CFG=$cfg
   # Aspas e barras escapadas: a senha pode tê-las.
-  printf 'user = "%s:%s"\n' "$(printf '%s' "$usuario" | sed 's/[\\"]/\\&/g')" "$(printf '%s' "$senha" | sed 's/[\\"]/\\&/g')" > "$cfg"
+  if ! { printf 'user = "%s:%s"\n' "$(printf '%s' "$usuario" | sed 's/[\\"]/\\&/g')" "$(printf '%s' "$senha" | sed 's/[\\"]/\\&/g')" > "$cfg"; } 2> /dev/null; then
+    registra "ERRO envio: não consegui gravar a senha do SMTP em arquivo temporário ($1)"; rm -f "$cfg"; CFG=; return 0
+  fi
   args=(-sS --ssl-reqd --url "$url" -K "$cfg" --mail-from "$ALERTA_DE" --upload-file -)
-  IFS=',' read -r -a rcpt <<< "$ALERTA_PARA"
-  for r in "${rcpt[@]}"; do args+=(--mail-rcpt "${r// /}"); done
+  # Sem here-string: o bash pode gravá-la em arquivo temporário, e o disco pode estar cheio.
+  set -f
+  for r in ${ALERTA_PARA//,/ }; do args+=(--mail-rcpt "$r"); done
+  set +f
   if ! printf 'From: %s\r\nTo: %s\r\nSubject: %s\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n%s\r\n' \
        "$ALERTA_DE" "$ALERTA_PARA" "$1" "$2" | curl "${args[@]}" > /dev/null 2>&1; then
     registra "ERRO envio: o relay recusou ($1)"
   fi
-  rm -f "$cfg"
+  rm -f "$cfg"; CFG=
 }
 
 # ── estado por checagem: <ruins seguidas> <alertado 0|1> <último aviso em epoch> ──
 avalia() { # avalia <chave> <ok|ruim> <mensagem>
   local chave=$1 situacao=$2 msg=$3 arq ruins=0 alertado=0 ultimo=0
   arq="$ESTADO_DIR/$(printf '%s' "$chave" | tr -c 'a-z0-9_.-' '_')"
-  if [ -f "$arq" ]; then read -r ruins alertado ultimo < "$arq"; fi
+  # Estado vazio ou estranho (gravação truncada) vale como estado novo, sem abortar.
+  if [ -f "$arq" ]; then read -r ruins alertado ultimo < "$arq" 2> /dev/null || true; fi
+  [[ ${ruins:-} =~ ^[0-9]+$ ]] || ruins=0
+  [[ ${alertado:-} =~ ^[01]$ ]] || alertado=0
+  [[ ${ultimo:-} =~ ^[0-9]+$ ]] || ultimo=0
   if [ "$situacao" = ruim ]; then
     ruins=$((ruins + 1))
+    # Sem estado gravável, esperar a 2ª medição seria esperar para sempre.
+    [ "$ESTADO_GRAVAVEL" = 1 ] || { ruins=2; alertado=0; }
     if [ "$alertado" = 0 ] && [ "$ruins" -ge 2 ]; then
       registra "ALERTA $chave: $msg"
       envia "[complexo42 $AMBIENTE] ALERTA: $chave" "$msg"
@@ -97,13 +128,16 @@ avalia() { # avalia <chave> <ok|ruim> <mensagem>
     fi
     ruins=0; alertado=0; ultimo=0
   fi
-  printf '%s %s %s\n' "$ruins" "$alertado" "$ultimo" > "$arq"
+  # tmp+mv: com o disco cheio, falha a gravação nova, e o estado anterior não é truncado.
+  if ! { printf '%s %s %s\n' "$ruins" "$alertado" "$ultimo" > "$arq.novo" && mv -f "$arq.novo" "$arq"; } 2> /dev/null; then
+    rm -f "$arq.novo" 2> /dev/null || true
+  fi
 }
 
 # ── disco ──
 for d in $DISCOS; do
   uso=$(df -P "$d" 2> /dev/null | awk 'NR==2 { gsub("%", "", $5); print $5 }' || true)
-  if [ -z "$uso" ]; then avalia "disco $d" ruim "não consegui medir o disco de $d"
+  if ! [[ $uso =~ ^[0-9]+$ ]]; then avalia "disco $d" ruim "não consegui medir o disco de $d"
   elif [ "$uso" -ge "$DISCO_LIMITE" ]; then avalia "disco $d" ruim "disco de $d em ${uso}% (limite ${DISCO_LIMITE}%)"
   else avalia "disco $d" ok "disco de $d em ${uso}%"; fi
 done

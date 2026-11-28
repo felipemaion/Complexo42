@@ -915,23 +915,34 @@ Dois olhos, porque o servidor não consegue avisar que caiu:
 
 **Sem alerta falso:** só na 2ª medição ruim seguida; um e-mail na transição (ALERTA, RESOLVIDO) e um
 LEMBRETE a cada 6 h se o problema continuar. Nunca um e-mail a cada 5 minutos. Tudo vai também para o
-registro (`data/logs/vigia.log`).
+registro (`/var/log/complexo42-vigia/<ambiente>.log`) e para o `journalctl`.
 
-O e-mail sai pelo **mesmo relay SMTP do GoTrue** (`SMTP_*` do `secrets/env`), por `curl`, com a senha em
-arquivo temporário (nunca em argumento). **Com `ALERTA_PARA` vazio, nada é enviado**: o vigia só
+O e-mail sai pelo **mesmo relay SMTP do GoTrue** (as `SMTP_*` do ambiente), por `curl`, com a senha em
+arquivo temporário em `/run` (nunca em argumento). **Com `ALERTA_PARA` vazio, nada é enviado**: o vigia só
 registra. Dá para instalar antes de o remetente existir.
+
+Roda com **usuário próprio**, não como root: o `complexo42-vigia`, no grupo `docker` (para o `docker ps`
+e o `docker stats`), lendo um arquivo **só com as `SMTP_*`**, nunca o `secrets/env` inteiro. O estado, o
+log e o arquivo temporário da senha ficam nos diretórios que o systemd cria para ele; o da senha em
+`/run` (memória), que funciona mesmo com o disco cheio, que é justamente o caso a pegar.
 
 ```bash
 # uma vez, e a cada mudança do script: cópia à mão, como root
 sudo install -m 0755 deploy/vigia.sh /opt/complexo42/vigia.sh
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin --groups docker complexo42-vigia
+# só as SMTP_* do ambiente, legíveis só pelo vigia
+sudo sh -c 'umask 077; grep "^SMTP_" <dir do deploy>/secrets/env > /etc/complexo42/vigia-<ambiente>.smtp'
+sudo chown complexo42-vigia: /etc/complexo42/vigia-<ambiente>.smtp
+# a pasta dos backups é 700 do root: o vigia só precisa LISTAR (data dos .age), não ler
+sudo setfacl -m u:complexo42-vigia:rx <dir dos backups> <dir dos backups>/diario
 ```
 
 ```ini
-# /etc/complexo42/vigia-<ambiente>.conf  (root:root, 600)
+# /etc/complexo42/vigia-<ambiente>.conf  (root:root, 644: não tem segredo)
 AMBIENTE=<ambiente>
 ESTADO_DIR=/var/lib/complexo42-vigia/<ambiente>
-REGISTRO=<dir do deploy>/data/logs/vigia.log
-ENV_FILE=<dir do deploy>/secrets/env
+REGISTRO=/var/log/complexo42-vigia/<ambiente>.log
+ENV_FILE=/etc/complexo42/vigia-<ambiente>.smtp
 DISCOS=/ /var/lib/docker <dir do deploy>/data/logs
 PROJETOS=<projeto do Supabase> <projeto do app>
 BACKUP_DIR=<dir dos backups>        # vazio: não confere (staging sem backup)
@@ -946,7 +957,13 @@ ALERTA_PARA=                        # vazio: só registra; vários separados por
 Description=Vigia do Complexo42 (%i)
 [Service]
 Type=oneshot
+User=complexo42-vigia
+Group=complexo42-vigia
+SupplementaryGroups=docker
 EnvironmentFile=/etc/complexo42/vigia-%i.conf
+StateDirectory=complexo42-vigia/%i
+LogsDirectory=complexo42-vigia
+RuntimeDirectory=complexo42-vigia-%i
 ExecStart=/opt/complexo42/vigia.sh
 
 # /etc/systemd/system/complexo42-vigia@.timer
@@ -961,15 +978,18 @@ WantedBy=timers.target
 
 ```bash
 sudo systemctl enable --now complexo42-vigia@<ambiente>.timer
-tail -n 20 <dir do deploy>/data/logs/vigia.log      # o que ele viu
+journalctl -u complexo42-vigia@<ambiente> -n 20    # o que ele viu (também com o disco cheio)
 ```
 
-**Rotação dos logs** (pedido da revisão do #103): o `app.log`, o `backup.log` e o `vigia.log` crescem sem
-limite. No host:
+Com o disco cheio, o vigia **não fica mudo**: sem estado gravável, alerta já na 1ª medição ruim; o log
+e o estado falham sem abortar (o estado é gravado por arquivo novo + `mv`, nunca truncado no lugar), e
+tudo sai também no `journalctl`. A troca da senha do relay pede regravar o `.smtp`.
+
+**Rotação dos logs** (pedido da revisão do #103): o `app.log` e o `backup.log` crescem sem limite. No host:
 
 ```
 # /etc/logrotate.d/complexo42-<ambiente>
-<dir do deploy>/data/logs/*.log {
+<dir do deploy>/data/logs/*.log /var/log/complexo42-vigia/*.log {
   weekly
   rotate 8
   compress
@@ -995,7 +1015,7 @@ limite. No host:
 Derrubar o app (`docker compose … stop app`) e cronometrar: o monitor externo tem de alertar **em até
 10 min** (2 falhas seguidas de 5 min). Subir de novo e conferir o aviso de volta. Para o vigia do host,
 encher um disco de teste não é preciso: o `deploy/vigia.test.sh` prova a lógica no CI. No servidor, basta
-conferir que o `vigia.log` registra as medições e que, com `ALERTA_PARA` preenchido, o e-mail chega.
+conferir no `journalctl -u complexo42-vigia@<ambiente>` que ele registra as medições e que, com `ALERTA_PARA` preenchido, o e-mail chega.
 
 ## Deploy do app (#81)
 
