@@ -24,7 +24,6 @@ const hardcodedStyle = new RegExp(
 // Ao migrar, tire a linha daqui: o segundo teste falha se uma linha não casar mais com nada, para a lista só
 // diminuir.
 const pendingMigration = new Set([
-  "src/app/(conta)/casa/page.tsx",
   "src/app/(conta)/coordenacao/casas/analise/[id]/page.tsx",
   "src/app/(conta)/coordenacao/casas/delegacoes/page.tsx",
   "src/app/(conta)/coordenacao/casas/janela/page.tsx",
@@ -34,13 +33,8 @@ const pendingMigration = new Set([
   "src/app/(conta)/senha/",
   "src/modules/access/components/member-block-form.tsx",
   "src/modules/access/components/waitlist-queue.tsx",
-  "src/modules/houses/components/compare-grid.tsx",
-  "src/modules/houses/components/compare-houses.tsx",
-  "src/modules/houses/components/house-flow.tsx",
   "src/modules/profiles/components/contact-visibility.tsx",
   "src/modules/profiles/components/profile-form.tsx",
-  "src/modules/questionnaire/components/intensity-scale.tsx",
-  "src/modules/questionnaire/components/spider-chart.tsx",
 ]);
 
 function componentFiles(dir: string): string[] {

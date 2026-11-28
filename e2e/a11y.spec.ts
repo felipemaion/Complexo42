@@ -44,7 +44,7 @@ test.describe("páginas logadas com o Supabase local", () => {
     });
 
   /** Gestora da raiz, ativa e com casa (mesmo preparo de e2e/navigation-live.spec.ts); com ou sem o termo aceito. */
-  async function signedInManager(browser: Browser, { hasAcceptedTerm }: { hasAcceptedTerm: boolean }): Promise<Page> {
+  async function signedInManager(browser: Browser, { hasAcceptedTerm, hasHouse = true }: { hasAcceptedTerm: boolean; hasHouse?: boolean }): Promise<Page> {
     const email = `a11y.${Date.now()}@exemplo.org`;
     const user = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, email_confirm: true }) })).json();
     const created = await admin("/rest/v1/profiles", {
@@ -60,7 +60,7 @@ test.describe("páginas logadas com o Supabase local", () => {
       }),
     });
     expect(created.status).toBe(201);
-    await giveHouse(admin, user.id);
+    if (hasHouse) await giveHouse(admin, user.id);
     if (hasAcceptedTerm) {
       await admin("/rest/v1/consent_acceptances", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, version: "v1" }) });
     }
@@ -88,5 +88,25 @@ test.describe("páginas logadas com o Supabase local", () => {
     await page.goto("/termo");
     await expect(page).toHaveURL(`${baseURL}/termo`);
     await expectAccessible(page, "/termo");
+  });
+
+  test("início e casa passam no axe nos dois temas, sem rolagem horizontal", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const page = await signedInManager(browser, { hasAcceptedTerm: true });
+    for (const path of ["/inicio", "/casa"]) {
+      await page.goto(path);
+      await expectAccessible(page, path);
+    }
+  });
+
+  test("o questionário (termo e pergunta respondida) passa no axe nos dois temas, sem rolagem horizontal", async ({ browser }) => {
+    test.setTimeout(180_000);
+    const page = await signedInManager(browser, { hasAcceptedTerm: true, hasHouse: false });
+    await page.goto("/casa");
+    await expectAccessible(page, "/casa (termo do questionário)");
+    await page.getByRole("button", { name: "Aceito e quero responder" }).click();
+    await page.getByTestId("scale--3").click();
+    await expect(page.getByTestId("scale--3")).toHaveAttribute("aria-checked", "true");
+    await expectAccessible(page, "/casa (pergunta)");
   });
 });

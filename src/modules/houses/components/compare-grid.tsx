@@ -17,12 +17,13 @@ type Props = {
 };
 
 const colorOf = (color: HouseView["color"]) => `light-dark(${color.light}, ${color.dark})`;
-const neutralBorder = "light-dark(#767676, #8a8a8a)";
+// Bordas e o ✓ pelos tokens de globals.css (#324): borda de campo (3:1 com o fundo) e texto sobre a cor da casa.
+const neutralBorder = "var(--c-field)";
 const chip = "rounded-full border border-current px-2 py-0.5 text-sm font-semibold";
 
 export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, text, disabled, onSelect }: Readonly<Props>) {
   return (
-    <ul className="grid grid-cols-2 gap-3">
+    <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       {houses.map((house) => {
         const isSelected = house.id === selectedId;
         const color = colorOf(house.color);
@@ -32,7 +33,7 @@ export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, t
           <li key={house.id} className="flex">
             <button
               type="button"
-              className="relative flex w-full flex-col items-center gap-2 rounded-xl border-solid text-center focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-current disabled:opacity-60"
+              className="relative flex w-full flex-col items-center gap-2 rounded-card border-solid bg-surface text-center focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-focus"
               style={{
                 borderWidth: isSelected ? 4 : 2,
                 // A borda grossa não empurra o conteúdo: o padding compensa os 2 px a mais.
@@ -52,7 +53,7 @@ export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, t
                   aria-hidden="true"
                   data-testid="compare-check"
                   className="absolute right-2 top-2 flex size-6 items-center justify-center rounded-full text-sm font-bold"
-                  style={{ backgroundColor: color, color: "light-dark(#fff, #000)" }}
+                  style={{ backgroundColor: color, color: "var(--c-surface)" }}
                 >
                   ✓
                 </span>
