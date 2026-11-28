@@ -26,6 +26,8 @@ function setup(fetchImpl: (url: string) => Promise<Response>) {
   vi.stubEnv("BLIND_INDEX_KEY", "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=");
   // Em produção o caminho do questionário real é obrigatório (#313).
   vi.stubEnv("QUESTIONNAIRE_PATH", "/app/questionario/questionnaire.json");
+  // Chave que assina o resultado do questionário: obrigatória em produção desde #290.
+  vi.stubEnv("QUESTIONNAIRE_SIGNING_KEY", "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=");
   vi.stubEnv("TURNSTILE_SITE_KEY", `0x${"a".repeat(22)}`);
   vi.stubEnv("TURNSTILE_SECRET_KEY", `0x${"b".repeat(33)}`);
   vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("/rpc/term_versions_check") ? new Response(JSON.stringify("ok")) : fetchImpl(url))));
