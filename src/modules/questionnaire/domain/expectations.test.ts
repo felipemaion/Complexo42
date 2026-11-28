@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { houseExpectations, missingExpectations } from "./expectations";
+import { axisExpectations, houseExpectations, missingExpectations } from "./expectations";
 import { parseQuestionnaire, toPublicQuestionnaire } from "./schema";
 import type { Answer } from "./score";
 
@@ -104,5 +104,45 @@ describe("o navegador nunca recebe as frases de expectativa", () => {
     const pub = toPublicQuestionnaire(config);
     for (const item of pub.items) expect(Object.keys(item).sort()).toEqual(["a", "b", "id", "text"]);
     expect(JSON.stringify(pub)).not.toContain("Espera-se");
+  });
+});
+
+// Frases gerais por eixo (#268): para quem não tem respostas guardadas, só as notas dos eixos da casa.
+const withAxisPhrases = parseQuestionnaire(
+  {
+    ...base,
+    axes: {
+      ...base.axes,
+      house1: { ...base.axes.house1, expectation: { a: "Espera-se ação (eixo 1).", b: "Espera-se contemplação (eixo 1)." } },
+      house2: { ...base.axes.house2, expectation: { a: "Espera-se lei (eixo 2).", b: "Espera-se costume (eixo 2)." } },
+    },
+  },
+  houses,
+);
+
+describe("axisExpectations (frases gerais por eixo, sem respostas guardadas)", () => {
+  it("só os eixos em que a nota está do lado OPOSTO ao da casa, com a frase do polo da casa", () => {
+    // casa-1 = a/a. Eixo 1 em b (nota +40) contradiz; eixo 2 em a (nota -60) concorda.
+    const out = axisExpectations(withAxisPhrases, { house1: 40, house2: -60, totem1: 0, totem2: 0 }, "casa-1");
+    expect(out).toEqual([{ axis: "house1", text: "Espera-se ação (eixo 1).", answer: 3 }]);
+  });
+
+  it("ordena pela força da nota (a mais forte primeiro) e traduz a força em intensidade 1, 3 ou 5", () => {
+    const out = axisExpectations(withAxisPhrases, { house1: 90, house2: 20, totem1: 0, totem2: 0 }, "casa-1");
+    expect(out.map((e) => [e.axis, e.answer])).toEqual([["house1", 5], ["house2", 1]]);
+  });
+
+  it("a frase é a do polo da casa em cada eixo (casa-4: b/b)", () => {
+    const out = axisExpectations(withAxisPhrases, { house1: -50, house2: -50, totem1: 0, totem2: 0 }, "casa-4");
+    expect(out.map((e) => e.text)).toEqual(["Espera-se contemplação (eixo 1).", "Espera-se costume (eixo 2)."]);
+  });
+
+  it("eixo sem frase na config não entra (nada de frase inventada); casa desconhecida, nada", () => {
+    expect(axisExpectations(config, { house1: 80, house2: 80, totem1: 0, totem2: 0 }, "casa-1")).toEqual([]);
+    expect(axisExpectations(withAxisPhrases, { house1: 80, house2: 80, totem1: 0, totem2: 0 }, "outra")).toEqual([]);
+  });
+
+  it("nunca olha o totem e nota zero não contradiz ninguém", () => {
+    expect(axisExpectations(withAxisPhrases, { house1: 0, house2: 0, totem1: 100, totem2: -100 }, "casa-1")).toEqual([]);
   });
 });

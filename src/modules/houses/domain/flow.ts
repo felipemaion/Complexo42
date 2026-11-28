@@ -26,13 +26,34 @@ export type Step =
    * `chart`: o perfil da pessoa (só os eixos da casa), quando a casa veio do questionário;
    * `byPoles`: o mapa das casas para as zonas coloridas do gráfico (#201).
    */
-  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string }
+  | { kind: "presentation"; houseId: string; method: JoinMethod; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string; returnTo?: CompareStep }
   /**
    * "Escolher outra casa" depois do questionário (#240): as quatro casas, a sugerida em destaque; `selectedId` é a casa que a
    * pessoa está comparando (ainda sem confirmar). As respostas ficam no estado: a comparação (o que se espera, o perfil
    * médio) é calculada no servidor, que tem a chave.
    */
-  | { kind: "compare"; suggestedId: string; selectedId?: string; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string };
+  | CompareStep;
+
+/**
+ * `currentId`: só na troca de casa depois da trava (#268): a casa em que a pessoa está, em destaque e sem poder ser confirmada.
+ * Nessa troca o fluxo começa aqui (`changeHouseFlow`), `suggestedId` e o resto vêm do resultado guardado (podem faltar) e o
+ * token é montado no servidor a partir do guardado.
+ */
+export type CompareStep = {
+  kind: "compare";
+  suggestedId?: string;
+  currentId?: string;
+  selectedId?: string;
+  chart?: readonly ChartAxis[];
+  byPoles?: HouseByPoles;
+  compareToken?: string;
+};
+
+/** Começo da troca de casa depois da trava (#268): direto na comparação, sem respostas no navegador. */
+export function changeHouseFlow(start: { currentId: string; suggestedId?: string; chart?: readonly ChartAxis[]; byPoles?: HouseByPoles; compareToken?: string }): FlowState {
+  const { currentId, suggestedId, chart, byPoles, compareToken } = start;
+  return at({ kind: "compare", currentId, ...(suggestedId && { suggestedId }), ...(chart && { chart }), ...(byPoles && { byPoles }), ...(compareToken && { compareToken }) }, {});
+}
 
 /** `refusal`: por que o último envio das respostas foi recusado; some na próxima ação da pessoa (#199). */
 export type FlowState = { step: Step; answers: Answers; refusal?: Refusal };
@@ -78,8 +99,11 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
       case "question":
         return at(step.index === 0 ? { kind: "consent" } : { kind: "question", index: step.index - 1 }, answers);
       case "compare":
+        // Na troca de casa (#268) não há apresentação para onde voltar: a tela sai para a página da casa.
+        if (step.currentId !== undefined || step.suggestedId === undefined) return state;
         return at({ kind: "presentation", houseId: step.suggestedId, method: "questionnaire", ...(step.chart && { chart: step.chart }), ...(step.byPoles && { byPoles: step.byPoles }), ...(step.compareToken && { compareToken: step.compareToken }) }, answers);
       case "presentation":
+        if (step.returnTo) return at(step.returnTo, answers);
         return at(step.method === "questionnaire" ? { kind: "question", index: last } : { kind: "activities" }, answers);
       default:
         return state;
@@ -106,6 +130,7 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
       return at({ kind: "presentation", houseId: event.houseId, method: "self" }, answers);
     case "presentation":
       if (event.type !== "choose_other") return state;
+      if (step.returnTo) return at(step.returnTo, answers);
       // Depois do questionário, escolher outra casa abre a comparação (as respostas ficam para ela); vindo da lista, volta à lista.
       if (step.method === "questionnaire") {
         return at({ kind: "compare", suggestedId: step.houseId, ...(step.chart && { chart: step.chart }), ...(step.byPoles && { byPoles: step.byPoles }), ...(step.compareToken && { compareToken: step.compareToken }) }, answers);
@@ -114,7 +139,12 @@ export function nextFlow(state: FlowState, event: FlowEvent, ctx: FlowContext): 
       return at({ kind: "activities" }, {});
     case "compare":
       if (event.type === "house_selected") return at({ ...step, selectedId: event.houseId }, answers);
-      if (event.type !== "house_confirmed" || step.selectedId === undefined) return state;
+      if (event.type !== "house_confirmed" || step.selectedId === undefined || step.selectedId === step.currentId) return state;
+      // Na troca de casa (#268) a apresentação guarda a volta à comparação (com a casa selecionada).
+      if (step.currentId !== undefined) {
+        const isSuggested = step.selectedId === step.suggestedId;
+        return at({ kind: "presentation", houseId: step.selectedId, method: isSuggested ? "questionnaire" : "self", ...(isSuggested && step.chart && { chart: step.chart }), ...(isSuggested && step.byPoles && { byPoles: step.byPoles }), ...(isSuggested && step.compareToken && { compareToken: step.compareToken }), returnTo: step }, answers);
+      }
       // Confirmar a própria casa sugerida mantém a entrada pelo questionário; outra casa é escolha direta (self).
       if (step.selectedId === step.suggestedId) {
         return at({ kind: "presentation", houseId: step.selectedId, method: "questionnaire", ...(step.chart && { chart: step.chart }), ...(step.byPoles && { byPoles: step.byPoles }), ...(step.compareToken && { compareToken: step.compareToken }) }, answers);
