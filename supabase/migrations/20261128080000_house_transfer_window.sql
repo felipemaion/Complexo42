@@ -38,21 +38,9 @@ create policy house_transfer_window_select on public.house_transfer_window
   for select to authenticated
   using (app.is_onboarding_member());
 
+-- Só `is_open`: quem mudou e quando ficam no audit_log (a nacional o lê).
 revoke all on public.house_transfer_window from public, anon, authenticated;
-grant select on public.house_transfer_window to authenticated;
-
-create or replace function app.house_transfer_open()
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select coalesce((select w.is_open from public.house_transfer_window as w), false);
-$$;
-
-revoke execute on function app.house_transfer_open() from public, anon;
-grant execute on function app.house_transfer_open() to authenticated;
+grant select (is_open) on public.house_transfer_window to authenticated;
 
 -- ---------------------------------------------------------------------------------------
 -- 3. Auditoria: abrir e fechar a janela
@@ -173,6 +161,7 @@ declare
   open_id uuid;
   open_house text;
   open_accepted timestamptz;
+  window_open boolean;
   new_id uuid;
 begin
   if caller is null then
@@ -208,8 +197,10 @@ begin
     if open_house is not distinct from p_house_key then
       return open_id;
     end if;
-    -- Outra casa: só com a janela de transferência aberta.
-    if not app.house_transfer_open() then
+    -- Outra casa: só com a janela de transferência aberta. FOR SHARE: um fechamento concorrente
+    -- (`set_house_transfer_window` trava a linha com FOR UPDATE) espera esta troca terminar ou a precede.
+    select w.is_open into window_open from public.house_transfer_window as w for share;
+    if not coalesce(window_open, false) then
       raise exception 'a janela de transferência de casa está fechada' using errcode = 'C7605';
     end if;
   end if;

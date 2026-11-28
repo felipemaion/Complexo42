@@ -6,7 +6,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(44);
 
 create temp table unit_ids (slug text primary key, id uuid not null);
 insert into unit_ids select path::text, id from public.units where path::text in ('br', 'br.sp');
@@ -66,6 +66,16 @@ select ok(
 );
 
 select ok(
+  has_column_privilege('authenticated', 'public.house_transfer_window', 'is_open', 'select')
+  and not has_column_privilege('authenticated', 'public.house_transfer_window', 'changed_by', 'select')
+  and not has_column_privilege('authenticated', 'public.house_transfer_window', 'changed_at', 'select'),
+  'o membro lê só is_open; quem mudou fica no audit_log, não na tabela'
+);
+select ok(
+  pg_get_functiondef('public.accept_house(text, text, text)'::regprocedure) ~* 'house_transfer_window[^;]*for share',
+  'accept_house lê a janela com FOR SHARE: um fechamento concorrente não deixa passar a troca'
+);
+select ok(
   pg_get_functiondef('public.set_house_transfer_window(boolean)'::regprocedure) ~* 'update public.house_transfer_window[^;]*where singleton',
   'o UPDATE da janela tem WHERE (o PostgREST usa pg-safeupdate e recusa UPDATE sem WHERE)'
 );
@@ -105,8 +115,8 @@ select pg_temp.login('root_mgr');
 select is(public.set_house_transfer_window(true), true, 'a nacional abre a janela');
 select is(public.set_house_transfer_window(true), true, 'abrir de novo é idempotente');
 select is((select is_open from public.house_transfer_window), true, 'o estado ficou aberto');
-select is((select changed_by from public.house_transfer_window), pg_temp.person('root_mgr'), 'guarda quem mudou');
 reset role;
+select is((select changed_by from public.house_transfer_window), pg_temp.person('root_mgr'), 'guarda quem mudou (só o dono lê a coluna)');
 select is(
   (select count(*)::int from public.audit_log where event = 'house_window_opened' and actor_id = pg_temp.person('root_mgr')),
   1, 'abrir grava um evento, com o ator, e repetir não grava outro'

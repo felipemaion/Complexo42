@@ -332,7 +332,7 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   `coordination_other_house_results(casa, limite)`: no banco, sobre todas as pessoas do alcance (até 201,
   das mais novas), com o mesmo alcance. Ver ADR 0016.
 - **Janela de transferência** (`house_transfer_window`, ADR 0016): uma linha só, `is_open` (nasce
-  fechada), `changed_at` e `changed_by`; **sem datas nem duração**. Quem é membro lê o estado (a tela
+  fechada), `changed_at` e `changed_by` (o membro lê só `is_open`; o autor fica no `audit_log`); **sem datas nem duração**. Quem é membro lê o estado (a tela
   mostra ou esconde "Trocar de casa"); ninguém escreve direto. Só a coordenação nacional (gestor da
   raiz) abre e fecha, por `set_house_transfer_window(open)`, que grava `house_window_opened` ou
   `house_window_closed` no `audit_log` (sem alvo; só a nacional os lê) e não repete o evento se o
