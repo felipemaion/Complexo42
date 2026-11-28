@@ -1,6 +1,7 @@
 import { instance } from "@config/instance";
 import { AppLogo } from "@/modules/houses/components/house-shield";
 import { AccountNav } from "@/modules/navigation";
+import { buttonClass, pageContainerClass } from "@/modules/ui";
 import { signOut } from "@/server/auth/actions";
 import { HOME_PATH } from "@/server/auth/routes";
 import { pendingHouseRedirect, requireUserBeforeHouse } from "@/server/auth/session";
@@ -16,17 +17,25 @@ export default async function AccountLayout({ children }: Readonly<{ children: R
   const text = instance.auth;
   return (
     <>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-300 px-6 py-3">
-        <AppLogo name={instance.name} size={40} />
-        {hasHouse && <AccountNav homePath={HOME_PATH} labels={{ nav: text.navLabel, home: text.navHome, back: text.navBack }} />}
-        <p className="text-base" data-testid="connected-as">
-          {text.connectedAs} <strong>{user.maskedEmail}</strong>
-        </p>
-        <form action={signOut}>
-          <button type="submit" className="rounded-xl border-2 border-current px-5 py-3 text-lg font-semibold">
-            {text.signOutButton}
-          </button>
-        </form>
+      {/* Cabeçalho na largura do site (#324). No celular, "Conectado como" desce para a segunda linha. */}
+      <header className="border-b border-line bg-surface">
+        <div className={`${pageContainerClass("wide")} flex flex-wrap items-center gap-x-4 gap-y-2 py-3`}>
+          <div className="flex items-center gap-3">
+            <AppLogo name={instance.name} size={40} />
+            <span aria-hidden="true" className="hidden font-display text-lg font-bold md:inline">
+              {instance.shortName}
+            </span>
+          </div>
+          {hasHouse && <AccountNav homePath={HOME_PATH} labels={{ nav: text.navLabel, home: text.navHome, back: text.navBack }} />}
+          <p className="order-last basis-full text-sm text-ink-muted sm:order-none sm:ms-auto sm:basis-auto sm:text-base" data-testid="connected-as">
+            {text.connectedAs} <strong className="text-ink">{user.maskedEmail}</strong>
+          </p>
+          <form action={signOut} className="ms-auto sm:ms-0">
+            <button type="submit" className={buttonClass("secondary")}>
+              {text.signOutButton}
+            </button>
+          </form>
+        </div>
       </header>
       {children}
     </>
