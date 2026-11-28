@@ -20,15 +20,14 @@ describe("parseProfileInput", () => {
     expect(parsed).toEqual({ displayName: "Ana Souza", municipalityCode: 3550308, districtCode: 355030878, neighborhood: null, consentVersion: "v1" });
   });
 
-  it("nome completo (issue #312): exige nome e sobrenome", () => {
-    expect(parseProfileInput({ ...profile, displayName: "Ana Souza" }).displayName).toBe("Ana Souza");
-    expect(parseProfileInput({ ...profile, displayName: "Ana Maria de Souza" }).displayName).toBe("Ana Maria de Souza");
-    // Uma palavra só (ou só espaços e hífen colado) não é nome completo.
-    for (const displayName of ["Ana", "  Ana  ", "Ana-Maria", "Ana\u00a0", "Ana\u2003"]) {
+  it("nome completo (issue #312): exige nome e sobrenome de verdade", () => {
+    for (const displayName of ["Ana Souza", "Ana Lu", "Maria da Silva", "D\u2019Ávila Souza", "José-Carlos Souza", "Ana\u00a0Souza", "Ana\u200b Souza"]) {
+      expect(() => parseProfileInput({ ...profile, displayName })).not.toThrow();
+    }
+    expect(parseProfileInput({ ...profile, displayName: "Ana\u00a0 Souza\u200b" }).displayName).toBe("Ana Souza");
+    for (const displayName of ["Ana", "  Ana  ", "Ana-Maria", "a b", "1 2", "- -", "😀 😀", "Ana \u200b"]) {
       expect(fieldsOf(() => parseProfileInput({ ...profile, displayName }))).toEqual(["displayName"]);
     }
-    // Espaço de largura diferente (NBSP, espaço em) separa palavras como o espaço comum.
-    expect(parseProfileInput({ ...profile, displayName: "Ana\u00a0Souza" }).displayName).toBe("Ana Souza");
   });
 
   it("distrito é opcional", () => {
