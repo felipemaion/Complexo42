@@ -23,9 +23,10 @@ async function unitId(path: string): Promise<string> {
   return unit.id;
 }
 
-async function createPerson(tag: string, inUnit?: string): Promise<{ id: string; email: string }> {
+async function createPerson(tag: string, inUnit?: string): Promise<{ id: string; email: string; password: string }> {
   const email = `busca.${tag}.${Date.now()}@exemplo.org`;
-  const user = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, email_confirm: true }) })).json();
+  const password = `Busca-${tag}-${Date.now()}-teste-longa`;
+  const user = await (await admin("/auth/v1/admin/users", { method: "POST", body: JSON.stringify({ email, password, email_confirm: true }) })).json();
   const res = await admin("/rest/v1/profiles", {
     method: "POST",
     headers: { Prefer: "return=minimal" },
@@ -46,7 +47,7 @@ async function createPerson(tag: string, inUnit?: string): Promise<{ id: string;
     const placed = await admin("/rest/v1/unit_members", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ unit_id: await unitId(inUnit), profile_id: user.id }) });
     expect(placed.status).toBe(201);
   }
-  return { id: user.id, email };
+  return { id: user.id, email, password };
 }
 
 async function makeManager(personId: string, path: string): Promise<void> {
@@ -63,9 +64,21 @@ async function skillId(name: string): Promise<string> {
   return skill.id;
 }
 
-async function giveSkills(personId: string, ids: string[]): Promise<void> {
-  const res = await admin("/rest/v1/profile_skills", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(ids.map((skill_id) => ({ profile_id: personId, skill_id }))) });
-  expect(res.status).toBe(201);
+// Ninguém grava `profile_skills` direto (nem a service_role): a pessoa marca pela função `set_my_skills`, com a sessão dela.
+async function giveSkills(person: { email: string; password: string }, ids: string[]): Promise<void> {
+  const login = await fetch(`${API}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { apikey: process.env.E2E_LIVE_ANON_KEY!, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: person.email, password: person.password }),
+  });
+  expect(login.ok).toBe(true);
+  const { access_token } = (await login.json()) as { access_token: string };
+  const res = await fetch(`${API}/rest/v1/rpc/set_my_skills`, {
+    method: "POST",
+    headers: { apikey: process.env.E2E_LIVE_ANON_KEY!, Authorization: `Bearer ${access_token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ p_skill_ids: ids }),
+  });
+  expect(res.ok).toBe(true);
 }
 
 async function signIn(page: Page, email: string): Promise<void> {
@@ -87,8 +100,8 @@ test("a nacional busca por habilidade (E e OU), o gestor de estado só vê o esc
   const plain = await createPerson("comum");
   const inSp = await createPerson("em-sp");
   const inMg = await createPerson("em-mg", "br.mg");
-  await giveSkills(inSp.id, [oratoria, debate]);
-  await giveSkills(inMg.id, [oratoria]);
+  await giveSkills(inSp, [oratoria, debate]);
+  await giveSkills(inMg, [oratoria]);
 
   const rootContext = await browser.newContext();
   const rootPage = await rootContext.newPage();

@@ -47,7 +47,7 @@ select id, 'g-' || id::text, 'self', now() from people where name <> 'p_wait' on
 
 -- Uma turma (equipe) em SP; sp1 está nela, sp2 só no estado.
 insert into public.units (type_id, parent_id, slug, name, state_code, path)
-select t.id, (select u.id from public.units as u where u.path = 'br.sp'::extensions.ltree), 'team_s', 'Turma teste S', 'SP', 'br.sp.team_s'::extensions.ltree
+select t.id, (select u.id from public.units as u where u.path = 'br.sp'::extensions.ltree), 'team_s', 'Turma teste S', null, 'br.sp.team_s'::extensions.ltree
 from public.unit_types as t where t.key = 'team';
 create temp table team_ids (id uuid not null);
 insert into team_ids select id from public.units where slug = 'team_s';
