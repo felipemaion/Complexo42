@@ -144,6 +144,54 @@ jobs:
             playwright-report/
           retention-days: 7
 
+  # Staging de mentira (#319): os jobs acima provam o código no ambiente de desenvolvimento
+  # (supabase start, seed, docker run); este prova a MONTAGEM do servidor -- banco só com migrations
+  # pelo migra.sh, app pelo compose do deploy, passos de operador pelos scripts de deploy/ e o
+  # caminho inteiro no navegador (scripts/staging-ci.sh). As três falhas do staging de 2026-11-28
+  # passaram por todos os outros jobs. Cada caso da matriz além do primeiro REVERTE um conserto e
+  # só fica verde se o staging falhar na etapa e pelo motivo daquele dia: é o teste do teste.
+  staging:
+    name: Staging de mentira (${{ matrix.reverter && format('revertido {0}', matrix.reverter) || 'montagem do servidor' }})
+    # ARM64, igual ao servidor: os digests do compose do deploy são os da plataforma dele.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        reverter: ["", termo, questionnaire-path, pgcrypto]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      # Em segundo plano, enquanto o npm e o navegador instalam.
+      - name: Constrói a imagem do app (em segundo plano)
+        run: |
+          nohup bash -c 'docker build --build-arg GIT_SHA="$GITHUB_SHA" -t complexo42:staging .; echo $? > "$RUNNER_TEMP/build.exit"' \
+            > "$RUNNER_TEMP/build.log" 2>&1 &
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Espera a imagem
+        run: |
+          for _ in $(seq 1 120); do
+            [ -f "$RUNNER_TEMP/build.exit" ] && break
+            sleep 5
+          done
+          if [ "$(cat "$RUNNER_TEMP/build.exit" 2>/dev/null)" != 0 ]; then
+            tail -50 "$RUNNER_TEMP/build.log"; exit 1
+          fi
+      - name: Monta o staging e percorre o caminho inteiro
+        env:
+          STAGING_IMAGEM: complexo42:staging
+          REVERTER: ${{ matrix.reverter }}
+        run: scripts/staging-ci.sh ${REVERTER:+--reverter "$REVERTER"}
+      - if: failure() && matrix.reverter == ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-traces-staging
+          path: test-results/
+          retention-days: 7
+
   database:
     name: Banco (migrations + testes de RLS)
     runs-on: ubuntu-latest

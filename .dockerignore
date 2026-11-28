@@ -36,6 +36,7 @@ deploy/enviar-backup.sh
 deploy/env.example
 deploy/gen-secrets.sh
 deploy/migra.sh
+deploy/questionario-banco.sh
 deploy/restore-test.sh
 # O compose do APP tambem fica fora: e o arquivo que o proprio deploy.sh usa
 # para subir o container. Sincroniza-lo no meio de um deploy seria trocar o

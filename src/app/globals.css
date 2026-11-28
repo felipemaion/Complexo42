@@ -1,9 +1,159 @@
 @import "tailwindcss";
 
+/*
+ * Tokens visuais do app (#324): paleta, fontes, raios, sombras, larguras, foco e desabilitado moram
+ * só aqui. Componentes usam as classes geradas (bg-surface, text-ink, rounded-control, max-w-form…),
+ * nunca cor ou fonte fixa (tests/design-tokens.test.ts confere).
+ *
+ * As cores da marca vêm de config/instance.ts (R17): o layout raiz grava --brand-primary e
+ * --brand-secondary no <html>. Os neutros e os de estado valem para qualquer instância. Claro e
+ * escuro seguem o sistema; todo texto passa de 4,5:1 e bordas de campo e foco de 3:1 (WCAG 2.2 AA).
+ */
 :root {
   color-scheme: light dark;
+  --brand-primary: #1f4e79;
+  --brand-secondary: #f2a900;
+
+  --c-canvas: #f4f6f9;
+  --c-surface: #ffffff;
+  --c-soft: #e9edf2;
+  --c-ink: #141922;
+  --c-ink-muted: #4a5464;
+  --c-line: #d3d9e1;
+  --c-field: #6b7584;
+  --c-primary: var(--brand-primary);
+  --c-on-primary: #ffffff;
+  --c-link: var(--brand-primary);
+  --c-focus: var(--brand-primary);
+  /* Nomes antigos, ainda usados como var(--color-primary) e var(--color-secondary) nas telas que os próximos
+     PRs da #324 migram (questionário, casa, coordenação). Saem quando a lista de tests/design-tokens.test.ts zerar. */
+  --color-primary: var(--c-primary);
+  --color-secondary: var(--brand-secondary);
+
+  --c-danger: #a4251c;
+  --c-danger-soft: #fdecea;
+  --c-success: #1c6236;
+  --c-success-soft: #e6f3ea;
+  --c-warning: #6e4a00;
+  --c-warning-soft: #fff3d1;
 }
 
-body {
-  font-family: system-ui, sans-serif;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-canvas: #0e1116;
+    --c-surface: #161a21;
+    --c-soft: #1f252e;
+    --c-ink: #eef1f5;
+    --c-ink-muted: #aab3c1;
+    --c-line: #2d3440;
+    --c-field: #7f8898;
+    /* A marca escura não contrasta com o fundo escuro: links e foco usam um tom claro dela. */
+    --c-link: color-mix(in oklab, var(--brand-primary) 40%, white);
+    --c-focus: var(--brand-secondary);
+
+    --c-danger: #ff9b92;
+    --c-danger-soft: #2c1513;
+    --c-success: #6fd69a;
+    --c-success-soft: #10261a;
+    --c-warning: #f5c860;
+    --c-warning-soft: #2a2310;
+  }
+}
+
+@theme inline {
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-soft: var(--c-soft);
+  --color-ink: var(--c-ink);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-line: var(--c-line);
+  --color-field: var(--c-field);
+  --color-primary: var(--c-primary);
+  --color-on-primary: var(--c-on-primary);
+  --color-link: var(--c-link);
+  --color-focus: var(--c-focus);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-success: var(--c-success);
+  --color-success-soft: var(--c-success-soft);
+  --color-warning: var(--c-warning);
+  --color-warning-soft: var(--c-warning-soft);
+}
+
+@theme {
+  /* Fontes: trocar aqui troca o app inteiro. Hoje, a do sistema (zero download, zero custo). */
+  --font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sans);
+
+  /* Larguras por tipo de página (PageShell): formulário e texto, conteúdo, painel/lista e o site. */
+  --container-form: 40rem;
+  --container-content: 56rem;
+  --container-site: 77.5rem;
+  /* Linha de texto confortável, mesmo em tela larga. */
+  --container-prose: 68ch;
+
+  --radius-control: 0.75rem;
+  --radius-card: 1.25rem;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 16px rgb(0 0 0 / 0.06);
+
+  /* Alvo de toque mínimo (WCAG 2.5.8 pede 24 px; o app usa 44 px, pedido da #324). */
+  --spacing-target: 2.75rem;
+  /* Opacidade do que está desabilitado (sem depender só de cor). */
+  --opacity-disabled: 45%;
+}
+
+@layer base {
+  html {
+    /* 112,5% = 18 px de base, respeitando o tamanho escolhido no navegador. */
+    font-size: 112.5%;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply min-h-screen bg-canvas font-sans text-ink antialiased;
+    line-height: 1.55;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    text-wrap: balance;
+    line-height: 1.2;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+  }
+
+  /* Foco sempre visível e igual no app inteiro (WCAG 2.4.7 e 2.4.13). */
+  :focus-visible {
+    outline: 3px solid var(--c-focus);
+    outline-offset: 3px;
+  }
+
+  *,
+  ::before,
+  ::after {
+    --tw-ring-color: var(--c-focus);
+    --tw-ring-offset-color: var(--c-canvas);
+  }
+
+  :disabled,
+  [aria-disabled="true"] {
+    opacity: var(--opacity-disabled);
+    cursor: not-allowed;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

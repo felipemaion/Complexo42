@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET } from "./route";
 
+// O arquivo real do questionário só existe no servidor; aqui só importa a versão do termo dele (#222).
+vi.mock("@/modules/houses/server/questionnaire", () => ({ getQuestionnaire: () => ({ consentTermVersion: "termo-teste" }) }));
 vi.mock("@/server/log", () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 afterEach(() => {
@@ -26,7 +28,7 @@ function setup(fetchImpl: (url: string) => Promise<Response>) {
   vi.stubEnv("QUESTIONNAIRE_PATH", "/app/questionario/questionnaire.json");
   vi.stubEnv("TURNSTILE_SITE_KEY", `0x${"a".repeat(22)}`);
   vi.stubEnv("TURNSTILE_SECRET_KEY", `0x${"b".repeat(33)}`);
-  vi.stubGlobal("fetch", vi.fn(fetchImpl));
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => (url.includes("/rpc/term_versions_check") ? new Response(JSON.stringify("ok")) : fetchImpl(url))));
 }
 
 /**
@@ -49,6 +51,7 @@ describe("GET /api/healthz", () => {
       version: { tag: "v2026.11.19", commit: "abc1234def56" },
       db: "ok",
       schema: "ok",
+      terms: "ok",
     });
   });
 
@@ -84,5 +87,19 @@ describe("GET /api/healthz", () => {
       throw new TypeError("connect ECONNREFUSED 10.1.2.3:3001");
     });
     expect(JSON.parse(await (await GET()).text())).toMatchObject({ db: "unavailable", schema: "stale" });
+  });
+
+  // #222: o staging subiu com a tabela de versões vazia e o aceite do termo era recusado em silêncio.
+  it("503 quando o banco não tem a versão do termo, sem vazar a versão", async () => {
+    setup(async () => new Response("ok"));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => (url.includes("/rpc/term_versions_check") ? new Response(JSON.stringify("degraded")) : new Response("ok"))),
+    );
+    const res = await GET();
+    expect(res.status).toBe(503);
+    const corpo = await res.text();
+    expect(JSON.parse(corpo)).toMatchObject({ status: "degraded", db: "ok", schema: "ok", terms: "degraded" });
+    expect(corpo).not.toMatch(/questionnaire_missing|consent_mismatch|termo-|"v1"|p_questionnaire|termo-teste/);
   });
 });

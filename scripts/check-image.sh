@@ -8,6 +8,7 @@
 #   9991 -> esquema velho (404 PGRST205 em /rest/v1/*), o estado que deixou o
 #           staging 19 horas servindo 404 com o healthz em 200 (2026-11-27)
 #   9992 -> 401 com 42501 em /rest/v1/*: privilégio recusado ao papel `anon`.
+#   9993 -> banco no ar, mas sem a versão do termo da config (rpc term_versions_check, #222).
 #           É o ramo que roda EM PRODUÇÃO -- `profiles` tem grant só para
 #           `authenticated` --, e ele tem de contar como esquema saudável,
 #           porque o erro só existe depois de o PostgREST resolver a tabela.
@@ -55,11 +56,13 @@ grep -q "QUESTIONNAIRE_PATH" <<<"$out" || fail "mensagem não cita QUESTIONNAIRE
 # Dublê de PostgREST, nas duas portas. Fica na pilha de rede do container do
 # app, entao o app o alcança em 127.0.0.1 -- sem rede nova e sem rota do host.
 DUBLE_JS='const h=require("http");
-const vazio=(q,s)=>{s.writeHead(200,{"content-type":"application/json"});s.end("[]")};
-const erro=(cod,corpo)=>(q,s)=>{if(q.url.startsWith("/rest/v1/")){s.writeHead(cod,{"content-type":"application/json"});s.end(JSON.stringify(corpo))}else{vazio(q,s)}};
+const rpc=(v)=>(q,s)=>{s.writeHead(200,{"content-type":"application/json"});s.end(JSON.stringify(v))};
+const vazio=(q,s)=>{if(q.url.startsWith("/rest/v1/rpc/term_versions_check")){rpc("ok")(q,s)}else{s.writeHead(200,{"content-type":"application/json"});s.end("[]")}};
+const erro=(cod,corpo)=>(q,s)=>{if(q.url.startsWith("/rest/v1/rpc/term_versions_check")&&cod===401){rpc("ok")(q,s)}else if(q.url.startsWith("/rest/v1/")){s.writeHead(cod,{"content-type":"application/json"});s.end(JSON.stringify(corpo))}else{vazio(q,s)}};
 h.createServer(vazio).listen(9990,"0.0.0.0");
 h.createServer(erro(404,{code:"PGRST205",message:"Could not find the table in the schema cache"})).listen(9991,"0.0.0.0");
-h.createServer(erro(401,{code:"42501",message:"permission denied for table profiles"})).listen(9992,"0.0.0.0");'
+h.createServer(erro(401,{code:"42501",message:"permission denied for table profiles"})).listen(9992,"0.0.0.0");
+h.createServer((q,s)=>{if(q.url.startsWith("/rest/v1/rpc/term_versions_check")){rpc("degraded")(q,s)}else{vazio(q,s)}}).listen(9993,"0.0.0.0");'
 
 # Sobe só leitura, com /tmp em memória, e consulta o healthz de dentro do container.
 # $1 = DB_HEALTH_URL   $2 = SUPABASE_URL
@@ -113,5 +116,12 @@ body=$(healthz "http://127.0.0.1:9990/ready" "http://127.0.0.1:9992")
 grep -q "^200 no-store " <<<"$body" || fail "esperava 200: $body"
 grep -q '"schema":"ok"' <<<"$body" || fail "esperava schema ok: $body"
 ! grep -qiE "42501|permission denied|stack" <<<"$body" || fail "detalhe do Postgres vazou"
+
+# #222: o banco não tem a versão do termo da config (a tabela vazia do staging): 503, sem vazar versão nem motivo.
+echo "9) versão do termo ausente no banco: 503, so ok/degraded no corpo"
+body=$(healthz "http://127.0.0.1:9990/ready" "http://127.0.0.1:9993")
+grep -q "^503 no-store " <<<"$body" || fail "esperava 503: $body"
+grep -q '"terms":"degraded"' <<<"$body" || fail "esperava terms degraded: $body"
+! grep -qiE "questionnaire_missing|consent_mismatch|termo-exemplo|p_questionnaire" <<<"$body" || fail "versão ou motivo do termo vazou"
 
 echo "OK: imagem aprovada"

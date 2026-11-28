@@ -1,0 +1,21 @@
+# Proxy reverso do "staging de mentira" (#319), no papel do proxy do servidor (docs/OPERACAO.md,
+# "O que está exposto"): só /auth/v1/* vai ao kong; o resto, ao app. Destinos pelos ALIASES por
+# ambiente na rede `proxy`, nunca pelo nome do serviço. X-Forwarded-For sempre: é por ele que o
+# kong.yml devolve 404 nas rotas sensíveis vindas de fora (ADR 0018 §3).
+# As variáveis ${...} são do envsubst da imagem do nginx; as $minúsculas são do nginx.
+server {
+  listen 8080;
+  client_max_body_size 2m;
+
+  proxy_set_header Host $http_host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+
+  location /auth/v1/ {
+    proxy_pass http://${KONG_ALIAS}:8000;
+  }
+
+  location / {
+    proxy_pass http://${APP_ALIAS}:3000;
+  }
+}

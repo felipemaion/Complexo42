@@ -108,6 +108,10 @@ sudo APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
   /opt/complexo42/bootstrap-coordenacao.sh
 ```
 
+- **Lacuna (#319):** com o cadastro fechado (`GOTRUE_DISABLE_SIGNUP=true`), quem **não tem conta** no
+  Auth não entra: o link mágico falha calado (`signup_disabled`). A conta precisa existir antes, e ainda
+  não há script nem passo descrito para criá-la; o job "Staging de mentira" do CI a cria pela API de
+  admin, de dentro da rede interna.
 - A pessoa **ainda não entrou**: o e-mail vai para a lista e o comando diz para ela entrar; depois de
   ela entrar uma vez (login e perfil), rode **de novo**. Quem já estava na espera (`waitlisted`) é
   liberado na hora, como na importação, e ganha o papel.
@@ -127,16 +131,17 @@ sudo APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
 
 O app pontua o questionário e assina o resultado; o banco só aceita resultado assinado. A chave
 `QUESTIONNAIRE_SIGNING_KEY` (gerada por `deploy/gen-secrets.sh`) precisa estar **igual** no
-ambiente do app e em `app.server_secrets` (a tabela não tem grant: só funções do banco leem). Na
-primeira subida e ao trocar a chave (valor lido do arquivo de segredos, sem ir para o histórico):
+ambiente do app e em `app.server_secrets` (a tabela não tem grant: só funções do banco leem). O banco
+também precisa conhecer a `consentTermVersion` do JSON instalado. As duas coisas entram por
+`deploy/questionario-banco.sh` (script de operador, instalado à mão como root; tabela abaixo), na
+primeira subida, a cada JSON novo e ao trocar a chave. Ele lê a versão do próprio JSON e a chave do
+arquivo de segredos, manda tudo ao psql por stdin, numa transação, e não imprime a chave:
 
 ```bash
-set -eu
-KEY=$(sed -n 's/^QUESTIONNAIRE_SIGNING_KEY=//p' <segredos>)
-[ -n "$KEY" ]
-printf "insert into app.server_secrets (name, value) values ('questionnaire_signing_key', '%s') on conflict (name) do update set value = excluded.value;\n" "$KEY" \
-  | docker compose -f docker-compose.supabase.yml --env-file <segredos> \
-      exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
+# uma vez, e a cada mudança do script: cópia à mão, como root
+sudo install -m 0755 deploy/questionario-banco.sh /opt/complexo42/questionario-banco.sh
+sudo DB_CONTAINER=<container-do-banco> \
+  /opt/complexo42/questionario-banco.sh questionario/questionnaire.json <segredos>
 ```
 
 Sem a chave no banco, curta (menos de 32 caracteres) ou diferente da do app, gravar o resultado do
@@ -144,7 +149,7 @@ questionário falha (fechado).
 
 - **Janela de relógio:** o banco recusa assinatura emitida há mais de 5 minutos (ou mais de 30
   segundos no futuro). Mantenha os relógios do app e do banco sincronizados (NTP).
-- **Rotação da chave:** gere outra, **instale no banco e no app juntos** (o passo acima e o
+- **Rotação da chave:** gere outra, **instale no banco e no app juntos** (o `questionario-banco.sh` e o
   `.env` do app, depois reinicie o app). Entre uma troca e a outra, o questionário falha fechado
   por alguns minutos; nada é perdido (a pessoa tenta de novo).
 - **O `pg_dump` e o backup contêm a chave** (`app.server_secrets`). Vale a cifra e a retenção do
@@ -159,20 +164,13 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres -c "select app.purge_expired_analysis()"
 ```
 
-**Checklist de deploy do questionário (a cada JSON novo).** Antes de publicar um arquivo com
-`consentTermVersion` novo, cadastre a versão no banco. **Sem isso o aceite do termo falha fechado**
-(o banco recusa a versão desconhecida, e ninguém consegue responder). Troque `<versao>` pelo valor
-exato de `consentTermVersion` do arquivo (só letras, números, ponto, hífen e sublinhado, até 32):
-
-```bash
-docker compose -f docker-compose.supabase.yml --env-file <segredos> \
-  exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres \
-  -c "insert into app.questionnaire_term_versions (version) values ('<versao>') on conflict do nothing"
-```
+**Checklist de deploy do questionário (a cada JSON novo).** Sem a versão do termo no banco, **o aceite
+do termo falha fechado** (o banco recusa a versão desconhecida, e ninguém consegue responder). Foi o
+que aconteceu no staging em 2026-11-28; o job "Staging de mentira" do CI roda este passo pelo script.
 
 **Config com `expectation` (#240).** O `questionnaire.json` do servidor precisa trazer `expectation: {a, b}` em todos os itens dos eixos da casa; sem isso o app **não sobe** (erro `questionnaire_invalid` citando `items.<id>.expectation`). Instale o arquivo novo antes de subir o app novo.
 
-1. **cadastrar a `consentTermVersion`** do arquivo em `app.questionnaire_term_versions` (acima);
+1. **rodar o `questionario-banco.sh`** com o arquivo novo (acima): cadastra a `consentTermVersion`;
 2. **instalar o JSON** em `<dir do deploy>/questionario/questionnaire.json`, legível pelo uid 1000 do
    container (`chown 1000:1000` e `chmod 600`); a pasta `./questionario` é montada só leitura em
    `/app/questionario`;
@@ -495,16 +493,35 @@ processo com o **nome** da variável no log, nunca o valor.
 > pelo ambiente inteiro fora — produção é outro ambiente, com o seu próprio
 > `secrets/env`.
 
-`GET /api/healthz` responde `{status, version, db, schema}` com
-`Cache-Control: no-store`, e dá **200 só quando as duas sondas passam**:
+`GET /api/healthz` responde `{status, version, db, schema, terms}` com
+`Cache-Control: no-store`, e dá **200 só quando as três sondas passam**:
 
 | Campo | Sonda | O que prova |
 |---|---|---|
 | `db` | `DB_HEALTH_URL` (`rest:3001/ready`) | o processo do PostgREST está de pé |
 | `schema` | `SUPABASE_URL` + `/rest/v1/profiles?select=id&limit=1`, com a chave anon | a **API de dados conhece o esquema de hoje** |
+| `terms` | `SUPABASE_URL` + `/rest/v1/rpc/term_versions_check`, com a chave anon | o banco **tem as versões do termo da config** (#222): a do termo do questionário em `app.questionnaire_term_versions` e a do termo geral igual a `app.current_consent_version()` |
 
-Qualquer estado diferente de `ok` nas duas dá 503 (`degraded`). O motivo da
+Qualquer estado diferente de `ok` nas três dá 503 (`degraded`). O motivo da
 falha (`timeout`, `network`, `http_error`) vai só para o log.
+
+> **`terms` (#222).** Em 2026-11-28 o staging subiu com a tabela de versões do termo vazia e o
+> aceite do termo do questionário era recusado em silêncio (`questionnaire_consent_refused`).
+> `public.term_versions_check(versão do questionário, versão do termo geral)` só lê e devolve
+> `ok` ou `degraded`, **sem dizer qual das duas falhou**; o corpo do healthz também mostra só `ok`
+> ou `degraded`, nunca a versão (o log tem `healthz_terms_missing`). O app não tem chave de
+> serviço (R6), então a função é executável por `anon` (o healthz roda sem login); ela valida o
+> formato das versões e a tabela segue sem acesso pela API.
+>
+> **Quem cadastra o quê.** A versão do termo **geral** vem por migration
+> (`app.current_consent_version()`). A do termo do **questionário** NÃO vem por migration: o
+> operador a cadastra junto com o JSON privado (checklist do questionário, acima), para não levar
+> `termo-exemplo-1` à produção. A sonda detecta que o operador **esqueceu esse passo**.
+>
+> **Esquecer o cadastro faz o deploy voltar a imagem.** `terms: "degraded"` torna o status geral
+> `degraded` (503); o smoke do deploy (`curl -f` no `/api/healthz`) falha e o deploy devolve a
+> imagem anterior. Por isso o cadastro vem **antes** do deploy do questionário novo. Sem o arquivo
+> do questionário legível, `terms` também fica degradado.
 
 > **Por que duas sondas, e não uma.** Elas falham por motivos diferentes, e a
 > primeira não vê a falha da segunda. O `/ready` responde **200 com o cache de
@@ -1000,6 +1017,7 @@ deploy de reescrever o que ele mesmo executa.
 | `/opt/complexo42/deploy.sh` | `deploy/deploy.sh` | **cópia à mão, como root** |
 | `/opt/complexo42/migra.sh` | `deploy/migra.sh` | **cópia à mão, como root** |
 | `/opt/complexo42/bootstrap-coordenacao.sh` e `email-hmac.mjs` | `deploy/` (mesmos nomes) | **cópia à mão, como root** (só no bootstrap, #295) |
+| `/opt/complexo42/questionario-banco.sh` | `deploy/questionario-banco.sh` | **cópia à mão, como root** (#319) |
 
 E estes **só existem no servidor** — não têm origem no repositório, então para
 eles a pergunta "está igual à `main`?" não faz sentido:
@@ -1015,12 +1033,12 @@ eles a pergunta "está igual à `main`?" não faz sentido:
 em silêncio: no dia em que um PR tocar um desses scripts, o número aqui passa
 a estar errado — e número errado numa conferência é pior que nenhum. O comando
 abaixo calcula o esperado a partir da `main` e diz **qual** dos dois lados está
-atrasado. **Cobre os quatro** scripts de operador: um que ficasse fora da lista
+atrasado. **Cobre os cinco** scripts de operador: um que ficasse fora da lista
 seria conferido por ninguém, que é exatamente como a cópia velha do `migra.sh`
 sobreviveu a três PRs.
 
 ```sh
-for f in deploy.sh migra.sh bootstrap-coordenacao.sh email-hmac.mjs; do
+for f in deploy.sh migra.sh bootstrap-coordenacao.sh email-hmac.mjs questionario-banco.sh; do
   inst=$(sudo md5sum "/opt/complexo42/$f" | cut -c1-12)
   main=$(curl -fsSL "https://raw.githubusercontent.com/felipemaion/Complexo42/main/deploy/$f" | md5sum | cut -c1-12)
   [ "$inst" = "$main" ] && e=ok || e="DESATUALIZADO"
@@ -1032,10 +1050,10 @@ done
 > vazia em vez de dizer o que houve. Num servidor que nunca precisou do
 > bootstrap, `bootstrap-coordenacao.sh` e `email-hmac.mjs` **não existem** — e
 > isso é legítimo. Ler "sem resposta" como "ok" é o erro a evitar: confira se as
-> quatro linhas saíram.
+> cinco linhas saíram.
 
-O modo não é o mesmo para todos: `deploy.sh`, `migra.sh` e
-`bootstrap-coordenacao.sh` são `0755` (executados); `email-hmac.mjs` é `0644`
+O modo não é o mesmo para todos: `deploy.sh`, `migra.sh`,
+`bootstrap-coordenacao.sh` e `questionario-banco.sh` são `0755` (executados); `email-hmac.mjs` é `0644`
 (lido pelo `node -e` dentro do container do app, nunca executado no host).
 
 **Isto já custou caro.** O PR que fez o `migra.sh` avisar o PostgREST para
