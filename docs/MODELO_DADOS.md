@@ -784,3 +784,7 @@ Toda política RLS usa as funções `app.can_*`, e toda mudança atualiza
   ativo só `(profile_id, totem_enc)` de pessoas ativas com totem definido; nunca notas, respostas nem assinatura. Quem
   decifra é o servidor do app (AAD `questionnaire_results.totem_enc.<id>`), e o navegador recebe só o código. A RLS da
   tabela não muda. Ver ADR 0014 (revisão de 28/11).
+- **Casa para os membros (#303):** `public.member_houses(pessoas)` (security definer, até 200) devolve a quem é membro
+  ativo só `(profile_id, house_key)` da casa **aceita e vigente** de pessoas ativas; nunca vínculo, datas, forma de entrada,
+  resultado nem totem. A RLS de `house_members` não muda (só a própria pessoa e a coordenação leem a tabela). O servidor
+  valida a chave contra as casas da config. É a medalha da casa do perfil público (#305).
