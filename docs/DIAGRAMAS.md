@@ -462,6 +462,10 @@ erDiagram
         uuid profile_id "schema app: limite de tentativas"
         timestamptz attempted_at
     }
+    photo_upload_attempts {
+        uuid profile_id "schema app: limite de 10 envios de foto por hora"
+        timestamptz attempted_at
+    }
     server_secrets {
         text name PK "schema app: segredo do servidor"
         text value "nunca lido pelo navegador"

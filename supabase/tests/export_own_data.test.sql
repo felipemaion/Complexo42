@@ -117,7 +117,7 @@ select is(
   'formação e atividade (ainda cifradas) de A'
 );
 select is(
-  (select d->'photo'->>'photo_enc' from out_a), pg_temp.enc('FotoA'),
+  (select d->'profile_photo'->>'photo_enc' from out_a), pg_temp.enc('FotoA'),
   'foto (ainda cifrada) de A'
 );
 select ok(

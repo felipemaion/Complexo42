@@ -1,12 +1,12 @@
 // Conversão da foto (#308): o que entra é qualquer JPEG/PNG/WebP de até 2 MB; o que sai é uma
 // miniatura WebP 192x256 SEM metadados (EXIF, GPS, XMP, ICC). Usa o sharp de verdade.
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
 import { describe, expect, it } from "vitest";
 import { photoLimits } from "../domain/photo";
 import { makePhotoThumbnail } from "./photo-image";
 
 /** Retrato sintético suave (degradê + um "rosto" circular): comprime como uma foto, não como ruído. */
-async function portrait(width = 600, height = 800): Promise<sharp.Sharp> {
+async function portrait(width = 600, height = 800): Promise<Sharp> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
     <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8899aa"/><stop offset="1" stop-color="#223344"/></linearGradient></defs>
     <rect width="100%" height="100%" fill="url(#g)"/><circle cx="${width / 2}" cy="${height / 2.4}" r="${width / 4}" fill="#e0b090"/></svg>`;

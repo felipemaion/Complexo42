@@ -174,6 +174,26 @@ export const instance = parseInstanceConfig({
     districtNone: "Não sei ou prefiro não dizer",
     neighborhoodLabel: "Seu bairro (se quiser)",
     neighborhoodHint: "Só o nome do bairro. Não informe rua nem número. Pode deixar em branco.",
+    // Foto do perfil (#308). DESLIGADA por padrão: o Felipe liga junto com o termo v2 (#311), que cobre a foto.
+    photoEnabled: false,
+    photoTitle: "Sua foto (se quiser)",
+    photoRules: "Envie uma foto sua, de rosto, como as de documento (estilo 3x4). Não pode ser desenho, anime nem imagem feita por inteligência artificial.",
+    photoNotice:
+      "A foto serve para a coordenação e os colegas reconhecerem você pessoalmente. Só quem está logado e já faz parte vê. Guardamos só uma miniatura pequena, sem os dados escondidos da foto. Você pode trocar ou remover quando quiser. A foto é opcional.",
+    photoChoose: "Escolher a foto (JPEG, PNG ou WebP, até 2 MB)",
+    photoSend: "Enviar a foto",
+    photoReplaceHint: "Enviar outra foto troca a que está guardada.",
+    photoRemove: "Remover a minha foto",
+    photoAlt: "Sua foto de perfil",
+    photoStatus: {
+      ok: "Pronto! Sua foto foi guardada.",
+      removida: "Pronto! Sua foto foi removida.",
+      tipo: "Esse arquivo não serve. Envie uma foto em JPEG, PNG ou WebP.",
+      grande: "A foto é grande demais. Escolha uma de até 2 MB.",
+      ilegivel: "Não conseguimos abrir essa foto. Tente outra.",
+      limite: "Muitas tentativas seguidas. Tente de novo mais tarde.",
+      erro: "Não foi possível guardar agora. Tente de novo em alguns minutos.",
+    },
     backgroundTitle: "Formação e atividade (se quiser)",
     backgroundHint:
       "Ajuda a coordenação a encaixar você num eixo da casa e a achar quem pode ajudar. Só você e a coordenação do seu grupo veem. Tudo é opcional.",

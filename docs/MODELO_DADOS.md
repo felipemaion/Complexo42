@@ -13,7 +13,7 @@
 | Dado | Coluna | Proteção | Quem vê (ADR 0002) |
 |---|---|---|---|
 | Nome completo (**obrigatório**; o esquema ainda aceita uma palavra só, o sobrenome vem na #312) | `profiles.display_name_enc` | AES-256-GCM | Escopo do monitor/gestor; colegas de equipe; todo membro logado no perfil público (#305) |
-| Foto do rosto (**opcional**, #308; ADR 0006, revisão de 2026-11-28). **Finalidade:** a coordenação e os colegas reconhecerem a pessoa pessoalmente. Só a miniatura (192 x 256 px, WebP, ~20 KB, sem EXIF; original descartado). **Desligada por padrão** (`profile.photoEnabled`, `config/instance.ts`) até o termo v2 (#311) | `profile_photos.photo_enc` | AES-256-GCM | A própria pessoa e todo membro ativo logado, só por `/foto/<id>` (nunca URL pública); some com a conta e entra em "Baixar meus dados" |
+| Foto do rosto (**opcional**, #308; ADR 0006, revisão de 2026-11-28). **Finalidade:** a coordenação e os colegas reconhecerem a pessoa pessoalmente. Só a miniatura (192 x 256 px, WebP, ~20 KB, sem EXIF nem GPS; original descartado). **Desligada por padrão** (`profile.photoEnabled`, `config/instance.ts`) até o termo v2 (#311) | `profile_photos.photo_enc` | AES-256-GCM | A própria pessoa e todo membro ativo logado, só por `/foto/<id>` (nunca URL pública); some com a conta e entra em "Baixar meus dados" |
 | Formação acadêmica (#304): nível mais alto, em **lista fechada** (fundamental, médio, superior incompleto, superior completo, pós-graduação), e "qual?" opcional em texto livre (só em superior e pós). **Opcional.** **Finalidade:** encaixar a pessoa num eixo da casa e achar quem pode ajudar | `profile_background.education_level_enc`, `education_detail_enc` | AES-256-GCM | O dono; a coordenação do escopo (monitor/gestor, `app.can_view_background`). Fora do perfil público: o dono escolher mostrar é a #305 |
 | Atividade profissional (#304): texto livre de 2 a 80 caracteres, separado da formação. **Opcional.** **Finalidade:** idem | `profile_background.occupation_enc` | AES-256-GCM | Idem |
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
@@ -306,7 +306,7 @@ exportação (`formacaoEAtividade`) e some com a conta (cascata).
 
 | Coluna | Tipo | Observação |
 |---|---|---|
-| `photo_enc` | text | 🔒 a miniatura (WebP, 192 x 256 px, até ~30 KB) em base64, cifrada (`v1.iv.ct`, AAD `profile_photos.photo_enc.<profile_id>`); ~40 mil caracteres no máximo. CHECK de formato e de tamanho |
+| `photo_enc` | text | 🔒 a miniatura (WebP, 192 x 256 px, normalmente ~20 KB e no máximo 40 KB) em base64, cifrada (`v1.iv.ct`, AAD `profile_photos.photo_enc.<profile_id>`); CHECK de formato e de tamanho (65 536 caracteres) |
 | `updated_at` | timestamptz | gravado pelo trigger |
 
 O servidor recebe JPEG, PNG ou WebP (confere pelos bytes, até 2 MB e um teto de pixels contra bomba de

@@ -38,7 +38,7 @@ const rows: OwnDataRows = {
     social_links_enc: "enc:redes",
     updated_at: "2026-11-19T12:00:00+00:00",
   },
-  photo: { photo_enc: "enc:foto", updated_at: "2026-11-19T12:40:00+00:00" },
+  profile_photo: { photo_enc: "enc:foto", updated_at: "2026-11-19T12:40:00+00:00" },
   background: {
     education_level_enc: "enc:nivel",
     education_detail_enc: "enc:qual",
@@ -309,7 +309,7 @@ describe("buildOwnDataExport", () => {
 
   it("foto que não decifra vira null, sem derrubar o resto, e o servidor registra só a coluna (#308)", async () => {
     const seen: string[] = [];
-    const out = await build({ rows: { ...rows, photo: { photo_enc: "enc:estragado", updated_at: "2026-11-19T12:40:00+00:00" } }, onDecryptError: (column) => seen.push(column) });
+    const out = await build({ rows: { ...rows, profile_photo: { photo_enc: "enc:estragado", updated_at: "2026-11-19T12:40:00+00:00" } }, onDecryptError: (column) => seen.push(column) });
     expect(out.foto).toEqual({ formato: "image/webp", dadosBase64: null, atualizadoEm: "2026-11-19T12:40:00+00:00" });
     expect(seen).toContain("photo_enc");
     expect(out.perfil?.nome).toBe("Maria Aparecida");
@@ -320,7 +320,7 @@ describe("buildOwnDataExport", () => {
       rows: {
         profile: null,
         contact: null,
-        photo: null,
+        profile_photo: null,
         background: null,
         memberships: [],
         house_memberships: [],
@@ -434,7 +434,7 @@ describe("ownDataRowsSchema", () => {
       ...rows,
       profile: { ...rows.profile!, display_name_enc: null, municipality_code: null, municipality_name: null, state_code: null, district_code: null, district_name: null, neighborhood_enc: null, consent_version: null, consent_at: null, profile_completed_at: null },
       contact: null,
-      photo: null,
+      profile_photo: null,
       background: null,
     };
     const out = await build({ rows: incomplete });
