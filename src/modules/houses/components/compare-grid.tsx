@@ -30,9 +30,11 @@ export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, t
           <li key={house.id} className="flex">
             <button
               type="button"
-              className="relative flex w-full flex-col items-center gap-2 rounded-xl border-solid px-3 py-4 text-center focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-current disabled:opacity-60"
+              className="relative flex w-full flex-col items-center gap-2 rounded-xl border-solid text-center focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-current disabled:opacity-60"
               style={{
                 borderWidth: isSelected ? 4 : 2,
+                // A borda grossa não empurra o conteúdo: o padding compensa os 2 px a mais.
+                padding: isSelected ? "14px 10px" : "16px 12px",
                 borderColor: isSelected ? color : neutralBorder,
                 ...(isSelected && { backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)` }),
               }}
