@@ -38,7 +38,7 @@ describe("viewContactAction", () => {
     expect(await viewContactAction(IDLE, form({ alvo: TARGET, tipo: "email" }))).toEqual({ status, kind: "email" });
   });
 
-  it.each([{ alvo: TARGET, tipo: "telefone" }, { alvo: TARGET }, { tipo: "whatsapp" }, {}])(
+  it.each<Record<string, string>>([{ alvo: TARGET, tipo: "telefone" }, { alvo: TARGET }, { tipo: "whatsapp" }, {}])(
     "entrada inválida %j dá a mesma resposta de sem permissão e nem chama o banco",
     async (entries) => {
       const state = await viewContactAction(IDLE, form(entries));

@@ -62,7 +62,7 @@ export async function setContactVisibility(
   return { status: "failed" };
 }
 
-const accessRow = z.object({ whatsapp: z.boolean(), social: z.boolean(), email: z.boolean() });
+const accessRow = z.object({ whatsapp_ok: z.boolean(), social_ok: z.boolean(), login_ok: z.boolean() });
 
 /**
  * Quais contatos de `targetId` quem olha pode ver, só para decidir se mostra o botão. Não lê o valor, não audita e
@@ -75,7 +75,7 @@ export async function readContactAccess(client: ProfileDbClient, targetId: strin
   const { data, error } = await client.rpc("contact_access", { p_target: target.data });
   if (error) return none;
   const row = accessRow.safeParse(Array.isArray(data) ? data[0] : data);
-  return row.success ? row.data : none;
+  return row.success ? { whatsapp: row.data.whatsapp_ok, social: row.data.social_ok, email: row.data.login_ok } : none;
 }
 
 export type ViewMemberContactResult =

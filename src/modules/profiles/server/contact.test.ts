@@ -190,7 +190,7 @@ describe("listContactViews", () => {
 
 describe("readContactAccess", () => {
   it("chama contact_access com o alvo e devolve só as permissões", async () => {
-    const { client, calls } = fakeClient(() => ({ data: [{ whatsapp: true, social: false, email: true }], error: null }));
+    const { client, calls } = fakeClient(() => ({ data: [{ whatsapp_ok: true, social_ok: false, login_ok: true }], error: null }));
     expect(await readContactAccess(client, TARGET)).toEqual({ whatsapp: true, social: false, email: true });
     expect(calls).toEqual([{ fn: "contact_access", args: { p_target: TARGET } }]);
   });
@@ -198,7 +198,7 @@ describe("readContactAccess", () => {
   it("erro, resposta estranha ou id inválido: nenhum botão, e id inválido nem chama o banco", async () => {
     const none = { whatsapp: false, social: false, email: false };
     expect(await readContactAccess(fakeClient(() => denied).client, TARGET)).toEqual(none);
-    expect(await readContactAccess(fakeClient(() => ({ data: [{ whatsapp: "sim" }], error: null })).client, TARGET)).toEqual(none);
+    expect(await readContactAccess(fakeClient(() => ({ data: [{ whatsapp_ok: "sim" }], error: null })).client, TARGET)).toEqual(none);
     const spy = fakeClient(() => ({ data: [], error: null }));
     expect(await readContactAccess(spy.client, "nao-e-uuid")).toEqual(none);
     expect(spy.calls).toEqual([]);

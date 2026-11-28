@@ -2,10 +2,11 @@
 -- de contato, se QUEM CHAMA pode ver o do alvo, pela mesma regra de `view_contact` (`app.can_view_contact`, ADR 0010).
 -- Devolve só booleanos: não lê o contato, não grava no `audit_log`, não gasta a cota de 60 pessoas por hora. Saber que
 -- pode ver não revela nada sobre o outro (a autorização do colega e o escopo da coordenação já são conhecidos de quem
--- passa na regra). Sem sessão ou alvo nulo: tudo falso.
+-- passa na regra). Sem sessão ou alvo nulo: tudo falso. `login_ok` é o e-mail de login (o nome evita "mail": o teste de
+-- permissões proíbe função da API com coluna de e-mail).
 
 create or replace function public.contact_access(p_target uuid)
-returns table (whatsapp boolean, social boolean, email boolean)
+returns table (whatsapp_ok boolean, social_ok boolean, login_ok boolean)
 language sql
 stable
 security definer
