@@ -1,4 +1,4 @@
-import { buttonClass, fieldClass, noticeClass } from "@/modules/ui";
+import { buttonClass, cardClass, fieldClass, noticeClass } from "@/modules/ui";
 import { PHOTO_REMOVE_PATH, PHOTO_UPLOAD_PATH, photoUrl, type PhotoStatus } from "../domain/photo";
 
 // Foto do perfil na tela de /perfil (#308). Só apresentação: quem converte, cifra e grava são as rotas
@@ -30,7 +30,7 @@ type Props = {
 export function PhotoSection({ enabled, profileId, hasPhoto, status, text }: Props) {
   if (!enabled) return null;
   return (
-    <section aria-labelledby="perfil-foto" className="flex flex-col gap-4">
+    <section aria-labelledby="perfil-foto" className={cardClass()}>
       <h2 id="perfil-foto" className="text-2xl font-semibold">
         {text.photoTitle}
       </h2>
