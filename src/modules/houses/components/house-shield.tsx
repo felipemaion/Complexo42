@@ -8,7 +8,7 @@ export type PictureProps = { assets: ShieldAssets; alt: string; size: number; ea
 export function ShieldPicture({ assets, alt, size, eager = false, testId, fluid }: Readonly<PictureProps>) {
   const sizes = fluid?.sizes ?? `${size}px`;
   return (
-    <picture>
+    <picture className="shrink-0">
       <source type="image/webp" srcSet={`${assets.webp128} 128w, ${assets.webp512} 512w`} sizes={sizes} />
       <img
         src={assets.png128}
@@ -20,7 +20,7 @@ export function ShieldPicture({ assets, alt, size, eager = false, testId, fluid 
         loading={eager ? "eager" : "lazy"}
         decoding="async"
         data-testid={testId}
-        className={fluid ? `shrink-0 ${fluid.className}` : "shrink-0"}
+        className={fluid ? `shrink-0 object-contain ${fluid.className}` : "shrink-0 object-contain"}
         style={fluid ? undefined : { width: size, height: size }}
       />
     </picture>
