@@ -7,6 +7,8 @@ export type { FlowContext, FlowEvent, FlowState, HouseActionResult, HouseClient,
 // Só no servidor (server-only): a página lê a casa aceita e o questionário.
 export { readAcceptedHouse, readTransferWindow } from "./server/houses";
 export { readNewsFeed } from "./server/news";
+export { archiveNews, publishNews, readManagedNews, readNewsUnits, type ManagedNews } from "./server/news-admin";
+export { parseNewsForm } from "./domain/news-form";
 export { getQuestionnaire } from "./server/questionnaire";
 export { readChangeHouse } from "./server/change-house-session";
 export { sessionHouseClient } from "./server/session";
