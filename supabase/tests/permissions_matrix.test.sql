@@ -255,6 +255,11 @@ insert into public.profile_background (profile_id, education_level_enc, occupati
 select id, 'v1.AAAAAAAAAAAAAAAA.CCCCCCCCCCCCCCCCCCCCCC', 'v1.AAAAAAAAAAAAAAAA.DDDDDDDDDDDDDDDDDDDDDD'
 from people where name in ('stu_a', 'stu_b', 'stu_wait', 'stu_ah', 'stu_bh', 'stu_ah2');
 
+-- Foto do perfil (#308): stu_a, stu_ah e stu_bh (ativos) e stu_wait (na espera) têm miniatura.
+insert into public.profile_photos (profile_id, photo_enc)
+select id, 'v1.AAAAAAAAAAAAAAAA.EEEEEEEEEEEEEEEEEEEEEE'
+from people where name in ('stu_a', 'stu_ah', 'stu_bh', 'stu_wait');
+
 -- Quem vê o contato (#119, ADR 0010): a escolha de cada pessoa, contato por contato. Sem linha
 -- é `none` (stu_a e os demais).
 insert into public.contact_visibility (profile_id, kind, scope)
@@ -916,7 +921,7 @@ grant select on fixture_houses to authenticated;
 insert into public.house_members (profile_id, house_key, join_method, accepted_at)
 select id, 'casa-t1', 'self', now() from people where name = 'team_a_mon' and not exists (select 1 from public.house_members h where h.profile_id = people.id and h.left_at is null);
 
-select plan((select count(*)::int from matrix) + 165);
+select plan((select count(*)::int from matrix) + 169);
 
 -- Nenhum id usado nos testes é nulo (#113): toda unidade e toda pessoa citada na matriz
 -- existe nas tabelas lidas como dono, e as 10 unidades da árvore foram capturadas.
@@ -1491,6 +1496,26 @@ select set_eq(
   array[pg_temp.person('stu_ah2')],
   'coordenador da casa 2 lê só a formação dos membros da casa 2'
 );
+-- Foto do perfil (#308, `app.can_view_photo`): a própria, ou a de perfil ativo para quem é membro de verdade
+-- (casa aceita). Quem ainda não tem casa e quem está na espera leem só a própria.
+select pg_temp.login('stu_ah');
+select set_eq(
+  $$ select profile_id from public.profile_photos $$,
+  array[pg_temp.person('stu_a'), pg_temp.person('stu_ah'), pg_temp.person('stu_bh')],
+  'membro ativo (casa aceita) lê a foto de perfis ativos e a própria; NÃO a de quem está na espera'
+);
+select pg_temp.login('stu_a');
+select set_eq(
+  $$ select profile_id from public.profile_photos $$,
+  array[pg_temp.person('stu_a')],
+  'quem ainda não tem casa aceita lê só a própria foto'
+);
+select pg_temp.login('stu_wait');
+select set_eq(
+  $$ select profile_id from public.profile_photos $$,
+  array[pg_temp.person('stu_wait')],
+  'quem está na espera lê só a própria foto'
+);
 select pg_temp.login('house_mon');
 select is_empty(
   $$ select 1 from public.unit_members $$,
@@ -1881,6 +1906,11 @@ select throws_ok(
   $$ select 1 from public.profile_background $$,
   '42501', null,
   'visitante anônimo não lê formação e atividade'
+);
+select throws_ok(
+  $$ select 1 from public.profile_photos $$,
+  '42501', null,
+  'visitante anônimo não lê fotos'
 );
 
 select throws_ok(
