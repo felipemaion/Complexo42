@@ -76,9 +76,14 @@ instalado (`..._estrutura_instancia.sql`, idempotente, sem sobrescrever o que o 
   config. Casa nova na config = migration nova;
 - o catálogo **provisório** de habilidades (47, até o stakeholder aprovar; trocar = migration nova).
 
+- os **27 estados** (UF, slug em minúsculas e nome fixos, filhos da raiz; #365), com o vínculo de quem já estava ativo
+  sem estado (`app.attach_active_members_to_state()`, que grava a contagem em `audit_log`). **Sem a unidade do estado
+  ninguém ganha vínculo e a coordenação não lê o nome de outra pessoa** (`can_view_profile` exige um vínculo aberto
+  no escopo de quem lê): a lista de resultados mostrava "sem nome" para todos, menos para a própria coordenação.
+
 Sem isso o banco fica sem raiz e o bootstrap da primeira coordenação recusa ("a instância não tem
-unidade raiz"). A árvore **abaixo** da raiz (estados, regiões, equipes) depende da instalação: no
-ambiente local vem do seed; no servidor, o operador a cria (`insert` em `public.units`; o trigger calcula o `path`).
+unidade raiz"). A árvore **abaixo dos estados** (regiões e equipes) depende da instalação: no ambiente local vem do
+seed; no servidor, o operador a cria (`insert` em `public.units`; o trigger calcula o `path`).
 
 Trocar a **chave** de uma casa (como em 2026-11, de `casa-exemplo-N` para os ids reais) é por
 migration (`app.rename_house_key`): ela leva junto vínculos, papéis, resultados e o log de auditoria

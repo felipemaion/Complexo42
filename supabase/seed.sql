@@ -20,8 +20,8 @@ as $$
   where t.key = p_type;
 $$;
 
-select pg_temp.seed_unit('state', 'br', 'sp', 'São Paulo', 'SP');
-select pg_temp.seed_unit('state', 'br', 'mg', 'Minas Gerais', 'MG');
+-- Os estados (sp, mg e os demais) já vêm da migration `20261128230000_estados_da_instancia.sql` (#365): as
+-- regiões abaixo se penduram neles.
 
 select pg_temp.seed_unit('region', 'br.sp', 'abc', 'Incubadora ABC');
 select pg_temp.seed_unit('region', 'br.sp', 'zona_leste', 'Incubadora Zona Leste');

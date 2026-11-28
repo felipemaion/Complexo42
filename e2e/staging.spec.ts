@@ -135,11 +135,10 @@ test("banco novo: bootstrap → login → termo → questionário → casa → a
   await coordinator.goto("/coordenacao/casas/resultados");
   const results = coordinator.locator('a[href^="/coordenacao/casas/resultados/"]');
   await expect(results).toHaveCount(2);
-  // A lista mostra a linha da 2ª pessoa (o nome dela é o payload, ou "sem nome" quando a coordenação não o decifra, ver #365):
-  // de qualquer modo nada pode executar nem entrar como elemento. Se o nome aparecer, aparece como texto.
+  // O nome da 2ª pessoa (o payload) aparece na lista como TEXTO, sem executar nada. Sem os estados por migration (#365) a
+  // coordenação não lia o nome de ninguém além do dela, e a linha mostrava "sem nome".
+  await expect(coordinator.getByTestId("result-row").filter({ hasText: XSS_NAME })).toHaveCount(1);
   await expectInert(coordinator, coordinatorDialogs);
-  const rowTexts = await coordinator.getByTestId("result-row").allInnerTexts();
-  if (rowTexts.some((text) => text.includes("Pessoa"))) expect(rowTexts.join("\n")).toContain(XSS_NAME);
   await results.first().click();
   await expect(coordinator.getByTestId("result-totem")).toHaveText(/^.+ \([A-Z]{2}\)$/);
   await expectInert(coordinator, coordinatorDialogs);
