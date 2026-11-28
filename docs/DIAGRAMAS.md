@@ -348,6 +348,18 @@ erDiagram
         uuid ended_by FK
         boolean moved "encerrado por troca"
     }
+    news {
+        uuid id PK
+        uuid unit_id FK "unidade da novidade; vale dela para baixo"
+        text title "até 80, texto puro"
+        text body "até 280, texto puro"
+        text link "https opcional"
+        uuid published_by FK
+        timestamptz published_at
+        timestamptz expires_at
+        timestamptz archived_at
+        uuid archived_by FK
+    }
     house_transfer_window {
         boolean singleton PK "uma linha só"
         boolean is_open "aberta ou fechada, sem datas"
@@ -419,6 +431,7 @@ erDiagram
     questionnaire_term_versions ||--o{ house_analysis_requests : "versão"
     profiles ||--o{ questionnaire_data_grants : "delegado"
     units ||--o{ questionnaire_data_grants : "escopo"
+    units ||--o{ news : "publicadas em"
     role_assignments ||--o{ questionnaire_data_grants : "papel que sustenta"
 ```
 

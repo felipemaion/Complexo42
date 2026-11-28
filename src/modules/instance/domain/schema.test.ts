@@ -222,6 +222,7 @@ const valid = {
       backLink: "t",
     },
   },
+  news: { title: "t", windowOpenTitle: "t", windowOpenBody: "t", windowOpenLink: "t", linkLabel: "t" },
   skills: {
     homeLink: "t", title: "t", intro: "t", searchLabel: "t", counter: "t", limitReached: "t", empty: "t", saveButton: "t", saved: "t",
     suggestTitle: "t", suggestHint: "t", suggestLabel: "t", suggestButton: "t", suggested: "t", mySuggestionsTitle: "t",

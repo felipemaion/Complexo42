@@ -46,7 +46,7 @@ select ok(
 -- Árvore: br ─ sp (SP) ─ abc ─┬─ team_x
 --                             └─ team_y
 -- Casa nacional casa-x, fora da árvore (ADR 0011).
-truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
+truncate public.news, public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 create function pg_temp.add_unit(p_type text, p_parent text, p_slug text, p_state char(2) default null)
 returns void language sql as $$
   insert into public.units (type_id, parent_id, slug, name, state_code, path)
