@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(18);
+select plan(25);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -14,18 +14,24 @@ create function pg_temp.login(p_id uuid) returns void language sql as $$
     json_build_object('sub', p_id, 'role', 'authenticated')::text, true);
 $$;
 
--- f1: dono; f2: outra pessoa ativa; f3: bloqueada.
+-- f1: dono; f2: outra pessoa ativa; f3: bloqueada; f4: em espera; f5: acesso ativo, mas conta suspensa.
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000f1'),
   ('00000000-0000-0000-0000-0000000000f2'),
-  ('00000000-0000-0000-0000-0000000000f3');
+  ('00000000-0000-0000-0000-0000000000f3'),
+  ('00000000-0000-0000-0000-0000000000f4'),
+  ('00000000-0000-0000-0000-0000000000f5');
 insert into public.profiles (id, display_name_enc, municipality_code, consent_version) values
   ('00000000-0000-0000-0000-0000000000f1', pg_temp.enc('NomeF1'), 3550308, 'v1'),
   ('00000000-0000-0000-0000-0000000000f2', pg_temp.enc('NomeF2'), 3550308, 'v1'),
-  ('00000000-0000-0000-0000-0000000000f3', pg_temp.enc('NomeF3'), 3550308, 'v1');
+  ('00000000-0000-0000-0000-0000000000f3', pg_temp.enc('NomeF3'), 3550308, 'v1'),
+  ('00000000-0000-0000-0000-0000000000f4', pg_temp.enc('NomeF4'), 3550308, 'v1'),
+  ('00000000-0000-0000-0000-0000000000f5', pg_temp.enc('NomeF5'), 3550308, 'v1');
 update public.profiles set access_status = 'active', status = 'active'
 where id in ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000f2');
 update public.profiles set access_status = 'blocked' where id = '00000000-0000-0000-0000-0000000000f3';
+update public.profiles set access_status = 'waitlisted' where id = '00000000-0000-0000-0000-0000000000f4';
+update public.profiles set access_status = 'active', status = 'suspended' where id = '00000000-0000-0000-0000-0000000000f5';
 insert into public.consent_acceptances (user_id, version) select id, 'v1' from public.profiles on conflict do nothing;
 -- Membro de verdade exige a casa aceita (ADR 0017).
 insert into public.houses (key, active) select 'g-' || id::text, true from public.profiles
@@ -71,7 +77,28 @@ select is((select count(*)::int from public.profile_badge_prefs), 0, 'outro memb
 select is((select count(*)::int from public.public_profile('00000000-0000-0000-0000-0000000000f3')), 0, 'perfil bloqueado: zero linhas');
 select is((select count(*)::int from public.public_profile('00000000-0000-0000-0000-00000000ffff')), 0, 'inexistente: zero linhas (igual)');
 
+-- Alvo com acesso ativo, mas conta que não está ativa: zero linhas, igual
+select pg_temp.login('00000000-0000-0000-0000-0000000000f2');
+select is((select count(*)::int from public.public_profile('00000000-0000-0000-0000-0000000000f5')), 0, 'alvo com conta suspensa: zero linhas');
+
+-- Quem chama em espera: não vê ninguém e não grava
+select pg_temp.login('00000000-0000-0000-0000-0000000000f4');
+select is((select count(*)::int from public.public_profile('00000000-0000-0000-0000-0000000000f1')), 0, 'quem está em espera não vê perfis');
+select throws_ok($$ select public.set_my_badge_prefs(array['house'], array[true]) $$, '42501', null, 'quem está em espera não grava medalhas');
+
+-- Sem sessão (JWT sem `sub`): não vê e não grava
+select set_config('request.jwt.claims', '{"role":"authenticated"}', true);
+select is((select count(*)::int from public.public_profile('00000000-0000-0000-0000-0000000000f1')), 0, 'sem sessão: zero linhas');
+select throws_ok($$ select public.set_my_badge_prefs(array['house'], array[true]) $$, '42501', null, 'sem sessão não grava medalhas');
+
+-- Anônimo (papel anon): sem permissão de executar nenhuma das duas
+reset role;
+set local role anon;
+select throws_ok($$ select * from public.public_profile('00000000-0000-0000-0000-0000000000f1') $$, '42501', null, 'o papel anon não executa public_profile');
+select throws_ok($$ select public.set_my_badge_prefs(array['house'], array[true]) $$, '42501', null, 'o papel anon não executa set_my_badge_prefs');
+
 -- Quem está bloqueada não vê ninguém
+set local role authenticated;
 select pg_temp.login('00000000-0000-0000-0000-0000000000f3');
 select is((select count(*)::int from public.public_profile('00000000-0000-0000-0000-0000000000f1')), 0, 'quem está bloqueada não vê perfis');
 
