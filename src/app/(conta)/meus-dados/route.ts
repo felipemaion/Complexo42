@@ -22,7 +22,7 @@ function backTo(request: NextRequest, status?: MyDataStatus, back?: string): Nex
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const config = getAuthConfig();
-  if (!config || !isSameOrigin(request.headers.get("origin"), config.siteUrl)) {
+  if (!config || !isSameOrigin(request.headers.get("origin"), config.siteUrl, request.headers.get("sec-fetch-site"))) {
     return new NextResponse(null, { status: 403, headers: NO_STORE });
   }
   const { user, client } = await requireHolderClient();

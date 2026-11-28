@@ -434,10 +434,13 @@ export function exportFilename(at: Date): string {
 /**
  * O pedido veio de uma página do próprio site? O botão é um POST de formulário; o cookie
  * `SameSite=Lax` já não vai em POST de outro site, e isto é a segunda barreira (como a checagem
- * de origem das server actions). Sem `Origin`, recusa.
+ * de origem das server actions). Sem `Origin` útil, só passa com `Sec-Fetch-Site: same-origin`.
  */
-export function isSameOrigin(origin: string | null, siteUrl: string): boolean {
-  if (!origin) return false;
+export function isSameOrigin(origin: string | null, siteUrl: string, fetchSite?: string | null): boolean {
+  // Sem origem útil (`Origin: null`, ou ausente): o navegador envia `null` num POST do próprio site quando a página foi
+  // alcançada sem recarregar depois de uma que manda `no-referrer` (o link de login, #130). Aí vale o `Sec-Fetch-Site`,
+  // que só o navegador escreve (a página e o JavaScript não o alteram): `same-origin` é o próprio site.
+  if (!origin || origin === "null") return fetchSite === "same-origin";
   try {
     return new URL(origin).origin === new URL(siteUrl).origin;
   } catch {
