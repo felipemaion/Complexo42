@@ -449,7 +449,7 @@ processo com o **nome** da variável no log, nunca o valor.
 | `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra**: o app recusa subir. Exigência reposta junto com a anterior |
 | `QUESTIONNAIRE_PATH` | **obrigatória em produção** (#313); caminho, dentro do container, do JSON real do questionário (ex.: `/app/questionario/questionnaire.json`, da pasta `./questionario` montada só leitura). Sem ela o app **recusa subir**: antes servia em silêncio o exemplo fictício, com a chave de exemplo |
 | `FIELD_ENCRYPTION_KEY_VERSION`, `FIELD_ENCRYPTION_PREVIOUS_KEYS` | rotação de chave (ADR 0003 §5); vazio é o normal |
-| `QUESTIONNAIRE_SIGNING_KEY` | assina o resultado do questionário (ADR 0014). **Presente no staging desde 2026-11-28** (no `secrets/env` e em `app.server_secrets`; o compose a repassa). **Ainda opcional na subida** (`env.ts`, fora de `REQUIRED_IN_PRODUCTION`): entra na lista quando a produção a tiver (#290) |
+| `QUESTIONNAIRE_SIGNING_KEY` | **obrigatória em produção** (#290); assina o resultado do questionário (ADR 0014). Sem ela o resultado não grava, e o app **recusa subir**. No staging desde 2026-11-28 (`secrets/env` e `app.server_secrets`, as duas pontas); o `gen-secrets.sh` a gera para todo ambiente novo |
 
 > **As duas primeiras ficaram 9 dias no `secrets/env` sem chegar ao container.**
 > O `gen-secrets.sh` as gerava, o `env.example` as documentava, e o
@@ -494,11 +494,11 @@ processo com o **nome** da variável no log, nunca o valor.
 >
 > **O `QUESTIONNAIRE_SIGNING_KEY` foi gerado e instalado no `secrets/env` do
 > staging em 2026-11-28**, junto com a mesma chave em `app.server_secrets`
-> (ADR 0014 exige as duas pontas). Ele segue repassado pelo compose e tolerado
-> vazio, de propósito: sem ele o questionário falha ao gravar o resultado, mas
-> o resto do app funciona, e exigi-lo na subida trocaria uma tela quebrada
-> pelo ambiente inteiro fora — produção é outro ambiente, com o seu próprio
-> `secrets/env`.
+> (ADR 0014 exige as duas pontas), e **entrou nas obrigatórias** (#290) quando a
+> produção ainda não existia: o `gen-secrets.sh` a gera para todo ambiente novo,
+> então não há ambiente que a exigência derrube. O app recusa subir sem ela, e a
+> guarda do deploy (`obrigatorias-em-producao.txt`) confere que o compose do
+> servidor a repassa.
 
 `GET /api/healthz` responde `{status, version, db, schema, terms}` com
 `Cache-Control: no-store`, e dá **200 só quando as três sondas passam**:
