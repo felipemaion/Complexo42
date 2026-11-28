@@ -757,6 +757,16 @@ grep -q "APP_IMAGEM=$ANT compose.*up -d" "$STUB_CHAMADAS" && r=0 || r=1
 verifica "e sobe de novo com APP_IMAGEM = a ANTERIOR" $r
 tail -1 "$LOG" | grep -q "resultado=rollback_ok=$ANT" && r=0 || r=1
 verifica "registra o rollback com a tag de destino" $r
+# O rollback sobe uma imagem ANTERIOR, que pode nao trazer a lista de
+# obrigatorias. Ele NAO pode passar pela conferencia: travar a volta por causa
+# dela trocaria um app ruim por nenhum app. A conferencia tem um unico ponto de
+# chamada, antes das migrations; a `volta` vai direto ao `up`. Apontado na
+# revisao, e guardado aqui para continuar verdade.
+grep -c -- 'config$' "$STUB_CHAMADAS" | grep -qx 1 && r=0 || r=1
+verifica "a conferencia das obrigatorias roda UMA vez, nao no rollback" $r
+# Na saida DESTE run, nao no $LOG, que acumula entre os casos acima.
+grep -q 'NAO chega ao container' "$BASE/saida" && r=1 || r=0
+verifica "e a volta nao e barrada por obrigatoria ausente" $r
 
 STUB_ANTERIOR= STUB_SMOKE=falha_sempre roda "$DIG"
 tail -1 "$LOG" | grep -q 'resultado=smoke_falhou_sem_rollback' && r=0 || r=1
