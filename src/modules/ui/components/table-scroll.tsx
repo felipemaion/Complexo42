@@ -10,7 +10,7 @@ type Props = Readonly<{
  */
 export function TableScroll({ label, children }: Props) {
   return (
-    <div role="region" aria-label={label} tabIndex={0} className="max-w-full overflow-x-auto">
+    <div role="region" aria-label={label} tabIndex={0} className="max-w-full overflow-x-auto rounded-card border border-line bg-surface p-4 shadow-card sm:p-6">
       {children}
     </div>
   );
