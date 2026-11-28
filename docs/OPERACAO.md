@@ -64,20 +64,21 @@ Depois do `ALTER ROLE`, reinicie quem usa aquela senha (`restart rest` ou
 `restart auth`): a conexão antiga continua válida até o processo reconectar, e
 sem o restart o erro só aparece horas depois.
 
-## Casas (ADR 0011)
+## Estrutura da instância e casas (ADR 0011)
 
-O `supabase/seed.sql` **não roda em produção**, e a tabela `houses` precisa ter uma linha para
-cada casa de `config/instance.ts` (`houses[].id`): sem a linha, `accept_house` recusa a casa
-("casa indisponível"). O bloco `insert into public.houses ...` do seed é a fonte, e
-`tests/house-units.test.ts` garante que ele tem exatamente as casas da config. O comando é
-idempotente (rodar de novo não duplica; reativa uma casa desativada). Na primeira subida e
-sempre que a config ganhar casa:
+O `supabase/seed.sql` **não roda no servidor** (só no `supabase db reset`/`start`) e o `migra.sh` não
+aplica seed. O que é **fixo** da instância vai por **migration**, que entra sozinha no deploy, sem script
+instalado (`..._estrutura_instancia.sql`, idempotente, sem sobrescrever o que o operador mudou):
 
-```bash
-sed -n '/^insert into public.houses (key) values/,/;$/p' supabase/seed.sql \
-  | docker compose -f docker-compose.supabase.yml --env-file <segredos> \
-      exec -T db psql -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
-```
+- tipos de unidade (`unit_types`) e a **unidade raiz** nacional (só se ainda não houver raiz);
+- as **casas** de `config/instance.ts` (`houses[].id`; sem a linha, `accept_house` recusa a casa
+  "casa indisponível"). `tests/house-units.test.ts` garante que a migration tem exatamente as casas da
+  config. Casa nova na config = migration nova;
+- o catálogo **provisório** de habilidades (47, até o stakeholder aprovar; trocar = migration nova).
+
+Sem isso o banco fica sem raiz e o bootstrap da primeira coordenação recusa ("a instância não tem
+unidade raiz"). A árvore **abaixo** da raiz (estados, regiões, equipes) depende da instalação: no
+ambiente local vem do seed; no servidor, o operador a cria (`insert` em `public.units`; o trigger calcula o `path`).
 
 Trocar a **chave** de uma casa (como em 2026-11, de `casa-exemplo-N` para os ids reais) é por
 migration (`app.rename_house_key`): ela leva junto vínculos, papéis, resultados e o log de auditoria
@@ -92,7 +93,7 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
 
 ## Primeira coordenação (banco novo, #295)
 
-Num banco novo ninguém pode autorizar ninguém: a lista e o papel de gestor da raiz só mudam pela
+Pré-requisito: a estrutura da instância (seção anterior; vem das migrations, com a raiz). Num banco novo ninguém pode autorizar ninguém: a lista e o papel de gestor da raiz só mudam pela
 mão de um gestor da raiz. Quem abre esse ciclo é o **operador**, com `deploy/bootstrap-coordenacao.sh`
 (função `app.bootstrap_root_manager`, sem grant para a API). Como o `migra.sh`, é **script de operador, instalado à mão como root** (ver a tabela de
 instalação, abaixo) e **fora da imagem** do app; o `email-hmac.mjs` fica ao lado dele e vai ao container

@@ -1,18 +1,10 @@
--- Seed da instância piloto (issue #46, ADR 0008 §2). Só dados fictícios e de estrutura:
+-- Seed da instância piloto (issue #46, ADR 0008 §2). Só dados fictícios do ambiente LOCAL:
 -- nenhuma pessoa, nenhum papel. Roda no `supabase db reset` e no `supabase start`.
 --
--- Árvore de território: nacional → estado → região (incubadora) → equipes. As casas são
--- nacionais, fora da árvore (ADR 0011).
--- Os rótulos exibidos vêm de `unit_types.label` (R17): o código nunca usa estes nomes.
-
-insert into public.unit_types (key, label, level) values
-  ('national', 'Nacional', 0),
-  ('state', 'Estado', 1),
-  ('region', 'Região', 2),
-  ('team', 'Equipe', 3);
-
--- O tipo cujos membros são colegas de equipe (ADR 0010, #119).
-update public.unit_types set is_team = true where key = 'team';
+-- A estrutura e o catálogo fixos (tipos de unidade, raiz nacional, casas, habilidades) vêm da
+-- migration `..._estrutura_instancia.sql`, que também vai ao servidor. Aqui fica só a árvore de
+-- exemplo abaixo da raiz: estado → região (incubadora) → equipes (ADR 0011: as casas são
+-- nacionais, fora da árvore). Os rótulos exibidos vêm de `unit_types.label` (R17).
 
 -- Insere uma unidade abaixo do pai indicado pelo `path`; o trigger calcula o `path` dela.
 create function pg_temp.seed_unit(
@@ -28,8 +20,6 @@ as $$
   where t.key = p_type;
 $$;
 
-select pg_temp.seed_unit('national', null, 'br', 'Nacional');
-
 select pg_temp.seed_unit('state', 'br', 'sp', 'São Paulo', 'SP');
 select pg_temp.seed_unit('state', 'br', 'mg', 'Minas Gerais', 'MG');
 
@@ -41,17 +31,6 @@ select pg_temp.seed_unit('team', 'br.sp.abc', 'equipe_1', 'Equipe 1');
 select pg_temp.seed_unit('team', 'br.sp.abc', 'equipe_2', 'Equipe 2');
 select pg_temp.seed_unit('team', 'br.sp.zona_leste', 'equipe_1', 'Equipe 1');
 select pg_temp.seed_unit('team', 'br.mg.central', 'equipe_1', 'Equipe 1');
-
--- Casas nacionais (ADR 0011): a chave é o `id` da casa em config/instance.ts; o nome e os
--- textos ficam só na config (R17). tests/house-units.test.ts confere seed e config juntos.
--- Idempotente: em produção (onde o seed não roda) este mesmo comando é aplicado à mão
--- (docs/OPERACAO.md, "Casas").
-insert into public.houses (key) values
-  ('esparta'),
-  ('atenas'),
-  ('alexandria'),
-  ('siracusa')
-on conflict (key) do update set active = true;
 
 -- Versão do termo do questionário de exemplo (config/questionnaire.example.json). Uma versão só
 -- é aceita se estiver aqui (ADR 0008 §2.1, #76); na instância real, a do arquivo instalado

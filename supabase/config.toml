@@ -17,12 +17,12 @@ shadow_port = 54320
 # Igual ao servidor (imagem supabase/postgres:17.x em deploy/).
 major_version = 17
 
-# Seed só local (nunca em produção): a instância piloto e o catálogo PROVISÓRIO de habilidades
-# (trocável editando só supabase/seeds/skills_catalog.sql). Os perfis fictícios vêm de
+# Seed só local (nunca em produção): a árvore de exemplo abaixo da raiz. A estrutura fixa e o catálogo
+# PROVISÓRIO de habilidades vêm de migration (..._estrutura_instancia.sql). Os perfis fictícios vêm de
 # `npm run db:seed-profiles`, porque precisam de dado cifrado com as chaves do .env.local.
 [db.seed]
 enabled = true
-sql_paths = ["./seed.sql", "./seeds/skills_catalog.sql"]
+sql_paths = ["./seed.sql"]
 
 # Recursos fora do escopo (ADR 0009): desligados também no local.
 [realtime]
