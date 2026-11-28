@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(16);
+select plan(17);
 
 create function pg_temp.enc(p_tag text) returns text language sql as $$
   select 'v1.AAAAAAAAAAAAAAAA.' || rpad(p_tag, 22, 'x')
@@ -48,6 +48,7 @@ select is((select badges from public.public_profile('00000000-0000-0000-0000-000
 select lives_ok($$ select public.set_my_badge_prefs(array['totem', 'house'], array[true, false]) $$, 'o dono esconde uma medalha');
 select is((select badges from public.public_profile('00000000-0000-0000-0000-0000000000f1')), array['totem'], 'só a visível aparece');
 select is((select count(*)::int from public.profile_badge_prefs), 2, 'o dono lê as próprias linhas');
+select is(jsonb_array_length(public.export_own_data()->'badge_prefs'), 2, 'baixar meus dados traz as medalhas escolhidas');
 
 -- Entradas inválidas
 select throws_ok($$ select public.set_my_badge_prefs(array['house', 'house'], array[true, true]) $$, '22023', null, 'tipo repetido é recusado');
