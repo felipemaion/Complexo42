@@ -22,10 +22,10 @@ Plano da #68; as lacunas viraram issues, listadas no §2.
 |---|---|---|
 | **RLS** | `rls_enabled`, `permissions_matrix`, um pgTAP por tabela e função; `privilege_guards` (#68): função definer com `search_path` fixo, `anon` só executa lista curta e não tem tabela | Matriz gerada papel × tabela × operação, em vez de casos à mão (#154) |
 | **Cripto** (R13) | Vitest de `src/server/crypto/`; CHECK de valor cifrado; varredura de colunas em texto puro | Rotação de chave (#50); teste que lê o banco e prova que `*_enc` não é texto legível (#155) |
-| **XSS** | ESLint barra `innerHTML` e afins (`tests/eslint-xss.test.ts`); `react/no-danger`; teste de redes sociais; CSP com nonce (#152): `src/server/csp.test.ts` e `e2e/csp.spec.ts` (todo `<script>` com o nonce, Turnstile carrega, nada bloqueado) | E2E que injeta `<script>` em todo campo de texto (#156) |
+| **XSS** | ESLint barra `innerHTML` e afins (`tests/eslint-xss.test.ts`); `react/no-danger`; teste de redes sociais | **CSP** (nonce, Turnstile, Supabase) (#152); E2E que injeta `<script>` em todo campo de texto (#156) |
 | **Auth** | Vitest de sessão, rotas, Turnstile e erros; E2E do link mágico e da senha (definir, entrar, senha errada genérica, recuperar, remover); política da senha; travas do compose e do Kong (`tests/senha-gotrue.test.ts` e `ci.yml`); allowlist | E2E de toda rota protegida sem sessão → login (#156); expiração e reuso do link (passo 3 do §4); reautenticação por código de e-mail para sessão com mais de 24 h (ADR 0018, fora da v1) |
 | **Deploy** | Testes bash de deploy, backup e segredos; `ci-hardening` (actions por SHA); `check-image.sh` | Scan de dependências e imagem (`npm audit`, Trivy) e de código (Semgrep) no CI (#153) |
-| **Cabeçalhos HTTP** | `tests/security-headers.test.ts` (#68): nosniff, frame, referrer, permissions, HSTS; CSP do proxy com nonce novo por requisição, até no redirecionamento (#152) | Conferir no staging que o proxy de borda não remove os cabeçalhos |
+| **Cabeçalhos HTTP** | `tests/security-headers.test.ts` (#68): nosniff, frame, referrer, permissions, HSTS | CSP (#152); conferir no staging que o proxy não remove os cabeçalhos |
 | **Desempenho** | Nada | §5 inteiro (#74, #75) |
 
 ## 3. Ferramentas
