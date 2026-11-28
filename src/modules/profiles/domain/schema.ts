@@ -60,8 +60,18 @@ const neighborhoodSchema = z
   .pipe(shortText(profileLimits.neighborhoodMin, profileLimits.neighborhoodMax))
   .refine((value) => NEIGHBORHOOD_CHARS.test(value), "só letras, números, espaço, hífen, apóstrofo e ponto");
 
+/**
+ * Nome completo (issue #312): ao menos duas palavras. Roda depois de `shortText`, que já colapsou
+ * qualquer espaço (inclusive NBSP) em um espaço comum. Quem foi cadastrado com uma palavra só
+ * continua com o perfil válido; a regra vale na próxima gravação.
+ */
+const fullNameSchema = shortText(profileLimits.displayNameMin, profileLimits.displayNameMax).refine(
+  (value) => value.includes(" "),
+  "informe nome e sobrenome",
+);
+
 export const profileInputSchema = z.strictObject({
-  displayName: shortText(profileLimits.displayNameMin, profileLimits.displayNameMax),
+  displayName: fullNameSchema,
   /** Código IBGE de 7 dígitos; a existência do município é conferida pela FK no banco. */
   municipalityCode: z.number().int().min(1_000_000).max(9_999_999),
   /** Código IBGE de 9 dígitos; que o distrito é do município, o banco confere. */

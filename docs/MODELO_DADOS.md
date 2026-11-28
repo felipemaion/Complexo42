@@ -201,7 +201,7 @@ O papel **não** fica no perfil: fica em `role_assignments`.
   vale (sem escopo, não concede nem revoga) e a pessoa não lê `unit_types`, `units`,
   `unit_members` nem `role_assignments`. Em `waitlisted` ou `blocked`, lê só o próprio perfil;
   em `pending` (ou ainda sem perfil), lê também `municipalities`, para se cadastrar.
-- **Validação do texto** (nome de 2 a 80 caracteres, WhatsApp em E.164, até 5 URLs https) fica
+- **Validação do texto** (nome completo (nome e sobrenome, de 2 a 80 caracteres; o banco só vê o texto cifrado e não confere), WhatsApp em E.164, até 5 URLs https) fica
   no schema Zod de `src/modules/profiles/`, aplicado no servidor antes de cifrar. O banco só
   confere o formato `v<n>.<iv>.<ct>` e um teto de tamanho.
 
