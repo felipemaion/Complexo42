@@ -32,7 +32,7 @@ where not exists (select 1 from public.units as u where u.state_code = s.uf)
 -- ---------------------------------------------------------------------------------------
 -- 2. Auditoria: um evento de sistema, só com a contagem
 -- ---------------------------------------------------------------------------------------
--- (Esta lista repete a vigente em `20261128170000_skill_catalog_admin.sql` e acrescenta o evento novo. Migration nova
+-- (Esta lista repete a vigente em `20261128170000_skill_catalog_admin.sql` (a 200000 não mexe nela) e acrescenta o evento novo. Migration nova
 -- que mexa nesta lista tem de partir da última e manter este evento.)
 alter table public.audit_log drop constraint audit_log_event_check;
 alter table public.audit_log add constraint audit_log_event_check check (event in (
