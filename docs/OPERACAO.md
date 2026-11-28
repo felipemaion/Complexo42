@@ -935,8 +935,8 @@ Dois olhos, porque o servidor não consegue avisar que caiu:
 - **De fora**, o monitor de uptime (passo do Felipe, abaixo) consulta o `/api/healthz` de cada ambiente
   a cada 5 min. Um workflow diário do GitHub (`.github/workflows/vigia-externo.yml`, PR de workflow #367, merge do
   Felipe) confere de novo o healthz e o certificado: é o reforço, e pega também o vigia do servidor ter parado.
-- **De dentro**, o `deploy/vigia.sh` roda a cada 5 min e mede: disco ≥ 80% (`/`, a raiz de dados do
-  Docker e `data/logs`), memória de cada container ≥ 90% do `mem_limit`, container `unhealthy` ou
+- **De dentro**, o `deploy/vigia.sh` roda a cada 5 min e mede: disco ≥ 80% (`/`, onde também ficam os
+  `data/logs`, e a raiz de dados do Docker), memória de cada container ≥ 90% do `mem_limit`, container `unhealthy` ou
   reiniciando, backup mais novo com mais de 26 h e certificado a menos de 15 dias. Não conseguir medir
   (Docker fora) também alerta.
 
@@ -954,6 +954,8 @@ log e o arquivo temporário da senha ficam nos diretórios que o systemd cria pa
 `/run` (memória), que funciona mesmo com o disco cheio, que é justamente o caso a pegar.
 
 ```bash
+# pacotes que o vigia e a rotação usam (o Ubuntu do servidor não traz acl nem logrotate)
+sudo apt install acl logrotate curl openssl
 # uma vez, e a cada mudança do script: cópia à mão, como root
 sudo install -m 0755 deploy/vigia.sh /opt/complexo42/vigia.sh
 sudo useradd --system --no-create-home --shell /usr/sbin/nologin --groups docker complexo42-vigia
@@ -970,13 +972,25 @@ AMBIENTE=<ambiente>
 ESTADO_DIR=/var/lib/complexo42-vigia/<ambiente>
 REGISTRO=/var/log/complexo42-vigia/<ambiente>.log
 ENV_FILE=/etc/complexo42/vigia-<ambiente>.smtp
-DISCOS=/ /var/lib/docker <dir do deploy>/data/logs
+DISCOS=/ /var/lib/docker
 PROJETOS=<projeto do Supabase> <projeto do app>
-BACKUP_DIR=<dir dos backups>        # vazio: não confere (staging sem backup)
+# vazio: não confere (staging sem backup)
+BACKUP_DIR=<dir dos backups>
 CERT_HOST=<domínio do ambiente>
-ALERTA_DE=                          # o remetente verificado no relay (passo do Felipe)
-ALERTA_PARA=                        # vazio: só registra; vários separados por vírgula
+# o remetente verificado no relay (passo do Felipe)
+ALERTA_DE=
+# vazio: só registra; vários separados por vírgula
+ALERTA_PARA=
 ```
+
+> **Comentário só em linha própria.** O `EnvironmentFile` do systemd não corta comentário no fim da
+> linha: `ALERTA_PARA=  # vazio` vira o valor `# vazio`. O `vigia.sh` recusa valor com `#` (e valor de
+> um item só com espaço) e sai 2; o timer aparece em falha no `systemctl status`.
+
+`DISCOS` não leva `<dir do deploy>/data/logs`: ele fica no mesmo disco de `/`, e o diretório do deploy é
+750 do usuário do deploy, que o vigia não atravessa. Se um dia `data/` for para outro disco, pôr o
+caminho em `DISCOS` e dar a travessia: `sudo setfacl -m u:complexo42-vigia:x <dir do deploy> <dir do deploy>/data`
+e `sudo setfacl -m u:complexo42-vigia:rx <dir do deploy>/data/logs`.
 
 ```ini
 # /etc/systemd/system/complexo42-vigia@.service

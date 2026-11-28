@@ -1,5 +1,6 @@
 export { HouseFlow } from "./components/house-flow";
 export { OwnHouse } from "./components/own-house-card";
+export { ChosenHouseAndTotem } from "./components/totem-medal";
 export { HousePresentation, type HouseView } from "./components/house-presentation";
 export { formatProgress, initialFlow, nextFlow } from "./domain/flow";
 export type { FlowContext, FlowEvent, FlowState, HouseActionResult, HouseClient, HouseErrorCode, JoinMethod, Step } from "./types";
