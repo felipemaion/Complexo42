@@ -22,26 +22,31 @@ type Props = {
 
 export function HousePresentation({ house, title, firstStepsTitle, videosTitle }: Readonly<Props>) {
   return (
-    <section className="flex flex-col gap-4" aria-labelledby="house-name">
-      <p className="text-lg font-semibold">{title}</p>
-      <HouseHero houseId={house.id} name={house.name} headingId="house-name" />
-      <p className="text-lg">{house.description}</p>
-      <h3 className="text-xl font-semibold">{firstStepsTitle}</h3>
-      <p className="whitespace-pre-line text-lg">{house.firstSteps.text}</p>
-      {house.firstSteps.videoUrls.length > 0 && (
-        <>
-          <h3 className="text-xl font-semibold">{videosTitle}</h3>
-          <ul className="list-disc pl-6 text-lg">
-            {house.firstSteps.videoUrls.map((url) => (
-              <li key={url}>
-                <a href={url} target="_blank" rel="noopener noreferrer" className="underline">
-                  {url}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+    // No computador, o brasão à esquerda e o texto à direita (#324); no celular, um embaixo do outro.
+    <section className="grid gap-6 md:grid-cols-[14rem_1fr] md:items-start" aria-labelledby="house-name">
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-base font-semibold text-ink-muted">{title}</p>
+        <HouseHero houseId={house.id} name={house.name} headingId="house-name" />
+      </div>
+      <div className="flex min-w-0 flex-col gap-4">
+        <p className="max-w-prose text-lg">{house.description}</p>
+        <h3 className="text-xl font-bold">{firstStepsTitle}</h3>
+        <p className="max-w-prose whitespace-pre-line text-lg">{house.firstSteps.text}</p>
+        {house.firstSteps.videoUrls.length > 0 && (
+          <>
+            <h3 className="text-xl font-bold">{videosTitle}</h3>
+            <ul className="list-disc pl-6 text-lg">
+              {house.firstSteps.videoUrls.map((url) => (
+                <li key={url} className="break-words">
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-link underline">
+                    {url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </section>
   );
 }

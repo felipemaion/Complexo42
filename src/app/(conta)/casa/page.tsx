@@ -4,6 +4,7 @@ import { toPublicQuestionnaire } from "@/modules/questionnaire";
 import Link from "next/link";
 import { getQuestionnaire, HouseFlow, HousePresentation, readAcceptedHouse, readChangeHouse, readTransferWindow, sessionHouseClient } from "@/modules/houses";
 import { requireUserBeforeHouse } from "@/server/auth/session";
+import { buttonClass, cardClass, PageShell, textLinkClass } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.houseSelection.title };
 
@@ -25,10 +26,10 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
   const change = changing && client && house ? { currentId: house.id, ...(await readChangeHouse(client, user.id)) } : undefined;
 
   return (
-    <main className="mx-auto flex max-w-xl flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.title}</h1>
+    <PageShell width="content">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.title}</h1>
       {house && !changing ? (
-        <>
+        <div className={cardClass()}>
           <HousePresentation
             house={house}
             title={text.acceptedTitle}
@@ -36,19 +37,21 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
             videosTitle={text.videosTitle}
           />
           {/* Casa definida: o próximo passo é o perfil (a página inicial leva a ele), ADR 0017. */}
-          <Link href="/inicio" className="rounded-xl bg-[var(--color-primary)] px-5 py-3 text-center text-lg font-semibold text-white" data-testid="continue-link">
-            {text.continueLink}
-          </Link>
-          {windowOpen ? (
-            <Link href="/casa?trocar=1" className="text-center text-lg underline" data-testid="change-house-link">
-              {text.changeHouseLink}
+          <div className="flex flex-col items-center gap-3 border-t border-line pt-5 sm:flex-row sm:justify-between">
+            {windowOpen ? (
+              <Link href="/casa?trocar=1" className={textLinkClass()} data-testid="change-house-link">
+                {text.changeHouseLink}
+              </Link>
+            ) : (
+              <p className="text-center text-base text-ink-muted sm:text-left" data-testid="transfer-closed-notice">
+                {text.transferClosedNotice}
+              </p>
+            )}
+            <Link href="/inicio" className={`${buttonClass("primary", "lg")} sm:w-auto sm:min-w-64`} data-testid="continue-link">
+              {text.continueLink}
             </Link>
-          ) : (
-            <p className="text-center text-lg" data-testid="transfer-closed-notice">
-              {text.transferClosedNotice}
-            </p>
-          )}
-        </>
+          </div>
+        </div>
       ) : (
         <HouseFlow
           houses={instance.houses}
@@ -57,6 +60,6 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
           {...(change && { change })}
         />
       )}
-    </main>
+    </PageShell>
   );
 }

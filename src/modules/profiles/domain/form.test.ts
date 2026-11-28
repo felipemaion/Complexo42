@@ -17,8 +17,41 @@ describe("parseProfileForm", () => {
       ok: true,
       profile: { displayName: "Ana Souza", municipalityCode: SP, districtCode: SE_DISTRICT, neighborhood: "Vila Exemplo", consentVersion: consentNotYetGiven },
       contact: { whatsapp: "+5511912345678", socialLinks: [] },
+      background: { educationLevel: null, educationDetail: null, occupation: null },
       keepSocialLinks: true,
       keepNeighborhood: false,
+      keepBackground: true,
+    });
+  });
+
+  describe("formação e atividade (#304)", () => {
+    const filled = { ...valid, educationLevel: "college_complete", educationDetail: " Engenharia  Civil ", occupation: " Professora " };
+
+    it("envio com os campos: validados, normalizados, e o servidor grava (não mantém)", () => {
+      const result = parseProfileForm(filled);
+      expect(result).toMatchObject({
+        ok: true,
+        background: { educationLevel: "college_complete", educationDetail: "Engenharia Civil", occupation: "Professora" },
+        keepBackground: false,
+      });
+    });
+
+    it("enviados em branco: apaga de propósito (null, sem manter)", () => {
+      expect(parseProfileForm({ ...valid, educationLevel: "", educationDetail: "", occupation: "  " })).toMatchObject({
+        ok: true,
+        background: { educationLevel: null, educationDetail: null, occupation: null },
+        keepBackground: false,
+      });
+    });
+
+    it("sem os campos (formulário antigo): mantém o guardado", () => {
+      expect(parseProfileForm(valid)).toMatchObject({ ok: true, keepBackground: true });
+    });
+
+    it("cada campo inválido aparece pelo nome", () => {
+      expect(fieldsOf({ ...filled, educationLevel: "doutorado" })).toEqual(["educationLevel"]);
+      expect(fieldsOf({ ...filled, educationDetail: "x" })).toEqual(["educationDetail"]);
+      expect(fieldsOf({ ...filled, occupation: "a".repeat(81) })).toEqual(["occupation"]);
     });
   });
 
@@ -75,7 +108,7 @@ describe("parseProfileForm", () => {
   });
 
   it("entrada que não é texto, ou longa demais, é recusada", () => {
-    const all = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks"];
+    const all = ["displayName", "whatsapp", "municipalityCode", "district", "neighborhood", "socialLinks", "educationLevel", "educationDetail", "occupation"];
     expect(fieldsOf(null)).toEqual(all);
     expect(fieldsOf({ ...valid, displayName: 42 })).toEqual(all);
     expect(fieldsOf({ ...valid, displayName: "a".repeat(201) })).toEqual(all);

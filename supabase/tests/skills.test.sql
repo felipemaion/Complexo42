@@ -24,9 +24,9 @@ select is(
   'toda habilidade tem ao menos um sinônimo para a busca'
 );
 select results_eq(
-  $$ select name from public.skills where aliases @> array['oratória'] $$,
+  $$ select name from public.skills where aliases @> array[app.norm_text('Oratória')] $$,
   $$ values ('Falar em público') $$,
-  'a busca por sinônimo acha a habilidade'
+  'a busca por sinônimo acha a habilidade, sem importar caixa nem acento (#15)'
 );
 select throws_ok(
   $$ insert into public.skills (name, category) values ('Falar em público', 'Outro') $$,

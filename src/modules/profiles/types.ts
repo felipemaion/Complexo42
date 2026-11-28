@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { accessStatuses, profileContactInputSchema, profileInputSchema, profileStatuses } from "./domain/schema";
+import type { accessStatuses, profileBackgroundInputSchema, profileContactInputSchema, profileInputSchema, profileStatuses } from "./domain/schema";
 import type { AuthClient } from "@/server/auth/client";
 import type { ProfileFormField } from "./domain/form";
 
@@ -8,6 +8,9 @@ export type ProfileInput = z.output<typeof profileInputSchema>;
 
 /** Contato já validado, em texto (antes de cifrar no servidor). */
 export type ProfileContactInput = z.output<typeof profileContactInputSchema>;
+
+/** Formação e atividade já validadas, em texto (antes de cifrar no servidor, #304). */
+export type ProfileBackgroundInput = z.output<typeof profileBackgroundInputSchema>;
 
 export type ProfileStatus = (typeof profileStatuses)[number];
 
@@ -29,6 +32,12 @@ export type ProfileFormValues = {
   neighborhood: string;
   /** As caixas de link de rede (#17), como digitadas, ou os links salvos. */
   socialLinks: string[];
+  /** Nível de formação (chave da lista fechada, #304), ou "" (sem resposta). */
+  educationLevel: string;
+  /** "Qual?" da formação, texto livre, ou "". */
+  educationDetail: string;
+  /** Atividade profissional, texto livre, ou "". */
+  occupation: string;
 };
 
 /**
@@ -78,6 +87,10 @@ export type OwnProfile = {
    * mantém o valor cifrado) até a pessoa pedir para substituí-los.
    */
   socialLinksUnreadable: boolean;
+  /** Formação e atividade (#304), decifradas; "" se não informou ou não abriu (a pessoa preenche de novo). */
+  educationLevel: string;
+  educationDetail: string;
+  occupation: string;
 };
 
 /**

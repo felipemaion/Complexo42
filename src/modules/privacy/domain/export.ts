@@ -20,7 +20,7 @@ export function parseMyDataStatus(raw: unknown): MyDataStatus | null {
 }
 
 /** Versão do formato do arquivo. Mudou um campo? Suba a versão. */
-export const exportFormatVersion = 10;
+export const exportFormatVersion = 11;
 
 const timestamp = z.string().min(1);
 
@@ -52,6 +52,15 @@ export const ownDataRowsSchema = z.object({
       updated_at: timestamp,
     })
     .nullable(),
+  /** Formação e atividade profissional (#304), cifradas; nulo se nunca informou. */
+  background: z
+    .object({
+      education_level_enc: z.string().nullable(),
+      education_detail_enc: z.string().nullable(),
+      occupation_enc: z.string().nullable(),
+      updated_at: timestamp,
+    })
+    .nullable(),
   memberships: z.array(
     z.object({
       unit_name: z.string(),
@@ -74,6 +83,10 @@ export const ownDataRowsSchema = z.object({
   ),
   /** Aceites do termo do questionário (versão e data; nunca as respostas). */
   questionnaire_consents: z.array(z.object({ term_version: z.string(), consented_at: timestamp })),
+  /** Habilidades que a pessoa marcou (#15): nome e grupo do catálogo. */
+  skills: z.array(z.object({ name: z.string(), category: z.string() })),
+  /** Sugestões de habilidade nova da pessoa (#15): nome (texto dela), estado e datas. */
+  skill_suggestions: z.array(z.object({ name: z.string(), status: z.string(), created_at: timestamp, decided_at: timestamp.nullable() })),
   /**
    * Resultado do questionário (ADR 0014, #172): a casa sugerida e o totem (cifrado no banco, ADR
    * 0003; o servidor decifra aqui). O totem é interno e só aparece aqui (LGPD art. 18), nunca na
@@ -169,6 +182,13 @@ export type OwnDataExport = {
     atualizadoEm: string;
   } | null;
   contato: { whatsapp: string | null; redesSociais: string[] | null; atualizadoEm: string } | null;
+  /** Formação e atividade (#304); nulo se nunca informou. O nível é a chave da lista (ex.: `college_complete`). */
+  formacaoEAtividade: {
+    nivelDeFormacao: string | null;
+    qual: string | null;
+    atividadeProfissional: string | null;
+    atualizadoEm: string;
+  } | null;
   vinculos: { unidade: string; tipo: string; papelNoGrupo: string; entrouEm: string; saiuEm: string | null }[];
   /** Casas (ADR 0011): o nome vem da config; casa que saiu da config aparece pela chave. */
   casas: {
@@ -182,6 +202,8 @@ export type OwnDataExport = {
   /** Aceites do termo do questionário das casas. */
   termosDeConsentimento: { versao: string; aceitoEm: string }[];
   termosDoQuestionario: { versao: string; aceitoEm: string }[];
+  habilidades: { nome: string; grupo: string }[];
+  sugestoesDeHabilidade: { nome: string; estado: string; sugeridaEm: string; decididaEm: string | null }[];
   /** Casa sugerida e totem (ADR 0014). O totem é interno: só aparece neste arquivo. */
   resultadoDoQuestionario: {
     casaSugerida: string;
@@ -307,6 +329,7 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
 
   const p = rows.profile;
   const c = rows.contact;
+  const b = rows.background;
   const houseName = (key: string | null) => (key === null ? null : (input.houseNames[key] ?? key));
   let links: string[] | null = null;
   if (c?.social_links_enc) {
@@ -345,6 +368,12 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
       whatsapp: await open(c.whatsapp_enc, "profile_contacts", "whatsapp_enc"),
       redesSociais: links,
       atualizadoEm: c.updated_at,
+    },
+    formacaoEAtividade: b && {
+      nivelDeFormacao: await open(b.education_level_enc, "profile_background", "education_level_enc"),
+      qual: await open(b.education_detail_enc, "profile_background", "education_detail_enc"),
+      atividadeProfissional: await open(b.occupation_enc, "profile_background", "occupation_enc"),
+      atualizadoEm: b.updated_at,
     },
     vinculos: rows.memberships.map((m) => ({
       unidade: m.unit_name,
@@ -390,6 +419,8 @@ export async function buildOwnDataExport(input: BuildExportInput): Promise<OwnDa
     ),
     termosDeConsentimento: rows.consent_acceptances.map((c) => ({ versao: c.version, aceitoEm: c.accepted_at })),
     termosDoQuestionario: rows.questionnaire_consents.map((q) => ({ versao: q.term_version, aceitoEm: q.consented_at })),
+    habilidades: rows.skills.map((s) => ({ nome: s.name, grupo: s.category })),
+    sugestoesDeHabilidade: rows.skill_suggestions.map((q) => ({ nome: q.name, estado: q.status, sugeridaEm: q.created_at, decididaEm: q.decided_at })),
     papeis: rows.roles.map((r) => ({
       papel: r.role,
       unidade: r.unit_name,
@@ -434,10 +465,13 @@ export function exportFilename(at: Date): string {
 /**
  * O pedido veio de uma página do próprio site? O botão é um POST de formulário; o cookie
  * `SameSite=Lax` já não vai em POST de outro site, e isto é a segunda barreira (como a checagem
- * de origem das server actions). Sem `Origin`, recusa.
+ * de origem das server actions). Sem `Origin` útil, só passa com `Sec-Fetch-Site: same-origin`.
  */
-export function isSameOrigin(origin: string | null, siteUrl: string): boolean {
-  if (!origin) return false;
+export function isSameOrigin(origin: string | null, siteUrl: string, fetchSite?: string | null): boolean {
+  // Sem origem útil (`Origin: null`, ou ausente): o navegador envia `null` num POST do próprio site quando a página foi
+  // alcançada sem recarregar depois de uma que manda `no-referrer` (o link de login, #130). Aí vale o `Sec-Fetch-Site`,
+  // que só o navegador escreve (a página e o JavaScript não o alteram): `same-origin` é o próprio site.
+  if (!origin || origin === "null") return fetchSite === "same-origin";
   try {
     return new URL(origin).origin === new URL(siteUrl).origin;
   } catch {

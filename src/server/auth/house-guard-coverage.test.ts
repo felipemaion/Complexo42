@@ -31,7 +31,8 @@ export function callsRequire(source: string, names: readonly string[]): boolean 
 
 const withHouse = ["requireUser", "requireUserClient", "requireCoordinationScreen"];
 const beforeHouse = ["requireUserBeforeHouse", "requireUserClientBeforeHouse"];
-const holder = ["requireAccessUser", "requireAccessUserClient"];
+// `requireHolderClient`: só a sessão, sem o portão de acesso. Quem está em espera também baixa os próprios dados (#130).
+const holder = ["requireAccessUser", "requireAccessUserClient", "requireHolderClient"];
 
 describe("callsRequire (o próprio detector)", () => {
   it("só a chamada real conta: comentário, texto e o nome sem chamada não valem", () => {

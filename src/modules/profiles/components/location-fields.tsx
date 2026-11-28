@@ -120,7 +120,7 @@ export function LocationFields({
   return (
     <>
       <div className="flex flex-col gap-2">
-        <label htmlFor={ids.state} className="text-xl font-semibold">
+        <label htmlFor={ids.state} className="text-lg font-semibold">
           {text.stateLabel}
         </label>
         <select
@@ -141,10 +141,10 @@ export function LocationFields({
 
       {/* Sempre na tela (o erro do formulário aponta para ela), mas só se usa depois do estado. */}
       <div className="flex flex-col gap-2">
-        <label htmlFor={ids.municipalitySearch} className="text-xl font-semibold">
+        <label htmlFor={ids.municipalitySearch} className="text-lg font-semibold">
           {text.municipalitySearchLabel}
         </label>
-        <p id={`${ids.municipalitySearch}-dica`} className="text-base">
+        <p id={`${ids.municipalitySearch}-dica`} className="text-base text-ink-muted">
           {text.municipalitySearchHint}
         </p>
         <input
@@ -160,7 +160,7 @@ export function LocationFields({
           aria-describedby={`${ids.municipalitySearch}-dica`}
           className={inputClass}
         />
-        <label htmlFor={ids.municipality} className="text-xl font-semibold">
+        <label htmlFor={ids.municipality} className="text-lg font-semibold">
           {text.municipalityLabel}
         </label>
         <select
@@ -195,10 +195,10 @@ export function LocationFields({
 
       {hasDistrictChoice(districts) && (
         <div className="flex flex-col gap-2">
-          <label htmlFor={ids.district} className="text-xl font-semibold">
+          <label htmlFor={ids.district} className="text-lg font-semibold">
             {text.districtLabel}
           </label>
-          <p id={`${ids.district}-dica`} className="text-base">
+          <p id={`${ids.district}-dica`} className="text-base text-ink-muted">
             {text.districtHint}
           </p>
           <select

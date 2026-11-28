@@ -14,8 +14,13 @@ export type SchemaStatus = "ok" | "stale" | "unavailable" | "unconfigured";
 
 export type SchemaProbe = { status: SchemaStatus; reason?: DbFailure };
 
+/** As versões do termo da config no banco (#222). `degraded`: o banco não tem uma delas (não diz qual). */
+export type TermsStatus = "ok" | "degraded" | "unavailable" | "unconfigured";
+
+export type TermsProbe = { status: TermsStatus; reason?: DbFailure };
+
 export type AppVersion = { tag: string; commit: string };
 
-export type HealthBody = { status: "ok" | "degraded"; version: AppVersion; db: DbStatus; schema: SchemaStatus };
+export type HealthBody = { status: "ok" | "degraded"; version: AppVersion; db: DbStatus; schema: SchemaStatus; terms: "ok" | "degraded" };
 
 export type HealthReport = { httpStatus: 200 | 503; body: HealthBody };

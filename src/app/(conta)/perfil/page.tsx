@@ -8,6 +8,7 @@ import { setPasswordAction } from "../senha/actions";
 import { PasswordForm } from "../senha/password-form";
 import { saveProfileAction } from "./actions";
 import { loadDistrictsAction, loadMunicipalitiesAction } from "./localities-actions";
+import { cardClass, noticeClass, PageShell } from "@/modules/ui";
 
 export const metadata: Metadata = { title: instance.profile.title };
 
@@ -25,13 +26,14 @@ export default async function ProfilePage() {
   const { data: authUser } = await client.auth.getUser();
   const offerPassword = !usesGoogleSignIn(authUser.user);
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-6 p-6 pt-10">
-      <h1 className="text-3xl font-bold">{text.title}</h1>
+    <PageShell width="form">
+      <h1 className="text-3xl font-bold sm:text-4xl">{text.title}</h1>
       {own && needsFullNameNotice(own.displayName) && (
-        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg">
+        <p role="status" className={noticeClass("info")}>
           {text.completeNameNotice}
         </p>
       )}
+      <div className={cardClass()}>
       <ProfileForm
         action={saveProfileAction}
         initial={{
@@ -43,6 +45,9 @@ export default async function ProfilePage() {
           // Os links salvos voltam para as caixas: salvar sem mexer neles os mantém (#17).
           neighborhood: own?.neighborhood ?? "",
           socialLinks: own?.socialLinks ?? [],
+          educationLevel: own?.educationLevel ?? "",
+          educationDetail: own?.educationDetail ?? "",
+          occupation: own?.occupation ?? "",
         }}
         states={states}
         initialMunicipalities={initialMunicipalities}
@@ -53,14 +58,15 @@ export default async function ProfilePage() {
         socialLinksUnreadable={own?.socialLinksUnreadable ?? false}
         text={text}
       />
+      </div>
       {offerPassword && (
-        <section aria-labelledby="criar-senha" className="flex flex-col gap-3 border-t border-neutral-300 pt-6">
-          <h2 id="criar-senha" className="text-2xl font-semibold">
+        <section aria-labelledby="criar-senha" className={cardClass()}>
+          <h2 id="criar-senha" className="text-2xl font-bold">
             {instance.password.sectionTitle}
           </h2>
           <PasswordForm saveAction={setPasswordAction} text={instance.password} idPrefix="perfil-senha" />
         </section>
       )}
-    </main>
+    </PageShell>
   );
 }
