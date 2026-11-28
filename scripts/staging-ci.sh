@@ -163,19 +163,23 @@ monta_e_testa() {
   # Senhas por papel num banco que já existe (#95): o volume novo passa no --conferir; um volume
   # "antigo" (postgres com login) reprova; o --aplicar conserta; a rotação mantém o app saudável e a
   # senha antiga deixa de entrar.
-  etapa senhas "deploy/senhas-papeis.sh: conferir, aplicar e rotacionar"
-  local senhas=(env COMPOSE_FILE="$DIR/docker-compose.supabase.yml" ENV_FILE="$ENV_FILE" SUPABASE_PROJETO="$PROJ")
-  "${senhas[@]}" bash "$RAIZ/deploy/senhas-papeis.sh" --conferir || return 1
-  printf '%s\n' "alter role postgres with login password 'volume-antigo';" \
-    | sb exec -T db psql -X -q -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
-  if "${senhas[@]}" bash "$RAIZ/deploy/senhas-papeis.sh" --conferir > /dev/null; then
-    echo "o --conferir não reprovou o postgres com login"; return 1
+  # Só na montagem normal: os revertidos têm de falhar na etapa deles, e um banco propositalmente
+  # quebrado (pgcrypto em public) não deixa o rest recriado subir, com qualquer senha.
+  if [ -z "$REVERTER" ]; then
+    etapa senhas "deploy/senhas-papeis.sh: conferir, aplicar e rotacionar"
+    local senhas=(env COMPOSE_FILE="$DIR/docker-compose.supabase.yml" ENV_FILE="$ENV_FILE" SUPABASE_PROJETO="$PROJ")
+    "${senhas[@]}" bash "$RAIZ/deploy/senhas-papeis.sh" --conferir || return 1
+    printf '%s\n' "alter role postgres with login password 'volume-antigo';" \
+      | sb exec -T db psql -X -q -v ON_ERROR_STOP=1 -U supabase_admin -d postgres
+    if "${senhas[@]}" bash "$RAIZ/deploy/senhas-papeis.sh" --conferir > /dev/null; then
+      echo "o --conferir não reprovou o postgres com login"; return 1
+    fi
+    "${senhas[@]}" bash "$RAIZ/deploy/senhas-papeis.sh" --aplicar || return 1
+    local antiga; antiga=$(sed -n 's/^AUTHENTICATOR_PASSWORD=//p' "$ENV_FILE")
+    "${senhas[@]}" SAUDE_CMD="curl -fsS $SITE/api/healthz" bash "$RAIZ/deploy/senhas-papeis.sh" --rotacionar AUTHENTICATOR_PASSWORD || return 1
+    [ "$(sed -n 's/^AUTHENTICATOR_PASSWORD=//p' "$ENV_FILE")" != "$antiga" ] || { echo "a senha do arquivo não mudou"; return 1; }
+    curl -fsS "$SITE/api/healthz" > /dev/null || { echo "o app não ficou saudável depois da rotação"; return 1; }
   fi
-  "${senhas[@]}" bash "$RAIZ/deploy/senhas-papeis.sh" --aplicar || return 1
-  local antiga; antiga=$(sed -n 's/^AUTHENTICATOR_PASSWORD=//p' "$ENV_FILE")
-  "${senhas[@]}" SAUDE_CMD="curl -fsS $SITE/api/healthz" bash "$RAIZ/deploy/senhas-papeis.sh" --rotacionar AUTHENTICATOR_PASSWORD || return 1
-  [ "$(sed -n 's/^AUTHENTICATOR_PASSWORD=//p' "$ENV_FILE")" != "$antiga" ] || { echo "a senha do arquivo não mudou"; return 1; }
-  curl -fsS "$SITE/api/healthz" > /dev/null || { echo "o app não ficou saudável depois da rotação"; return 1; }
 
   # Cadastro fechado no servidor (GOTRUE_DISABLE_SIGNUP): quem não tem conta não entra. O operador
   # cria as contas pelo deploy/criar-conta.sh (#332), como manda a receita do bootstrap; a chave de
