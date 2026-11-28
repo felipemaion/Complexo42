@@ -18,7 +18,7 @@ cat > "$BASE/bin/docker" << 'DUBLE'
 printf '%s\n' "$*" >> "$STUB_CHAMADAS"
 [ "$1" = exec ] || exit 0
 case "$*" in
-  *email-hmac.mjs*)
+  *createHmac*)
     cat > "$STUB_EMAIL_VISTO"
     [ -n "${STUB_APP_FALHA:-}" ] && exit 1
     printf '%s\n' "${STUB_HMAC:-$(printf 'a%.0s' $(seq 64))}"; exit 0 ;;
@@ -41,9 +41,8 @@ roda() { : > "$STUB_CHAMADAS"; : > "$STUB_SQL"; : > "$STUB_EMAIL_VISTO"; SAIDA=$
 roda "Ana.Teste@Exemplo.org"
 [ "$RC" = 0 ]; verifica "sai 0 no caminho feliz" $?
 grep -q 'ana.teste@exemplo.org' "$STUB_EMAIL_VISTO"; verifica "o container do app recebe o e-mail normalizado por stdin" $?
-grep -q 'ana' "$STUB_CHAMADAS"; r=$?; [ "$r" != 0 ]; verifica "nenhum argumento de docker leva o e-mail" $?
-grep -q '@' "$STUB_CHAMADAS"; r=$?; [ "$r" != 0 ]; verifica "nenhum argumento de docker leva arroba" $?
-grep -q 'exec -i app-teste node deploy/email-hmac.mjs' "$STUB_CHAMADAS"; verifica "o HMAC é pedido ao container do app" $?
+grep -q -i 'ana\.teste\|exemplo\.org' "$STUB_CHAMADAS"; r=$?; [ "$r" != 0 ]; verifica "nenhum argumento de docker leva o e-mail" $?
+grep -q 'exec -i app-teste node --input-type=module -e' "$STUB_CHAMADAS"; verifica "o HMAC é pedido ao container do app (código por -e, e-mail por stdin)" $?
 grep -q 'exec -i db-teste psql .*-U supabase_admin' "$STUB_CHAMADAS"; verifica "psql roda no container do banco como supabase_admin" $?
 grep -q 'ON_ERROR_STOP=1' "$STUB_CHAMADAS"; verifica "psql com ON_ERROR_STOP" $?
 grep -q "app.bootstrap_root_manager('$(printf 'a%.0s' $(seq 64))', 'ana.teste@exemplo.org', false)" "$STUB_SQL"; verifica "o SQL leva o HMAC, o e-mail e a flag false (por stdin)" $?

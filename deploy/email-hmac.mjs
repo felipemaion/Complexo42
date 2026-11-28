@@ -1,5 +1,5 @@
 // HMAC do e-mail (índice cego da lista de autorizados, ADR 0008 §1), para o bootstrap da primeira
-// coordenação (#295). Roda DENTRO do container do app (`docker exec -i <app> node deploy/email-hmac.mjs`),
+// coordenação (#295). Roda DENTRO do container do app (`docker exec -i <app> node --input-type=module -e "$(cat email-hmac.mjs)"`),
 // onde está a BLIND_INDEX_KEY: a chave nunca sai do app e o banco nunca a vê.
 //
 // Mesma conta de `emailBlindIndexWith` (src/server/crypto/field.ts): HMAC-SHA256(chave, "em:" + e-mail

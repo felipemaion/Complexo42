@@ -94,17 +94,17 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
 
 Num banco novo ninguém pode autorizar ninguém: a lista e o papel de gestor da raiz só mudam pela
 mão de um gestor da raiz. Quem abre esse ciclo é o **operador**, com `deploy/bootstrap-coordenacao.sh`
-(função `app.bootstrap_root_manager`, sem grant para a API). Ele **não é instalado**: roda do arquivo
-que veio na imagem do app (mesma versão do app e do `email-hmac.mjs`, que calcula o HMAC com a
-`BLIND_INDEX_KEY` do próprio app; a chave não sai dele).
+(função `app.bootstrap_root_manager`, sem grant para a API). Como o `migra.sh`, é **script de operador, instalado à mão como root** (ver a tabela de
+instalação, abaixo) e **fora da imagem** do app; o `email-hmac.mjs` fica ao lado dele e vai ao container
+do app por `node -e` para calcular o HMAC com a `BLIND_INDEX_KEY` dele (a chave não sai do app).
 
 ```bash
-# 1. a cópia do script, vinda da imagem em uso (fora do repositório, sem checkout no servidor)
-docker cp <container-do-app>:/app/deploy/bootstrap-coordenacao.sh /tmp/bootstrap-coordenacao.sh
-# 2. o e-mail entra por stdin (Enter para enviar); nunca por argumento
-APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
-  bash /tmp/bootstrap-coordenacao.sh
-rm /tmp/bootstrap-coordenacao.sh
+# uma vez, e a cada mudança dos dois arquivos: cópia à mão, como root
+sudo install -m 0755 deploy/bootstrap-coordenacao.sh /opt/complexo42/bootstrap-coordenacao.sh
+sudo install -m 0644 deploy/email-hmac.mjs /opt/complexo42/email-hmac.mjs
+# o e-mail entra por stdin (digite e Enter); nunca por argumento
+sudo APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
+  /opt/complexo42/bootstrap-coordenacao.sh
 ```
 
 - A pessoa **ainda não entrou**: o e-mail vai para a lista e o comando diz para ela entrar; depois de
@@ -963,6 +963,7 @@ deploy de reescrever o que ele mesmo executa.
 |---|---|---|
 | `/opt/complexo42/deploy.sh` | `deploy/deploy.sh` | **cópia à mão, como root** |
 | `/opt/complexo42/migra.sh` | `deploy/migra.sh` | **cópia à mão, como root** |
+| `/opt/complexo42/bootstrap-coordenacao.sh` e `email-hmac.mjs` | `deploy/` (mesmos nomes) | **cópia à mão, como root** (só no bootstrap, #295) |
 
 E estes **só existem no servidor** — não têm origem no repositório, então para
 eles a pergunta "está igual à `main`?" não faz sentido:

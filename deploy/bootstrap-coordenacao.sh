@@ -9,7 +9,8 @@
 #
 # - O e-mail entra SÓ por stdin: argumento apareceria em `ps` e no histórico do shell. Nada aqui
 #   o imprime, e o SQL também segue por stdin.
-# - O HMAC é calculado no container do APP (`deploy/email-hmac.mjs`, com a BLIND_INDEX_KEY dele):
+# - O HMAC é calculado no container do APP (`email-hmac.mjs`, ao lado deste, via `node -e`, com a
+#   BLIND_INDEX_KEY dele):
 #   a chave não sai do app e o banco só recebe o resultado.
 # - O psql roda DENTRO do container do banco como supabase_admin, sem -h e sem senha (socket local,
 #   como em deploy/migra.sh).
@@ -42,7 +43,9 @@ if ! printf '%s' "$EMAIL" | grep -Eq '^[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,190}\.[a
   echo "e-mail inválido" >&2; exit 2
 fi
 
-HMAC=$(printf '%s\n' "$EMAIL" | docker exec -i "$APP_CONTAINER" node deploy/email-hmac.mjs) \
+AQUI=$(cd "$(dirname "$0")" && pwd)
+# O código do HMAC vai por `node -e` (a imagem do app não traz scripts do operador); o e-mail, por stdin.
+HMAC=$(printf '%s\n' "$EMAIL" | docker exec -i "$APP_CONTAINER" node --input-type=module -e "$(cat "$AQUI/email-hmac.mjs")") \
   || { echo "falha ao calcular o HMAC no container do app" >&2; exit 1; }
 printf '%s' "$HMAC" | grep -Eq '^[0-9a-f]{64}$' || { echo "HMAC fora do formato; nada foi enviado ao banco" >&2; exit 1; }
 

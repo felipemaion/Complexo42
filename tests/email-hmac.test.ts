@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { emailBlindIndexWith } from "@/server/crypto/field";
 import { importKeyring } from "@/server/crypto/keys";
@@ -24,6 +25,13 @@ describe("deploy/email-hmac.mjs", () => {
       expect(r.stdout).toBe(`${esperado}\n`);
       expect(r.stdout.trim()).toMatch(/^[0-9a-f]{64}$/);
     }
+  });
+
+  it("funciona também pelo `node -e`, como o container do app o recebe", () => {
+    const codigo = readFileSync("deploy/email-hmac.mjs", "utf8");
+    const r = spawnSync("node", ["--input-type=module", "-e", codigo], { input: "ana@exemplo.org\n", encoding: "utf8", env: env as unknown as NodeJS.ProcessEnv });
+    expect(r.status).toBe(0);
+    expect(r.stdout.trim()).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("recusa e-mail inválido sem imprimir nada no stdout nem ecoar o valor", () => {

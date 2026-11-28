@@ -29,6 +29,8 @@ supabase/tests
 # imagem do app -- que roda sem privilegio e com o disco so leitura.
 deploy/*.test.sh
 deploy/backup.sh
+deploy/bootstrap-coordenacao.sh
+deploy/email-hmac.mjs
 deploy/deploy.sh
 deploy/enviar-backup.sh
 deploy/env.example
