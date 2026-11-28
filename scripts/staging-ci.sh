@@ -120,7 +120,6 @@ monta_e_testa() {
   define QUESTIONNAIRE_PATH /app/questionario/questionnaire.json
 
   etapa supabase "compose do Supabase com o deploy/initdb (banco vazio)"
-  if ! docker network inspect proxy > /dev/null 2>&1; then docker network create proxy > /dev/null; REDE_CRIADA=1; fi
   sb up -d --wait --wait-timeout 300 db auth rest kong
   docker run -d --name "$MAILPIT" --network "${PROJ}_interna" --network-alias mailpit \
     -p "127.0.0.1:$PORTA_MAILPIT:8025" "$MAILPIT_IMAGEM" > /dev/null
@@ -189,6 +188,9 @@ monta_e_testa() {
 
 # O subshell roda com -e próprio e o código dele decide. O trap de limpeza fica fora, para os
 # containers (e os logs) ainda existirem na conferência do caso revertido.
+# A rede `proxy` (externa nos dois composes) nasce AQUI, fora do subshell: marcada lá dentro, a
+# limpeza nunca saberia que foi este script que a criou.
+if ! docker network inspect proxy > /dev/null 2>&1; then docker network create proxy > /dev/null; REDE_CRIADA=1; fi
 set +e
 ( set -e; monta_e_testa )
 rc=$?
