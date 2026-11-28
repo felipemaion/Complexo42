@@ -127,7 +127,8 @@ points_ledger(id, unit_id, profile_id null, submission_id, points, reason,
 
 - **Preferir evidência pública e verificável:** número de protocolo, link da sessão da
   câmara, notícia, publicação oficial. Isso não carrega dado pessoal novo.
-- **Sem upload de fotos no POC.** Foto de ação na rua mostra terceiros.
+- **Sem upload de fotos de missão.** Foto de ação na rua mostra terceiros. (A foto do **rosto da
+  própria pessoa** é outra coisa: ver a revisão de 2026-11-28 no fim.)
 - **Missões de saúde (ex.: doação de sangue):** o fato "fulano doou sangue" é **dado de
   saúde, portanto sensível** (LGPD art. 5º, II). **O monitor decide como
   comprovar** (ex.: autodeclaração validada), mas a plataforma **não aceita upload de
@@ -149,3 +150,23 @@ points_ledger(id, unit_id, profile_id null, submission_id, points, reason,
 - (−) Mais tabelas e uma função crítica (`app.approve_submission`), que exige testes de
   permissão, idempotência e antifraude.
 - (−) Upload de logo exige moderação pelo monitor e cuidado com o formato (sem SVG).
+
+## Revisão de 2026-11-28: foto de rosto no perfil
+
+Na reunião com o Cortez, a coordenação disse que muitas vezes sabe o nome e o telefone da pessoa,
+mas não a reconhece. O Felipe decidiu que o perfil terá **uma miniatura do rosto guardada no
+servidor**, para a pessoa ser reconhecida na vida real. Isso muda "foto de rosto fora da coleta".
+Continuam sem upload as fotos de missão, de documento e de comprovante.
+
+- **Miniatura, não original:** o servidor redimensiona para ~256 px, converte para WebP (~20 KB),
+  **remove EXIF e metadados** e **descarta o original**; nada de arquivo bruto no disco.
+- **Regras do Cortez:** foto **da própria pessoa, real, estilo 3x4**; **sem anime e sem imagem
+  gerada por IA**. A coordenação **modera** (pode recusar e pedir outra).
+- **Quem vê:** só **membros logados**; nunca pública, nunca indexável. Cifrada como os outros dados
+  pessoais do perfil.
+- **Consentimento e exclusão:** a pessoa envia por ato próprio, com aviso do uso; troca ou remove
+  quando quiser; some junto da conta (cascata) e entra em "Baixar meus dados". Detalhes em
+  `docs/LGPD_E_SEGURANCA.md`.
+- **Em aberto:** se a foto é obrigatória (o Cortez disse que "não precisa ter se for complicado")
+  e o critério de moderação (como a coordenação confere que é real).
+- Implementação: #308; o termo e `MODELO_DADOS.md` mudam antes do código.

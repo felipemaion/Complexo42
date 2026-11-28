@@ -16,7 +16,7 @@
 | WhatsApp | `profile_contacts.whatsapp_enc` + `whatsapp_hmac` | AES-256-GCM + HMAC | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Redes sociais (máx. 5 URLs https) | `profile_contacts.social_links_enc` | AES-256-GCM | Coordenação do escopo (auditado); equipe e casa só se a pessoa autorizar (ADR 0010) |
 | Portfólio (máx. 3 links https) | `portfolio_items.url_enc` | AES-256-GCM | Escopo, porta-voz da equipe (ADR 0007 §5) |
-| Totem do questionário (ADR 0014) | `questionnaire_results.totem_enc` | AES-256-GCM | A pessoa, a coordenação nacional e quem ela delegou (`questionnaire_data_grants`); nunca na tela da casa |
+| Totem do questionário (ADR 0014) | `questionnaire_results.totem_enc` | AES-256-GCM | O código do totem (a medalha): todo membro logado, desde 2026-11-28 (#303; até lá, só a coordenação e a própria pessoa em "Baixar meus dados"). As notas e o resto: a pessoa, a coordenação nacional e quem ela delegou (`questionnaire_data_grants`) |
 | Respostas do pedido de análise (ADR 0014) | `house_analysis_requests.answers_enc` | AES-256-GCM (JSON) | A pessoa, a coordenação nacional e quem ela delegou; só com o pedido aberto |
 | Avaliação reservada | `member_evaluations.grade_enc`, `note_enc` | AES-256-GCM | **Só quem avaliou**; gestor por pedido auditado (ADR 0007 §4) [jurídico] |
 | E-mail de login | `auth.users` (Supabase) | Texto puro, gerenciado pelo Supabase | Coordenação do escopo, ao clicar em "ver contato" (auditado); equipe e casa só se a pessoa autorizar (ADR 0010). O dono o vê **mascarado** no cabeçalho (`fu***@g***.com`). Não é exportado em massa |
@@ -29,8 +29,8 @@ habilidades, missões, pontos e badges.
 O **totem** e as **respostas** do pedido de análise (ADR 0014) são dado pessoal e ficam
 **cifrados** (AES-256-GCM, ADR 0003): `questionnaire_results.totem_enc` e
 `house_analysis_requests.answers_enc`, com o AAD `tabela.coluna.<profile_id>`. O banco só guarda o
-valor; o servidor decifra. O totem aparece em "Baixar meus dados" (LGPD art. 18) e nunca na tela da
-casa. Quem lê: a própria pessoa, a coordenação nacional (gestor da raiz) e quem ela delegou
+valor; o servidor decifra. O totem aparece em "Baixar meus dados" (LGPD art. 18) e, como medalha, para os membros (ADR 0014,
+revisão de 2026-11-28); as notas dos eixos não. Quem lê: a própria pessoa, a coordenação nacional (gestor da raiz) e quem ela delegou
 (`questionnaire_data_grants`, abaixo). As respostas só existem com o pedido de análise aberto e são
 apagadas ao resolver.
 
@@ -40,7 +40,7 @@ apagadas ao resolver.
 ## Proibidos
 
 CPF, RG, título de eleitor, endereço/CEP, data de nascimento, gênero, raça, religião, filiação
-partidária, foto de rosto, foto de documento, geolocalização precisa, IP em tabela de negócio,
+partidária, foto de rosto (exceto a miniatura do perfil, ADR 0006 revisão de 2026-11-28, #308), foto de documento, geolocalização precisa, IP em tabela de negócio,
 e **qualquer coluna `display_name`, `whatsapp` ou `social_links` sem o sufixo `_enc`**.
 
 ## Entidades
@@ -307,7 +307,7 @@ coordenadores; quem já está na casa continua.
 `house_members`: `id`, `profile_id`, `house_key`, `join_method` (`self`, `questionnaire`),
 `consent_version` null (só pelo questionário), `joined_at`, `accepted_at` null, `left_at` null,
 `ended_by` null, `locked_until` (até quando a pessoa não troca a casa por conta própria; só o
-banco grava) e `moved` (encerrado por troca, não por remoção). Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
+banco grava; **sai com a janela de transferência, ADR 0016 e #302**) e `moved` (encerrado por troca, não por remoção). Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
 guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionnaire_results`
 (que a coordenação de território e de casa **não** leem).
 
@@ -330,7 +330,7 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   das mais novas), com o mesmo alcance. Ver ADR 0016.
 - **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a qualquer
   momento, com alcance de gestão sobre a pessoa (`can_manage_house_member`; a delegação de leitura
-  não basta), mantendo a trava; gera `house_changed` (`coordination`). Ver ADR 0016.
+  não basta), mantendo a trava (até a #302); gera `house_changed` (`coordination`). Ver ADR 0016.
 - **Quem lê e encerra** (RLS): a pessoa lê os próprios vínculos; a coordenação territorial
   (monitor ou manager acima do vínculo de território da pessoa) e o coordenador da casa aberta
   da pessoa, dentro do seu território, leem os vínculos aceitos de perfis ativos e podem
