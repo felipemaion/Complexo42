@@ -328,6 +328,7 @@ export const instance = parseInstanceConfig({
       house_locked: "Você ainda não pode trocar de casa. A troca por conta própria só é possível 4 meses depois do aceite do termo.",
       house_conflict: "A sua casa mudou enquanto você escolhia. Recarregue a página e veja a sua casa atual.",
       rate_limited: "Você acabou de enviar as suas respostas. Espere um pouco antes de tentar de novo, ou escolha a casa direto.",
+      app_updated: "O app foi atualizado ou a conexão caiu. Recarregue a página e tente de novo.",
       failed: "Não foi possível salvar agora. Tente de novo.",
     },
   },

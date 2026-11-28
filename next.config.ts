@@ -17,6 +17,8 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
+  // Version skew (#315): o sha do commit vem do build da imagem (Dockerfile); sem ele (dev, testes) fica desligado.
+  ...(process.env.GIT_SHA ? { deploymentId: process.env.GIT_SHA } : {}),
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders.map((header) => ({ ...header })) }];
   },

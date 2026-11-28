@@ -19,6 +19,10 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Identifica o build (#315): o Next põe o id em `?dpl=` nos assets e no cabeçalho das navegações, e a
+# página de um build antigo recarrega em vez de falar com o app novo. O sha é público.
+ARG GIT_SHA=""
+ENV GIT_SHA=${GIT_SHA}
 RUN npm run build
 
 FROM ${ALPINE_IMAGE} AS runtime
