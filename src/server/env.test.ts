@@ -10,7 +10,9 @@ const TURNSTILE = { TURNSTILE_SITE_KEY: `0x${"a".repeat(22)}`, TURNSTILE_SECRET_
 // NAO serve: o decodeKey exige round-trip, e o ultimo caractere de uma chave de
 // 32 bytes so tem 2 bits significativos. Reprovou no teste antes de eu notar.
 const CIFRA = { FIELD_ENCRYPTION_KEY: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=", BLIND_INDEX_KEY: "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=" };
-const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org", ...TURNSTILE, ...CIFRA };
+// Questionário real das casas (#313): obrigatório em produção; sem ele o app serviria o exemplo em silêncio.
+const QUESTIONARIO = { QUESTIONNAIRE_PATH: "/app/questionario/questionnaire.json" };
+const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org", ...TURNSTILE, ...CIFRA, ...QUESTIONARIO };
 const AUTH_MISSING = [
   "SUPABASE_URL: obrigatória em produção",
   "SUPABASE_ANON_KEY: obrigatória em produção",
@@ -19,6 +21,7 @@ const AUTH_MISSING = [
   "TURNSTILE_SECRET_KEY: obrigatória em produção",
   "FIELD_ENCRYPTION_KEY: obrigatória em produção",
   "BLIND_INDEX_KEY: obrigatória em produção",
+  "QUESTIONNAIRE_PATH: obrigatória em produção",
 ];
 
 describe("parseEnv", () => {
@@ -203,5 +206,28 @@ describe("Turnstile (#116)", () => {
 
   it("fora de produção são opcionais", () => {
     expect(parseEnv({ NODE_ENV: "test" }).ok).toBe(true);
+  });
+
+  describe("questionário real em produção (#313)", () => {
+    const prod = { NODE_ENV: "production", DB_HEALTH_URL: "http://rest:3001/ready", ...AUTH };
+
+    it("em produção, sem QUESTIONNAIRE_PATH o app não sobe e o erro cita só o nome", () => {
+      const { QUESTIONNAIRE_PATH: _fora, ...semCaminho } = prod;
+      void _fora;
+      expect(parseEnv(semCaminho)).toEqual({ ok: false, problems: ["QUESTIONNAIRE_PATH: obrigatória em produção"] });
+    });
+
+    it("variável vazia conta como ausente (ARG do Docker sem valor)", () => {
+      expect(parseEnv({ ...prod, QUESTIONNAIRE_PATH: "" }).ok).toBe(false);
+    });
+
+    it("em produção, com o caminho, sobe", () => {
+      expect(parseEnv(prod).ok).toBe(true);
+    });
+
+    it("fora de produção segue opcional: desenvolvimento, testes e CI usam o exemplo", () => {
+      expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
+      expect(parseEnv({ NODE_ENV: "test" }).ok).toBe(true);
+    });
   });
 });
