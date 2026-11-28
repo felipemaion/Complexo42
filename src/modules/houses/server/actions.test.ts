@@ -54,10 +54,10 @@ describe("log do aceite recusado (#313)", () => {
   });
 
   it("acceptHouseAction: idem, com o motivo traduzido e o código técnico", async () => {
-    client = clientFailing({ code: "C7603", message: "detalhe interno" }, 400);
+    client = clientFailing({ code: "C7605", message: "detalhe interno" }, 400);
     const houseId = instance.houses[0]!.id;
-    expect(await acceptHouseAction({ houseId, joinMethod: "self" })).toEqual({ ok: false, error: "house_locked" });
-    expect(warn).toHaveBeenCalledWith("house_accept_refused", { reason: "house_locked", pg_code: "C7603", status: 400 });
+    expect(await acceptHouseAction({ houseId, joinMethod: "self" })).toEqual({ ok: false, error: "window_closed" });
+    expect(warn).toHaveBeenCalledWith("house_accept_refused", { reason: "window_closed", pg_code: "C7605", status: 400 });
   });
 
   it("erro do PostgREST sem código de Postgres: loga o status", async () => {
