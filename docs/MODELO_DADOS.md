@@ -568,6 +568,15 @@ sem quem sugeriu.
 exclusão da conta apaga as duas (cascade). A tela da pessoa é `/perfil/habilidades` (busca e marcação múltipla,
 "x de 10", "Sugerir habilidade"); a fila é `/coordenacao/habilidades` (só a nacional).
 
+**Gestão do catálogo (#25).** `skills` é só de leitura pela API; só a coordenação nacional escreve, por funções que
+gravam o evento no `audit_log` (só ator, sem alvo): `create_skill` (`skill_created`), `rename_skill` (`skill_renamed`; o
+id não muda e o nome antigo vira sinônimo), `move_skill` (`skill_moved`), `rename_skill_group` (`skill_group_renamed`,
+operação à parte: muda o grupo de todas as habilidades dele), `set_skill_active` (`skill_deactivated` ou
+`skill_reactivated`; quem já marcou a habilidade desativada a mantém) e `merge_skills(de, para)` (`skill_merged`: troca
+nos perfis, quem já tinha as duas só perde a repetida, passa nome e sinônimos e desativa a antiga; trava as duas linhas
+na ordem do id). Grupo é a coluna `category`, sem tabela própria. Erros: `C7704` nome já existe (mesmo desativada),
+`C7705` mesclagem inválida. A tela é `/coordenacao/habilidades/catalogo` (só a nacional).
+
 **Busca de pessoas por habilidade (#23).** `search_people_by_skills(habilidades, modo, uf, município, distrito, equipe,
 sem_equipe, limite, cursor)` (security definer) roda no banco, pelo índice `(skill_id, profile_id)`. Escopo: a coordenação
 nacional (`manages_root`) vê todos os perfis ativos; os demais, só quem `app.can_view_profile` deixa (aplicado depois de o
