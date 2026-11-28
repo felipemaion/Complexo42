@@ -115,7 +115,9 @@ test("a nacional busca por habilidade (E e OU), o gestor de estado só vê o esc
   await expect(found(rootPage, inSp.id)).toHaveCount(1);
   await expect(found(rootPage, inMg.id)).toHaveCount(0);
   // A lista não traz contato.
-  expect((await rootPage.content()).toLowerCase()).not.toContain("whatsapp");
+  // (o resto da página, como o cabeçalho, pode ter outros textos: o que importa é o conteúdo de cada cartão)
+  const cards = (await rootPage.locator('[data-testid="person-result"]').allInnerTexts()).join(" ").toLowerCase();
+  expect(cards).not.toMatch(/whatsapp|wa\.me|\+55|contato/);
   await rootContext.close();
 
   const stateContext = await browser.newContext();

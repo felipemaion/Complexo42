@@ -51,6 +51,7 @@ select t.id, (select u.id from public.units as u where u.path = 'br.sp'::extensi
 from public.unit_types as t where t.key = 'team';
 create temp table team_ids (id uuid not null);
 insert into team_ids select id from public.units where slug = 'team_s';
+grant select on team_ids to authenticated;
 update public.unit_members set left_at = now() where profile_id = pg_temp.person('sp1') and left_at is null;
 insert into public.unit_members (unit_id, profile_id) select id, pg_temp.person('sp1') from team_ids;
 
