@@ -209,6 +209,15 @@ const valid = {
       failed: "t",
     },
   },
+  publicProfile: {
+    title: "t", badgesTitle: "t", noBadges: "t", photoAlt: "t", unreadableName: "t", backLink: "t",
+    badgeKinds: { house: "t", totem: "t" },
+    prefs: {
+      homeLink: "t", title: "t", intro: "t", showLabel: "t", orderLabel: "t", saveButton: "t", saved: "t",
+      errors: { invalid: "t", forbidden: "t", failed: "t" },
+      backLink: "t",
+    },
+  },
   skills: {
     homeLink: "t", title: "t", intro: "t", searchLabel: "t", counter: "t", limitReached: "t", empty: "t", saveButton: "t", saved: "t",
     suggestTitle: "t", suggestHint: "t", suggestLabel: "t", suggestButton: "t", suggested: "t", mySuggestionsTitle: "t",

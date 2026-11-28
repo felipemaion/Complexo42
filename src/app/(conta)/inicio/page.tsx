@@ -77,6 +77,10 @@ export default async function SignedInHome({ searchParams }: Props) {
           <Link href="/perfil/habilidades" className={action}>
             {instance.skills.homeLink}
           </Link>
+          {/* Medalhas do perfil público (#305): quais aparecem e em que ordem. */}
+          <Link href="/perfil/medalhas" className={action}>
+            {instance.publicProfile.prefs.homeLink}
+          </Link>
           {/* Senha opcional para entrar sem e-mail (ADR 0018). */}
           <Link href={PASSWORD_PATH} className={action}>
             {instance.password.homeLink}
