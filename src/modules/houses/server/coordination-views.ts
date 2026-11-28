@@ -140,14 +140,14 @@ export const maxResultRows = 200;
 
 /**
  * Pessoas com resultado que a RLS deixa ver a quem chama (nacional: todas as ativas; delegado: as do
- * escopo), das mais novas, SEM a própria pessoa. A lista não traz totem nem nota (nem os pede ao banco):
+ * escopo), das mais novas, a própria coordenação inclusive (#318; o banco só a inclui para quem é da
+ * coordenação). A lista não traz totem nem nota (nem os pede ao banco):
  * eles só aparecem ao abrir a pessoa, o que registra o acesso. `houseId` filtra pela casa (só casas da
  * config); `truncated` avisa que havia mais que a página.
  */
 export async function listResults(
   client: HouseClient,
   deps: ViewDeps,
-  viewerId: string,
   filter: { houseId?: string; otherHouse?: boolean },
 ): Promise<{ rows: ResultRow[]; truncated: boolean }> {
   const houseId = filter.houseId !== undefined && instance.houses.some((house) => house.id === filter.houseId) ? filter.houseId : undefined;
@@ -157,7 +157,7 @@ export async function listResults(
     // "Escolheu outra casa" é filtrado no banco, sobre todas as pessoas do alcance (não só a página).
     ({ data, error } = await client.rpc("coordination_other_house_results", { p_house: houseId ?? null, p_limit: maxResultRows + 1 }));
   } else {
-    let query = client.from("questionnaire_results").select("profile_id,house_key,created_at").neq("profile_id", viewerId);
+    let query = client.from("questionnaire_results").select("profile_id,house_key,created_at");
     if (houseId !== undefined) query = query.eq("house_key", houseId);
     ({ data, error } = await query.order("created_at", { ascending: false }).limit(maxResultRows + 1));
   }
