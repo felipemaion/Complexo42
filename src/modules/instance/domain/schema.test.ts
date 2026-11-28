@@ -213,8 +213,9 @@ const valid = {
     homeLink: "t", title: "t", intro: "t", searchLabel: "t", counter: "t", limitReached: "t", empty: "t", saveButton: "t", saved: "t",
     suggestTitle: "t", suggestHint: "t", suggestLabel: "t", suggestButton: "t", suggested: "t", mySuggestionsTitle: "t",
     statusOpen: "t", statusApproved: "t", statusRejected: "t", backLink: "t",
-    errors: { forbidden: "t", invalid: "t", limit: "t", not_found: "t", too_many_open: "t", daily_limit: "t", exists: "t", failed: "t" },
+    errors: { forbidden: "t", invalid: "t", limit: "t", not_found: "t", too_many_open: "t", daily_limit: "t", exists: "t", merge_invalid: "t", failed: "t" },
     queue: { menuLink: "t", title: "t", intro: "t", empty: "t", categoryLabel: "t", approveButton: "t", rejectButton: "t", decided: "t", backLink: "t" },
+    catalog: { menuLink: "t", title: "t", intro: "t", done: "t", createTitle: "t", nameLabel: "t", groupLabel: "t", groupHint: "t", createButton: "t", renameGroupLabel: "t", renameGroupButton: "t", renameButton: "t", moveButton: "t", mergeLabel: "t", mergeChoose: "t", mergeButton: "t", deactivateButton: "t", reactivateButton: "t", inactive: "t", queueLink: "t" },
     search: {
       menuLink: "t", title: "t", intro: "t", skillLabel: "t", removeSkill: "t", modeLabel: "t", modeAll: "t", modeAny: "t", stateLabel: "t", municipalityLabel: "t", municipalityAny: "t", municipalityHint: "t", teamFilterLabel: "t", teamAny: "t",
       noTeamLabel: "t", submitButton: "t", choose: "t", noResults: "t", more: "t", unreadableName: "t", inCommon: "t", teamLabel: "t", noTeam: "t",

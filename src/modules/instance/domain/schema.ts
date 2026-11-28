@@ -425,8 +425,10 @@ export const instanceConfigSchema = z.strictObject({
     statusApproved: text,
     statusRejected: text,
     backLink: text,
-    errors: z.strictObject({ forbidden: text, invalid: text, limit: text, not_found: text, too_many_open: text, daily_limit: text, exists: text, failed: text }),
+    errors: z.strictObject({ forbidden: text, invalid: text, limit: text, not_found: text, too_many_open: text, daily_limit: text, exists: text, merge_invalid: text, failed: text }),
     queue: z.strictObject({ menuLink: text, title: text, intro: text, empty: text, categoryLabel: text, approveButton: text, rejectButton: text, decided: text, backLink: text }),
+    /** Gestão do catálogo pela coordenação nacional (#25). */
+    catalog: z.strictObject({ menuLink: text, title: text, intro: text, done: text, createTitle: text, nameLabel: text, groupLabel: text, groupHint: text, createButton: text, renameGroupLabel: text, renameGroupButton: text, renameButton: text, moveButton: text, mergeLabel: text, mergeChoose: text, mergeButton: text, deactivateButton: text, reactivateButton: text, inactive: text, queueLink: text }),
     /** Busca de pessoas por habilidade (#23). `{count}` é trocado na tela. */
     search: z.strictObject({
       menuLink: text,
