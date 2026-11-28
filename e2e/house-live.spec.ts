@@ -290,8 +290,9 @@ test("escolher outra casa depois do questionário: compara as casas antes de con
 
   // Casa do polo oposto nos dois eixos: todas as respostas "muito a" contradizem o que ela espera.
   const opposite = questionnaire.houseByPoles.bb;
-  // O nome da casa é o primeiro texto do cartão (o config/instance não carrega sob o Playwright: usa server-only).
-  const oppositeName = (await page.getByTestId(`compare-house-${opposite}`).innerText()).split("\n")[0]!.trim();
+  // O nome da casa é o alt do escudo do cartão (o config/instance não carrega sob o Playwright: usa server-only). O texto
+  // visível do cartão vai em MAIÚSCULAS por CSS, então innerText não serve.
+  const oppositeName = (await page.getByTestId(`compare-house-${opposite}`).getByRole("img").getAttribute("alt"))!;
   await page.getByTestId(`compare-house-${opposite}`).click();
   const houseItems = questionnaire.axes.house1.itemIds.length + questionnaire.axes.house2.itemIds.length;
   await expect(page.getByTestId("expectation")).toHaveCount(houseItems);
