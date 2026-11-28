@@ -331,6 +331,11 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   sugerida de `questionnaire_results`; só casas e datas, nada do totem. O filtro "escolheu outra casa" é
   `coordination_other_house_results(casa, limite)`: no banco, sobre todas as pessoas do alcance (até 201,
   das mais novas), com o mesmo alcance. Ver ADR 0016.
+  **A própria linha (#318):** a RLS (`app.can_read_questionnaire_data`) deixa a pessoa ler o próprio resultado só
+  enquanto ela está em onboarding (`app.is_onboarding_member()`: liberada pela lista), não "qualquer membro". As
+  funções `coordination_chosen_houses`, `coordination_other_house_results` e `log_questionnaire_view` incluem quem
+  chama apenas se for da coordenação (`app.manages_root()` ou `app.holds_questionnaire_grant()`); quem não é
+  não recebe a própria linha nem grava auditoria sobre si.
 - **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a qualquer
   momento, hoje com alcance de gestão sobre a pessoa (`can_manage_house_member`; a delegação de leitura
   não basta), mantendo a trava; **a #302 restringe à coordenação nacional e tira a trava** (ADR 0016); gera `house_changed` (`coordination`). Ver ADR 0016.
