@@ -161,7 +161,7 @@ const valid = {
     minAverageMembers: 10,
     averageCacheSeconds: 600,
     compare: {
-      title: "t", intro: "t", suggestedBadge: "t", currentBadge: "t", expiredReload: "t", selectedBadge: "t", yourProfileLabel: "t", chartTitle: "t", averageLabel: "t",
+      title: "t", intro: "t", suggestedBadge: "t", currentBadge: "t", currentLabel: "t", suggestedLabel: "t", expiredReload: "t", selectedBadge: "t", yourProfileLabel: "t", chartTitle: "t", averageLabel: "t",
       averageNote: "t", fewMembers: "t", averageUnavailable: "t", expectTitle: "t", expectIntro: "t", expectNone: "t",
       expectUnavailable: "t", loading: "t", confirmButton: "t", backButton: "t",
     },

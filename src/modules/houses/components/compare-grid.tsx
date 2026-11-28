@@ -26,6 +26,8 @@ export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, t
       {houses.map((house) => {
         const isSelected = house.id === selectedId;
         const color = colorOf(house.color);
+        // Com outra casa selecionada, a atual leva uma borda leve (2 px, cor da casa esmaecida) para continuar identificável.
+        const isCurrentIdle = house.id === currentId && !isSelected;
         return (
           <li key={house.id} className="flex">
             <button
@@ -35,7 +37,7 @@ export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, t
                 borderWidth: isSelected ? 4 : 2,
                 // A borda grossa não empurra o conteúdo: o padding compensa os 2 px a mais.
                 padding: isSelected ? "14px 10px" : "16px 12px",
-                borderColor: isSelected ? color : neutralBorder,
+                borderColor: isSelected ? color : isCurrentIdle ? `color-mix(in srgb, ${color} 55%, transparent)` : neutralBorder,
                 ...(isSelected && { backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)` }),
               }}
               aria-pressed={isSelected}
@@ -62,11 +64,11 @@ export function CompareHouseGrid({ houses, suggestedId, currentId, selectedId, t
                 testId="house-shield"
                 fluid={{ className: "size-[72px] sm:size-[96px]", sizes: "(min-width: 640px) 96px, 72px" }}
               />
-              <span className="text-lg font-bold uppercase tracking-wide">{house.name}</span>
+              <span className="max-w-full break-words hyphens-auto text-lg font-bold uppercase tracking-wide">{house.name}</span>
               {(house.id === currentId || house.id === suggestedId || isSelected) && (
                 <span className="flex flex-wrap items-center justify-center gap-1">
-                  {house.id === currentId && <span className={chip} data-testid="current-badge">{text.currentBadge}</span>}
-                  {house.id === suggestedId && <span className={chip} data-testid="suggested-badge">{text.suggestedBadge}</span>}
+                  {house.id === currentId && <span className={chip} data-testid="current-badge"><span aria-hidden="true">{text.currentBadge}</span><span className="sr-only">{text.currentLabel}</span></span>}
+                  {house.id === suggestedId && <span className={chip} data-testid="suggested-badge"><span aria-hidden="true">{text.suggestedBadge}</span><span className="sr-only">{text.suggestedLabel}</span></span>}
                   {isSelected && <span className="text-sm font-semibold">{text.selectedBadge}</span>}
                 </span>
               )}
