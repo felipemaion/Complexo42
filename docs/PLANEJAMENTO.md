@@ -1,6 +1,6 @@
 # Planejamento do POC
 
-> Versão 0.1 (2026-11-09). Rascunho antes da reunião de kickoff. Itens marcados **[?]**
+> Versão 0.2 (2026-11-28). Itens marcados **[?]**
 > dependem de resposta em `PERGUNTAS_STAKEHOLDER.md`.
 
 ## 0. Contexto (atualizado em 2026-11-09)
@@ -62,8 +62,14 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 1. **Cadastro e perfil**: nome, WhatsApp, município/bairro, habilidades, links de redes
    sociais e "feitos". Consentimento LGPD, edição e exclusão da própria conta. Acesso só
    pela **lista de autorizados**, com lista de espera (ADR 0008 §1).
-2. **Casa de formação** (ADR 0008 §2): escolha direta ou por questionário, apresentação da
-   casa ("primeiros passos") e aceite.
+2. **Casa de formação** (ADR 0008 §2, ADR 0014): ordem de entrada termo → questionário →
+   casa → perfil; sem casa a pessoa não vê nada. O questionário tem 26 perguntas (chave do
+   Cortez, pesos 1-3-5, sem empate) e situa a pessoa em dois eixos (Ação×Contemplação e
+   Leis×Costumes); o totem nunca aparece para ela, só no detalhe da coordenação. Casas:
+   Esparta, Atenas, Alexandria e Siracusa. A sugestão não obriga: a escolha é livre, com a
+   comparação 2×2 ("Compare as casas": média real dos membros com n ≥ 10 e expectativas por
+   pergunta; respostas guardadas cifradas). Trava de 4 meses para trocar de casa, que a
+   pessoa troca pela tela de comparação; a coordenação troca a qualquer momento.
 3. **Painel da coordenação**: lista com filtros por habilidade e região, contagem por região.
 4. **Equipes**: criar equipe, adicionar e remover membros, definir líder.
 5. **Missões** (ADR 0006): catálogo de missões com etapas e pontos (ex.: escrever um projeto
@@ -89,7 +95,8 @@ executa com **medalhas virtuais**. Tudo isso com o mínimo de dados pessoais e c
 - Upload de fotos, documentos e logos (fase 2; ver ADR 0006 §2 e §7).
 - Ranking público **individual** (o placar é só entre turmas).
 - Chat/salas internas (a discussão segue no WhatsApp da turma).
-- Testes de personalidade e o módulo de formação de porta-vozes (ADR 0007 §6).
+- Testes de personalidade e o módulo de formação de porta-vozes (ADR 0007 §6). O questionário
+  das casas (ADR 0014) é outra coisa: situa a pessoa numa casa, não avalia personalidade.
 - Importação de bases existentes: cada pessoa se cadastra do zero.
 - Coordenação multi-estado (fica preparada no modelo, mas não é exposta na interface).
 
@@ -110,8 +117,11 @@ dados [?].
 ## 5. Requisitos funcionais (histórias)
 
 **Cadastro (M1)**
-- RF01: Como aluno, entro pela página a partir de um link de convite e faço login.
+- RF01: Como aluno, faço login por link no e-mail, Google ou senha opcional (ADR 0018), se o
+  meu e-mail estiver na lista de autorizados (a coordenação usa "Autorizar um e-mail").
 - RF02: Como aluno, aceito o termo de consentimento antes de preencher o perfil.
+- RF03a: Como aluno, respondo o questionário e vejo a casa sugerida; comparo as casas e escolho
+  (livre). Troco de casa só depois da trava de 4 meses.
 - RF03: Como aluno, preencho nome, WhatsApp, município/bairro, habilidades, redes e feitos.
 - RF04: Como aluno, edito meu perfil a qualquer momento.
 - RF05: Como aluno, excluo minha conta e meus dados são apagados de fato.
@@ -171,7 +181,7 @@ Next.js (container no servidor próprio)
    │  sessão do usuário (JWT); nunca service_role no cliente
    ▼
 Supabase auto-hospedado mínimo (rede interna; só /auth/v1 é público)
-   - Auth (Google / link mágico)
+   - Auth (Google / link por e-mail / senha opcional)
    - Postgres com RLS em TODAS as tabelas (negado por padrão)
    - Funções SQL para regras de medalha (security definer, testadas)
 ```
@@ -190,7 +200,7 @@ testes de banco. O maior risco dela, que é tabela sem RLS, é coberto por teste
 | Recursos do servidor (2 vCPU, 12 GB, compartilhados) estouram na expansão | Baixa (piloto) | Médio | Limites por serviço, teste de carga (#75) e monitoramento (#85) |
 | Voluntários abandonam o projeto | Alta | Médio | Issues pequenas e autocontidas; documentação forte; dois mantenedores |
 | Escopo cresce ("vira um Trello completo") | Alta | Médio | Lista "fora do POC" explícita; toda mudança de escopo passa pelo stakeholder |
-| Cadastros falsos ou spam | Média | Baixo | Link de convite + aprovação [?] |
+| Cadastros falsos ou spam | Média | Baixo | Lista de autorizados (#26): só entra quem a coordenação autorizou |
 | Dados de menores | Média | Alto | Bloquear menores de 18 no piloto [?] |
 
 ## 9. Equipe e cadência (sugestão)
