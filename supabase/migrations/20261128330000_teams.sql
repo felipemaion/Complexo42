@@ -1,9 +1,15 @@
 -- Equipes (#28 e #29, ADR 0007 §2, ADR 0002): criar equipe, adicionar e remover membros, definir o líder e arquivar. A equipe
 -- é uma `unit` do tipo `team` (sem entidade nova). A API continua SEM INSERT/UPDATE direto em `units` e `unit_members`:
 -- tudo passa por estas funções (security definer, search_path vazio), que conferem o escopo de quem chama
--- (`app.can_manage_unit`) e gravam `member_moved` com ator, alvo e as duas unidades, sem nome.
+-- (`app.can_manage_unit`) e gravam `member_moved` com ator, alvo e as duas unidades, sem nome. O UPDATE direto em
+-- `unit_members` (papel no grupo e encerramento) também sai da API (seção 0): nenhuma tela o usava, e por ele dava para
+-- criar dois líderes ou encerrar um vínculo sem `member_moved`.
 -- Uma pessoa tem UM vínculo aberto por vez (`unit_members_one_open_per_profile`): entrar numa equipe encerra o anterior
 -- (o da unidade do estado ou o de outra equipe); sair da equipe devolve a pessoa à unidade do estado dela.
+
+-- 0. Sem UPDATE direto em `unit_members`: papel e encerramento só pelas funções abaixo (`set_team_lead`, `remove_team_member`).
+revoke update (member_role, left_at) on public.unit_members from authenticated;
+drop policy unit_members_update on public.unit_members;
 
 -- 1. `member_moved` passa a guardar de onde e para onde (ids de unidade, sem FK: o registro sobrevive).
 alter table public.audit_log
@@ -86,7 +92,7 @@ comment on function public.create_team(uuid, text) is
   'Cria uma equipe (unidade do tipo team) abaixo de uma unidade que quem chama gerencia (#28).';
 
 -- 4. Adicionar pessoas à equipe, uma resposta por id (adicionada ou recusada, sem dizer o motivo). Recusa: a própria
---    pessoa que chama, quem não passa em `can_view_profile`, quem está numa equipe que quem chama NÃO gerencia, e (com
+--    pessoa que chama, quem não passa em `can_view_profile`, quem tem vínculo numa unidade de origem (equipe ou não) que quem chama NÃO gerencia, e (com
 --    `p_max`) o que passaria do teto de membros. Quem já está na equipe conta como adicionada, sem gravar nada.
 create or replace function public.add_team_members(p_team uuid, p_profiles uuid[], p_max integer default null)
 returns table (profile_id uuid, added boolean)
@@ -99,12 +105,13 @@ declare
   caller uuid := (select auth.uid());
   pid uuid;
   current_unit uuid;
-  current_is_team boolean;
   open_count integer;
 begin
   if caller is null or p_team is null or not app.is_active_member() or not app.can_manage_unit(p_team) then
     raise exception 'sem permissão para mexer nesta equipe' using errcode = 'insufficient_privilege';
   end if;
+  -- Trava a equipe ANTES de conferir se está ativa: sem isso, um `archive_team` concorrente passa entre a checagem e a trava.
+  perform 1 from public.units as u where u.id = p_team for update;
   if not exists (
     select 1 from public.units as u join public.unit_types as t on t.id = u.type_id
     where u.id = p_team and t.is_team and u.status = 'active'
@@ -115,8 +122,6 @@ begin
     raise exception 'lista de pessoas inválida' using errcode = 'invalid_parameter_value';
   end if;
 
-  perform 1 from public.units as u where u.id = p_team for update;
-
   for pid in select distinct x from unnest(p_profiles) as x where x is not null order by x loop
     profile_id := pid;
     added := false;
@@ -124,16 +129,13 @@ begin
 
     if pid <> caller and app.can_view_profile(pid) then
       current_unit := null;
-      current_is_team := false;
-      select m.unit_id, t.is_team into current_unit, current_is_team
+      select m.unit_id into current_unit
       from public.unit_members as m
-      join public.units as u on u.id = m.unit_id
-      join public.unit_types as t on t.id = u.type_id
       where m.profile_id = pid and m.left_at is null;
 
       if current_unit = p_team then
         added := true;
-      elsif current_unit is null or not current_is_team or app.can_manage_unit(current_unit) then
+      elsif current_unit is null or app.can_manage_unit(current_unit) then
         select count(*) into open_count from public.unit_members as m where m.unit_id = p_team and m.left_at is null;
         if p_max is null or open_count < p_max then
           update public.unit_members as m set left_at = now() where m.profile_id = pid and m.left_at is null;
@@ -165,6 +167,13 @@ declare
 begin
   if caller is null or p_team is null or p_profile is null or not app.is_active_member() or not app.can_manage_unit(p_team) then
     raise exception 'sem permissão para mexer nesta equipe' using errcode = 'insufficient_privilege';
+  end if;
+  perform 1 from public.units as u where u.id = p_team for update;
+  if not exists (
+    select 1 from public.units as u join public.unit_types as t on t.id = u.type_id
+    where u.id = p_team and t.is_team and u.status = 'active'
+  ) then
+    raise exception 'equipe inválida' using errcode = 'invalid_parameter_value';
   end if;
   perform 1 from public.profiles as p where p.id = p_profile for update;
   if not exists (select 1 from public.unit_members as m where m.unit_id = p_team and m.profile_id = p_profile and m.left_at is null) then
@@ -201,6 +210,12 @@ begin
     raise exception 'sem permissão para mexer nesta equipe' using errcode = 'insufficient_privilege';
   end if;
   perform 1 from public.units as u where u.id = p_team for update;
+  if not exists (
+    select 1 from public.units as u join public.unit_types as t on t.id = u.type_id
+    where u.id = p_team and t.is_team and u.status = 'active'
+  ) then
+    raise exception 'equipe inválida' using errcode = 'invalid_parameter_value';
+  end if;
   if p_profile is not null and not exists (
     select 1 from public.unit_members as m where m.unit_id = p_team and m.profile_id = p_profile and m.left_at is null
   ) then

@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(41);
+select plan(51);
 
 truncate public.questionnaire_data_grants, public.role_assignments, public.unit_members, public.house_members, public.units;
 
@@ -33,7 +33,9 @@ insert into people values
   ('p1',      '00000000-0000-0000-0000-0000000002b1', 'p1@exemplo.org'),
   ('p2',      '00000000-0000-0000-0000-0000000002b2', 'p2@exemplo.org'),
   ('p3',      '00000000-0000-0000-0000-0000000002b3', 'p3@exemplo.org'),
-  ('wl',      '00000000-0000-0000-0000-0000000002b4', 'wl@exemplo.org');      -- na espera
+  ('wl',      '00000000-0000-0000-0000-0000000002b4', 'wl@exemplo.org'),      -- na espera
+  ('zl_spk',  '00000000-0000-0000-0000-0000000002a5', 'zl.spk@exemplo.org'),  -- porta-voz de zl e monitor de abc
+  ('p4',      '00000000-0000-0000-0000-0000000002b5', 'p4@exemplo.org');      -- vai para a unidade zl
 insert into auth.users (id, email) select id, email from people;
 create function pg_temp.person(p_name text) returns uuid language sql stable as $$ select id from people where name = p_name $$;
 create function pg_temp.login(p_name text) returns void language sql as $$
@@ -50,7 +52,9 @@ insert into public.role_assignments (profile_id, role, unit_id) values
   (pg_temp.person('nat'), 'manager', pg_temp.unit('br')),
   (pg_temp.person('sp_mgr'), 'manager', pg_temp.unit('sp')),
   (pg_temp.person('abc_mon'), 'monitor', pg_temp.unit('abc')),
-  (pg_temp.person('zl_mon'), 'monitor', pg_temp.unit('zl'));
+  (pg_temp.person('zl_mon'), 'monitor', pg_temp.unit('zl')),
+  (pg_temp.person('zl_spk'), 'spokesperson', pg_temp.unit('zl')),
+  (pg_temp.person('zl_spk'), 'monitor', pg_temp.unit('abc'));
 -- Membro de verdade exige a casa aceita (ADR 0017).
 insert into public.houses (key, active) select 'g-' || id::text, true from people on conflict do nothing;
 insert into public.house_members (profile_id, house_key, join_method, joined_at, accepted_at)
@@ -177,6 +181,53 @@ select is((select status from public.units where id = (select id from made where
 select throws_ok(
   $$ select * from public.add_team_members((select id from made where n = 3), array[pg_temp.person('p1')]) $$,
   '22023', null, 'equipe arquivada não recebe membros'
+);
+
+-- Achado 1: a origem sem gestão recusa SEMPRE, equipe ou não. zl_spk enxerga p4 (porta-voz de zl) e gerencia a equipe
+-- (monitor de abc), mas não gerencia zl, onde p4 está.
+reset role;
+update public.unit_members set left_at = now() where profile_id = pg_temp.person('p4') and left_at is null;
+insert into public.unit_members (unit_id, profile_id) values (pg_temp.unit('zl'), pg_temp.person('p4'));
+set local role authenticated;
+select pg_temp.login('zl_spk');
+select is(
+  (select count(*)::int from public.add_team_members((select id from made where n = 2), array[pg_temp.person('p4')]) where added),
+  0, 'quem só é porta-voz noutro ramo NÃO puxa a pessoa dele para a equipe'
+);
+select pg_temp.login('sp_mgr');
+select is(
+  (select count(*)::int from public.add_team_members((select id from made where n = 2), array[pg_temp.person('p4')]) where added),
+  1, 'quem gerencia a unidade de origem move a mesma pessoa (controle)'
+);
+
+-- Achado 2: remover e definir líder só em equipe ativa
+select pg_temp.login('abc_mon');
+select throws_ok($$ select public.remove_team_member(pg_temp.unit('abc'), pg_temp.person('p3')) $$, '22023', null, 'remover membro de uma unidade que não é equipe é recusado');
+select throws_ok($$ select public.set_team_lead(pg_temp.unit('abc'), pg_temp.person('p3')) $$, '22023', null, 'definir líder numa unidade que não é equipe é recusado');
+select throws_ok($$ select public.remove_team_member((select id from made where n = 3), pg_temp.person('p1')) $$, '22023', null, 'remover membro de equipe arquivada é recusado');
+select throws_ok($$ select public.set_team_lead((select id from made where n = 3), null) $$, '22023', null, 'definir líder em equipe arquivada é recusado');
+
+-- Achado 3: add_team_members trava a equipe antes de conferir se está ativa (corrida com archive_team). Corrida de verdade
+-- exige duas sessões; aqui a ordem fica fixada no corpo da função.
+select ok(
+  (select position('for update' in prosrc) between 1 and position('u.status = ''active''' in prosrc) - 1
+   from pg_proc where oid = 'public.add_team_members(uuid, uuid[], integer)'::regprocedure),
+  'add_team_members trava a equipe (for update) antes de checar o status'
+);
+
+-- Achado 4: sem UPDATE direto em unit_members (dois líderes ou vínculo encerrado sem member_moved)
+select ok(
+  not has_column_privilege('authenticated', 'public.unit_members', 'member_role', 'UPDATE')
+  and not has_column_privilege('authenticated', 'public.unit_members', 'left_at', 'UPDATE'),
+  'a API não tem UPDATE em member_role nem em left_at'
+);
+select throws_ok(
+  $$ update public.unit_members set member_role = 'lead' where unit_id = (select id from made where n = 2) $$,
+  '42501', null, 'UPDATE direto de papel no grupo é negado ao monitor da equipe'
+);
+select throws_ok(
+  $$ update public.unit_members set left_at = now() where unit_id = (select id from made where n = 2) $$,
+  '42501', null, 'UPDATE direto que encerra vínculo é negado ao monitor da equipe'
 );
 
 -- Sem sessão e anônimo
