@@ -101,8 +101,8 @@ select columns_are('public', 'access_allowlist',
   'access_allowlist tem exatamente as colunas do modelo de dados (sem e-mail nem nome)');
 select columns_are('public', 'audit_log',
   array['id', 'actor_id', 'event', 'target_id', 'item_count', 'reason', 'term_version', 'house_key',
-        'unit_id', 'grant_id', 'created_at'],
-  'audit_log tem só ids, evento, quantidade, motivo, versão do termo, casa, unidade e concessão (estas só na delegação) e data');
+        'unit_id', 'grant_id', 'created_at', 'from_unit_id', 'to_unit_id'],
+  'audit_log tem só ids, evento, quantidade, motivo, versão do termo, casa, unidade e concessão (estas só na delegação), as duas unidades de uma mudança de equipe (só em member_moved) e data');
 select columns_are('public', 'access_waitlist_hmac',
   array['profile_id', 'email_hmac', 'created_at'],
   'access_waitlist_hmac tem só o perfil, o HMAC e a data');

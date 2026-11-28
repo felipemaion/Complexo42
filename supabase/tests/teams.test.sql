@@ -166,10 +166,12 @@ select pg_temp.login('abc_mon');
 select throws_ok($$ select public.archive_team((select id from made where n = 3)) $$, '22023', null, 'equipe com membros não é arquivada');
 select is(public.remove_team_member((select id from made where n = 3), pg_temp.person('p1')), true, 'o monitor remove o membro');
 select is(public.remove_team_member((select id from made where n = 3), pg_temp.person('p1')), false, 'remover de novo devolve falso');
+select pg_temp.login('sp_mgr');
 select is(
   (select m.unit_id from public.unit_members as m where m.profile_id = pg_temp.person('p1') and m.left_at is null),
   pg_temp.unit('sp'), 'quem sai da equipe volta à unidade do estado'
 );
+select pg_temp.login('abc_mon');
 select lives_ok($$ select public.archive_team((select id from made where n = 3)) $$, 'equipe vazia é arquivada');
 select is((select status from public.units where id = (select id from made where n = 3)), 'archived', 'a equipe arquivada fica com status archived');
 select throws_ok(
