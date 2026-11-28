@@ -67,6 +67,7 @@ questionnaire_consents (aceite do termo do questionário das casas: versão e da
 questionnaire_results (1:1 com profiles: casa sugerida e totem cifrado; leem a pessoa, a coordenação nacional e quem ela delegou, ADR 0014)
 house_analysis_requests (fila de casos antigos e de correção pela coordenação, sem empate desde a chave de #211; as respostas, cifradas, só existem com o pedido aberto, ADR 0014)
 questionnaire_data_grants (delegação: a coordenação nacional concede a um gestor o acesso ao totem e aos pedidos do escopo dele, ADR 0014)
+house_transfer_window (uma linha: janela de transferência de casa aberta ou fechada, sem datas; só a coordenação nacional a muda, ADR 0016)
 consent_acceptances (aceite do termo de consentimento, por conta e versão; existe antes do perfil, #11)
 
 missions ─< mission_steps
@@ -169,7 +170,7 @@ com a lista importada.
 | Coluna | Tipo | Observação |
 |---|---|---|
 | `id` | uuid PK | = `auth.users.id` |
-| `display_name_enc` | text null | 🔒 `v1.iv.ct` (ADR 0003 §3); nulo só em perfil incompleto. O nome completo é obrigatório; a exigência de sobrenome é a #312 |
+| `display_name_enc` | text null | 🔒 `v1.iv.ct` (ADR 0003 §3); nulo só em perfil incompleto. O nome completo (nome e sobrenome) é obrigatório ao gravar; nomes antigos de uma palavra seguem válidos e ganham um aviso no perfil e no /inicio (#312). O banco só vê o texto cifrado e não confere |
 | `municipality_code` | int FK null | IBGE; nulo só em perfil incompleto |
 | `profile_completed_at` | timestamptz null | nulo = perfil **incompleto** (ADR 0017): a linha nasce no primeiro login de quem está na lista de autorizados, sem nome, município, UF nem versão do termo; `save_own_profile` completa e marca; CHECK: nome, município, UF e termo não nulos quando completo; uma linha gravada já com nome, município e termo nasce completa (trigger); `consent_at` também só é nulo enquanto incompleto (a linha incompleta não grava data de termo que não houve); trigger: nunca volta a nulo. Quem não está na lista não ganha linha até salvar o perfil |
 | `state_code` | char(2) null | derivado do município (trigger; nulo em perfil incompleto); no cadastro, o aluno entra na unidade do seu estado |
@@ -201,7 +202,7 @@ O papel **não** fica no perfil: fica em `role_assignments`.
   vale (sem escopo, não concede nem revoga) e a pessoa não lê `unit_types`, `units`,
   `unit_members` nem `role_assignments`. Em `waitlisted` ou `blocked`, lê só o próprio perfil;
   em `pending` (ou ainda sem perfil), lê também `municipalities`, para se cadastrar.
-- **Validação do texto** (nome de 2 a 80 caracteres, WhatsApp em E.164, até 5 URLs https) fica
+- **Validação do texto** (nome com ao menos duas palavras de 2 letras e até 80 caracteres, WhatsApp em E.164, até 5 URLs https) fica
   no schema Zod de `src/modules/profiles/`, aplicado no servidor antes de cifrar. O banco só
   confere o formato `v<n>.<iv>.<ct>` e um teto de tamanho.
 
@@ -309,8 +310,8 @@ coordenadores; quem já está na casa continua.
 
 `house_members`: `id`, `profile_id`, `house_key`, `join_method` (`self`, `questionnaire`),
 `consent_version` null (só pelo questionário), `joined_at`, `accepted_at` null, `left_at` null,
-`ended_by` null, `locked_until` (até quando a pessoa não troca a casa por conta própria; só o
-banco grava; **sai com a janela de transferência, ADR 0016 e #302**) e `moved` (encerrado por troca, não por remoção). Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
+`ended_by` null e `moved` (encerrado por troca, não por remoção; **sem trava individual**: a troca
+depende da janela de transferência, ADR 0016). Um vínculo aberto por pessoa, **sem depender de região**. Do questionário,
 guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionnaire_results`
 (que a coordenação de território e de casa **não** leem).
 
@@ -320,10 +321,9 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   (`security definer`): a própria pessoa, liberada e ativa (conferido depois de travar o
   perfil); a casa precisa existir e estar ativa; `questionnaire` exige o aceite de
   **exatamente** essa versão do termo, gravada em `consent_version` (nula em `self`); uma casa
-  já aceita só é trocada pela pessoa depois de `locked_until` (4 meses do mais tardio entre o aceite
-  do termo do questionário e o aceite da casa; relógio do servidor), senão `C7603` (`C7604` se a
-  casa mudou no meio da troca); a troca
-  reinicia a trava e gera `house_changed` (`self`). Repetir a mesma casa devolve o mesmo
+  já aceita só é trocada pela pessoa com a **janela de transferência aberta**, senão `C7605`
+  (`C7604` se a casa mudou no meio da troca); a troca gera `house_changed` (`self`). A primeira
+  escolha é livre, com a janela fechada. Repetir a mesma casa devolve o mesmo
   vínculo. A primeira definição gera `house_accepted` no `audit_log`.
 - **Casa escolhida na coordenação:** `coordination_chosen_houses(pessoas)` (security definer, mesmo alcance
   das telas de resultado; a própria coordenação inclusive, #318) devolve a casa do vínculo aberto e aceito, a data e se a
@@ -331,9 +331,15 @@ guarda-se só a forma de entrada; a casa sugerida e o totem ficam em `questionna
   sugerida de `questionnaire_results`; só casas e datas, nada do totem. O filtro "escolheu outra casa" é
   `coordination_other_house_results(casa, limite)`: no banco, sobre todas as pessoas do alcance (até 201,
   das mais novas), com o mesmo alcance. Ver ADR 0016.
-- **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a qualquer
-  momento, hoje com alcance de gestão sobre a pessoa (`can_manage_house_member`; a delegação de leitura
-  não basta), mantendo a trava; **a #302 restringe à coordenação nacional e tira a trava** (ADR 0016); gera `house_changed` (`coordination`). Ver ADR 0016.
+- **Janela de transferência** (`house_transfer_window`, ADR 0016): uma linha só, `is_open` (nasce
+  fechada), `changed_at` e `changed_by` (o membro lê só `is_open`; o autor fica no `audit_log`); **sem datas nem duração**. Quem é membro lê o estado (a tela
+  mostra ou esconde "Trocar de casa"); ninguém escreve direto. Só a coordenação nacional (gestor da
+  raiz) abre e fecha, por `set_house_transfer_window(open)`, que grava `house_window_opened` ou
+  `house_window_closed` no `audit_log` (sem alvo; só a nacional os lê) e não repete o evento se o
+  estado não muda.
+- **Troca pela coordenação** só por `coordination_set_house(profile, house_key)`: a **coordenação
+  nacional**, a qualquer momento (com a janela aberta ou fechada); gestor de estado, coordenador de casa e a
+  delegação de leitura não trocam; gera `house_changed` (`coordination`). Ver ADR 0016.
 - **Quem lê e encerra** (RLS): a pessoa lê os próprios vínculos; a coordenação territorial
   (monitor ou manager acima do vínculo de território da pessoa) e o coordenador da casa aberta
   da pessoa, dentro do seu território, leem os vínculos aceitos de perfis ativos e podem
@@ -556,7 +562,7 @@ automático), `submission_id` null, `reason`, `revoked_at` null, `revoked_by` nu
 `submission_rejected`, `points_adjusted`, `account_deleted`, `allowlist_imported`,
 `access_granted`, `access_blocked`, `data_exported`, `house_accepted`, `questionnaire_consented`, `consent_accepted`,
 `member_blocked`, `member_unblocked`, `house_analysis_requested`, `house_analysis_resolved`,
-`house_changed`),
+`house_changed`, `house_window_opened`, `house_window_closed`),
 `target_id`, `item_count`, `reason`, `term_version`, `house_key`, `created_at`.
 `item_count` só existe em evento de lote (`allowlist_imported`): a quantidade, nunca os itens.
 `reason` existe nas decisões de acesso (`manual`, fila do gestor; `import`, liberação
@@ -566,7 +572,8 @@ eventos é obrigatório. Em `member_blocked` é opcional (`impersonation`, `cond
 `questionnaire_consented` e em `house_accepted` pelo questionário. Em `house_accepted`,
 `actor_id` e `target_id` são a pessoa e `house_key` é a casa (obrigatória). `house_changed`: o
 ator é quem trocou (a pessoa, motivo `self`, ou a coordenação, motivo `coordination`), o alvo é a
-pessoa e `house_key` é a casa nova.
+pessoa e `house_key` é a casa nova. `house_window_opened` e `house_window_closed`: o ator é a
+coordenação nacional; sem alvo, motivo nem casa.
 Em `house_analysis_requested`, ator e alvo são a pessoa; em `house_analysis_resolved`, o ator é a
 coordenação nacional e o alvo é a pessoa. Nenhum dos dois leva as respostas, o totem nem a casa.
 **Leem a coordenação nacional e quem ela delegou sobre aquela pessoa**: o gestor territorial comum
@@ -595,7 +602,7 @@ ela. O servidor chama `public.export_own_data()` (`security definer`) com o JWT 
 lê só as linhas de `auth.uid()` (perfil, contato, vínculos de território e de casa inclusive
 encerrados, aceites do termo do questionário, o resultado do questionário (casa, **totem** e **notas por eixo**, cifrados e decifrados pelo servidor; formato 9 do arquivo), os pedidos de
 análise (com as respostas, se abertos, idem), as concessões de acesso que recebeu, papéis (com a casa do coordenador de casa),
-eventos do `audit_log` cujo alvo é a pessoa, os `house_accepted` e `questionnaire_consented` que
+eventos do `audit_log` cujo alvo é a pessoa (as trocas de casa, `house_changed`, da pessoa ou da coordenação; **sem** `locked_until`, que não existe mais), os `house_accepted` e `questionnaire_consented` que
 ela fez (#132) e quem acessou o contato dela) e devolve os valores ainda cifrados. O servidor
 decifra (ADR 0003) e acrescenta o e-mail de login, lido da sessão.
 

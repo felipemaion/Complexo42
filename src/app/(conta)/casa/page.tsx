@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { instance } from "@config/instance";
 import { toPublicQuestionnaire } from "@/modules/questionnaire";
 import Link from "next/link";
-import { canChangeHouse, getQuestionnaire, HouseFlow, HousePresentation, houseLockNotice, readAcceptedHouse, readChangeHouse, readHouseLock, sessionHouseClient } from "@/modules/houses";
+import { getQuestionnaire, HouseFlow, HousePresentation, readAcceptedHouse, readChangeHouse, readTransferWindow, sessionHouseClient } from "@/modules/houses";
 import { requireUserBeforeHouse } from "@/server/auth/session";
 
 export const metadata: Metadata = { title: instance.houseSelection.title };
@@ -17,12 +17,10 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
   const client = await sessionHouseClient();
   const accepted = client ? await readAcceptedHouse(client, user.id, houseIds) : null;
   const house = instance.houses.find((h) => h.id === accepted);
-  // Trava de 4 meses (ADR 0016): o banco decide; aqui só o aviso com a data e o caminho da troca, depois do prazo.
-  const lockedUntil = client && house ? await readHouseLock(client, user.id) : null;
-  const now = new Date();
-  const lockNotice = houseLockNotice(text.lockedUntilNotice, lockedUntil, now);
-  const changing = house !== undefined && (await searchParams).trocar === "1" && canChangeHouse(lockedUntil, now);
-  // Troca de casa depois da trava (#268): a mesma comparação do "Escolher outra casa", montada no servidor a partir do que a
+  // Janela de transferência (ADR 0016): o banco decide; aqui só o link de troca, com a janela aberta pela coordenação nacional.
+  const windowOpen = client && house ? await readTransferWindow(client) : false;
+  const changing = house !== undefined && (await searchParams).trocar === "1" && windowOpen;
+  // Troca de casa com a janela aberta (#268): a mesma comparação do "Escolher outra casa", montada no servidor a partir do que a
   // pessoa tem guardado (resultado e respostas cifradas); o navegador só recebe o perfil, a sugerida e um token selado.
   const change = changing && client && house ? { currentId: house.id, ...(await readChangeHouse(client, user.id)) } : undefined;
 
@@ -41,14 +39,14 @@ export default async function HousePage({ searchParams }: Readonly<{ searchParam
           <Link href="/inicio" className="rounded-xl bg-[var(--color-primary)] px-5 py-3 text-center text-lg font-semibold text-white" data-testid="continue-link">
             {text.continueLink}
           </Link>
-          {lockNotice ? (
-            <p className="text-lg font-semibold" data-testid="house-lock-notice">
-              {lockNotice}
-            </p>
-          ) : (
+          {windowOpen ? (
             <Link href="/casa?trocar=1" className="text-center text-lg underline" data-testid="change-house-link">
               {text.changeHouseLink}
             </Link>
+          ) : (
+            <p className="text-center text-lg" data-testid="transfer-closed-notice">
+              {text.transferClosedNotice}
+            </p>
           )}
         </>
       ) : (

@@ -143,7 +143,7 @@ select is(
   'os eventos de casa trazem a versão do termo e a casa (#132)'
 );
 select is(
-  (select jsonb_agg(h - 'joined_at' - 'accepted_at' - 'locked_until') from out_a, jsonb_array_elements(d->'house_memberships') as h),
+  (select jsonb_agg(h - 'joined_at' - 'accepted_at') from out_a, jsonb_array_elements(d->'house_memberships') as h),
   '[{"house_key": "esparta", "join_method": "questionnaire", "consent_version": "termo-exemplo-1", "left_at": null}]'::jsonb,
   'o vínculo de casa de A vai no arquivo, com a forma e a versão do termo'
 );

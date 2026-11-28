@@ -427,6 +427,10 @@ docker build --build-arg GIT_SHA=<commit> --build-arg APP_VERSION=vAAAA.MM.DD -t
 ./scripts/check-image.sh complexo42   # sem .env, não-root, < 250 MB, healthz 200/503
 ```
 
+O `GIT_SHA` também vira o `deploymentId` do Next no build (#315): com ele, a página de um build antigo
+recarrega em vez de falar com o app novo. Sem o argumento (dev, testes) fica desligado. A Server Action
+que já estava em voo durante a troca ainda falha; a tela mostra "recarregue a página" e não trava.
+
 Configuração só por variável de ambiente, validada com Zod na subida
 (`src/server/env.ts`). Variável inválida, ou faltando em produção, derruba o
 processo com o **nome** da variável no log, nunca o valor.

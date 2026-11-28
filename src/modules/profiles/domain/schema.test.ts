@@ -20,19 +20,30 @@ describe("parseProfileInput", () => {
     expect(parsed).toEqual({ displayName: "Ana Souza", municipalityCode: 3550308, districtCode: 355030878, neighborhood: null, consentVersion: "v1" });
   });
 
+  it("nome completo (issue #312): exige nome e sobrenome de verdade", () => {
+    for (const displayName of ["Ana Souza", "Ana Lu", "Maria da Silva", "D\u2019Ávila Souza", "José-Carlos Souza", "Ana\u00a0Souza", "Ana\u200b Souza"]) {
+      expect(() => parseProfileInput({ ...profile, displayName })).not.toThrow();
+    }
+    expect(parseProfileInput({ ...profile, displayName: "Ana\u00a0 Souza\u200b" }).displayName).toBe("Ana Souza");
+    for (const displayName of ["Ana", "  Ana  ", "Ana-Maria", "a b", "1 2", "- -", "😀 😀", "Ana \u200b"]) {
+      expect(fieldsOf(() => parseProfileInput({ ...profile, displayName }))).toEqual(["displayName"]);
+    }
+  });
+
   it("distrito é opcional", () => {
     expect(parseProfileInput(profile).districtCode).toBeNull();
   });
 
   it("nome com 2 e com 80 caracteres passa; com 1 e com 81 não", () => {
-    expect(parseProfileInput({ ...profile, displayName: "Bo" }).displayName).toBe("Bo");
-    expect(parseProfileInput({ ...profile, displayName: "é".repeat(80) }).displayName).toHaveLength(80);
+    expect(parseProfileInput({ ...profile, displayName: "Bo Li" }).displayName).toBe("Bo Li");
+    expect(parseProfileInput({ ...profile, displayName: `Ana ${"é".repeat(76)}` }).displayName).toHaveLength(80);
     expect(fieldsOf(() => parseProfileInput({ ...profile, displayName: "A" }))).toEqual(["displayName"]);
     expect(fieldsOf(() => parseProfileInput({ ...profile, displayName: "a".repeat(81) }))).toEqual(["displayName"]);
   });
 
-  it("conta caracteres, não unidades UTF-16 (emoji conta 1)", () => {
-    const name = "😀".repeat(profileLimits.displayNameMax);
+  it("conta caracteres, não unidades UTF-16 (letra fora do plano básico conta 1)", () => {
+    // 𝐀 (U+1D400) é letra e ocupa 2 unidades UTF-16: 80 delas passam, 81 não.
+    const name = `𝐀𝐀 ${"𝐀".repeat(profileLimits.displayNameMax - 3)}`;
     expect(parseProfileInput({ ...profile, displayName: name }).displayName).toBe(name);
   });
 

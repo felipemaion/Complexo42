@@ -76,9 +76,21 @@ test.describe("formulário com o Supabase local", () => {
     await expect(summary).toBeFocused();
     await expect(summary).toContainText("Falta arrumar alguns campos");
     await expect(name).toHaveAttribute("aria-invalid", "true");
-    await expect(name).toHaveAccessibleDescription(/Escreva seu nome/);
+    await expect(name).toHaveAccessibleDescription(/nome e sobrenome/);
     await expect(whatsapp).toHaveAttribute("aria-invalid", "true");
     await expect(city).toHaveAttribute("aria-invalid", "true");
+
+    // Nome de uma palavra só: o servidor recusa e pede o sobrenome (#312); com sobrenome, passa.
+    await name.fill("Maria");
+    await save.click();
+    await expect(summary).toBeFocused();
+    await expect(name).toHaveAttribute("aria-invalid", "true");
+    await expect(name).toHaveAccessibleDescription(/nome e sobrenome/);
+    await expect(name).toHaveValue("Maria");
+    await name.fill("a b");
+    await save.click();
+    await expect(name).toHaveAttribute("aria-invalid", "true");
+    await name.fill("Maria Souza");
 
     // Máscara: digitado só com números, aparece no formato nacional.
     await whatsapp.fill("");

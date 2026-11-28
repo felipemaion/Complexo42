@@ -14,7 +14,7 @@ const errorByCode: Record<string, HouseErrorCode> = {
   P0002: "unavailable", // casa inexistente ou inativa
   "23505": "already_accepted", // outra casa já aceita
   C7602: "removed_by_coordination", // a coordenação encerrou a casa da pessoa
-  C7603: "house_locked", // trava de 4 meses para trocar de casa (ADR 0016)
+  C7605: "window_closed", // a janela de transferência de casa está fechada (ADR 0016)
   C7604: "house_conflict", // a casa mudou (troca da coordenação) enquanto a pessoa trocava
   "54000": "rate_limited", // pedido de análise renovado há pouco
 };
@@ -209,20 +209,14 @@ export async function readAcceptedHouse(client: HouseClient, userId: string, hou
   return row && houseIds.includes(row.house_key) ? row.house_key : null;
 }
 
-const lockRow = z.nullable(z.object({ locked_until: z.string().nullable() }));
+const windowRow = z.nullable(z.object({ is_open: z.boolean() }));
 
 /**
- * Até quando a casa aceita da pessoa está travada (ISO), lida do banco com a sessão dela; nulo sem
- * casa aceita. A decisão de trocar ou não é do banco; isto só alimenta o aviso da tela.
+ * Se a janela de transferência de casa está aberta (ADR 0016), lida do banco com a sessão da pessoa. Sem
+ * linha, fechada. A decisão de trocar ou não é do banco (`accept_house`); isto só mostra ou esconde o link.
  */
-export async function readHouseLock(client: HouseClient, userId: string): Promise<string | null> {
-  const { data, error } = await client
-    .from("house_members")
-    .select("locked_until")
-    .eq("profile_id", userId)
-    .is("left_at", null)
-    .not("accepted_at", "is", null)
-    .maybeSingle();
-  if (error) throw new Error(`house_lock_read_failed:${errorCode(error)}`);
-  return lockRow.parse(data)?.locked_until ?? null;
+export async function readTransferWindow(client: HouseClient): Promise<boolean> {
+  const { data, error } = await client.from("house_transfer_window").select("is_open").maybeSingle();
+  if (error) throw new Error(`transfer_window_read_failed:${errorCode(error)}`);
+  return windowRow.parse(data)?.is_open ?? false;
 }
