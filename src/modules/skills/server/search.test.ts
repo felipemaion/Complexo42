@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { HouseClient } from "@/modules/houses";
-import { searchPeople } from "./search";
+import { listMunicipalities, listTeams, searchPeople } from "./search";
 
 type HouseQuery = ReturnType<ReturnType<HouseClient["from"]>["select"]>;
 const A = "8f1c2a4e-0b5d-4c3a-9e7f-1a2b3c4d5e6f";
@@ -96,5 +96,44 @@ describe("searchPeople", () => {
     expect(await code("42501")).toEqual({ ok: false, error: "forbidden" });
     expect(await code("22023")).toEqual({ ok: false, error: "invalid" });
     expect(await code("XX000")).toEqual({ ok: false, error: "failed" });
+  });
+});
+
+describe("listas dos filtros (município da UF e equipes)", () => {
+  it("os municípios da UF pedida, por nome", async () => {
+    const { client, filters } = fake({ data: [] }, [{ code: 3550308, name: "São Paulo" }, { code: 3509502, name: "Campinas" }]);
+    expect(await listMunicipalities(client, "SP")).toEqual([{ code: 3550308, name: "São Paulo" }, { code: 3509502, name: "Campinas" }]);
+    expect(filters).toContainEqual(["from", "municipalities", "code,name"]);
+    expect(filters).toContainEqual(["eq", "state_code", "SP"]);
+  });
+
+  it("UF fora do formato não consulta o banco", async () => {
+    const { client, filters } = fake({ data: [] });
+    expect(await listMunicipalities(client, "sp")).toEqual([]);
+    expect(await listMunicipalities(client, "SPP")).toEqual([]);
+    expect(filters).toEqual([]);
+  });
+
+  it("as equipes: só as unidades de tipo equipe", async () => {
+    const answers: Record<string, unknown> = {
+      unit_types: [{ id: "t1", is_team: true }, { id: "t2", is_team: false }],
+      units: [{ id: P1, name: "Equipe A" }],
+    };
+    const filters: unknown[][] = [];
+    let table = "";
+    const query: HouseQuery = {
+      eq: () => query,
+      is: () => query,
+      not: () => query,
+      neq: () => query,
+      in: (...a) => (filters.push(["in", ...a]), query),
+      order: () => query,
+      limit: () => query,
+      maybeSingle: () => Promise.resolve({ data: null, error: null }),
+      then: (ok, fail) => Promise.resolve({ data: answers[table], error: null }).then(ok, fail),
+    };
+    const client: HouseClient = { rpc: () => Promise.resolve({ data: null, error: null }), from: (t) => ({ select: () => ((table = t), query) }) };
+    expect(await listTeams(client)).toEqual([{ id: P1, name: "Equipe A" }]);
+    expect(filters).toContainEqual(["in", "type_id", ["t1"]]);
   });
 });

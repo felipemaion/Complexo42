@@ -146,6 +146,13 @@ test("o autocomplete acha por sinônimo, os filtros ficam na URL e a busca grava
   await expect(page.getByTestId("chosen-skill")).toHaveCount(1);
   await page.getByRole("button", { name: "Buscar pessoas" }).click();
   await expect(page).toHaveURL(/[?&]h=/);
+  // Com a UF escolhida, a tela lista os municípios dela; o filtro de município também vai para a URL.
+  await page.getByLabel("UF (opcional)").fill("SP");
+  await page.getByRole("button", { name: "Buscar pessoas" }).click();
+  await page.getByLabel("Município").selectOption("3550308");
+  await page.getByRole("button", { name: "Buscar pessoas" }).click();
+  await expect(page).toHaveURL(/mun=3550308/);
+  await expect(page.getByLabel("Equipe")).toBeVisible();
   const events = (await (await admin(`/rest/v1/audit_log?actor_id=eq.${root.id}&event=eq.skills_searched&select=id`)).json()) as unknown[];
   expect(events.length).toBeGreaterThanOrEqual(1);
 });
