@@ -389,6 +389,80 @@ acrescenta e a chamada interna do app não tem (ADR 0018 §3).
 > continua valendo **de dentro**, pela rede interna ou por `docker exec`, e
 > passa a dar 404 pela URL pública.
 
+**Sem CORS (#86).** O navegador só *navega* até `/auth/v1` (Google e link do
+e-mail), nunca o chama por `fetch`. O `kong.yml` não tem o plugin `cors` e tira,
+com o `response-transformer`, o `Access-Control-Allow-*` que o GoTrue e o
+PostgREST põem sozinhos (os dois liberam qualquer origem). Mudou o `kong.yml` ou o
+`KONG_PLUGINS`: recriar o Kong (`up -d --force-recreate kong`).
+
+## Borda: Cloudflare e proxy (#86)
+
+O que o repositório confere sozinho (`scripts/check-headers.sh <url>`, no staging
+de mentira e depois do deploy): CSP com nonce, `Permissions-Policy`, HSTS, os
+cookies (`HttpOnly`, `SameSite=Lax`, `Secure`), nenhum CORS em `/auth/v1` e
+nenhum 200 em `/.env`, `/.git`, `/wp-*` e `/phpmyadmin`. No app, os limites das
+ações sensíveis estão no banco: ver contato (pessoas por hora), exportar (5 por
+hora) e autorizar e-mail à mão (30 a cada 10 minutos por gestor), todos contados
+no `audit_log`. O resto é configuração fora do repositório, **ainda não aplicada**:
+
+### Passos do Felipe (painel da Cloudflare, por zona)
+
+1. **Bloqueio de varreduras.** *Security → WAF → Custom rules*, ação **Block**:
+   ```
+   (starts_with(http.request.uri.path, "/.env")) or (starts_with(http.request.uri.path, "/.git"))
+   or (starts_with(http.request.uri.path, "/wp-")) or (starts_with(lower(http.request.uri.path), "/phpmyadmin"))
+   ```
+2. **Rate limit (a única regra do plano gratuito).** *Security → WAF → Rate
+   limiting rules*: contar **por IP**, **10 requisições em 10 segundos**, bloquear
+   por 10 segundos:
+   ```
+   (http.host in {"<domínio de produção>" "<domínio de staging>"})
+   and ((starts_with(http.request.uri.path, "/auth/v1/")) or (http.request.uri.path eq "/entrar" and http.request.method eq "POST"))
+   ```
+   Uma pessoa faz 1 ou 2 requisições por login (o envio em `/entrar`, o
+   `/verify` ou o `/authorize` e o `/callback`). 10 em 10 s deixa folga para
+   quem divide IP (rede de faculdade, operadora com CGNAT) e barra a rajada
+   que esgota a cota de e-mail (o Turnstile e o limite do GoTrue seguem atrás).
+3. **Bot Fight Mode.** *Security → Bots* → ligar. O vigia externo diário (#85)
+   faz `GET /api/healthz`: se começar a receber desafio, o alerta aparece no dia
+   seguinte; aí desligar e anotar aqui.
+4. **Cache do navegador.** *Caching → Cache Rules*, para os dois hostnames:
+   *Browser Cache TTL* = **Respect origin**. Sem isso, a zona sobrepõe 4 h ao
+   `Cache-Control` do app e um deploy parece não ter mudado nada.
+5. **Nota do Mozilla Observatory** (`https://developer.mozilla.org/observatory`)
+   de cada hostname, anotada no #86. Esperado: A ou mais.
+
+### Passos do Oracle (proxy do servidor)
+
+A origem só pode aceitar a Cloudflare. Sem isso, quem alcança o IP do servidor
+manda um `CF-Connecting-IP` falso: contorna o limite por IP do GoTrue e bloqueia
+o login de um IP alheio. No Caddyfile do site (as faixas são as de
+`https://www.cloudflare.com/ips-v4` e `/ips-v6`; conferir antes de aplicar):
+```
+{
+	servers {
+		trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/29 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+		client_ip_headers CF-Connecting-IP
+	}
+}
+
+<domínio> {
+	@fora_da_cloudflare not remote_ip 127.0.0.1/8 ::1 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/29 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+	abort @fora_da_cloudflare
+	# ... o que o site já tem (/auth/v1/* ao kong, o resto ao app)
+}
+```
+`remote_ip` olha a conexão de verdade, não o cabeçalho: de fora da Cloudflare a
+conexão cai antes de qualquer `CF-Connecting-IP` chegar ao Kong ou ao app.
+Depois, e só depois: `TRUST_CF_CONNECTING_IP=true` no `secrets/env` do app e
+recriar o app. **Teste de fora** (de uma máquina que não seja o servidor):
+```bash
+curl -sv --resolve <domínio>:443:<IP do servidor> https://<domínio>/api/healthz -H 'CF-Connecting-IP: 203.0.113.9'
+```
+tem de cair sem resposta (o `curl` sai com erro 52 ou 56); pelo domínio normal,
+`/api/healthz` continua 200. Voltar atrás: tirar o `abort` e pôr
+`TRUST_CF_CONNECTING_IP=false`.
+
 ## Armadilhas
 
 Erros encontrados ao montar isto, todos corrigidos aqui. Valem para qualquer

@@ -34,7 +34,6 @@ vi.mock("@/server/log", () => ({
   },
 }));
 
-const { resetAddEmailLimit } = await import("./add-email-limit");
 const { addAllowlistEmailAction, importAllowlistAction } = await import("./actions");
 
 const CSV = "Nome;E-mail\nMaria Silva;Maria@Exemplo.org\nJoão;joao@exemplo.org\nZé;ze@\n";
@@ -49,7 +48,6 @@ const csvFile = (content = CSV, name = "lista.csv") => new File([content], name,
 const idle = { status: "idle" } as const;
 
 beforeEach(() => {
-  resetAddEmailLimit();
   calls.length = 0;
   logged.length = 0;
   answer = { data: { received: 2, promoted: 1 }, error: null };
@@ -153,11 +151,11 @@ describe("addAllowlistEmailAction (autorizar um e-mail à mão)", () => {
     expect(JSON.stringify(logged)).not.toMatch(/a@x\.org/);
   });
 
-  it("limite por coordenador: depois de 30 em 10 minutos, 'rate_limited' sem chamar o banco", async () => {
-    answer = { data: { received: 1, promoted: 0, added: 1 }, error: null };
-    for (let i = 0; i < 30; i++) await addAllowlistEmailAction(idle, emailForm(`p${i}@x.org`));
-    calls.length = 0;
+  it("teto do banco (54000) vira 'rate_limited', com aviso no log sem o e-mail", async () => {
+    answer = { data: null, error: { code: "54000", message: "limite de inclusões à mão atingido" } };
     expect(await addAllowlistEmailAction(idle, emailForm("outro@x.org"))).toEqual({ status: "error", error: "rate_limited" });
-    expect(calls).toEqual([]);
+    expect(calls).toHaveLength(1);
+    expect(JSON.stringify(logged)).toMatch(/allowlist_email_add_rate_limited/);
+    expect(JSON.stringify(logged)).not.toMatch(/outro@x\.org/);
   });
 });

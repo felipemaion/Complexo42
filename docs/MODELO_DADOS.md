@@ -126,6 +126,8 @@ O primeiro login compara o HMAC do e-mail e define `profiles.access_status`
     `blocked`) cujo HMAC guardado está entre os importados: `access_status` e `status` viram
     `active`, a linha sai de `access_waitlist_hmac` e cada pessoa gera um `access_granted`
     com `reason = import`. Devolve `{received, promoted}`.
+    A inclusão de um e-mail à mão (motivo `manual`) tem teto de 30 a cada 10 minutos por
+    gestor, contado no `audit_log`; passou, `program_limit_exceeded` (#86).
   - `list_waitlist(limit, cursor)` (paginada, mais antigos primeiro, até 200 por página) e
     `decide_access(profile, 'active' | 'blocked')`: o gestor com escopo
     sobre o vínculo aberto de quem espera (sem vínculo, o gestor da raiz) aprova ou bloqueia;

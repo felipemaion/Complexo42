@@ -113,6 +113,27 @@ async function expectInert(page: Page, dialogs: string[]) {
   await expect(page.locator("img[src='x']"), "o <img> do payload não pode entrar na página").toHaveCount(0);
 }
 
+// #86: o kong.yml não tem mais CORS. O Google é navegação (GET + 302), não fetch: /entrar → /auth/google →
+// <site>/auth/v1/authorize (proxy → kong → GoTrue) → accounts.google.com, sem sair para o Google. O link por e-mail
+// (/auth/v1/verify) passa pelo mesmo caminho no teste do fluxo inteiro, abaixo.
+test("Google pela borda: /auth/google → /auth/v1/authorize → accounts.google.com com o callback do site", async ({ page, request }) => {
+  await page.goto("/entrar");
+  await expect(page.getByRole("button", { name: "Entrar com Google" })).toBeVisible();
+  // A cadeia de redirecionamentos que o navegador segue, passo a passo (o Playwright não intercepta o salto para
+  // outro domínio). Nenhum passo pode dar 404 (kong.yml) e o último tem de ir ao Google, sem sair daqui.
+  let url = `${SITE}/auth/google`;
+  for (let i = 0; i < 5 && new URL(url).hostname !== "accounts.google.com"; i++) {
+    const res = await request.get(url, { maxRedirects: 0 });
+    expect(res.status(), `${url} redireciona`).toBeGreaterThanOrEqual(300);
+    expect(res.status(), `${url} redireciona`).toBeLessThan(400);
+    url = new URL(res.headers()["location"] ?? "", url).toString();
+  }
+  const google = new URL(url);
+  expect(google.hostname).toBe("accounts.google.com");
+  expect(google.searchParams.get("client_id")).toBe("ci-de-mentira.apps.googleusercontent.com");
+  expect(google.searchParams.get("redirect_uri")).toBe(`${SITE}/auth/v1/callback`);
+});
+
 test("banco novo: bootstrap → login → termo → questionário → casa → a coordenação autoriza e vê o resultado", async ({ browser, request, baseURL }) => {
   test.setTimeout(300_000);
   // Banco novo, ninguém pode autorizar ninguém: o operador põe o e-mail da coordenação na lista.

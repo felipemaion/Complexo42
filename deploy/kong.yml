@@ -5,6 +5,13 @@
 # pela rede interna (ADR 0009 §1), e de fora ela responde 404 pelo proxy.
 # Consequência conhecida: dentro da rede compartilhada do servidor, o kong
 # é alcançável. Por isso a RLS continua sendo a barreira real, não o kong.
+#
+# Sem CORS (#86): o navegador nunca chama /auth/v1 nem /rest/v1 por fetch/XHR, só NAVEGA (Google
+# em /authorize e /callback, link do e-mail em /verify), e navegação não usa CORS. As chamadas do
+# app partem do servidor, pela rede interna. Por isso saiu o plugin `cors` (que dava `*` a qualquer
+# site) e o `response-transformer` tira o Access-Control-Allow-* que o próprio GoTrue e o PostgREST
+# põem (os dois liberam qualquer origem por padrão). Conferido de fora por scripts/check-headers.sh
+# no staging de mentira, com o GoTrue de verdade.
 _format_version: "3.0"
 
 services:
@@ -69,7 +76,15 @@ services:
         paths:
           - /auth/v1/
     plugins:
-      - name: cors
+      - name: response-transformer
+        config:
+          remove:
+            headers:
+              - Access-Control-Allow-Origin
+              - Access-Control-Allow-Credentials
+              - Access-Control-Allow-Methods
+              - Access-Control-Allow-Headers
+              - Access-Control-Expose-Headers
 
   - name: rest
     url: http://rest:3000/
@@ -79,4 +94,12 @@ services:
         paths:
           - /rest/v1/
     plugins:
-      - name: cors
+      - name: response-transformer
+        config:
+          remove:
+            headers:
+              - Access-Control-Allow-Origin
+              - Access-Control-Allow-Credentials
+              - Access-Control-Allow-Methods
+              - Access-Control-Allow-Headers
+              - Access-Control-Expose-Headers
