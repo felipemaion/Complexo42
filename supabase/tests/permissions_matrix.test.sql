@@ -1478,6 +1478,20 @@ select set_eq(
   $$ select id from people where name in ('house_mon', 'stu_ah', 'stu_bh') $$,
   'coordenador da casa 1 lê os perfis da casa 1 no ABC, de qualquer equipe; NÃO outra casa, outra região, sem aceite nem quem não está ativo'
 );
+-- Formação e atividade (#304), ramo do coordenador da casa (`app.is_house_coordinator_of`): só os membros
+-- da casa dele, de qualquer equipe. Fica aqui, antes dos testes que encerram vínculos de casa.
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_ah'), pg_temp.person('stu_bh')],
+  'coordenador da casa 1 lê a formação dos membros da casa 1 (equipes A e B); NÃO a da casa 2 nem de quem não é da casa'
+);
+select pg_temp.login('house2_mon');
+select set_eq(
+  $$ select profile_id from public.profile_background $$,
+  array[pg_temp.person('stu_ah2')],
+  'coordenador da casa 2 lê só a formação dos membros da casa 2'
+);
+select pg_temp.login('house_mon');
 select is_empty(
   $$ select 1 from public.unit_members $$,
   'coordenador da casa NÃO lê vínculos de território (não gerencia unidade)'
@@ -1834,19 +1848,6 @@ select set_eq(
   $$ select profile_id from public.profile_background $$,
   array[pg_temp.person('stu_a'), pg_temp.person('stu_b'), pg_temp.person('stu_ah'), pg_temp.person('stu_ah2'), pg_temp.person('stu_bh')],
   'gestor de SP lê a de membros ativos de SP; NÃO a de quem está na espera'
-);
--- Ramo do coordenador da casa (`app.is_house_coordinator_of`): só os membros da casa dele, de qualquer equipe.
-select pg_temp.login('house_mon');
-select set_eq(
-  $$ select profile_id from public.profile_background $$,
-  array[pg_temp.person('stu_ah'), pg_temp.person('stu_bh')],
-  'coordenador da casa 1 lê a formação dos membros da casa 1 (equipes A e B); NÃO a da casa 2 nem de quem não é da casa'
-);
-select pg_temp.login('house2_mon');
-select set_eq(
-  $$ select profile_id from public.profile_background $$,
-  array[pg_temp.person('stu_ah2')],
-  'coordenador da casa 2 lê só a formação dos membros da casa 2'
 );
 select pg_temp.login('mg_mgr');
 select is_empty(
