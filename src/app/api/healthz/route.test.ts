@@ -22,6 +22,8 @@ function setup(fetchImpl: (url: string) => Promise<Response>) {
   // subir sem elas, e é esse o ponto.
   vi.stubEnv("FIELD_ENCRYPTION_KEY", "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=");
   vi.stubEnv("BLIND_INDEX_KEY", "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=");
+  // Em produção o caminho do questionário real é obrigatório (#313).
+  vi.stubEnv("QUESTIONNAIRE_PATH", "/app/questionario/questionnaire.json");
   vi.stubEnv("TURNSTILE_SITE_KEY", `0x${"a".repeat(22)}`);
   vi.stubEnv("TURNSTILE_SECRET_KEY", `0x${"b".repeat(33)}`);
   vi.stubGlobal("fetch", vi.fn(fetchImpl));

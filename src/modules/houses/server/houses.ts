@@ -19,6 +19,24 @@ const errorByCode: Record<string, HouseErrorCode> = {
   "54000": "rate_limited", // pedido de análise renovado há pouco
 };
 
+/** Motivo técnico de uma recusa do banco, só para o log (#313): código do Postgres e status HTTP do PostgREST. */
+export type RefusalDetail = { code?: string; status?: number };
+
+/** Chamado só quando o banco recusou. Quem registra decide o que fazer; nunca vai ao navegador. */
+export type OnRefusal = (detail: RefusalDetail) => void;
+
+/**
+ * Extrai do erro do banco SÓ o código (ex.: `22023`, `PGRST202`) e o status. A mensagem, os detalhes e a dica
+ * ficam de fora: podem citar valores da requisição. Código fora do formato ou status fora de 100-599 é descartado.
+ */
+export function refusalDetail(error: unknown, status: unknown): RefusalDetail {
+  const raw = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
+  const detail: RefusalDetail = {};
+  if (typeof raw === "string" && /^[A-Za-z0-9]{1,16}$/.test(raw)) detail.code = raw;
+  if (typeof status === "number" && Number.isInteger(status) && status >= 100 && status <= 599) detail.status = status;
+  return detail;
+}
+
 function errorCode(error: unknown): HouseErrorCode {
   const code = typeof error === "object" && error !== null ? (error as { code?: unknown }).code : undefined;
   return (typeof code === "string" && errorByCode[code]) || "failed";
@@ -35,6 +53,7 @@ export async function acceptHouse(
   input: unknown,
   houseIds: readonly string[],
   termVersion: string,
+  onRefusal?: OnRefusal,
 ): Promise<HouseActionResult> {
   const parsed = z
     .strictObject({
@@ -43,24 +62,28 @@ export async function acceptHouse(
     })
     .safeParse(input);
   if (!parsed.success) return { ok: false, error: "failed" };
-  const { error } = await client.rpc("accept_house", {
+  const { error, status } = await client.rpc("accept_house", {
     p_house_key: parsed.data.houseId,
     p_join_method: parsed.data.joinMethod,
     p_term_version: parsed.data.joinMethod === "questionnaire" ? termVersion : null,
   });
-  return error ? { ok: false, error: errorCode(error) } : { ok: true };
+  if (!error) return { ok: true };
+  onRefusal?.(refusalDetail(error, status));
+  return { ok: false, error: errorCode(error) };
 }
 
 /**
  * Registra o aceite do termo do questionário. A versão que a pessoa leu precisa ser a do
  * questionário carregado no servidor; se o arquivo mudou no meio, ela recarrega a página.
  */
-export async function recordConsent(client: HouseClient, input: unknown, currentVersion: string): Promise<HouseActionResult> {
+export async function recordConsent(client: HouseClient, input: unknown, currentVersion: string, onRefusal?: OnRefusal): Promise<HouseActionResult> {
   const parsed = z.strictObject({ termVersion: z.string().max(32) }).safeParse(input);
   if (!parsed.success) return { ok: false, error: "failed" };
   if (parsed.data.termVersion !== currentVersion) return { ok: false, error: "stale_consent" };
-  const { error } = await client.rpc("record_questionnaire_consent", { p_term_version: currentVersion });
-  return error ? { ok: false, error: errorCode(error) } : { ok: true };
+  const { error, status } = await client.rpc("record_questionnaire_consent", { p_term_version: currentVersion });
+  if (!error) return { ok: true };
+  onRefusal?.(refusalDetail(error, status));
+  return { ok: false, error: errorCode(error) };
 }
 
 /** Onde o totem e as respostas moram (viram o AAD da cifragem, ADR 0003 §3): a linha é a da pessoa. */

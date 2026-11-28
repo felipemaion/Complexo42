@@ -207,27 +207,27 @@ describe("Turnstile (#116)", () => {
   it("fora de produção são opcionais", () => {
     expect(parseEnv({ NODE_ENV: "test" }).ok).toBe(true);
   });
+});
 
-  describe("questionário real em produção (#313)", () => {
-    const prod = { NODE_ENV: "production", DB_HEALTH_URL: "http://rest:3001/ready", ...AUTH };
+describe("questionário real em produção (#313)", () => {
+  const prod = { NODE_ENV: "production", DB_HEALTH_URL: "http://rest:3001/ready", ...AUTH };
 
-    it("em produção, sem QUESTIONNAIRE_PATH o app não sobe e o erro cita só o nome", () => {
-      const { QUESTIONNAIRE_PATH: _fora, ...semCaminho } = prod;
-      void _fora;
-      expect(parseEnv(semCaminho)).toEqual({ ok: false, problems: ["QUESTIONNAIRE_PATH: obrigatória em produção"] });
-    });
+  it("em produção, sem QUESTIONNAIRE_PATH o app não sobe e o erro cita só o nome", () => {
+    const { QUESTIONNAIRE_PATH: _fora, ...semCaminho } = prod;
+    void _fora;
+    expect(parseEnv(semCaminho)).toEqual({ ok: false, problems: ["QUESTIONNAIRE_PATH: obrigatória em produção"] });
+  });
 
-    it("variável vazia conta como ausente (ARG do Docker sem valor)", () => {
-      expect(parseEnv({ ...prod, QUESTIONNAIRE_PATH: "" }).ok).toBe(false);
-    });
+  it("variável vazia conta como ausente (ARG do Docker sem valor)", () => {
+    expect(parseEnv({ ...prod, QUESTIONNAIRE_PATH: "" }).ok).toBe(false);
+  });
 
-    it("em produção, com o caminho, sobe", () => {
-      expect(parseEnv(prod).ok).toBe(true);
-    });
+  it("em produção, com o caminho, sobe", () => {
+    expect(parseEnv(prod).ok).toBe(true);
+  });
 
-    it("fora de produção segue opcional: desenvolvimento, testes e CI usam o exemplo", () => {
-      expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
-      expect(parseEnv({ NODE_ENV: "test" }).ok).toBe(true);
-    });
+  it("fora de produção segue opcional: desenvolvimento, testes e CI usam o exemplo", () => {
+    expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
+    expect(parseEnv({ NODE_ENV: "test" }).ok).toBe(true);
   });
 });

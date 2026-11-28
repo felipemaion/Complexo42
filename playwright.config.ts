@@ -63,6 +63,8 @@ export default defineConfig({
       BLIND_INDEX_KEY: process.env.E2E_BLIND_INDEX_KEY,
       // Igual ao de supabase/seed.sql (só desenvolvimento e testes, ADR 0014).
       QUESTIONNAIRE_SIGNING_KEY: "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=",
+      // O `next start` é produção: o caminho do questionário é obrigatório (#313). Os testes usam o exemplo fictício.
+      QUESTIONNAIRE_PATH: "config/questionnaire.example.json",
       LOG_DIR: "test-results/logs",
       // Turnstile (#116): chaves de TESTE oficiais e públicas da Cloudflare, que sempre passam
       // (as mesmas de src/server/auth/turnstile.ts). Em produção as reais são obrigatórias.

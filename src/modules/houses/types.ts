@@ -44,6 +44,6 @@ export type HouseQuery = PromiseLike<{ data: unknown; error: unknown }> & {
 };
 
 export type HouseClient = {
-  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }>;
+  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown; status?: number }>;
   from(table: string): { select(columns: string): HouseQuery };
 };

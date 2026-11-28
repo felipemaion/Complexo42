@@ -19,6 +19,9 @@ img="${1:?uso: $0 <imagem>}"
 # chave sobreviva ao round-trip base64, e so o primeiro jeito garante isso.
 CHAVE_TESTE_A=$(printf 'a%.0s' $(seq 1 32) | base64 | tr -d '\n')
 CHAVE_TESTE_B=$(printf 'b%.0s' $(seq 1 32) | base64 | tr -d '\n')
+# Questionário de EXEMPLO, montado só neste teste: em produção o app exige QUESTIONNAIRE_PATH (#313).
+EXEMPLO_QUESTIONARIO="$(cd "$(dirname "$0")/.." && pwd)/config/questionnaire.example.json"
+[ -f "$EXEMPLO_QUESTIONARIO" ] || { echo "FALHOU: sem $EXEMPLO_QUESTIONARIO" >&2; exit 1; }
 name="healthz-check-$$"
 fail() { echo "FALHOU: $*" >&2; exit 1; }
 cleanup() { docker rm -f "$name" "$name-rest" >/dev/null 2>&1 || true; }
@@ -46,6 +49,7 @@ code=$?
 set -e
 [ "$code" -ne 0 ] || fail "subiu sem configuração"
 grep -q "DB_HEALTH_URL" <<<"$out" || fail "mensagem não cita a variável"
+grep -q "QUESTIONNAIRE_PATH" <<<"$out" || fail "mensagem não cita QUESTIONNAIRE_PATH (obrigatória em produção, #313)"
 ! grep -q "valor-secreto" <<<"$out" || fail "valor vazou no log"
 
 # Dublê de PostgREST, nas duas portas. Fica na pilha de rede do container do
@@ -66,6 +70,7 @@ healthz() {
     -e SUPABASE_URL="$2" -e SITE_URL=http://127.0.0.1:3000 \
     -e TURNSTILE_SITE_KEY=1x00000000000000000000AA -e TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA \
     -e FIELD_ENCRYPTION_KEY="$CHAVE_TESTE_A" -e BLIND_INDEX_KEY="$CHAVE_TESTE_B" \
+    -v "$EXEMPLO_QUESTIONARIO:/tmp/questionnaire.json:ro" -e QUESTIONNAIRE_PATH=/tmp/questionnaire.json \
     -e SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiJ9.$(printf %s '{"role":"anon"}' | base64).ci" "$img" >/dev/null
   # O dublê entra DEPOIS, na pilha de rede do app, e precisa dele de pé.
   docker run -d --name "$name-rest" --network "container:$name" --read-only \
