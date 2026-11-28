@@ -4,6 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const store = new Map<string, string>();
 const signOut = vi.fn(async () => ({ error: null }));
+// `profiles.access_status` que o cliente de mentira devolve; `"erro"` simula a falha da leitura.
+let accessStatus: string = "active";
+const getUser = vi.fn(async () => ({ data: { user: { id: "u1", email: "pessoa@exemplo.org" } } }));
+const profileQuery = {
+  select: () => profileQuery,
+  eq: () => profileQuery,
+  maybeSingle: async () =>
+    accessStatus === "erro" ? { data: null, error: { code: "XX000" } } : { data: { access_status: accessStatus }, error: null },
+};
+vi.mock("next/navigation", () => ({
+  redirect: (path: string) => {
+    throw new Error(`REDIRECT:${path}`);
+  },
+}));
 vi.mock("server-only", () => ({}));
 vi.mock("next/headers", () => ({
   cookies: async () => ({
@@ -18,10 +32,10 @@ vi.mock("./config", () => ({
 }));
 vi.mock("./client", async (original) => ({
   ...(await original<typeof import("./client")>()),
-  createAuthClient: () => ({ auth: { signOut } }),
+  createAuthClient: () => ({ auth: { signOut, getUser }, from: () => profileQuery }),
 }));
 
-const { endSession } = await import("./session");
+const { endSession, requireHolderClient } = await import("./session");
 
 beforeEach(() => {
   store.clear();
@@ -42,5 +56,29 @@ describe("endSession", () => {
     signOut.mockRejectedValueOnce(new Error("gotrue_down"));
     await expect(endSession()).rejects.toThrow("gotrue_down");
     expect([...store.keys()]).toEqual(["outro"]);
+  });
+});
+
+// #130, parte 1: quem está em espera baixa os próprios dados, mas o bloqueado NÃO (a parte dos bloqueados espera decisão do
+// jurídico). `requireHolderClient` dispensa o portão do termo, da casa e da espera, e mantém o do bloqueio.
+describe("requireHolderClient", () => {
+  it.each(["active", "waitlisted"])("%s: segue com a sessão", async (status) => {
+    accessStatus = status;
+    expect((await requireHolderClient()).user.id).toBe("u1");
+  });
+
+  it("bloqueado: recusa e manda para o logout, como antes", async () => {
+    accessStatus = "blocked";
+    await expect(requireHolderClient()).rejects.toThrow("REDIRECT:/auth/sair?motivo=blocked");
+  });
+
+  it("falha ao ler o status: recusa (falha fechada) e encerra a sessão", async () => {
+    accessStatus = "erro";
+    await expect(requireHolderClient()).rejects.toThrow(/REDIRECT:.*motivo=failed/);
+  });
+
+  it("sem sessão: login", async () => {
+    store.clear();
+    await expect(requireHolderClient()).rejects.toThrow(/REDIRECT:\/entrar/);
   });
 });

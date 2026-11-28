@@ -455,6 +455,21 @@ describe("isSameOrigin", () => {
     expect(isSameOrigin(null, "https://app.exemplo.org")).toBe(false);
     expect(isSameOrigin("null", "https://app.exemplo.org")).toBe(false);
   });
+
+  // #130: a página de /espera é alcançada, sem recarregar, depois do link de login (que manda `no-referrer`); o navegador
+  // então envia `Origin: null` num POST do próprio site. O `Sec-Fetch-Site` é posto pelo navegador e a página não o altera.
+  it("`Origin: null` (ou sem Origin) só passa quando o navegador diz que o pedido é do mesmo site", () => {
+    expect(isSameOrigin("null", "https://app.exemplo.org", "same-origin")).toBe(true);
+    expect(isSameOrigin(null, "https://app.exemplo.org", "same-origin")).toBe(true);
+    for (const site of ["cross-site", "same-site", "none", null, undefined]) {
+      expect(isSameOrigin("null", "https://app.exemplo.org", site)).toBe(false);
+      expect(isSameOrigin(null, "https://app.exemplo.org", site)).toBe(false);
+    }
+  });
+
+  it("uma origem de outro site nunca passa, nem com `Sec-Fetch-Site: same-origin`", () => {
+    expect(isSameOrigin("https://mal.exemplo", "https://app.exemplo.org", "same-origin")).toBe(false);
+  });
 });
 
 describe("parseMyDataStatus", () => {
