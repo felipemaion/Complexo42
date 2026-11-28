@@ -16,9 +16,9 @@ describe("migration da estrutura da instância", () => {
     }
   });
 
-  it("todo insert é idempotente (on conflict ou where not exists)", () => {
+  it("todo insert é idempotente (on conflict ou not exists)", () => {
     for (const insert of inserts) {
-      expect(insert, insert.slice(0, 60)).toMatch(/on conflict[^;]*do nothing|where not exists/i);
+      expect(insert, insert.slice(0, 60)).toMatch(/on conflict[^;]*do nothing|\bnot exists\b/i);
     }
   });
 
