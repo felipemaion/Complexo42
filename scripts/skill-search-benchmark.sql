@@ -10,6 +10,12 @@
 -- habilidade (Index Scan / Bitmap Index Scan), não Seq Scan. Meta: menos de 500 ms por busca.
 begin;
 
+-- Se o volume do `npm run db:seed-volume` (#74) já está carregado (mil contas ou mais), a medição usa esse volume, que tem
+-- nome e contato cifrados, município com pesos e 1 a 8 habilidades por perfil. Sem ele, gera 50 mil perfis de forma abaixo.
+select count(*) >= 1000 as has_volume from auth.users where email like 'vol-%@exemplo.invalid' \gset
+\if :has_volume
+\echo 'usando o volume já carregado (npm run db:seed-volume)'
+\else
 -- 50 mil contas e perfis fictícios (o nome cifrado é um valor de forma, não um nome).
 insert into auth.users (id, email)
 select gen_random_uuid(), 'bench-' || g || '@exemplo.invalid' from generate_series(1, 50000) as g;
@@ -24,6 +30,8 @@ select p.id, s.id
 from public.profiles as p
 cross join lateral (select id from public.skills order by random() limit 4) as s
 where p.id in (select id from auth.users where email like 'bench-%@exemplo.invalid');
+
+\endif
 
 analyze public.profiles;
 analyze public.profile_skills;

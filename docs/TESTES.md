@@ -109,6 +109,24 @@ desfaz tudo) e imprime o `EXPLAIN (ANALYZE, BUFFERS)` do miolo da busca (uma hab
 "Execution Time" e que o plano usa o índice de habilidade, não Seq Scan. O pgTAP só confere que os índices existem: com poucas
 linhas o planejador escolhe Seq Scan e um teste de `EXPLAIN` ficaria instável.
 
+**Perfis em volume (#74).** `npm run db:seed-volume -- --count 2000 --sim-local` (ou `50000`, `500000`) carrega perfis 100%
+fictícios no **banco local** do Supabase, para medir desempenho (a busca por habilidade usa esse volume quando ele existe).
+Nome e WhatsApp saem cifrados pelo mesmo código do app (`src/server/crypto`) com a **chave de teste** do `.env.local`; conta
+`vol-N@exemplo.invalid`, telefone `+55119` + 8 dígitos a partir de 10.000.000 (fictício só por convenção). Distribuição:
+capital com 35% e o resto da RMSP em Zipf, 1 a 8 habilidades por perfil (a maioria 2 a 4, as primeiras do catálogo mais
+populares), uma casa aceita e uma equipe. Pontos, missões e entregas ainda não têm tabela: entram quando existirem (#74
+continua aberta por isso). A mesma `--seed` gera as mesmas pessoas; rodar de novo ignora o que já existe; `--clean` apaga só
+as contas `vol-*`. Precisa do cliente `psql` (ex.: `brew install libpq`) e do `npm run setup`.
+
+*Nunca em servidor.* O script recusa: `NODE_ENV=production`; endereço que não seja `127.0.0.1` ou `localhost`; porta que não
+seja a do banco do Supabase local (a de `supabase/config.toml`); falta de `--sim-local`; e banco que já tenha qualquer conta
+que não seja fictícia (a demo, por exemplo). O gerador e as travas têm teste (`tests/seed-volume.test.ts`); o **banco não é
+exercitado no CI** (50 mil linhas ficam fora do CI obrigatório). *Tempo e espaço:* ainda não medidos (sem Docker na máquina
+de quem escreveu); preencha aqui o tempo e o `pg_database_size` depois da primeira carga de 50 mil e de 500 mil, e lembre
+que o staging gratuito tem teto de 500 MB: use só o local. Para medir: carregue, rode
+`psql "<banco local>" -f scripts/skill-search-benchmark.sql` (ele reaproveita o volume carregado) e cole o `explain analyze`
+no PR; o critério de 200 ms da listagem por escopo (`app.can_*`) também se mede assim.
+
 Metas ainda a validar com o stakeholder. Medir os limites dos planos gratuitos: Workers
 (requisições por dia, CPU por requisição) e Supabase (compute, conexões, e-mails do Auth,
 egress). Banco: `EXPLAIN ANALYZE` e `pg_stat_statements`. Celular: Lighthouse CI. Saída: um
