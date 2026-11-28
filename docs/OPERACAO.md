@@ -428,8 +428,8 @@ processo com o **nome** da variável no log, nunca o valor.
 | `DB_HEALTH_URL` | obrigatória em produção; no servidor, `http://rest:3001/ready` (admin do PostgREST) |
 | `HEALTH_TIMEOUT_MS` | tempo máximo de **cada** sonda do healthz (padrão 2000; as duas correm em paralelo) |
 | `LOG_DIR` | onde fica o `app.log` (padrão `data/logs`) |
-| `FIELD_ENCRYPTION_KEY` | **obrigatória em produção**; cifra de campo (ADR 0003). Sem ela **ninguém entra**. A exigência está **desarmada** (#285) até o compose do servidor repassar a chave |
-| `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra**. Exigência **desarmada** (#285), como a anterior |
+| `FIELD_ENCRYPTION_KEY` | **obrigatória em produção**; cifra de campo (ADR 0003). Sem ela **ninguém entra**: o app recusa subir. Exigência reposta em 2026-11-28, depois de o compose do servidor repassar a chave |
+| `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra**: o app recusa subir. Exigência reposta junto com a anterior |
 | `FIELD_ENCRYPTION_KEY_VERSION`, `FIELD_ENCRYPTION_PREVIOUS_KEYS` | rotação de chave (ADR 0003 §5); vazio é o normal |
 | `QUESTIONNAIRE_SIGNING_KEY` | assina o resultado do questionário (ADR 0014). **Ausente no staging** em 2026-11-28 |
 
@@ -982,16 +982,28 @@ eles a pergunta "está igual à `main`?" não faz sentido:
 em silêncio: no dia em que um PR tocar um desses scripts, o número aqui passa
 a estar errado — e número errado numa conferência é pior que nenhum. O comando
 abaixo calcula o esperado a partir da `main` e diz **qual** dos dois lados está
-atrasado:
+atrasado. **Cobre os quatro** scripts de operador: um que ficasse fora da lista
+seria conferido por ninguém, que é exatamente como a cópia velha do `migra.sh`
+sobreviveu a três PRs.
 
 ```sh
-for f in deploy.sh migra.sh; do
+for f in deploy.sh migra.sh bootstrap-coordenacao.sh email-hmac.mjs; do
   inst=$(sudo md5sum "/opt/complexo42/$f" | cut -c1-12)
   main=$(curl -fsSL "https://raw.githubusercontent.com/felipemaion/Complexo42/main/deploy/$f" | md5sum | cut -c1-12)
   [ "$inst" = "$main" ] && e=ok || e="DESATUALIZADO"
-  printf '%-10s instalado=%s  main=%s  %s\n' "$f" "$inst" "$main" "$e"
+  printf '%-26s instalado=%s  main=%s  %s\n' "$f" "$inst" "$main" "$e"
 done
 ```
+
+> **Arquivo que ainda não foi instalado faz o `md5sum` falhar**, e a linha sai
+> vazia em vez de dizer o que houve. Num servidor que nunca precisou do
+> bootstrap, `bootstrap-coordenacao.sh` e `email-hmac.mjs` **não existem** — e
+> isso é legítimo. Ler "sem resposta" como "ok" é o erro a evitar: confira se as
+> quatro linhas saíram.
+
+O modo não é o mesmo para todos: `deploy.sh`, `migra.sh` e
+`bootstrap-coordenacao.sh` são `0755` (executados); `email-hmac.mjs` é `0644`
+(lido pelo `node -e` dentro do container do app, nunca executado no host).
 
 **Isto já custou caro.** O PR que fez o `migra.sh` avisar o PostgREST para
 reler o esquema foi mesclado, o deploy rodou, o CI ficou verde — e o aviso não
