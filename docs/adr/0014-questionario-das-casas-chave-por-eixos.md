@@ -69,15 +69,14 @@ com maiúscula e termina em pontuação (normalização só de exibição: o JSO
   coordenação, nem a API leem): só o servidor, por função security definer da própria pessoa, e decifra só lá; um novo resultado
   substitui as respostas (e um resultado decidido pela coordenação as apaga); somem com a conta; entram em "Baixar meus dados".
   **Totem pendente (legado):** o caminho `record_totem_pending` reescreve o resultado sem respostas e por isso as **apaga**; com os pesos 1-3-5 o empate de totem não acontece mais em respostas novas (a soma nunca é zero), então isso só valeria para um caminho que não roda; fica fixado em pgTAP. A coordenação continua sem ver respostas individuais. Não vão para o log (R11). Quem respondeu antes desta mudança fica sem
-  respostas guardadas (a troca de casa usa então frases gerais por eixo).
+  respostas guardadas (a troca de casa mostra então só o gráfico, sem expectativas).
 - **Troca de casa (#268):** depois da trava de 4 meses, "Trocar de casa" abre a MESMA tela de comparação de "Escolher outra
   casa" (#240), com a casa atual e a sugerida pelo último questionário em destaque. O **servidor** monta tudo a partir do guardado:
   lê o resultado e as respostas cifradas da própria pessoa (função `own_questionnaire_answers_enc`), decifra e sela o **mesmo
   token** cifrado e com validade da comparação; o navegador não manda respostas e a comparação segue com o limite por pessoa. Com
-  respostas guardadas, o "o que se espera" é **por pergunta**; sem elas (quem respondeu antes de #256) é **por eixo**: o token
-  leva só as notas dos eixos da casa e o servidor devolve a frase geral (`axes.<eixo>.expectation`, config privada) dos eixos em
-  que a nota está do lado oposto ao da casa, da mais forte para a mais leve. Sem resultado nenhum, a tela mostra as casas e o
-  aviso, sem gráfico nem expectativas. O totem nunca aparece. Confirmar outra casa leva à apresentação, com o aviso da nova trava.
+  respostas guardadas, o "o que se espera" é **por pergunta**; sem elas (quem respondeu antes de #256) a tela mostra só o gráfico e a média, **sem
+  expectativas**: as frases gerais por eixo foram canceladas em 2026-11-28 e nada é gravado em `axes.<eixo>.expectation` (o campo
+  segue opcional no esquema, sem uso). Sem resultado nenhum, a tela mostra as casas e o aviso, sem gráfico nem expectativas. O totem nunca aparece. Confirmar outra casa leva à apresentação, com o aviso da nova trava.
 - O esquema Zod rejeita item em dois eixos, item sem eixo, eixo com número par de itens, casas
   repetidas e letras iguais nos dois polos de um eixo do totem.
 
