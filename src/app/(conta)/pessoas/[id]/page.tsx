@@ -8,7 +8,7 @@ import { requireUserClient } from "@/server/auth/session";
 import { decryptField } from "@/server/crypto";
 import { cardClass, PageShell } from "@/modules/ui";
 import { viewContactAction } from "./actions";
-import { badgeViews } from "./badge-views";
+import { resolveBadges } from "./badge-views";
 
 export const metadata: Metadata = { title: instance.publicProfile.title, robots: { index: false, follow: false } };
 
@@ -24,13 +24,7 @@ export default async function PublicProfilePage({ params }: Readonly<{ params: P
   const person = await readPublicProfile(client, id, decryptField, { withPhoto });
   if (!person) notFound();
   const text = instance.publicProfile;
-  const views = await Promise.all(
-    person.badges.map(async (kind) => {
-      const view = badgeViews[kind];
-      return { kind, node: view ? await view(client, person.id) : null };
-    }),
-  );
-  const shown = views.filter((v) => v.node !== null);
+  const shown = await resolveBadges(client, person.id, person.badges);
   // Só mostra "ver contato" de OUTRA pessoa e só dos contatos que a regra libera (sem auditar nem ler o valor).
   const access = person.id === user.id ? null : await readContactAccess(authClient, person.id);
   return (
