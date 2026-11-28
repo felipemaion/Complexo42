@@ -204,8 +204,8 @@ monta_e_testa() {
   COMPOSE_FILE="$DIR/docker-compose.supabase.yml" ENV_FILE="$ENV_FILE" PROJECT_DIR="$DIR" \
     BACKUP_DIR="$DIR/backups" AGE_RECIPIENT="$publica" bash "$RAIZ/deploy/backup.sh"
   arq=$(ls -1t "$DIR"/backups/diario/*.age | head -n1)
-  # O que o E2E deixou: 2 perfis, 2 casas aceitas, 1 papel (a coordenação), a raiz e os municípios.
-  MINIMOS="perfis=2 casas=2 papeis=1 unidades=1 municipios=5000" REGISTRO="$DIR/backup.log" \
+  # O que o E2E deixou: 1 perfil e 1 casa aceita (a 2ª pessoa se excluiu, #155), 1 papel (a coordenação), a raiz e os municípios.
+  MINIMOS="perfis=1 casas=1 papeis=1 unidades=1 municipios=5000" REGISTRO="$DIR/backup.log" \
     INITDB_DIR="$DIR/initdb" bash "$RAIZ/deploy/restore-test.sh" "$arq" "$chave"
   # A conferência morde: um mínimo impossível TEM de reprovar.
   if MINIMOS="perfis=999999" INITDB_DIR="$DIR/initdb" bash "$RAIZ/deploy/restore-test.sh" "$arq" "$chave" > /dev/null 2>&1; then
