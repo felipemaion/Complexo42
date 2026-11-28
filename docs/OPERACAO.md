@@ -449,7 +449,7 @@ processo com o **nome** da variável no log, nunca o valor.
 | `BLIND_INDEX_KEY` | **obrigatória em produção**; índice cego do e-mail. Sem ela **ninguém entra**: o app recusa subir. Exigência reposta junto com a anterior |
 | `QUESTIONNAIRE_PATH` | **obrigatória em produção** (#313); caminho, dentro do container, do JSON real do questionário (ex.: `/app/questionario/questionnaire.json`, da pasta `./questionario` montada só leitura). Sem ela o app **recusa subir**: antes servia em silêncio o exemplo fictício, com a chave de exemplo |
 | `FIELD_ENCRYPTION_KEY_VERSION`, `FIELD_ENCRYPTION_PREVIOUS_KEYS` | rotação de chave (ADR 0003 §5); vazio é o normal |
-| `QUESTIONNAIRE_SIGNING_KEY` | assina o resultado do questionário (ADR 0014). **Ausente no staging** em 2026-11-28 |
+| `QUESTIONNAIRE_SIGNING_KEY` | assina o resultado do questionário (ADR 0014). **Presente no staging desde 2026-11-28** (no `secrets/env` e em `app.server_secrets`; o compose a repassa). **Ainda opcional na subida** (`env.ts`, fora de `REQUIRED_IN_PRODUCTION`): entra na lista quando a produção a tiver (#290) |
 
 > **As duas primeiras ficaram 9 dias no `secrets/env` sem chegar ao container.**
 > O `gen-secrets.sh` as gerava, o `env.example` as documentava, e o
