@@ -17,6 +17,11 @@ function setup(fetchImpl: (url: string) => Promise<Response>) {
   vi.stubEnv("SUPABASE_URL", "http://kong:8000");
   vi.stubEnv("SUPABASE_ANON_KEY", "sb_publishable_teste");
   vi.stubEnv("SITE_URL", "https://app.exemplo.org");
+  // Cifra de campo: obrigatórias em produção desde 2026-11-28. Valores de
+  // teste, 32 bytes em base64 -- o healthz não cifra nada, mas o app recusa
+  // subir sem elas, e é esse o ponto.
+  vi.stubEnv("FIELD_ENCRYPTION_KEY", "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=");
+  vi.stubEnv("BLIND_INDEX_KEY", "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=");
   vi.stubEnv("TURNSTILE_SITE_KEY", `0x${"a".repeat(22)}`);
   vi.stubEnv("TURNSTILE_SECRET_KEY", `0x${"b".repeat(33)}`);
   vi.stubGlobal("fetch", vi.fn(fetchImpl));

@@ -5,13 +5,20 @@ const jwt = (payload: object) => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.string
 // Login (#9) e Turnstile (#116): obrigatórias em produção junto com DB_HEALTH_URL. Chaves
 // fictícias de baixa entropia, só no formato.
 const TURNSTILE = { TURNSTILE_SITE_KEY: `0x${"a".repeat(22)}`, TURNSTILE_SECRET_KEY: `0x${"b".repeat(33)}` };
-const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org", ...TURNSTILE };
+// Cifra de campo: obrigatória em produção desde 2026-11-28 (ver CIFRA_FALTANDO).
+// base64 de 32 bytes iguais -- canonico por construcao. `"B".repeat(43) + "="`
+// NAO serve: o decodeKey exige round-trip, e o ultimo caractere de uma chave de
+// 32 bytes so tem 2 bits significativos. Reprovou no teste antes de eu notar.
+const CIFRA = { FIELD_ENCRYPTION_KEY: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=", BLIND_INDEX_KEY: "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=" };
+const AUTH = { SUPABASE_URL: "http://kong:8000", SUPABASE_ANON_KEY: jwt({ role: "anon" }), SITE_URL: "https://app.exemplo.org", ...TURNSTILE, ...CIFRA };
 const AUTH_MISSING = [
   "SUPABASE_URL: obrigatória em produção",
   "SUPABASE_ANON_KEY: obrigatória em produção",
   "SITE_URL: obrigatória em produção",
   "TURNSTILE_SITE_KEY: obrigatória em produção",
   "TURNSTILE_SECRET_KEY: obrigatória em produção",
+  "FIELD_ENCRYPTION_KEY: obrigatória em produção",
+  "BLIND_INDEX_KEY: obrigatória em produção",
 ];
 
 describe("parseEnv", () => {
@@ -61,8 +68,24 @@ describe("chaves de criptografia (#45)", () => {
     return result.ok ? [] : result.problems;
   };
 
-  it("são opcionais na subida: produção sem chaves sobe (rota sem criptografia não depende delas)", () => {
-    expect(parseEnv(prod).ok).toBe(true);
+  // CONTRATO INVERTIDO em 2026-11-28, de propósito. Antes: "são opcionais na
+  // subida, porque rota sem criptografia não depende delas". Na prática não
+  // existe app útil sem elas -- a checagem de acesso cifra, então SEM CHAVE
+  // NINGUÉM ENTRA. Opcional na subida produziu um staging que subia saudável,
+  // respondia 200 no /api/healthz e recusava todo login com `missing_key`;
+  // custou duas rodadas de diagnóstico para achar. Recusar subir é mais
+  // honesto que servir um app em que só o login está quebrado.
+  it("produção SEM as chaves de cifra não sobe: sem chave ninguém entra", () => {
+    const semCifra = Object.fromEntries(
+      Object.entries(prod).filter(([k]) => k !== "FIELD_ENCRYPTION_KEY" && k !== "BLIND_INDEX_KEY"),
+    );
+    const problems = fail(semCifra);
+    expect(problems).toContain("FIELD_ENCRYPTION_KEY: obrigatória em produção");
+    expect(problems).toContain("BLIND_INDEX_KEY: obrigatória em produção");
+  });
+
+  it("e fora de produção seguem opcionais: desenvolvimento sobe sem elas", () => {
+    expect(parseEnv({ NODE_ENV: "development" }).ok).toBe(true);
   });
 
   it("aceita chaves de 32 bytes e versão com padrão 1", () => {

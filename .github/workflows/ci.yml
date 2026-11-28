@@ -235,6 +235,18 @@ jobs:
           fi
           echo "ok: nenhum pedido de privilegio no compose do Supabase"
 
+      # Toda variavel obrigatoria em producao tem de ser repassada pelo compose
+      # do app. Em 2026-11-28 o login do staging recusou todo mundo com
+      # `missing_key`: FIELD_ENCRYPTION_KEY e BLIND_INDEX_KEY estavam no
+      # secrets/env, com valor, e o `environment:` do compose nao as listava.
+      # O gen-secrets as gerava e o env.example as documentava -- tres lugares
+      # concordando e um discordando, em silencio. O container sobe sem elas e
+      # falha no PRIMEIRO USO de cifra, que e justamente o login.
+      - name: Toda variável obrigatória em produção chega ao container
+        run: |
+          bash scripts/check-env-compose.test.sh
+          python3 scripts/check-env-compose.py
+
       # Todo plugin usado no kong.yml tem de estar em KONG_PLUGINS. A lista do
       # compose e RESTRITIVA (o padrao do Kong e `bundled`, com dezenas), e o
       # Kong RECUSA SUBIR se o declarativo usar um plugin fora dela -- derruba
