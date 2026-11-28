@@ -14,3 +14,4 @@ export { changeHouse, grantQuestionnaireAccess, setTransferWindow, resolveAnalys
 export type { CaseRow, CandidateRow, DelegationRow, ResultRow } from "./server/coordination-views";
 export { readOwnHouseCard, type OwnHouseCard } from "./server/own-house";
 export { readMemberTotems } from "./server/member-totems";
+export { readMemberHouses } from "./server/member-houses";
