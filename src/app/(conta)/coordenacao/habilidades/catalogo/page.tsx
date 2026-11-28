@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { instance } from "@config/instance";
 import { requireCoordinationScreen } from "@/modules/houses";
-import { listAdminCatalog, skillNameLimits, type AdminSkillView } from "@/modules/skills";
+import { type AdminSkillView, listAdminCatalog, skillErrorText, skillNameLimits } from "@/modules/skills";
 import { catalogAction } from "./actions";
 import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
@@ -22,7 +22,7 @@ export default async function SkillCatalogPage({
   const skills = await listAdminCatalog(client);
   const text = instance.skills;
   const c = text.catalog;
-  const errorText = query.erro ? (text.errors[query.erro as keyof typeof text.errors] ?? text.errors.failed) : null;
+  const errorText = skillErrorText(text.errors, query.erro);
   const groups = new Map<string, AdminSkillView[]>();
   for (const skill of skills) groups.set(skill.category, [...(groups.get(skill.category) ?? []), skill]);
   const active = skills.filter((skill) => skill.active);

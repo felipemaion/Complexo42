@@ -3,7 +3,7 @@ import Link from "next/link";
 import { instance } from "@config/instance";
 import { COORDINATION_PATH } from "@/modules/access";
 import { requireCoordinationScreen } from "@/modules/houses";
-import { listOpenSuggestions, skillNameLimits } from "@/modules/skills";
+import { listOpenSuggestions, skillErrorText, skillNameLimits } from "@/modules/skills";
 import { decideSuggestionAction } from "./actions";
 import { buttonClass, cardClass, fieldClass, noticeClass, PageShell, textLinkClass } from "@/modules/ui";
 
@@ -21,7 +21,7 @@ export default async function SkillSuggestionsPage({
   const query = await searchParams;
   const suggestions = await listOpenSuggestions(client);
   const text = instance.skills;
-  const errorText = query.erro ? (text.errors[query.erro as keyof typeof text.errors] ?? text.errors.failed) : null;
+  const errorText = skillErrorText(text.errors, query.erro);
   return (
     <PageShell width="wide">
       <h1 className="text-3xl font-bold sm:text-4xl">{text.queue.title}</h1>

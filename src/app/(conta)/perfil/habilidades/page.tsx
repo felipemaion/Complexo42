@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { instance } from "@config/instance";
 import { sessionHouseClient } from "@/modules/houses";
-import { listCatalog, listMySuggestions, maxSkillsPerPerson, readMySkillIds, skillNameLimits, SkillPicker } from "@/modules/skills";
+import { SkillPicker, listCatalog, listMySuggestions, maxSkillsPerPerson, readMySkillIds, skillErrorText, skillNameLimits } from "@/modules/skills";
 import { HOME_PATH } from "@/server/auth/routes";
 import { requireUser } from "@/server/auth/session";
 import { saveSkillsAction, suggestSkillAction } from "./actions";
@@ -24,7 +24,7 @@ export default async function SkillsPage({
   const [catalog, mine, suggestions] = client
     ? await Promise.all([listCatalog(client), readMySkillIds(client, user.id), listMySuggestions(client, user.id)])
     : [[], [], []];
-  const errorText = query.erro ? (text.errors[query.erro as keyof typeof text.errors] ?? text.errors.failed) : null;
+  const errorText = skillErrorText(text.errors, query.erro);
   const statusText = { open: text.statusOpen, approved: text.statusApproved, rejected: text.statusRejected } as const;
   return (
     <PageShell width="form">
