@@ -51,7 +51,10 @@ test.describe("quem está em espera baixa os próprios dados (#130)", () => {
     const download = page.waitForEvent("download", { timeout: 20_000 }).catch(() => null);
     await page.getByRole("button", { name: "Baixar meus dados" }).click();
     const file = await download;
-    expect(file, `sem download; a página ficou em ${page.url()}`).not.toBeNull();
+    if (!file) {
+      const probe = await page.request.post("/meus-dados", { headers: { Origin: new URL(page.url()).origin }, maxRedirects: 0 });
+      throw new Error(`sem download; página em ${page.url()}; POST direto: ${probe.status()} ${JSON.stringify(probe.headers()["content-disposition"])} ${(await probe.text()).slice(0, 200)}`);
+    }
     const chunks: Buffer[] = [];
     for await (const chunk of await file!.createReadStream()) chunks.push(chunk as Buffer);
     const text = Buffer.concat(chunks).toString("utf8");
