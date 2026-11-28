@@ -28,6 +28,13 @@ cat > "$BASE/bin/docker" << 'DUBLE'
 #!/usr/bin/env bash
 printf 'APP_IMAGEM=%s %s\n' "${APP_IMAGEM:-}" "$*" >> "$STUB_CHAMADAS"
 [ "$1 $2" = "compose -p" ] && case "$*" in *" ps -q app") echo cid123; exit 0 ;; esac
+# A pergunta do LABEL vem ANTES do inspect generico: sem isto a prova
+# positiva do projeto receberia a referencia da imagem anterior e falharia.
+case "$*" in
+  *com.docker.compose.project*)
+    printf '%s\n' "${STUB_DONO_DB-${STUB_SUPA_PROJ:-}}"
+    exit "${STUB_DONO_DB_SAIDA:-0}" ;;
+esac
 [ "$1 $2" = "inspect -f" ] && { printf '%s\n' "${STUB_ANTERIOR-$ANTERIOR_PADRAO}"; exit 0; }
 case "$1" in
   create) exit 0 ;;
@@ -44,7 +51,7 @@ esac
 # O ensaio ANTES do `up -d` generico: ele tambem casa com *"up -d"*.
 case "$*" in
   *"up -d --dry-run"*)
-    printf '%s\n' "${STUB_ENSAIO:-Container app-1  Recreate}"
+    printf '%s\n' "${STUB_ENSAIO:-$ENSAIO_PADRAO}"
     exit "${STUB_ENSAIO_SAIDA:-0}" ;;
 esac
 case "$*" in
@@ -58,6 +65,9 @@ printf '#!/bin/sh\nexit 0\n' > "$BASE/bin/sleep"
 chmod +x "$BASE/bin"/*
 ANT=ghcr.io/felipemaion/complexo42@sha256:$(printf '9%.0s' $(seq 1 64))
 export PATH="$BASE/bin:$PATH" STUB_CHAMADAS="$BASE/chamadas" STUB_CONTA="$BASE/conta" ANTERIOR_PADRAO="$ANT"
+# Ensaio como o compose de verdade imprime: TODOS os servicos, o banco entre
+# eles e inalterado. A trava do banco exige que ele apareca.
+export ENSAIO_PADRAO=$'Container complexo42stg-db-1  Running\nContainer complexo42stg-rest-1  Running\nContainer complexo42stg-kong-1  Recreate'
 export STUB_MIGRA="$BASE/migra-recebeu"
 
 escreve_config() {
@@ -408,8 +418,8 @@ STUB_SMOKE=falha_sempre roda "$DIG"
 verifica "saude ausente depois de recriar derruba o deploy" $r
 [ "$(cat "$SRV/docker-compose.supabase.yml")" = "$antes_da_saude" ] && r=0 || r=1
 verifica "e devolve o arquivo anterior" $r
-grep -q 'supabase_devolvido' "$LOG" && r=0 || r=1
-verifica "e registra em qual estado ficou o ambiente" $r
+grep -q 'supabase_devolvido_sem_saude' "$LOG" && r=0 || r=1
+verifica "e registra o estado EXATO: devolvido e ainda sem saude" $r
 [ ! -s "$STUB_MIGRA" ] && r=0 || r=1
 verifica "e as migrations NAO rodam" $r
 # O manifesto tem de voltar a casar com o disco: se nao, o deploy SEGUINTE
@@ -418,6 +428,98 @@ sha_disco=$(shasum -a 256 "$SRV/docker-compose.supabase.yml" 2> /dev/null | cut 
   || sha256sum "$SRV/docker-compose.supabase.yml" | cut -d" " -f1)
 grep -q "$sha_disco" "$MANIF" && r=0 || r=1
 verifica "e o MANIFESTO volta a casar com o disco (nao trava o proximo deploy)" $r
+
+# (q) BLOQUEANTE achado em revisao: projeto errado subiria uma SEGUNDA pilha.
+#     A trava e prova POSITIVA -- o banco conhecido tem de ser do projeto em
+#     que vamos agir --, e acontece ANTES de qualquer coisa que mude estado.
+printf 'compose v7\n' > "$IMG/docker-compose.supabase.yml"
+: > "$STUB_MIGRA"
+antes_do_projeto=$(cat "$SRV/docker-compose.supabase.yml")
+STUB_DONO_DB=projeto-de-outro-ambiente roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "projeto errado (banco e de outro projeto) DERRUBA o deploy" $r
+grep -q 'pertence ao projeto projeto-de-outro-ambiente' "$BASE/saida" && r=0 || r=1
+verifica "e diz de quem o banco e, de verdade" $r
+grep -q 'up -d' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e NAO chega a ensaiar nem a aplicar nada" $r
+[ "$(cat "$SRV/docker-compose.supabase.yml")" = "$antes_do_projeto" ] && r=0 || r=1
+verifica "e devolve o arquivo" $r
+grep -q 'supabase_projeto_errado' "$LOG" && r=0 || r=1
+verifica "e registra o motivo" $r
+[ ! -s "$STUB_MIGRA" ] && r=0 || r=1
+verifica "e as migrations NAO rodam" $r
+
+# (r) nao consegui provar: tambem falha FECHADO
+: > "$STUB_MIGRA"
+STUB_DONO_DB= STUB_DONO_DB_SAIDA=1 roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "sem conseguir ler o projeto do banco: falha FECHADO" $r
+grep -q 'Sem essa prova eu NAO mexo' "$BASE/saida" && r=0 || r=1
+verifica "e diz que sem prova nao age" $r
+grep -q 'up -d' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e nao age mesmo" $r
+
+# (s) o ensaio nao menciona o banco: silencio nao e tranquilizador
+: > "$STUB_MIGRA"
+STUB_ENSAIO='Container outra-coisa-1  Recreate' roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "ensaio sem mencionar o banco DERRUBA o deploy" $r
+grep -q 'nao e silencio tranquilizador' "$BASE/saida" && r=0 || r=1
+verifica "e explica por que" $r
+
+# (t) o banco apareceria como Create -- o caso da pilha nova
+: > "$STUB_MIGRA"
+STUB_ENSAIO='Container complexo42stg-db-1  Creating' roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "banco em Creating DERRUBA o deploy (pilha nova)" $r
+
+# (u) e em Stop/Remove tambem
+: > "$STUB_MIGRA"
+STUB_ENSAIO='Container complexo42stg-db-1  Removed' roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "banco em Removed DERRUBA o deploy" $r
+
+# (v) banco apenas Running: segue. E o caminho normal, e precisa passar.
+: > "$STUB_MIGRA"
+STUB_ENSAIO=$'Container complexo42stg-db-1  Running\nContainer complexo42stg-kong-1  Recreate' \
+  roda "$DIG"
+verifica "banco Running nao e risco: o deploy segue" $?
+grep -qE -- '-p stgsupa .* up -d$' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "e aplica" $r
+
+# (w) o ensaio falhando derruba, sem aplicar (usa o STUB_ENSAIO_SAIDA)
+: > "$STUB_MIGRA"
+printf 'compose v8\n' > "$IMG/docker-compose.supabase.yml"
+STUB_ENSAIO_SAIDA=1 roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "ensaio falhando derruba o deploy" $r
+grep -q 'supabase_ensaio_falhou' "$LOG" && r=0 || r=1
+verifica "e registra que foi o ensaio" $r
+grep -qE -- '-p stgsupa .* up -d$' "$STUB_CHAMADAS" && r=1 || r=0
+verifica "e nao aplica depois de ensaio que falhou" $r
+
+# (x) o up do Supabase falhando devolve e derruba (usa o STUB_UP_SUPA)
+: > "$STUB_MIGRA"
+antes_do_up=$(cat "$SRV/docker-compose.supabase.yml")
+STUB_UP_SUPA=1 roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "up -d no Supabase falhando derruba o deploy" $r
+[ "$(cat "$SRV/docker-compose.supabase.yml")" = "$antes_do_up" ] && r=0 || r=1
+verifica "e devolve o arquivo" $r
+[ ! -s "$STUB_MIGRA" ] && r=0 || r=1
+verifica "e as migrations NAO rodam" $r
+
+# (y) so o kong.yml mudou e a saude nao volta: devolve o KONG, nao o compose
+: > "$STUB_MIGRA"
+printf 'kong v8\n' > "$IMG/kong.yml"
+antes_do_kong=$(cat "$SRV/kong.yml")
+STUB_SMOKE=falha_sempre roda "$DIG"
+[ $? -ne 0 ] && r=0 || r=1
+verifica "so o kong mudando, saude ausente derruba o deploy" $r
+[ "$(cat "$SRV/kong.yml")" = "$antes_do_kong" ] && r=0 || r=1
+verifica "e devolve o kong.yml ao conteudo anterior" $r
+grep -q -- 'force-recreate kong' "$STUB_CHAMADAS" && r=0 || r=1
+verifica "e recriou o kong na devolucao tambem" $r
 
 unset STUB_SUPA_PROJ
 escreve_config

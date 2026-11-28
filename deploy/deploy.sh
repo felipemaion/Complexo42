@@ -465,8 +465,75 @@ grava_e_registra() { # grava_e_registra <origem> <alvo> <relativo>
 # e o migra.sh. Nas quatro o deploy ficou VERDE. Isto fecha os dois casos que
 # sao do compose do Supabase.
 dc_supabase() {
+  # --project-directory explicito: e o padrao (o diretorio do arquivo), mas
+  # deixar implicito faria caminho relativo dentro do compose depender de onde
+  # o deploy foi chamado.
   docker compose -p "$SUPABASE_PROJETO" --env-file "$ENV_FILE" \
+    --project-directory "$INFRA_DIR" \
     -f "$INFRA_DIR/docker-compose.supabase.yml" "$@"
+}
+
+# Ecoa a saida do compose no log, LIMITADA. Erro de interpolacao do compose
+# cita o NOME da variavel, nao o valor -- mas saida de terceiro no log do root
+# merece teto, e `head` aqui nao esconde decisao nenhuma: a decisao sai das
+# funcoes abaixo, nao do que foi impresso.
+ecoa_ensaio() { # ecoa_ensaio <texto>
+  local l n=0
+  while IFS= read -r l; do
+    n=$((n + 1))
+    [ "$n" -gt 20 ] && { log "  ensaio: (... saida truncada em 20 linhas)"; return 0; }
+    log "  ensaio: $l"
+  done <<< "$1"
+  return 0
+}
+
+# PROVA POSITIVA de que o projeto configurado e o que roda ESTE ambiente.
+# Lista negativa nao serve, e isto foi apontado em revisao: com
+# SUPABASE_PROJETO errado (typo, ou projeto de outro ambiente) o ensaio fala
+# de containers com OUTRO nome, nada casa com DB_CONTAINER, a trava passa --
+# e o `up -d` sobe uma SEGUNDA pilha a partir do mesmo compose: banco novo,
+# volume novo, initdb rodando. Fecha-se exigindo que o banco conhecido deste
+# ambiente seja, ele mesmo, do projeto em que vamos agir.
+confere_projeto_do_supabase() {
+  local dono
+  dono=$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' \
+    "$DB_CONTAINER" 2> /dev/null) || dono=
+  if [ -z "$dono" ]; then
+    log "ERRO: nao consegui ler o projeto Compose do banco ($DB_CONTAINER)."
+    log "      Sem essa prova eu NAO mexo no Supabase -- agir no projeto errado"
+    log "      subiria uma segunda pilha, com banco e volume novos."
+    return 1
+  fi
+  if [ "$dono" != "$SUPABASE_PROJETO" ]; then
+    log "ERRO: SUPABASE_PROJETO=$SUPABASE_PROJETO, mas o banco deste ambiente"
+    log "      ($DB_CONTAINER) pertence ao projeto $dono. Configuracao errada."
+    return 1
+  fi
+  return 0
+}
+
+# Le o ensaio e decide se o banco esta em risco. Sem `|`: com pipefail, um
+# `printf | grep -q` pode morrer de SIGPIPE e a trava falharia ABERTO -- a
+# mesma familia de erro da armadilha 61 (a conferencia que passa justamente
+# quando nao devia).
+banco_em_risco() { # banco_em_risco <texto do ensaio>
+  local linhas
+  # -F: nome de container nao e expressao regular.
+  linhas=$(grep -F -- "$DB_CONTAINER" <<< "$1") || linhas=
+  if [ -z "$linhas" ]; then
+    log "ERRO: o ensaio nao menciona o banco ($DB_CONTAINER) de forma nenhuma."
+    log "      Isso nao e silencio tranquilizador: ou o compose nao tem mais o"
+    log "      servico do banco, ou estamos olhando outro projeto."
+    return 0
+  fi
+  # Create/Recreate/Remove/Stop/Kill/Restart tocam o banco. Running, Start* e
+  # Skipped nao: banco parado que sobe de novo nao perde nada.
+  if grep -Eq '(Creat|Recreat|Remov|Stopp?|Kill|Restart)' <<< "$linhas"; then
+    log "ERRO: o ensaio diz que o banco ($DB_CONTAINER) seria tocado:"
+    ecoa_ensaio "$linhas"
+    return 0
+  fi
+  return 1
 }
 
 # Devolve o conteudo anterior dos arquivos que esta sincronia trocou e refaz o
@@ -476,7 +543,14 @@ dc_supabase() {
 restaura_infra() { # restaura_infra <raiz temporaria>
   local tmp=$1 rel falhou=0
   for rel in "${INFRA_PERMITIDA[@]}"; do
-    [ -f "$tmp/antes/$rel" ] || continue
+    if [ ! -f "$tmp/antes/$rel" ]; then
+      # Arquivo que era NOVO nesta sincronia nao tem conteudo anterior. Nao
+      # apagar e deliberado (apagar infra e pior que deixar), mas tem de
+      # aparecer no log: a devolucao nao foi completa.
+      [ -f "$INFRA_DIR/$rel" ] && [ -z "$(awk -v r="$rel" '$2 == r { print $1 }' "$MANIFESTO" 2> /dev/null)" ] \
+        && log "ATENCAO: $rel era NOVO -- nao ha conteudo anterior para devolver"
+      continue
+    fi
     if grava_infra "$tmp/antes/$rel" "$INFRA_DIR/$rel" "$rel"; then
       log "infra: $rel DEVOLVIDO ao conteudo anterior"
     else
@@ -502,20 +576,28 @@ aplica_no_supabase() { # aplica_no_supabase <tmp> <compose_mudou> <kong_mudou>
     return 0
   fi
 
+  # ── prova positiva, ANTES de qualquer coisa que mude estado ──
+  if ! confere_projeto_do_supabase; then
+    log "      Devolvendo os arquivos de infra ao conteudo anterior."
+    restaura_infra "$tmp" || log "ALERTA: a devolucao dos arquivos tambem falhou"
+    registra supabase_projeto_errado "$(decorrido)"
+    return 1
+  fi
+
   # ── ensaio: quem o compose recriaria ──
   if ! ensaio=$(dc_supabase up -d --dry-run 2>&1); then
     log "ERRO: o ensaio do compose do Supabase falhou -- nada foi recriado"
-    printf '%s\n' "$ensaio" | while IFS= read -r l; do log "  ensaio: $l"; done
+    ecoa_ensaio "$ensaio"
     restaura_infra "$tmp" || log "ALERTA: a devolucao dos arquivos tambem falhou"
+    registra supabase_ensaio_falhou "$(decorrido)"
     return 1
   fi
-  printf '%s\n' "$ensaio" | while IFS= read -r l; do log "  ensaio: $l"; done
+  ecoa_ensaio "$ensaio"
 
-  # ── trava do banco: o deploy NUNCA recria o db por conta propria ──
+  # ── trava do banco: o deploy NUNCA toca o db por conta propria ──
   # Recriar o Postgres e decisao humana: encerra conexao, pode disparar
   # initdb em volume novo, e nao ha rollback que devolva o que se perdeu.
-  if printf '%s\n' "$ensaio" | grep -Eq "$DB_CONTAINER.*(Recreate|Remove|Stop|Kill|Restart)"; then
-    log "ERRO: o ensaio diz que o banco ($DB_CONTAINER) seria recriado."
+  if banco_em_risco "$ensaio"; then
     log "      O deploy NAO faz isso por conta propria -- chame um humano."
     log "      Devolvendo os arquivos de infra ao conteudo anterior."
     restaura_infra "$tmp" || log "ALERTA: a devolucao dos arquivos tambem falhou"

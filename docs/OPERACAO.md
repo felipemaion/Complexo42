@@ -971,17 +971,40 @@ serviços cuja configuração resolvida mudou — medido quatro vezes com
 compose não vê mudança no conteúdo do arquivo, então a recriação dele é
 explícita.
 
-**O deploy nunca recria o banco por conta própria.** Antes de aplicar, roda
-`up -d --dry-run` e lê o resultado. Se o ensaio disser que o container de
-`DB_CONTAINER` seria recriado, o deploy **para**, devolve os arquivos ao
-conteúdo anterior e chama um humano. Recriar o Postgres encerra conexão, pode
-disparar o `initdb` num volume novo, e não há rollback que devolva o que se
-perdeu.
+**O deploy nunca toca o banco por conta própria — e a trava é prova positiva.**
+Antes de qualquer coisa que mude estado, o deploy exige que o banco conhecido
+do ambiente (`DB_CONTAINER`) **pertença ao projeto** `SUPABASE_PROJETO` —
+lendo o label `com.docker.compose.project` do container. Sem conseguir essa
+prova, ele não age.
+
+> **Por que positiva, e não "procurar o banco no ensaio".** Com
+> `SUPABASE_PROJETO` errado — um typo, ou o projeto de outro ambiente — o
+> ensaio fala de containers com **outro nome**: nada casaria com
+> `DB_CONTAINER`, a trava passaria, e o `up -d` subiria uma **segunda pilha**
+> a partir do mesmo compose: banco novo, volume novo, `initdb` rodando.
+> Lista negativa falha aberto exatamente quando a configuração está errada,
+> que é quando ela mais precisa funcionar. Apontado em revisão do #281.
+
+Depois disso, o ensaio (`up -d --dry-run`) é lido: se **não mencionar** o
+banco, ou se o mencionar com `Creat*`, `Recreat*`, `Remov*`, `Stop*`, `Kill`
+ou `Restart`, o deploy **para**, devolve os arquivos e chama um humano.
+`Running` e `Start*` passam: banco parado que volta a subir não perde nada.
+Recriar o Postgres encerra conexão, pode disparar o `initdb` num volume novo,
+e não há rollback que devolva o que se perdeu.
 
 **Volta atrás.** Falha ao aplicar, ou saúde que não volta, devolve cada arquivo
 ao conteúdo anterior, **refaz o manifesto** e recria com ele. Refazer o
 manifesto não é detalhe: sem isso o disco passa a divergir do que o manifesto
 diz e o deploy **seguinte** trava como se alguém tivesse editado à mão.
+
+> **O que a volta atrás não cobre, e é bom saber antes de precisar.** Arquivo
+> que era **novo** nesta sincronia não tem conteúdo anterior: a devolução
+> avisa no log e **não apaga** (apagar infra é pior que deixar). E se o
+> processo morrer entre gravar e aplicar, o disco fica novo com os containers
+> velhos — o deploy seguinte lê "tudo igual à imagem" e não reaplica. Nesse
+> caso, a conferência é a de sempre: comparar o que o container está usando
+> com o que está no disco. Um marcador de "aplicação pendente" resolveria, e
+> está anotado como trabalho próprio.
 
 **A saúde é o `smoke`, com as repetições dele.** O mesmo `/api/healthz` do
 teste de fumaça — que desde a sonda de esquema passa pelo Kong e pelo
