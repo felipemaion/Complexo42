@@ -66,7 +66,7 @@ export function MemberBlockForm({ action, text }: Props) {
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {state.status === "done" && (
-        <p role="status" className="rounded-lg border-2 border-current p-4 text-lg" data-testid="member-block-done">
+        <p role="status" className={noticeClass("success")} data-testid="member-block-done">
           {text.done[state.action]}
         </p>
       )}
