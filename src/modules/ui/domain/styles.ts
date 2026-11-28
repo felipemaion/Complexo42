@@ -49,7 +49,7 @@ export function textLinkClass(): string {
 
 /** Cartão: a superfície que agrupa um formulário ou um bloco da página. */
 export function cardClass(): string {
-  return "flex flex-col gap-5 rounded-card border border-line bg-surface p-5 shadow-card sm:p-8";
+  return "flex flex-col gap-5 rounded-card border border-line bg-surface p-4 shadow-card sm:p-8";
 }
 
 /** Campo de texto: borda de 3:1 com o fundo (WCAG 1.4.11) e altura de alvo de toque. */
