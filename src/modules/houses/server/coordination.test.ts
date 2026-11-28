@@ -5,6 +5,7 @@ import { parseQuestionnaire, QuestionnaireAnswerError, scoreQuestionnaire } from
 import type { CipherContext, HouseClient, HouseQuery } from "../types";
 import {
   changeHouse,
+  setTransferWindow,
   grantQuestionnaireAccess,
   listOpenAnalysisRequests,
   readQuestionnaireResultOf,
@@ -298,7 +299,7 @@ describe("delegação do acesso", () => {
 describe("changeHouse", () => {
   const profileId = "8f1c2a4e-0b5d-4c3a-9e7f-1a2b3c4d5e6f";
 
-  it("manda ao banco só a pessoa e a casa (o banco confere o alcance, a trava e a casa)", async () => {
+  it("manda ao banco só a pessoa e a casa (o banco confere que é a coordenação nacional e a casa)", async () => {
     const { client, rpcCalls } = fake();
     expect(await changeHouse(client, { profileId, houseId: instance.houses[1]!.id }, instance.houses.map((h) => h.id))).toEqual({ ok: true });
     expect(rpcCalls).toEqual([{ fn: "coordination_set_house", args: { p_profile: profileId, p_house_key: instance.houses[1]!.id } }]);
@@ -377,5 +378,28 @@ describe("pedido da chave antiga, com fixture realista (28 respostas q01..q28 em
     const signing = { userId: U2, nowSeconds: 1000, sign: (m: string) => `sig(${m})`, sha256Hex: (v: string) => `hash(${v})` };
     expect(await resolveAnalysis(client, { requestId: REQ, houseId: "casa-b", totem: "XV" }, { houseIds: ["casa-a", "casa-b"], questionnaire: current, crypto, signing })).toEqual({ ok: true });
     expect(rpcCalls[0]?.args.p_scores_enc).toBeNull();
+  });
+});
+
+describe("setTransferWindow", () => {
+  it("manda ao banco só o estado pedido (o banco confere que é a coordenação nacional)", async () => {
+    const { client, rpcCalls } = fake({ rpc: { data: true } });
+    expect(await setTransferWindow(client, { open: true })).toEqual({ ok: true });
+    expect(rpcCalls).toEqual([{ fn: "set_house_transfer_window", args: { p_open: true } }]);
+    expect(await setTransferWindow(client, { open: false })).toEqual({ ok: true });
+    expect(rpcCalls[1]).toEqual({ fn: "set_house_transfer_window", args: { p_open: false } });
+  });
+
+  it("recusa entrada malformada, sem chamar o banco", async () => {
+    const { client, rpcCalls } = fake();
+    expect(await setTransferWindow(client, { open: "sim" })).toEqual({ ok: false, error: "invalid" });
+    expect(await setTransferWindow(client, { open: true, extra: 1 })).toEqual({ ok: false, error: "invalid" });
+    expect(await setTransferWindow(client, null)).toEqual({ ok: false, error: "invalid" });
+    expect(rpcCalls).toEqual([]);
+  });
+
+  it("traduz a recusa do banco (não é a coordenação nacional), sem repassar o texto", async () => {
+    const forbidden = fake({ rpc: { error: { code: "42501", message: "detalhe interno" } } });
+    expect(await setTransferWindow(forbidden.client, { open: true })).toEqual({ ok: false, error: "forbidden" });
   });
 });

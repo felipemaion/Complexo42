@@ -171,9 +171,8 @@ const valid = {
     acceptedTitle: "t",
     homeLink: "t",
     rateLimitedWait: "{minutes}",
-    consentLockNotice: "t",
     consentStoredNotice: "t",
-    lockedUntilNotice: "{date}",
+    transferClosedNotice: "t",
     changeHouseLink: "t",
     continueLink: "t",
     errors: {
@@ -182,7 +181,7 @@ const valid = {
       not_active: "t",
       stale_consent: "t",
       removed_by_coordination: "t",
-      house_locked: "t",
+      window_closed: "t",
       house_conflict: "t",
       app_updated: "t",
       rate_limited: "t",
@@ -190,7 +189,7 @@ const valid = {
     },
   },
   questionnaireCoordination: {
-    linkResults: "t", linkQueue: "t", linkDelegations: "t", backLink: "t", noName: "t",
+    linkResults: "t", linkQueue: "t", linkDelegations: "t", linkWindow: "t", window: { title: "t", intro: "t", statusOpen: "t", statusClosed: "t", openButton: "t", closeButton: "t", failed: "t" }, backLink: "t", noName: "t",
     results: {
       title: "t", intro: "t", houseFilterLabel: "t", houseFilterAll: "t", filterButton: "t", empty: "t",
       columnPerson: "t", columnHouse: "t", columnDate: "t", openLink: "t",

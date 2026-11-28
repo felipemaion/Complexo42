@@ -128,9 +128,6 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
             {questionnaire.consentTerm}
           </p>
           {/* O aviso é texto da tela (config), junto ao botão; o termo vem da config privada e não muda. */}
-          <p className="rounded-xl border-2 border-current p-4 text-lg font-semibold" data-testid="consent-lock-notice">
-            {text.consentLockNotice}
-          </p>
           <p className="rounded-xl border-2 border-current p-4 text-lg" data-testid="consent-stored-notice">
             {text.consentStoredNotice}
           </p>
@@ -228,12 +225,6 @@ export function HouseFlow({ houses, questionnaire, text, change }: Readonly<Prop
               firstStepsTitle={text.firstStepsTitle}
               videosTitle={text.videosTitle}
             />
-          )}
-          {/* Troca depois da trava: o aviso da nova trava de 4 meses vem antes de aceitar (#268). */}
-          {step.returnTo && (
-            <p className="rounded-xl border-2 border-current p-4 text-lg font-semibold" data-testid="change-lock-notice">
-              {text.consentLockNotice}
-            </p>
           )}
           <button
             type="button"
