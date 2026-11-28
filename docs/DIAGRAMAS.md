@@ -311,6 +311,7 @@ erDiagram
         uuid granted_by FK
         timestamptz granted_at
         timestamptz revoked_at
+        uuid revoked_by FK "quem revogou (#22)"
     }
     profiles {
         uuid id PK
@@ -464,6 +465,10 @@ erDiagram
     }
     member_block_attempts {
         uuid actor_id "schema app: limite de tentativas"
+        timestamptz attempted_at
+    }
+    role_grant_attempts {
+        uuid actor_id "schema app: limite de 30 concessões por e-mail por hora (#22)"
         timestamptz attempted_at
     }
     profile_save_attempts {

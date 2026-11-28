@@ -521,8 +521,17 @@ mantém **esse mesmo papel** de gestor ali; nunca sobre si mesmo; inclui resolve
 ### `role_assignments` (ADR 0002 + 0005)
 `id`, `profile_id`, `role` (`monitor`, `manager`, `spokesperson`, `tech_admin`,
 `house_coordinator`), `unit_id`, `house_key` (só em `house_coordinator`, obrigatória), `granted_by`,
-`granted_at`, `revoked_at`. O papel vale na unidade **e em todas abaixo dela**. Um papel ativo
-por pessoa, papel, unidade e casa.
+`granted_at`, `revoked_at`, `revoked_by` (#22: quem revogou, gravado pelo banco; a API não escreve a coluna). O papel
+vale na unidade **e em todas abaixo dela**. Um papel ativo por pessoa, papel, unidade e casa.
+
+- **Rastro (#22):** toda concessão grava `role_granted` e toda revogação grava `role_revoked` no `audit_log` (ator e alvo,
+  nada mais), por gatilho, em qualquer caminho com sessão (API direta ou função). Sem sessão (operador por SQL, bootstrap),
+  o gatilho não grava: quem mexe à mão grava o evento à mão.
+- **Concessão por e-mail (`public.grant_role_by_email`, #22):** papéis de território (`monitor`, `manager`, `spokesperson`)
+  para uma pessoa **ativa e no escopo** de quem concede (`app.manages_member`), além das regras de `app.can_grant_role`.
+  Busca a conta em `auth.users` (como o bloqueio); resposta neutra (e-mail sem conta, fora do escopo ou papel não permitido
+  dão o mesmo resultado); no máximo 30 tentativas por hora por quem chama, contadas em `app.role_grant_attempts` (só
+  `actor_id` e `attempted_at`, apagadas depois de uma hora).
 
 - **`house_coordinator` (ADR 0011):** vê as pessoas **ativas** da casa `house_key`, com vínculo
   de casa aberto e aceito, cujo vínculo de território está em `unit_id` ou abaixo; conta como

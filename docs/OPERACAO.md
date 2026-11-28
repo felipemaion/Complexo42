@@ -131,6 +131,10 @@ sudo APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
   ativo. Para acrescentar outro: `--adicionar-outro` (acrescenta, nunca substitui).
 - O papel nasce com `granted_by` nulo e só **vale** depois de termo, perfil completo e casa aceita
   (`app.is_active_member`): a pessoa segue pelo termo, questionário e casa no próximo acesso.
+- **Papel dado ou tirado à mão por SQL** (sem sessão): o gatilho de `role_assignments` só grava `role_granted` e
+  `role_revoked` quando há sessão (#22). Quem concede ou revoga por SQL direto grava o evento à mão, como o bootstrap:
+  `insert into public.audit_log (actor_id, event, target_id) values (null, 'role_granted', '<id da pessoa>')`
+  (ou `'role_revoked'`); numa revogação à mão, informe também `revoked_by` se souber quem decidiu.
 - **Conferência** (no container do banco; nada de e-mail aparece):
   `select role, revoked_at, granted_by from public.role_assignments where role = 'manager'`
   deve trazer uma linha com `revoked_at` e `granted_by` nulos, e `select event, reason from public.audit_log
