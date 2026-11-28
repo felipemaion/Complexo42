@@ -1,5 +1,5 @@
-// Ligação entre as casas de config/instance.ts e as casas do seed (ADR 0011, R17). A casa é
-// nacional: o seed tem uma linha em `houses` por casa da config, com a chave igual ao `id`, e o
+// Ligação entre as casas de config/instance.ts e as casas da migration de estrutura (ADR 0011, R17).
+// A casa é nacional: a migration tem uma linha em `houses` por casa da config, com a chave igual ao `id`, e o
 // banco não guarda o nome (fica só na config).
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
@@ -7,6 +7,8 @@ import { instance } from "@config/instance";
 import example from "@config/questionnaire.example.json";
 
 const seed = readFileSync("supabase/seed.sql", "utf8");
+// As casas são catálogo fixo da instância: vão ao servidor por MIGRATION (o seed só roda no ambiente local).
+const estrutura = readFileSync("supabase/migrations/20261128040000_estrutura_instancia.sql", "utf8");
 
 /** Lê as chaves de `insert into public.houses (key) values ('a'), ('b');` do seed. */
 function seedHouseKeys(sql: string): string[] {
@@ -18,15 +20,15 @@ function seedHouseKeys(sql: string): string[] {
 /** Mesmo formato do CHECK `houses_key_format` (supabase/migrations/..._national_houses.sql). */
 const HOUSE_KEY = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-describe("casas da config ↔ casas do seed", () => {
-  const keys = seedHouseKeys(seed);
+describe("casas da config ↔ casas da migration", () => {
+  const keys = seedHouseKeys(estrutura);
   const ids = instance.houses.map((h) => h.id);
 
-  it("lê as casas do seed (o padrão continua casando com o arquivo)", () => {
+  it("lê as casas da migration (o padrão continua casando com o arquivo)", () => {
     expect(keys.length).toBeGreaterThan(0);
   });
 
-  it("o seed tem exatamente as casas da config, sem repetir", () => {
+  it("a migration tem exatamente as casas da config, sem repetir", () => {
     expect([...keys].sort()).toEqual([...ids].sort());
     expect(new Set(keys).size).toBe(keys.length);
   });
@@ -38,17 +40,23 @@ describe("casas da config ↔ casas do seed", () => {
     }
   });
 
+  it("o seed não duplica a estrutura que a migration já cria (tipos, raiz, casas)", () => {
+    expect(seed).not.toMatch(/insert into public\.houses/);
+    expect(seed).not.toMatch(/insert into public\.unit_types/);
+    expect(seed).not.toMatch(/seed_unit\(\s*'national'/);
+  });
+
   it("o seed não cria casa como unidade da árvore (o modelo da #76 saiu)", () => {
     expect(seed).not.toMatch(/seed_unit\(\s*'house'/);
     expect(seed).not.toMatch(/membership_axis/);
   });
 
-  it("o insert das casas é idempotente (o mesmo comando semeia a produção, docs/OPERACAO.md)", () => {
-    expect(seed).toMatch(/insert into public\.houses \(key\) values[^;]+on conflict \(key\) do update set active = true;/);
+  it("o insert das casas é idempotente e não reativa casa desativada pelo operador", () => {
+    expect(estrutura).toMatch(/insert into public\.houses \(key\) values[^;]+on conflict \(key\) do nothing;/);
   });
 
-  it("o seed não guarda o nome da casa (os textos ficam na config, R17)", () => {
-    for (const house of instance.houses) expect(seed).not.toContain(house.name);
+  it("a migration não guarda o nome da casa (os textos ficam na config, R17)", () => {
+    for (const house of instance.houses) expect(estrutura).not.toContain(house.name);
   });
 
   it("o seed registra a versão do termo do questionário de exemplo (só versões registradas são aceitas)", () => {
