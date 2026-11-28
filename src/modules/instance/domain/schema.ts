@@ -366,6 +366,8 @@ export const instanceConfigSchema = z.strictObject({
       house_conflict: text,
       /** Pedido de análise renovado há pouco (no máximo um por hora). */
       rate_limited: text,
+      /** A Server Action rejeitou: o app foi atualizado ou a conexão caiu (#315). */
+      app_updated: text,
       failed: text,
     }),
   }),
