@@ -456,11 +456,31 @@ processo com o **nome** da variável no log, nunca o valor.
 > `rollback_falhou`: o log acusava o rollback quando o problema era uma linha
 > de configuração.
 >
-> **O `QUESTIONNAIRE_SIGNING_KEY` ainda não está no `secrets/env` do staging**
-> (conferido em 2026-11-28). Ele é repassado pelo compose e tolerado vazio, de
-> propósito: sem ele o questionário falha ao gravar o resultado, mas o resto
-> do app funciona. Exigi-lo na subida trocaria uma tela quebrada pelo ambiente
-> inteiro fora. Gerar e instalar a chave é ação do dono do servidor.
+> **E um segundo preflight, na mesma etapa 2/5: as obrigatórias CHEGAM ao
+> container?** `config -q` responde "o compose resolve" — não responde "o app
+> recebe o que exige". Variável que o compose do **servidor** simplesmente não
+> lista não aparece em erro nenhum: o app sobe saudável e falha no uso. Foi o
+> login do staging em 2026-11-28, com as chaves no `secrets/env`, o healthz
+> verde e `reason=missing_key` em toda entrada. O deploy agora lê
+> `deploy/obrigatorias-em-producao.txt` **da imagem que está implantando** e
+> confere, no compose resolvido, que cada nome chega com valor não vazio.
+> Falta alguma, ele para antes das migrations e **diz o nome** — nunca o valor.
+>
+> A lista vem da imagem, não do servidor, porque a exigência é **daquela
+> versão do app**: cópia no servidor envelheceria em silêncio, e sincronizá-la
+> faria o deploy ler o que a sincronia escreve. No break-glass (imagem por
+> tag, possivelmente antiga) a ausência da lista só **avisa**: ali recusar
+> custaria o restabelecimento do serviço. O CI mantém a lista igual ao
+> `REQUIRED_IN_PRODUCTION` do `env.ts` (`scripts/check-env-compose.py`), para
+> as duas não divergirem em silêncio.
+>
+> **O `QUESTIONNAIRE_SIGNING_KEY` foi gerado e instalado no `secrets/env` do
+> staging em 2026-11-28**, junto com a mesma chave em `app.server_secrets`
+> (ADR 0014 exige as duas pontas). Ele segue repassado pelo compose e tolerado
+> vazio, de propósito: sem ele o questionário falha ao gravar o resultado, mas
+> o resto do app funciona, e exigi-lo na subida trocaria uma tela quebrada
+> pelo ambiente inteiro fora — produção é outro ambiente, com o seu próprio
+> `secrets/env`.
 
 `GET /api/healthz` responde `{status, version, db, schema}` com
 `Cache-Control: no-store`, e dá **200 só quando as duas sondas passam**:

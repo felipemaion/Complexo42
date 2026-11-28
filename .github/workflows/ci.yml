@@ -196,10 +196,20 @@ jobs:
           # passo, um `*.key` ou um `staging.env` viajaria na imagem, e o
           # deploy recusaria a sincronia so em producao.
           #
-          # A lista e LIDA do deploy.sh, nao repetida aqui: duas copias de uma
-          # lista divergem, e a divergencia apareceria no deploy, nao no CI.
-          esperado=$(sed -n '/^INFRA_PERMITIDA=(/,/^)/p' deploy/deploy.sh \
-            | sed '1d;$d' | tr -d ' \t' | grep -v '^$' | LC_ALL=C sort)
+          # As listas sao LIDAS do deploy.sh, nao repetidas aqui: duas copias de
+          # uma lista divergem, e a divergencia apareceria no deploy, nao no CI.
+          #
+          # SAO DUAS, e precisam das duas: INFRA_PERMITIDA e o que o deploy
+          # SINCRONIZA no servidor; SO_LEITURA_NA_IMAGEM e o que ele apenas LE da
+          # imagem e descarta (a lista de obrigatorias). Conferir so a primeira
+          # reprovaria a imagem legitima; conferir nenhuma deixaria um `*.key`
+          # viajar junto.
+          lista_do_deploy() { # lista_do_deploy <NOME_DO_ARRAY>
+            sed -n "/^$1=(/,/^)/p" deploy/deploy.sh \
+              | sed '1d;$d' | sed 's/#.*//' | tr -d ' \t' | grep -v '^$'
+          }
+          esperado=$( { lista_do_deploy INFRA_PERMITIDA; lista_do_deploy SO_LEITURA_NA_IMAGEM; } \
+            | LC_ALL=C sort -u)
           na_imagem=$(docker run --rm --entrypoint sh complexo42:ci \
             -c 'cd /app/deploy && find . ! -type d | sed "s|^\./||"' | LC_ALL=C sort)
           # Sem isto o passo passaria com a lista VAZIA: um `sed` que deixe de

@@ -130,6 +130,20 @@ INFRA_PERMITIDA=(
   initdb/02-roles.sh
 )
 
+# Arquivo que viaja na imagem e NAO e sincronizado: o deploy o le e descarta.
+# Fica fora do INFRA_PERMITIDA de proposito. Entrar lá o gravaria no servidor, e
+# dai o deploy passaria a LER um arquivo que a sincronia ESCREVE -- exatamente o
+# que a tripwire da lista de infra existe para impedir. Aqui a lista nasce e
+# morre dentro da implantacao, colada a imagem que a trouxe.
+SO_LEITURA_NA_IMAGEM=(
+  obrigatorias-em-producao.txt
+)
+so_leitura_na_imagem() { # so_leitura_na_imagem <caminho relativo>
+  local p
+  for p in "${SO_LEITURA_NA_IMAGEM[@]}"; do [ "$1" = "$p" ] && return 0; done
+  return 1
+}
+
 permitida() {
   local p
   for p in "${INFRA_PERMITIDA[@]}"; do [ "$1" = "$p" ] && return 0; done
@@ -403,7 +417,7 @@ confere_sobras() { # confere_sobras <raiz temporaria>
     if ! nome_seguro "$rel"; then
       log "ERRO: a imagem traz nome de arquivo recusado em /app/deploy"; sobra=1; continue
     fi
-    if ! permitida "$rel"; then
+    if ! permitida "$rel" && ! so_leitura_na_imagem "$rel"; then
       log "ERRO: a imagem traz arquivo fora da lista de infra: $rel"; sobra=1; continue
     fi
     if [ -L "$dir/$rel" ]; then
@@ -879,6 +893,148 @@ if ! saida_preflight=$(APP_IMAGEM="$IMAGEM_ALVO" dc config -q 2>&1); then
   exit 1
 fi
 log "preflight ok: o compose do app resolve com este env"
+
+# ── preflight 2: as obrigatorias CHEGAM ao container? ──
+# `config -q` responde "o compose resolve", nao "o app recebe o que exige": ele
+# nada diz sobre variavel que o compose do servidor simplesmente NAO LISTA --
+# que foi o login do staging em 2026-11-28, com as chaves no secrets/env, o
+# healthz verde e `reason=missing_key` em toda entrada.
+#
+# A lista de exigidas vem da IMAGEM que esta sendo implantada, nao do servidor:
+# e a exigencia DESTA versao do app que tem de bater com ESTE compose. Arquivo
+# equivalente no servidor envelheceria em silencio, e sincroniza-lo faria o
+# deploy ler o que a sincronia escreve (ver SO_LEITURA_NA_IMAGEM).
+# Estado da extracao, para a limpeza acontecer de qualquer lugar -- inclusive de
+# um sinal no meio do `docker cp`. Mesma razao do limpa_infra.
+OBRIG_CONTAINER=
+OBRIG_TMP=
+OBRIG_SAIDA=
+limpa_obrig() {
+  [ -n "$OBRIG_CONTAINER" ] && docker rm -f "$OBRIG_CONTAINER" > /dev/null 2>&1
+  [ -n "$OBRIG_TMP" ] && rm -rf "$OBRIG_TMP"
+  [ -n "$OBRIG_SAIDA" ] && rm -f "$OBRIG_SAIDA"
+  OBRIG_CONTAINER=; OBRIG_TMP=; OBRIG_SAIDA=
+  return 0
+}
+
+# Escreve um nome por linha em <destino>. NAO imprime em stdout de proposito:
+# capturar a saida com $(...) rodaria a funcao num SUBSHELL, e as variaveis de
+# limpeza acima nunca chegariam ao trap do chamador.
+lista_obrigatorias() { # lista_obrigatorias <destino>
+  local destino=$1 c="obrig-$$-$RANDOM" arq rc=0 invalidas
+  OBRIG_TMP=$(mktemp -d) || return 1
+  arq="$OBRIG_TMP/obrigatorias-em-producao.txt"
+  if ! docker create --name "$c" "$IMAGEM_ALVO" > /dev/null 2>&1; then
+    return 1
+  fi
+  OBRIG_CONTAINER=$c
+  # Para um DIRETORIO vazio, nao sobre o arquivo: assim `docker cp` nao decide
+  # nada sobre um destino que ja existe.
+  docker cp "$c:/app/deploy/obrigatorias-em-producao.txt" "$OBRIG_TMP/" > /dev/null 2>&1 || rc=1
+  docker rm -f "$c" > /dev/null 2>&1 || log "ALERTA: o container $c ficou para tras"
+  OBRIG_CONTAINER=
+  [ "$rc" = 0 ] || return $rc
+
+  # `docker cp` traz symlink COMO symlink: ler isso seguiria o destino no HOST,
+  # e a imagem escolheria qual arquivo do servidor vira "a lista". Mesma recusa
+  # que a sincronia da infra faz com os arquivos dela.
+  if [ -L "$arq" ] || [ ! -f "$arq" ]; then
+    log "ERRO: obrigatorias-em-producao.txt na imagem nao e arquivo comum"
+    return 1
+  fi
+
+  # A linha vai CRUA, e o guarda do CI valida a MESMA linha crua. Filtrar aqui
+  # em vez de recusar faria espaco, TAB ou CR no fim DESCARTAR o nome em
+  # silencio: a conferencia passaria conferindo menos, que e justamente o
+  # defeito que este preflight existe para fechar. Apontado na revisao do PR.
+  invalidas=$(grep -vE '^#' "$arq" | grep -v '^$' | grep -cvE '^[A-Z][A-Z0-9_]*$') || invalidas=0
+  if [ "$invalidas" != 0 ]; then
+    log "ERRO: $invalidas linha(s) de obrigatorias-em-producao.txt nao sao nome de"
+    log "      variavel (espaco, TAB ou CR no fim contam). Recuso em vez de"
+    log "      descartar: nome descartado em silencio e variavel nao conferida."
+    return 1
+  fi
+  # Teto de 200: a imagem e dado de entrada.
+  grep -E '^[A-Z][A-Z0-9_]*$' "$arq" | sort -u | head -n 200 > "$destino"
+  rm -rf "$OBRIG_TMP"; OBRIG_TMP=
+  return 0
+}
+
+# Nomes que o compose RESOLVIDO entrega ao servico `app` com valor nao vazio.
+# Le o YAML por indentacao, sem depender de ferramenta que o servidor pode nao
+# ter. So NOME sai daqui: valor de variavel nunca e impresso nem comparado.
+nomes_com_valor() { # nomes_com_valor <yaml resolvido>
+  printf '%s\n' "$1" | awk -v q="\"'" '
+    /^services:[[:space:]]*$/ { em_servicos = 1; next }
+    em_servicos && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ {
+      em_app = ($0 ~ /^  app:[[:space:]]*$/); em_env = 0; next
+    }
+    em_app && /^    environment:[[:space:]]*$/ { em_env = 1; next }
+    em_app && /^    [A-Za-z0-9_.-]+:/ { em_env = 0 }
+    em_env && /^      [A-Z][A-Z0-9_]*:/ {
+      linha = $0; sub(/^      /, "", linha)
+      pos = index(linha, ":")
+      nome = substr(linha, 1, pos - 1)
+      valor = substr(linha, pos + 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", valor)
+      while (length(valor) > 0 && index(q, substr(valor, 1, 1)) > 0) valor = substr(valor, 2)
+      while (length(valor) > 0 && index(q, substr(valor, length(valor), 1)) > 0) valor = substr(valor, 1, length(valor) - 1)
+      # O compose do servidor (v5.6.1, medido em 2026-11-28) imprime vazio como
+      # `NOME: ""`. `null` e `~` entram por garantia: outra versao pode imprimir
+      # YAML nulo, e nulo nao e valor que o app possa usar.
+      if (valor == "null" || valor == "Null" || valor == "NULL" || valor == "~") valor = ""
+      if (valor != "") print nome
+    }
+  '
+}
+
+confere_obrigatorias() {
+  local nomes resolvido faltando rc
+  OBRIG_SAIDA=$(mktemp) || { log "ERRO: nao consegui criar temporario"; return 1; }
+  # So INT/TERM, nunca EXIT (gotcha 63: trap de EXIT faz as checagens ${VAR:?}
+  # deste script sairem com 0).
+  trap 'limpa_obrig; exit 130' INT TERM
+  lista_obrigatorias "$OBRIG_SAIDA"; rc=$?
+  trap - INT TERM
+  nomes=$([ "$rc" = 0 ] && cat "$OBRIG_SAIDA")
+  limpa_obrig
+  if [ "$rc" != 0 ] || [ -z "$nomes" ]; then
+    # Imagem anterior a esta guarda. No modo normal a imagem vem de um build da
+    # `main`, que SEMPRE traz a lista: faltar e sinal de imagem errada, e recusar
+    # custa um deploy. No break-glass a imagem vem por tag e pode ser antiga --
+    # ali recusar custaria o restabelecimento do servico, que e pior.
+    if [ "$MODO" = emergencia ]; then
+      log "ALERTA: a imagem nao traz a lista de obrigatorias (modo emergencia)"
+      log "        A conferencia das obrigatorias NAO foi feita neste deploy."
+      return 0
+    fi
+    log "ERRO: a imagem nao traz /app/deploy/obrigatorias-em-producao.txt"
+    log "      Build desta imagem e anterior a guarda, ou a imagem nao e a que"
+    log "      se pensa. Nada foi migrado nem trocado."
+    return 1
+  fi
+  resolvido=$(APP_IMAGEM="$IMAGEM_ALVO" dc config 2>/dev/null) || {
+    log "ERRO: nao consegui resolver o compose do app para conferir as obrigatorias"
+    return 1
+  }
+  faltando=$(comm -23 <(printf '%s\n' "$nomes" | sort -u) \
+                      <(nomes_com_valor "$resolvido" | sort -u))
+  if [ -n "$faltando" ]; then
+    log "ERRO: variavel obrigatoria em producao NAO chega ao container do app:"
+    while IFS= read -r n; do [ -n "$n" ] && log "      $n"; done <<< "$faltando"
+    log "      O compose do app no servidor e copia instalada: o deploy NAO o"
+    log "      sincroniza. Acrescente a linha que repassa cada nome acima (com"
+    log "      :? ou valor literal) e rode de novo. Nada foi migrado nem trocado."
+    return 1
+  fi
+  log "preflight ok: as $(printf '%s\n' "$nomes" | grep -c .) obrigatorias chegam ao container"
+  return 0
+}
+
+if ! confere_obrigatorias; then
+  registra obrigatoria_ausente "$(decorrido)"
+  exit 1
+fi
 
 # 3/5 ANTES do up: migration quebrada não pode conviver com app novo.
 log "3/5 migrations"
