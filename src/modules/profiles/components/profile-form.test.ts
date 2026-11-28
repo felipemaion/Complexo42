@@ -41,9 +41,7 @@ function mount(action: (previous: ProfileFormState, data: FormData) => Promise<P
 /** Uma action que só responde quando o teste manda, como uma rede lenta. */
 function slowAction() {
   let answer: (state: ProfileFormState) => void = () => undefined;
-  const action = vi.fn(
-    (_previous: ProfileFormState, _data: FormData) => new Promise<ProfileFormState>((resolve) => (answer = resolve)),
-  );
+  const action = vi.fn(() => new Promise<ProfileFormState>((resolve) => (answer = resolve)));
   return { action, answer: (state: ProfileFormState) => act(async () => answer(state)) };
 }
 
