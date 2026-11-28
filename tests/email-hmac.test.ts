@@ -11,7 +11,7 @@ const field = randomBytes(32);
 const env = { PATH: process.env.PATH ?? "", BLIND_INDEX_KEY: blind.toString("base64") };
 
 function run(stdin: string, extra: Record<string, string> = {}, base: Record<string, string> = env) {
-  return spawnSync("node", ["deploy/email-hmac.mjs"], { input: stdin, encoding: "utf8", env: { ...base, ...extra } });
+  return spawnSync("node", ["deploy/email-hmac.mjs"], { input: stdin, encoding: "utf8", env: { ...base, ...extra } as NodeJS.ProcessEnv });
 }
 
 describe("deploy/email-hmac.mjs", () => {

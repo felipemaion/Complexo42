@@ -4,7 +4,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(42);
+select plan(40);
 
 create function pg_temp.h(p_tag text) returns text language sql as $$
   select encode(sha256(convert_to(p_tag, 'UTF8')), 'hex')

@@ -90,6 +90,36 @@ docker compose -f docker-compose.supabase.yml --env-file <segredos> \
   -c "update public.houses set active = false where key = '<id-da-casa>'"
 ```
 
+## Primeira coordenação (banco novo, #295)
+
+Num banco novo ninguém pode autorizar ninguém: a lista e o papel de gestor da raiz só mudam pela
+mão de um gestor da raiz. Quem abre esse ciclo é o **operador**, com `deploy/bootstrap-coordenacao.sh`
+(função `app.bootstrap_root_manager`, sem grant para a API). Ele **não é instalado**: roda do arquivo
+que veio na imagem do app (mesma versão do app e do `email-hmac.mjs`, que calcula o HMAC com a
+`BLIND_INDEX_KEY` do próprio app; a chave não sai dele).
+
+```bash
+# 1. a cópia do script, vinda da imagem em uso (fora do repositório, sem checkout no servidor)
+docker cp <container-do-app>:/app/deploy/bootstrap-coordenacao.sh /tmp/bootstrap-coordenacao.sh
+# 2. o e-mail entra por stdin (Enter para enviar); nunca por argumento
+APP_CONTAINER=<container-do-app> DB_CONTAINER=<container-do-banco> \
+  bash /tmp/bootstrap-coordenacao.sh
+rm /tmp/bootstrap-coordenacao.sh
+```
+
+- A pessoa **ainda não entrou**: o e-mail vai para a lista e o comando diz para ela entrar; depois de
+  ela entrar uma vez (login e perfil), rode **de novo**. Quem já estava na espera (`waitlisted`) é
+  liberado na hora, como na importação, e ganha o papel.
+- É **idempotente** (repetir não duplica lista, papel nem auditoria) e **recusa** se a raiz já tem gestor
+  ativo. Para acrescentar outro: `--adicionar-outro` (acrescenta, nunca substitui).
+- O papel nasce com `granted_by` nulo e só **vale** depois de termo, perfil completo e casa aceita
+  (`app.is_active_member`): a pessoa segue pelo termo, questionário e casa no próximo acesso.
+- **Conferência** (no container do banco; nada de e-mail aparece):
+  `select role, revoked_at, granted_by from public.role_assignments where role = 'manager'`
+  deve trazer uma linha com `revoked_at` e `granted_by` nulos, e `select event, reason from public.audit_log
+  where event in ('allowlist_imported','role_granted') order by id desc limit 5` mostra o rastro.
+- Saídas: `0` ok, `1` falha (nada concedido), `2` uso errado, `3` perfil bloqueado ou suspenso.
+
 ## Questionário das casas (ADR 0014)
 
 O app pontua o questionário e assina o resultado; o banco só aceita resultado assinado. A chave
