@@ -24,11 +24,11 @@ insert into declared values
   ('contact_visibility', '', 'S'),
   ('districts', '', 'S'),
   ('house_analysis_requests', '', 'S'),
-  ('house_members', '', 'S'),
+  ('house_members', '', 'Su'),
   ('house_transfer_window', '', 's'),
   ('houses', '', 'S'),
   ('municipalities', '', 'S'),
-  ('profile_background', '', 'S'),
+  ('profile_background', '', 'Siu'),
   ('profile_contacts', '', 'S'),
   ('profile_photos', '', 'SD'),
   ('profile_skills', '', 'S'),
@@ -36,12 +36,12 @@ insert into declared values
   ('questionnaire_consents', '', 'S'),
   ('questionnaire_data_grants', '', 'S'),
   ('questionnaire_results', '', 's'),
-  ('role_assignments', '', 'S'),
+  ('role_assignments', '', 'Siu'),
   ('skill_suggestions', '', 'S'),
   ('skills', '', 'S'),
-  ('unit_members', '', 'S'),
+  ('unit_members', '', 'Su'),
   ('unit_types', '', 'S'),
-  ('units', '', 'S');
+  ('units', '', 'Su');
 
 create function pg_temp.ops(p_role text, p_oid oid) returns text language sql stable as $$
   select coalesce(string_agg(
