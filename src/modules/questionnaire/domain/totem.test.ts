@@ -8,7 +8,7 @@ const config = parseQuestionnaire(example, instance.houses.map((house) => house.
 
 describe("totemCodes", () => {
   it("são as quatro combinações das letras dos polos do eixo 3 e do eixo 4, na ordem aa, ab, ba, bb", () => {
-    expect(totemCodes(config)).toEqual(["XV", "XW", "YV", "YW"]);
+    expect(totemCodes(config)).toEqual(["PR", "PA", "AR", "AA"]);
   });
 });
 
@@ -48,7 +48,7 @@ describe("totemLabels no esquema", () => {
 
   it("exige exatamente os quatro códigos: falta um", () => {
     const raw = clone();
-    delete raw.totemLabels.XV;
+    delete raw.totemLabels.PR;
     expect(fields(raw)).toEqual(["totemLabels"]);
   });
 
@@ -60,11 +60,11 @@ describe("totemLabels no esquema", () => {
 
   it("nome e descrição não podem ser vazios", () => {
     const raw = clone();
-    raw.totemLabels.XW!.name = "  ";
-    expect(fields(raw)).toEqual(["totemLabels.XW.name"]);
+    raw.totemLabels.PA!.name = "  ";
+    expect(fields(raw)).toEqual(["totemLabels.PA.name"]);
     const raw2 = clone();
-    raw2.totemLabels.YV!.description = "";
-    expect(fields(raw2)).toEqual(["totemLabels.YV.description"]);
+    raw2.totemLabels.AR!.description = "";
+    expect(fields(raw2)).toEqual(["totemLabels.AR.description"]);
   });
 
   it("o mapa é obrigatório", () => {
@@ -76,7 +76,7 @@ describe("totemLabels no esquema", () => {
 
 describe("totemName", () => {
   it("só o nome (alt da medalha); código sem nome vira o código; sem totem, vazio", () => {
-    expect(totemName(config, "XV")).toBe("Totem Um");
+    expect(totemName(config, "PR")).toBe("Totem Um");
     expect(totemName(config, "ZZ")).toBe("ZZ");
     expect(totemName(config, null)).toBe("");
     expect(totemName(config, "")).toBe("");

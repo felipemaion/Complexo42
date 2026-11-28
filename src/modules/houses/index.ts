@@ -13,3 +13,4 @@ export { canSeeResults, choseOtherHouse, listCases, listDelegationCandidates, li
 export { changeHouse, grantQuestionnaireAccess, setTransferWindow, resolveAnalysis, revokeQuestionnaireAccess } from "./server/coordination";
 export type { CaseRow, CandidateRow, DelegationRow, ResultRow } from "./server/coordination-views";
 export { readOwnHouseCard, type OwnHouseCard } from "./server/own-house";
+export { readMemberTotems } from "./server/member-totems";
